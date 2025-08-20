@@ -1,16 +1,20 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { checkAuthStatus, initiateOAuth } from "../utils/auth";
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check if user is already authenticated
     const checkAuth = async () => {
       const user = await checkAuthStatus();
       if (user) {
-        window.location.href = "/dashboard";
+        navigate("/dashboard");
+        setUser(user);
       }
     };
 
@@ -23,6 +27,8 @@ export default function Login() {
       setError("Authentication failed. Please try again.");
     }
   }, []);
+
+  console.log(user);
 
   const handleGoogleLogin = () => {
     setIsLoading(true);

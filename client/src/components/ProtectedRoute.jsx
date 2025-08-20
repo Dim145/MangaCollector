@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { checkAuthStatus } from "../utils/auth";
-
+import { useNavigate } from "react-router-dom";
 export default function ProtectedRoute({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const verifyAuth = async () => {
@@ -11,7 +12,7 @@ export default function ProtectedRoute({ children }) {
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
-        window.location.href = "/log-in";
+        navigate("/log-in")
       }
     };
 
