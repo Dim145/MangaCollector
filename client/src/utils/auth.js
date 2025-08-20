@@ -19,7 +19,7 @@ export const logout = async () => {
     const response = await axios.post("/auth/logout");
 
     if (response.status == 200) {
-      navigate("/log-in")
+      navigate("/log-in");
       return true;
     }
     return false;

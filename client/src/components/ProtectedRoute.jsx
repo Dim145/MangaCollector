@@ -12,7 +12,7 @@ export default function ProtectedRoute({ children }) {
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
-        navigate("/log-in")
+        navigate("/log-in");
       }
     };
 
