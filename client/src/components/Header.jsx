@@ -69,10 +69,10 @@ export default function Header() {
           <ul className="flex flex-col px-6 py-4 space-y-3">
             <li>
               <a
-                href="#"
+                href="/log-in"
                 className="block text-white hover:text-gray-300 transition-colors no-underline"
               >
-                Home
+                Profile
               </a>
             </li>
           </ul>
