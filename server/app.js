@@ -3,10 +3,13 @@ const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
 const passport = require("./config/passport");
+const pgSession = require("connect-pg-simple");
+const pool = require("./db/pool.js");
+
 require("dotenv").config();
 
 const app = express();
-
+const PgSession = pgSession(session);
 // Routers
 const authRouter = require("./routes/authRouter");
 
@@ -20,6 +23,11 @@ app.use(
 
 app.use(
   session({
+    store: new PgSession({
+      pool, // re-use your existing pg pool
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,

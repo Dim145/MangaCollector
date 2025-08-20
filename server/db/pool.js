@@ -9,4 +9,22 @@ const pool = new Pool({
   port: process.env.PGPORT,
 });
 
-export default pool;
+module.exports = pool;
+
+/*
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    google_id VARCHAR(255) UNIQUE,
+    email VARCHAR(255) UNIQUE,
+    name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE "session" (
+  sid VARCHAR NOT NULL PRIMARY KEY,
+  sess JSON NOT NULL,
+  expire TIMESTAMP(6) NOT NULL
+);
+
+*/
