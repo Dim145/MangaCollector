@@ -3,7 +3,7 @@ import axios from "./axios";
 // Check if user is authenticated
 export const checkAuthStatus = async () => {
   try {
-    const response = await axios.get("/api/user");
+    const response = await axios.get("/auth/user");
     return response.status == 200 ? response.data : null;
   } catch (error) {
     console.error("Auth check failed:", error);

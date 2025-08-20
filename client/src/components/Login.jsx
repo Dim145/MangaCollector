@@ -32,7 +32,6 @@ export default function Login() {
 
   return (
     <div className="bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800 min-h-screen flex items-center justify-center p-4">
-
       <div className="relative bg-gray-800/90 backdrop-blur-xl border border-gray-700/50 rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
