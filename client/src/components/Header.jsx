@@ -7,7 +7,7 @@ export default function Header() {
     <nav className="bg-gray-900 border-b border-gray-800">
       <div className="flex items justify-between px-6 py-4 mx-auto ">
         {/* Brand */}
-        <a href="#" className="text-xl font-bold text-white no-underline">
+        <a href="/" className="text-xl font-bold text-white no-underline">
           <div className="flex gap-4">
             <img src={Logo} className="max-w-8"></img>
             MangaCollector
@@ -54,26 +54,10 @@ export default function Header() {
         <ul className="hidden md:flex items-center gap-8 text-base">
           <li>
             <a
-              href="#"
+              href="/log-in"
               className="text-white hover:text-gray-300 transition-colors no-underline"
             >
-              Home
-            </a>
-          </li>
-          <li>
-            <a
-              href="#"
-              className="text-white hover:text-gray-300 transition-colors no-underline"
-            >
-              Services
-            </a>
-          </li>
-          <li>
-            <a
-              href="#"
-              className="text-white hover:text-gray-300 transition-colors no-underline"
-            >
-              Contact us
+              Login
             </a>
           </li>
         </ul>
@@ -89,22 +73,6 @@ export default function Header() {
                 className="block text-white hover:text-gray-300 transition-colors no-underline"
               >
                 Home
-              </a>
-            </li>
-            <li>
-              <a
-                href="#"
-                className="block text-white hover:text-gray-300 transition-colors no-underline"
-              >
-                Services
-              </a>
-            </li>
-            <li>
-              <a
-                href="#"
-                className="block text-white hover:text-gray-300 transition-colors no-underline"
-              >
-                Contact us
               </a>
             </li>
           </ul>
