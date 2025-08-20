@@ -32,7 +32,6 @@ export default function Login() {
 
   return (
     <div className="bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800 min-h-screen flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.1),transparent)]"></div>
 
       <div className="relative bg-gray-800/90 backdrop-blur-xl border border-gray-700/50 rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">

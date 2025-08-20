@@ -11,7 +11,7 @@ export default function ProtectedRoute({ children }) {
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
-        window.location.href = "/login";
+        window.location.href = "/log-in";
       }
     };
 
