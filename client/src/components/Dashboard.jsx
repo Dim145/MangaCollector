@@ -1,5 +1,5 @@
-"use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { addToUserLibrary } from "../utils/user";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
@@ -10,19 +10,31 @@ export default function Dashboard() {
     if (!query.trim()) return;
     try {
       const res = await fetch(
-        `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(query)}&limit=10`
+        `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(query)}&limit=10`,
       );
       const data = await res.json();
       setResults(data.data || []);
-      console.log(data.data)
+      console.log(data.data);
     } catch (err) {
       console.error("Search error:", err);
     }
   };
 
-  const addToStorage = (manga) => {
-    if (storage.some((m) => m.mal_id === manga.mal_id)) return;
-    setStorage([...storage, manga]);
+  const addToStorage = async (manga) => {
+    // ADD SOMETHING TO PREVENT DUPES (check locally if the loaded ones contain it)
+    const mangaData = {
+      name: manga.title,
+      volumes: manga.volumes == null ? 0 : manga.volumes,
+      volumes_owned: 0,
+      image_url_jpg: manga.images.jpg.image_url,
+    };
+
+
+    try {
+      await addToUserLibrary(mangaData);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const clearResults = () => {
@@ -33,7 +45,6 @@ export default function Dashboard() {
   return (
     <div className="bg-gradient-to-b from-black via-gray-900 to-black min-h-screen text-white p-8">
       <div className="max-w-5xl mx-auto space-y-12">
-        
         {/* Header */}
         <h1 className="text-3xl font-extrabold text-center bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent tracking-wide">
           Manga Dashboard
@@ -82,7 +93,7 @@ export default function Dashboard() {
                   <div className="flex-1">
                     <p className="font-semibold">{manga.title}</p>
                     <p className="text-xs text-gray-400">
-                      Volumes: {manga.volumes ?? "?"} | Chapters: {manga.chapters ?? "?"}
+                      Volumes: {manga.volumes ?? "?"}
                     </p>
                   </div>
                   <button
@@ -113,13 +124,12 @@ export default function Dashboard() {
                   alt={manga.title}
                   className="rounded-lg mb-3 shadow-md"
                 />
-              <div>
-
-                <h3 className="font-semibold">{manga.title}</h3>
-                <p className="text-xs text-gray-400">
-                  Volumes: {manga.volumes ?? "?"}
-                </p>
-              </div>
+                <div>
+                  <h3 className="font-semibold">{manga.title}</h3>
+                  <p className="text-xs text-gray-400">
+                    Volumes: {manga.volumes ?? "?"}
+                  </p>
+                </div>
               </div>
             ))}
           </div>

@@ -8,4 +8,12 @@ async function getUserLibrary(user_id) {
   }
 }
 
-module.exports = { getUserLibrary };
+async function addToUserLibrary(user_id, mangaData) {
+  try {
+    await userQueries.addToUserLibrary(user_id, mangaData);
+  } catch (err) {
+    throw err;
+  }
+}
+
+module.exports = { getUserLibrary, addToUserLibrary };

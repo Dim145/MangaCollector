@@ -8,4 +8,13 @@ async function getUserLibrary(user_id) {
   return result.rows;
 }
 
-module.exports = { getUserLibrary };
+async function addToUserLibrary(user_id, mangaData) {
+  const { name, volumes, volumes_owned, image_url_jpg } = mangaData;
+  await db.query(
+    `INSERT INTO user_libraries (user_id, name, volumes, volumes_owned, image_url_jpg) 
+        VALUES ($1, $2, $3, $4, $5)`,
+    [user_id, name, volumes, volumes_owned, image_url_jpg],
+  );
+}
+
+module.exports = { getUserLibrary, addToUserLibrary };
