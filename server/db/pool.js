@@ -24,6 +24,7 @@ CREATE TABLE users (
 CREATE TABLE user_libraries (
   id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id INT,
+  mal_id INT,
   name TEXT,
   volumes INT,
   volumes_owned INT,

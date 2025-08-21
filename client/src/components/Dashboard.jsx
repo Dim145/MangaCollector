@@ -37,10 +37,12 @@ export default function Dashboard() {
     // ADD SOMETHING TO PREVENT DUPES (check locally if the loaded ones contain it)
     const mangaData = {
       name: manga.title,
+      mal_id: manga.mal_id,
       volumes: manga.volumes == null ? 0 : manga.volumes,
       volumes_owned: 0,
       image_url_jpg: manga.images.jpg.image_url,
     };
+
 
     try {
       await addToUserLibrary(mangaData);
@@ -129,7 +131,7 @@ export default function Dashboard() {
           <div className="grid sm:grid-cols-3 md:grid-cols-4 gap-6">
             {library.map((manga) => (
               <div
-                key={manga.mal_id || 1}
+                key={manga.mal_id}
                 className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 rounded-2xl p-4 flex flex-col shadow-lg backdrop-blur-sm hover:scale-105 transform transition justify-between"
               >
                 <img
