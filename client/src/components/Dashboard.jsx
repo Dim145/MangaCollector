@@ -1,10 +1,23 @@
 import { useState, useEffect } from "react";
-import { addToUserLibrary } from "../utils/user";
+import { getUserLibrary, addToUserLibrary } from "../utils/user";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
-  const [storage, setStorage] = useState([]);
+  const [library, setLibrary] = useState([]);
+
+  useEffect(() => {
+    async function loadLibrary() {
+      try {
+        const userLibrary = await getUserLibrary();
+        setLibrary(userLibrary)
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadLibrary()
+  }, [])
 
   const searchManga = async () => {
     if (!query.trim()) return;
@@ -20,7 +33,7 @@ export default function Dashboard() {
     }
   };
 
-  const addToStorage = async (manga) => {
+  const addToLibrary = async (manga) => {
     // ADD SOMETHING TO PREVENT DUPES (check locally if the loaded ones contain it)
     const mangaData = {
       name: manga.title,
@@ -29,9 +42,9 @@ export default function Dashboard() {
       image_url_jpg: manga.images.jpg.image_url,
     };
 
-
     try {
       await addToUserLibrary(mangaData);
+      setLibrary((prev) => [...prev, mangaData]); // 👈 update UI immediately
     } catch (error) {
       console.error(error);
     }
@@ -97,7 +110,7 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <button
-                    onClick={() => addToStorage(manga)}
+                    onClick={() => addToLibrary(manga)}
                     className="px-3 py-1 bg-gradient-to-r from-green-400 to-green-600 hover:scale-105 transform transition rounded-lg text-black text-xs font-semibold"
                   >
                     ➕ Add
@@ -114,20 +127,23 @@ export default function Dashboard() {
             My Library
           </h2>
           <div className="grid sm:grid-cols-3 md:grid-cols-4 gap-6">
-            {storage.map((manga) => (
+            {library.map((manga) => (
               <div
-                key={manga.mal_id}
+                key={manga.mal_id || 1}
                 className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 rounded-2xl p-4 flex flex-col shadow-lg backdrop-blur-sm hover:scale-105 transform transition justify-between"
               >
                 <img
-                  src={manga.images.jpg.image_url}
-                  alt={manga.title}
+                  src={manga.image_url_jpg}
+                  alt={manga.name}
                   className="rounded-lg mb-3 shadow-md"
                 />
                 <div>
                   <h3 className="font-semibold">{manga.title}</h3>
                   <p className="text-xs text-gray-400">
-                    Volumes: {manga.volumes ?? "?"}
+                    Volumes: {manga.volumes ?? "?"} 
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Volumes owned: {manga.volumes_owned}
                   </p>
                 </div>
               </div>

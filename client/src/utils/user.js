@@ -5,8 +5,16 @@ async function addToUserLibrary(mangaData) {
   try {
     await axios.post(`/api/user/library`, mangaData);
   } catch (error) {
-    console.error(error);
+    throw error
   }
 }
 
-export { addToUserLibrary };
+async function getUserLibrary() {
+    try {
+        const response = await axios.get(`/api/user/library`)
+        return response.data
+    } catch (error) {
+        throw error
+    }
+}
+export { addToUserLibrary, getUserLibrary };
