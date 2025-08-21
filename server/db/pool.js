@@ -14,7 +14,7 @@ module.exports = pool;
 /*
 
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
+    id INT GENERATED ALWAYS AS IDENTITY,
     google_id VARCHAR(255) UNIQUE,
     email VARCHAR(255) UNIQUE,
     name VARCHAR(255),
