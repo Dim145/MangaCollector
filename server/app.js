@@ -12,6 +12,7 @@ const app = express();
 const PgSession = pgSession(session);
 // Routers
 const authRouter = require("./routes/authRouter");
+const apiRouter = require("./routes/apiRouter");
 
 // Session configuration
 app.use(
@@ -42,6 +43,7 @@ app.use(passport.session());
 
 // Routes
 app.use("/auth", authRouter);
+app.use("/api", apiRouter);
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {

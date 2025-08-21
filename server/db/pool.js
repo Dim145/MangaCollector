@@ -14,11 +14,21 @@ module.exports = pool;
 /*
 
 CREATE TABLE users (
-    id INT GENERATED ALWAYS AS IDENTITY,
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     google_id VARCHAR(255) UNIQUE,
     email VARCHAR(255) UNIQUE,
     name VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE user_libraries (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id INT,
+  name TEXT,
+  volumes INT,
+  volumes_owned INT,
+  image_url_jpg TEXT,
+  FOREIGN KEY (user_id) REFERENCES users (id)
 );
 
 CREATE TABLE "session" (

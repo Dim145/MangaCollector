@@ -14,6 +14,7 @@ export default function Dashboard() {
       );
       const data = await res.json();
       setResults(data.data || []);
+      console.log(data.data)
     } catch (err) {
       console.error("Search error:", err);
     }
@@ -99,23 +100,26 @@ export default function Dashboard() {
         {/* Storage Section */}
         <div>
           <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-            My Storage
+            My Library
           </h2>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-3 md:grid-cols-4 gap-6">
             {storage.map((manga) => (
               <div
                 key={manga.mal_id}
-                className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 rounded-2xl p-4 flex flex-col shadow-lg backdrop-blur-sm hover:scale-105 transform transition"
+                className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 rounded-2xl p-4 flex flex-col shadow-lg backdrop-blur-sm hover:scale-105 transform transition justify-between"
               >
                 <img
                   src={manga.images.jpg.image_url}
                   alt={manga.title}
                   className="rounded-lg mb-3 shadow-md"
                 />
+              <div>
+
                 <h3 className="font-semibold">{manga.title}</h3>
                 <p className="text-xs text-gray-400">
-                  Volumes: {manga.volumes ?? "?"} | Chapters: {manga.chapters ?? "?"}
+                  Volumes: {manga.volumes ?? "?"}
                 </p>
+              </div>
               </div>
             ))}
           </div>

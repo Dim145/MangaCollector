@@ -8,8 +8,7 @@ authRouter.get(
 );
 authRouter.get(
   "/oauth2/callback",
-  passport.authenticate("google", { failureRedirect: "/login", 
-   }),
+  passport.authenticate("google", { failureRedirect: "/login" }),
   (req, res) => {
     // Successful authentication
     res.redirect("http://localhost:5173/dashboard");
