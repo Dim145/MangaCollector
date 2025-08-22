@@ -1,5 +1,4 @@
 import axios from "./axios";
-import { useNavigate } from "react-router-dom";
 
 // Check if user is authenticated
 export const checkAuthStatus = async () => {
@@ -12,20 +11,11 @@ export const checkAuthStatus = async () => {
   }
 };
 
-// Logout user
 export const logout = async () => {
   try {
-    const navigate = useNavigate();
-    const response = await axios.post("/auth/logout");
-
-    if (response.status == 200) {
-      navigate("/log-in");
-      return true;
-    }
-    return false;
+    const response = await axios.post("/auth/oauth2/logout");
   } catch (error) {
-    console.error("Logout failed:", error);
-    return false;
+    throw error
   }
 };
 

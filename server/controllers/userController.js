@@ -2,7 +2,7 @@ const userModel = require("../models/userModel");
 
 async function getUserLibrary(req, res) {
   try {
-    const user_id = req.user.id
+    const user_id = req.user.id;
     const response = await userModel.getUserLibrary(user_id);
     return res.json(response);
   } catch (err) {
@@ -15,7 +15,7 @@ async function getUserLibrary(req, res) {
 
 async function addToUserLibrary(req, res) {
   try {
-    const user_id = req.user.id
+    const user_id = req.user.id;
     const mangaData = req.body;
     console.log(mangaData);
     await userModel.addToUserLibrary(user_id, mangaData);

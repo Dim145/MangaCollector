@@ -23,7 +23,7 @@ app.use(
 );
 
 // JSON parsing
-app.use(express.json())
+app.use(express.json());
 
 app.use(
   session({
