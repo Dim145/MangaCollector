@@ -6,6 +6,7 @@ export default function Dashboard() {
   const [results, setResults] = useState([]);
   const [library, setLibrary] = useState([]);
 
+
   useEffect(() => {
     async function loadLibrary() {
       try {
@@ -34,7 +35,7 @@ export default function Dashboard() {
   };
 
   const addToLibrary = async (manga) => {
-    // ADD SOMETHING TO PREVENT DUPES (check locally if the loaded ones contain it)
+  
     const mangaData = {
       name: manga.title,
       mal_id: manga.mal_id,
@@ -42,6 +43,11 @@ export default function Dashboard() {
       volumes_owned: 0,
       image_url_jpg: manga.images.jpg.image_url,
     };
+    
+    if (library.some((m) => m.mal_id === mangaData.mal_id)) {
+      console.log("Already in library");
+      return;
+    }
 
     try {
       await addToUserLibrary(mangaData);
