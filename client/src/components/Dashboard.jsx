@@ -10,14 +10,14 @@ export default function Dashboard() {
     async function loadLibrary() {
       try {
         const userLibrary = await getUserLibrary();
-        setLibrary(userLibrary)
+        setLibrary(userLibrary);
       } catch (err) {
         console.error(err);
       }
     }
 
-    loadLibrary()
-  }, [])
+    loadLibrary();
+  }, []);
 
   const searchManga = async () => {
     if (!query.trim()) return;
@@ -42,7 +42,6 @@ export default function Dashboard() {
       volumes_owned: 0,
       image_url_jpg: manga.images.jpg.image_url,
     };
-
 
     try {
       await addToUserLibrary(mangaData);
@@ -142,7 +141,7 @@ export default function Dashboard() {
                 <div>
                   <h3 className="font-semibold">{manga.title}</h3>
                   <p className="text-xs text-gray-400">
-                    Volumes: {manga.volumes ?? "?"} 
+                    Volumes: {manga.volumes ?? "?"}
                   </p>
                   <p className="text-xs text-gray-400">
                     Volumes owned: {manga.volumes_owned}

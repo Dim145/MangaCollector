@@ -15,7 +15,7 @@ export const logout = async () => {
   try {
     const response = await axios.post("/auth/oauth2/logout");
   } catch (error) {
-    throw error
+    throw error;
   }
 };
 

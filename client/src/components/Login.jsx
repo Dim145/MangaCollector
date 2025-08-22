@@ -28,8 +28,6 @@ export default function Login() {
     }
   }, []);
 
-  console.log(user);
-
   const handleGoogleLogin = () => {
     setIsLoading(true);
     setError("");

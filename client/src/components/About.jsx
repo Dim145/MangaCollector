@@ -1,5 +1,5 @@
 export default function About() {
   return (
-    <div className="bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800 min-h-screen flex items-center justify-center p-4"></div>
+    <div className="bg-gradient-to-b from-black via-gray-900 to-black min-h-screen text-white p-8"></div>
   );
 }

@@ -1,5 +1,8 @@
 import { useState } from "react";
 import Logo from "../assets/logo.svg";
+
+import ProfileButton from "./ProfileButton";
+
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -51,14 +54,9 @@ export default function Header() {
         </button>
 
         {/* Desktop Nav */}
-        <ul className="hidden md:flex items-center gap-8 text-base">
+        <ul className="hidden md:flex items-center gap-4 text-base">
           <li>
-            <a
-              href="/log-in"
-              className="text-white hover:text-gray-300 transition-colors no-underline"
-            >
-              Login
-            </a>
+            <ProfileButton />
           </li>
         </ul>
       </div>

@@ -5,6 +5,7 @@ import Dashboard from "./components/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Header from "./components/Header";
 import About from "./components/About";
+import ProfilePage from "./components/ProfilePage";
 
 export default function App() {
   return (
@@ -18,6 +19,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
             </ProtectedRoute>
           }
         />
