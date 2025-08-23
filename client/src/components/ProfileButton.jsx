@@ -56,7 +56,7 @@ export default function ProfileButton() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-4 w-48 rounded-lg bg-gray-900 border border-gray-700 shadow-lg overflow-hidden z-50">
+        <div className="absolute right-0 mt-4 w-40 rounded-lg bg-gray-900 border border-gray-700 shadow-lg overflow-hidden z-50">
           <ul className="flex flex-col py-2">
             {isAuthenticated ? (
               <>
