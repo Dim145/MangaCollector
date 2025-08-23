@@ -13,6 +13,20 @@ async function getUserLibrary(req, res) {
   }
 }
 
+async function getUserManga(req, res) {
+  try {
+    const user_id = req.user.id;
+    const mal_id = req.params.mal_id;
+    const response = await userModel.getUserManga(mal_id, user_id);
+    return res.json(response);
+  } catch (err) {
+    return res.json({
+      success: false,
+      error: err.message || "Error fetching user's library",
+    });
+  }
+}
+
 async function addToUserLibrary(req, res) {
   try {
     const user_id = req.user.id;
@@ -46,29 +60,30 @@ async function deleteMangaFromUserLibraryByID(req, res) {
 }
 
 async function updateMangaByID(req, res) {
-    try {
-        const mal_id = req.params.mal_id
-        const user_id = req.user.id
-        const volumes = req.body.volumes
-        console.log(mal_id)
-        console.log(user_id)
-        console.log(volumes)
-        await userModel.updateMangaByID(mal_id, user_id, volumes);
-        res.json({
-            success: true,
-            message: "Updated manga in library successfully",
-          });
-    } catch (error) {
-        res.json({
-          success: false,
-          error: error.message || "Error updating manga in library",
-        });
-    }
+  try {
+    const mal_id = req.params.mal_id;
+    const user_id = req.user.id;
+    const volumes = req.body.volumes;
+    console.log(mal_id);
+    console.log(user_id);
+    console.log(volumes);
+    await userModel.updateMangaByID(mal_id, user_id, volumes);
+    res.json({
+      success: true,
+      message: "Updated manga in library successfully",
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message || "Error updating manga in library",
+    });
+  }
 }
 
 module.exports = {
   getUserLibrary,
+  getUserManga,
   addToUserLibrary,
   deleteMangaFromUserLibraryByID,
-  updateMangaByID
+  updateMangaByID,
 };

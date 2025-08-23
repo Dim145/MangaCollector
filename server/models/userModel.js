@@ -8,6 +8,14 @@ async function getUserLibrary(user_id) {
   }
 }
 
+async function getUserManga(mal_id, user_id) {
+  try {
+    return await userQueries.getUserManga(mal_id, user_id);
+  } catch (err) {
+    throw err;
+  }
+}
+
 async function addToUserLibrary(user_id, mangaData) {
   try {
     await userQueries.addToUserLibrary(user_id, mangaData);
@@ -25,16 +33,17 @@ async function deleteMangaFromUserLibraryByID(mal_id, user_id) {
 }
 
 async function updateMangaByID(mal_id, user_id, volumes) {
-    try {
-        await userQueries.updateMangaByID(mal_id, user_id, volumes);
-    } catch (error) {
-        throw err;
-    }
+  try {
+    await userQueries.updateMangaByID(mal_id, user_id, volumes);
+  } catch (error) {
+    throw err;
+  }
 }
 
 module.exports = {
   getUserLibrary,
+  getUserManga,
   addToUserLibrary,
   deleteMangaFromUserLibraryByID,
-  updateMangaByID
+  updateMangaByID,
 };

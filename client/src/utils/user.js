@@ -18,6 +18,15 @@ async function getUserLibrary() {
   }
 }
 
+async function getUserManga(mal_id) {
+  try {
+    const response = await axios.get(`/api/user/library/${mal_id}`);
+    return response.data[0];
+  } catch (error) {
+    throw error;
+  }
+}
+
 async function deleteMangaFromUserLibraryByID(mal_id) {
   try {
     await axios.delete(`/api/user/library/${mal_id}`);
@@ -27,10 +36,16 @@ async function deleteMangaFromUserLibraryByID(mal_id) {
 }
 
 async function updateMangaByID(mal_id, volumes) {
-    try {
-        await axios.patch(`/api/user/library/${mal_id}`, {volumes})
-    } catch (error) {
-        throw error;
-    }
+  try {
+    await axios.patch(`/api/user/library/${mal_id}`, { volumes });
+  } catch (error) {
+    throw error;
+  }
 }
-export { addToUserLibrary, getUserLibrary, deleteMangaFromUserLibraryByID, updateMangaByID };
+export {
+  addToUserLibrary,
+  getUserLibrary,
+  getUserManga,
+  deleteMangaFromUserLibraryByID,
+  updateMangaByID,
+};

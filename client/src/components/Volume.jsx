@@ -1,11 +1,10 @@
 import { useState, useEffect, use } from "react";
 
-export default function Volume({ volNum}) {
+export default function Volume({ volNum }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [ownedStatus, setOwnedStatus] = useState("no");
+  const [ownedStatus, setOwnedStatus] = useState(false);
   const [price, setPrice] = useState(0);
   const [purchaseLocation, setPurchaseLocation] = useState("");
-
 
   return (
     <div className="border border-gray-700 rounded-lg p-4 flex flex-col gap-3 bg-gray-900 shadow-sm">

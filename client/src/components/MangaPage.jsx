@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { deleteMangaFromUserLibraryByID, updateMangaByID } from "../utils/user";
+import { useEffect, useState } from "react";
+import { deleteMangaFromUserLibraryByID, getUserManga, updateMangaByID } from "../utils/user";
 
 import Volume from "./Volume";
 
@@ -22,14 +22,27 @@ export default function MangaPage() {
     })),
   );
 
+  useEffect(() => {
+    async function getMangaInfo() {
+        try {
+            const response = await getUserManga(manga.mal_id);
+            setTotalVolumes(response.volumes)
+        } catch (error) {
+            console.error(error)
+        }
+    }
+
+    getMangaInfo()
+  }, []);
+
   const handleSave = async () => {
     try {
       console.log("Updated manga:");
-        await updateMangaByID(manga.mal_id, totalVolumes);
+      await updateMangaByID(manga.mal_id, totalVolumes);
     } catch (err) {
       console.error("Failed to update manga:", err);
     } finally {
-        setIsEditing(false);
+      setIsEditing(false);
     }
   };
 
