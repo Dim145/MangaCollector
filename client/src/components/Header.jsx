@@ -17,8 +17,6 @@ export default function Header() {
           </div>
         </a>
 
-        
-
         {/* Nav */}
         <ul className=" flex items-center gap-4 text-base">
           <li>
@@ -26,8 +24,6 @@ export default function Header() {
           </li>
         </ul>
       </div>
-
-     
     </nav>
   );
 }

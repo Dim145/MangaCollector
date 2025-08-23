@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 
-export default function Manga( {manga} ) {
-    const navigate = useNavigate()
+export default function Manga({ manga }) {
+  const navigate = useNavigate();
   return (
     <div
-      onClick={(e) => navigate("/mangapage", { state:  manga })}
+      onClick={(e) => navigate("/mangapage", { state: manga })}
       className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 rounded-2xl p-4 flex flex-col shadow-lg backdrop-blur-sm hover:scale-105 transform transition justify-between"
     >
       <img

@@ -1,13 +1,17 @@
 // App.jsx
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Header from "./components/Header";
 import About from "./components/About";
 import ProfilePage from "./components/ProfilePage";
+import MangaPage from "./components/MangaPage";
 
 export default function App() {
+  const location = useLocation();
+  const manga = location.state;
+
   return (
     <>
       <Header />
@@ -27,6 +31,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mangapage"
+          element={
+            <ProtectedRoute>
+              <MangaPage manga={manga} />
             </ProtectedRoute>
           }
         />
