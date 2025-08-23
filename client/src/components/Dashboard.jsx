@@ -6,7 +6,6 @@ export default function Dashboard() {
   const [results, setResults] = useState([]);
   const [library, setLibrary] = useState([]);
 
-
   useEffect(() => {
     async function loadLibrary() {
       try {
@@ -35,7 +34,6 @@ export default function Dashboard() {
   };
 
   const addToLibrary = async (manga) => {
-  
     const mangaData = {
       name: manga.title,
       mal_id: manga.mal_id,
@@ -43,7 +41,7 @@ export default function Dashboard() {
       volumes_owned: 0,
       image_url_jpg: manga.images.jpg.image_url,
     };
-    
+
     if (library.some((m) => m.mal_id === mangaData.mal_id)) {
       console.log("Already in library");
       return;
@@ -130,9 +128,13 @@ export default function Dashboard() {
 
         {/* Storage Section */}
         <div>
-          <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-            My Library
-          </h2>
+            <div>
+                <h2 className="text-2xl font-bold mb-2 text-white">
+                    My Library
+                </h2>
+                <p className="text-2xs mb-4 text-gray-300/75">Click on any manga to enter more information</p>
+            </div>
+          
           <div className="grid sm:grid-cols-3 md:grid-cols-4 gap-6">
             {library.map((manga) => (
               <div
@@ -145,7 +147,7 @@ export default function Dashboard() {
                   className="rounded-lg mb-3 shadow-md"
                 />
                 <div>
-                  <h3 className="font-semibold">{manga.title}</h3>
+                  <h3 className="font-semibold mb-1">{manga.name}</h3>
                   <p className="text-xs text-gray-400">
                     Volumes: {manga.volumes ?? "?"}
                   </p>
