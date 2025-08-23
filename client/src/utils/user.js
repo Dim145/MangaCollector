@@ -25,4 +25,12 @@ async function deleteMangaFromUserLibraryByID(mal_id) {
     throw error;
   }
 }
-export { addToUserLibrary, getUserLibrary, deleteMangaFromUserLibraryByID };
+
+async function updateMangaByID(mal_id, volumes) {
+    try {
+        await axios.patch(`/api/user/library/${mal_id}`, {volumes})
+    } catch (error) {
+        throw error;
+    }
+}
+export { addToUserLibrary, getUserLibrary, deleteMangaFromUserLibraryByID, updateMangaByID };

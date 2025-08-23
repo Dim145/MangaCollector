@@ -8,5 +8,10 @@ userRouter.delete(
   "/library/:mal_id",
   userController.deleteMangaFromUserLibraryByID,
 );
+userRouter.delete(
+    "/library/:mal_id",
+    userController.deleteMangaFromUserLibraryByID,
+  );
+userRouter.patch("/library/:mal_id", userController.updateMangaByID)
 
 module.exports = userRouter;

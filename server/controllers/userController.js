@@ -31,9 +31,7 @@ async function addToUserLibrary(req, res) {
 async function deleteMangaFromUserLibraryByID(req, res) {
   try {
     const mal_id = req.params.mal_id;
-    console.log(mal_id);
     const user_id = req.user.id;
-    console.log(user_id);
     await userModel.deleteMangaFromUserLibraryByID(mal_id, user_id);
     res.json({
       success: true,
@@ -47,8 +45,30 @@ async function deleteMangaFromUserLibraryByID(req, res) {
   }
 }
 
+async function updateMangaByID(req, res) {
+    try {
+        const mal_id = req.params.mal_id
+        const user_id = req.user.id
+        const volumes = req.body.volumes
+        console.log(mal_id)
+        console.log(user_id)
+        console.log(volumes)
+        await userModel.updateMangaByID(mal_id, user_id, volumes);
+        res.json({
+            success: true,
+            message: "Updated manga in library successfully",
+          });
+    } catch (error) {
+        res.json({
+          success: false,
+          error: error.message || "Error updating manga in library",
+        });
+    }
+}
+
 module.exports = {
   getUserLibrary,
   addToUserLibrary,
   deleteMangaFromUserLibraryByID,
+  updateMangaByID
 };

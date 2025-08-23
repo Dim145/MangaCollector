@@ -24,8 +24,17 @@ async function deleteMangaFromUserLibraryByID(mal_id, user_id) {
   }
 }
 
+async function updateMangaByID(mal_id, user_id, volumes) {
+    try {
+        await userQueries.updateMangaByID(mal_id, user_id, volumes);
+    } catch (error) {
+        throw err;
+    }
+}
+
 module.exports = {
   getUserLibrary,
   addToUserLibrary,
   deleteMangaFromUserLibraryByID,
+  updateMangaByID
 };
