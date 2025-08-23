@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { getUserLibrary, addToUserLibrary } from "../utils/user";
+import { useNavigate } from "react-router-dom";
+import Manga from "./Manga";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [library, setLibrary] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function loadLibrary() {
@@ -118,7 +121,7 @@ export default function Dashboard() {
                     onClick={() => addToLibrary(manga)}
                     className="px-3 py-1 bg-gradient-to-r from-green-400 to-green-600 hover:scale-105 transform transition rounded-lg text-black text-xs font-semibold"
                   >
-                    ➕ Add
+                    Add
                   </button>
                 </div>
               ))}
@@ -128,34 +131,16 @@ export default function Dashboard() {
 
         {/* Storage Section */}
         <div>
-            <div>
-                <h2 className="text-2xl font-bold mb-2 text-white">
-                    My Library
-                </h2>
-                <p className="text-2xs mb-4 text-gray-300/75">Click on any manga to enter more information</p>
-            </div>
-          
-          <div className="grid sm:grid-cols-3 md:grid-cols-4 gap-6">
+          <div>
+            <h2 className="text-2xl font-bold mb-2 text-white">My Library</h2>
+            <p className="text-2xs mb-4 text-gray-300/75">
+              Click on any manga to enter more information
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
             {library.map((manga) => (
-              <div
-                key={manga.mal_id}
-                className="bg-gradient-to-br from-gray-800/90 to-gray-900/90 rounded-2xl p-4 flex flex-col shadow-lg backdrop-blur-sm hover:scale-105 transform transition justify-between"
-              >
-                <img
-                  src={manga.image_url_jpg}
-                  alt={manga.name}
-                  className="rounded-lg mb-3 shadow-md"
-                />
-                <div>
-                  <h3 className="font-semibold mb-1">{manga.name}</h3>
-                  <p className="text-xs text-gray-400">
-                    Volumes: {manga.volumes ?? "?"}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    Volumes owned: {manga.volumes_owned}
-                  </p>
-                </div>
-              </div>
+              <Manga key={manga.mal_id} manga={manga}/>
             ))}
           </div>
         </div>
