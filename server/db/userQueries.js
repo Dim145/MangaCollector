@@ -17,4 +17,15 @@ async function addToUserLibrary(user_id, mangaData) {
   );
 }
 
-module.exports = { getUserLibrary, addToUserLibrary };
+async function deleteMangaFromUserLibraryByID(mal_id, user_id) {
+  await db.query(
+    `DELETE FROM user_libraries WHERE user_id = $1 AND mal_id = $2;`,
+    [user_id, mal_id],
+  );
+}
+
+module.exports = {
+  getUserLibrary,
+  addToUserLibrary,
+  deleteMangaFromUserLibraryByID,
+};

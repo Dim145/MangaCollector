@@ -17,4 +17,12 @@ async function getUserLibrary() {
     throw error;
   }
 }
-export { addToUserLibrary, getUserLibrary };
+
+async function deleteMangaFromUserLibraryByID(mal_id) {
+  try {
+    await axios.delete(`/api/user/library/${mal_id}`);
+  } catch (error) {
+    throw error;
+  }
+}
+export { addToUserLibrary, getUserLibrary, deleteMangaFromUserLibraryByID };

@@ -28,4 +28,27 @@ async function addToUserLibrary(req, res) {
   }
 }
 
-module.exports = { getUserLibrary, addToUserLibrary };
+async function deleteMangaFromUserLibraryByID(req, res) {
+  try {
+    const mal_id = req.params.mal_id;
+    console.log(mal_id);
+    const user_id = req.user.id;
+    console.log(user_id);
+    await userModel.deleteMangaFromUserLibraryByID(mal_id, user_id);
+    res.json({
+      success: true,
+      message: "Removed manga from library successfully",
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message || "Error removing manga from library",
+    });
+  }
+}
+
+module.exports = {
+  getUserLibrary,
+  addToUserLibrary,
+  deleteMangaFromUserLibraryByID,
+};
