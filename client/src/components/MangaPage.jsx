@@ -15,8 +15,8 @@ export default function MangaPage() {
 
   const [isEditing, setIsEditing] = useState(false);
 
-  const [volumesOwned, setVolumesOwned] = useState(manga.volumes_owned ?? 0);
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
+  const [volumesOwned, setVolumesOwned] = useState(manga.volumes_owned ?? 0);
   const [additonalNotes, setAdditonalNotes] = useState("");
   const [volumes, setVolumes] = useState([]);
 
@@ -24,6 +24,7 @@ export default function MangaPage() {
     async function getMangaInfo() {
       try {
         const response = await getUserManga(manga.mal_id);
+        console.log(response);
         setTotalVolumes(response.volumes);
       } catch (error) {
         console.error(error);
@@ -37,7 +38,16 @@ export default function MangaPage() {
     async function getVolumeInfo() {
       try {
         const response = await getAllVolumes(manga.mal_id);
-        setVolumes(response);
+        const sortedVolumes = response.sort((a, b) => a.vol_num - b.vol_num);
+        setVolumes(sortedVolumes);
+        
+        let counter = 0;
+        for (let vol of volumes) {
+          if (vol.owned) {
+            counter += 1;
+          }
+        }
+        setVolumesOwned(counter);
       } catch (error) {
         console.error(error);
       }
@@ -46,7 +56,7 @@ export default function MangaPage() {
     if (totalVolumes > 0) {
       getVolumeInfo();
     }
-  }, [isEditing]);
+  }, [isEditing, volumes]);
 
   const handleSave = async () => {
     try {
@@ -103,13 +113,9 @@ export default function MangaPage() {
               <input
                 type="number"
                 value={volumesOwned}
-                disabled={!isEditing}
+                disabled={true}
                 onChange={(e) => setVolumesOwned(Number(e.target.value))}
-                className={`w-full px-3 py-2 rounded-lg border focus:outline-none ${
-                  isEditing
-                    ? "bg-gray-800 border-gray-700"
-                    : "bg-gray-900 border-gray-800 text-gray-400 cursor-not-allowed"
-                }`}
+                className={`w-full px-3 py-2 rounded-lg border focus:outline-none bg-gray-900 border-gray-800 text-gray-400 cursor-not-allowed`}
               />
             </div>
 
@@ -184,8 +190,9 @@ export default function MangaPage() {
           {volumes.map((vol) => (
             <Volume
               key={vol.id}
-              owned={vol.owned}
+              id={vol.id}
               volNum={vol.vol_num}
+              owned={vol.owned}
               paid={vol.price}
               store={vol.store}
             />
