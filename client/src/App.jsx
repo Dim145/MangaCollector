@@ -7,6 +7,7 @@ import Header from "./components/Header";
 import About from "./components/About";
 import ProfilePage from "./components/ProfilePage";
 import MangaPage from "./components/MangaPage";
+import Wishlist from "./components/Wishlist";
 
 export default function App() {
   const location = useLocation();
@@ -23,6 +24,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wishlist"
+          element={
+            <ProtectedRoute>
+              <Wishlist />
             </ProtectedRoute>
           }
         />
