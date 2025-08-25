@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { deleteMangaFromUserLibraryByID, getUserManga, updateMangaByID } from "../utils/user";
 
 import Volume from "./Volume";
+import { getAllVolumes } from "../utils/volume";
 
 export default function MangaPage() {
   const navigate = useNavigate();
@@ -25,7 +26,18 @@ export default function MangaPage() {
         }
     }
 
+    async function getVolumeInfo() {
+      try {
+        const response = await getAllVolumes(manga.mal_id)
+        
+        console.log(response)
+      } catch (error) {
+        console.error(error)
+      }
+    }
+
     getMangaInfo()
+    getVolumeInfo()
   }, []);
 
   const handleSave = async () => {
