@@ -1,10 +1,19 @@
 import { useState, useEffect } from "react";
+import { updateVolumeByID } from "../utils/volume";
 
-export default function Volume({ owned, volNum, paid, store }) {
+export default function Volume({ id, owned, volNum, paid, store }) {
   const [isEditing, setIsEditing] = useState(false);
   const [ownedStatus, setOwnedStatus] = useState(owned);
   const [price, setPrice] = useState(paid);
   const [purchaseLocation, setPurchaseLocation] = useState(store);
+
+  async function updateVolume() {
+    try {
+      await updateVolumeByID(id, ownedStatus, price, purchaseLocation);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   return (
     <div className="border border-gray-700 rounded-lg p-4 flex flex-col gap-3 bg-gray-900 shadow-sm">
@@ -13,7 +22,10 @@ export default function Volume({ owned, volNum, paid, store }) {
         {isEditing ? (
           <div className="flex gap-3">
             <button
-              onClick={(e) => setIsEditing(false)}
+              onClick={(e) => {
+                setIsEditing(false);
+                updateVolume();
+              }}
               className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-black font-semibold transition"
             >
               Save
