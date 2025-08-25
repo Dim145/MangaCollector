@@ -13,14 +13,7 @@ export default function MangaPage() {
   const [volumesOwned, setVolumesOwned] = useState(manga.volumes_owned ?? 0);
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
   const [additonalNotes, setAdditonalNotes] = useState("");
-  const [volumes, setVolumes] = useState(
-    Array.from({ length: totalVolumes }, (_, i) => ({
-      volNum: i + 1,
-      owned: false,
-      price: "",
-      store: "",
-    })),
-  );
+  const [volumes, setVolumes] = useState([]);
 
   useEffect(() => {
     async function getMangaInfo() {

@@ -32,6 +32,17 @@ CREATE TABLE user_libraries (
   FOREIGN KEY (user_id) REFERENCES users (id)
 );
 
+CREATE TABLE user_volumes (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id INT,
+  mal_id INT,
+  vol_num INT,
+  owned BOOLEAN,
+  price NUMERIC(12, 2),
+  store TEXT,
+  FOREIGN KEY (user_id) REFERENCES users (id)
+);
+
 CREATE TABLE "session" (
   sid VARCHAR NOT NULL PRIMARY KEY,
   sess JSON NOT NULL,
