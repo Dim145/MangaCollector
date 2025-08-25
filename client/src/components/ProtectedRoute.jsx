@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { checkAuthStatus } from "../utils/auth";
 import { useNavigate } from "react-router-dom";
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, setGoogleUser }) {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const navigate = useNavigate();
 
@@ -10,6 +10,7 @@ export default function ProtectedRoute({ children }) {
       const user = await checkAuthStatus();
       if (user) {
         setIsAuthenticated(true);
+        setGoogleUser(user)
       } else {
         setIsAuthenticated(false);
         navigate("/log-in");
