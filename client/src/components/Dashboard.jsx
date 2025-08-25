@@ -7,7 +7,7 @@ export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [library, setLibrary] = useState([]);
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,18 +26,17 @@ export default function Dashboard() {
   const searchManga = async () => {
     if (!query.trim()) return;
     try {
-      setLoading(true)
+      setLoading(true);
       const res = await fetch(
         `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(query)}&limit=10`,
       );
       const data = await res.json();
       setResults(data.data || []);
-      setSearchState(true)
       console.log(data.data);
     } catch (err) {
       console.error("Search error:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   };
 
@@ -83,29 +82,31 @@ export default function Dashboard() {
 
         {/* Search Section */}
         <div className="w-full">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <input
               type="text"
               placeholder="Search manga..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && searchManga()}
-              className="w-full px-4 py-3 rounded-2xl bg-gray-800/80 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-white/70 backdrop-blur-sm"
+              className="flex-1 px-4 py-3 rounded-2xl bg-gray-800/80 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-white/70 backdrop-blur-sm"
             />
-            <button
-              onClick={searchManga}
-              className="px-5 py-3 rounded-2xl font-semibold bg-gradient-to-r from-gray-700 to-gray-600 hover:scale-105 transform transition"
-            >
-              { loading ? ("Loading") :  ("Search" )}
-            </button>
-            {results.length > 0 && (
+            <div className="flex gap-2 sm:gap-3">
               <button
-                onClick={clearResults}
-                className="px-5 py-3 rounded-2xl font-semibold bg-gradient-to-r from-gray-600 to-gray-700 hover:scale-105 transform transition"
+                onClick={searchManga}
+                className="flex-1 sm:flex-none px-5 py-3 rounded-2xl font-semibold bg-gradient-to-r from-gray-700 to-gray-600 hover:scale-105 transform transition"
               >
-                Clear
+                {loading ? "Searching..." : "Search"}
               </button>
-            )}
+              {results.length > 0 && (
+                <button
+                  onClick={clearResults}
+                  className="flex-1 sm:flex-none px-5 py-3 rounded-2xl font-semibold bg-gradient-to-r from-gray-600 to-gray-700 hover:scale-105 transform transition"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Dropdown Results */}
@@ -137,7 +138,6 @@ export default function Dashboard() {
               ))}
             </div>
           )}
-
         </div>
 
         {/* Storage Section */}
