@@ -1,6 +1,10 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { deleteMangaFromUserLibraryByID, getUserManga, updateMangaByID } from "../utils/user";
+import {
+  deleteMangaFromUserLibraryByID,
+  getUserManga,
+  updateMangaByID,
+} from "../utils/user";
 
 import Volume from "./Volume";
 import { getAllVolumes } from "../utils/volume";
@@ -18,27 +22,31 @@ export default function MangaPage() {
 
   useEffect(() => {
     async function getMangaInfo() {
-        try {
-            const response = await getUserManga(manga.mal_id);
-            setTotalVolumes(response.volumes)
-        } catch (error) {
-            console.error(error)
-        }
-    }
-
-    async function getVolumeInfo() {
       try {
-        const response = await getAllVolumes(manga.mal_id)
-        
-        console.log(response)
+        const response = await getUserManga(manga.mal_id);
+        setTotalVolumes(response.volumes);
       } catch (error) {
-        console.error(error)
+        console.error(error);
       }
     }
 
-    getMangaInfo()
-    getVolumeInfo()
+    getMangaInfo();
   }, []);
+
+  useEffect(() => {
+    async function getVolumeInfo() {
+      try {
+        const response = await getAllVolumes(manga.mal_id);
+        setVolumes(response);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    if (totalVolumes > 0) {
+      getVolumeInfo();
+    }
+  }, [isEditing]);
 
   const handleSave = async () => {
     try {
@@ -174,7 +182,13 @@ export default function MangaPage() {
         <h2 className="text-2xl font-bold mb-4">Volumes</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {volumes.map((vol) => (
-            <Volume key={vol.volNum} volNum={vol.volNum} />
+            <Volume
+              key={vol.id}
+              owned={vol.owned}
+              volNum={vol.vol_num}
+              paid={vol.price}
+              store={vol.store}
+            />
           ))}
         </div>
       </div>
