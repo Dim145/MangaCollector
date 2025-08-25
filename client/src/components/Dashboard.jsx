@@ -7,6 +7,7 @@ export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [library, setLibrary] = useState([]);
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,14 +26,18 @@ export default function Dashboard() {
   const searchManga = async () => {
     if (!query.trim()) return;
     try {
+      setLoading(true)
       const res = await fetch(
         `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(query)}&limit=10`,
       );
       const data = await res.json();
       setResults(data.data || []);
+      setSearchState(true)
       console.log(data.data);
     } catch (err) {
       console.error("Search error:", err);
+    } finally {
+      setLoading(false)
     }
   };
 
@@ -91,7 +96,7 @@ export default function Dashboard() {
               onClick={searchManga}
               className="px-5 py-3 rounded-2xl font-semibold bg-gradient-to-r from-gray-700 to-gray-600 hover:scale-105 transform transition"
             >
-              Search
+              { loading ? ("Loading") :  ("Search" )}
             </button>
             {results.length > 0 && (
               <button
@@ -132,6 +137,7 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+
         </div>
 
         {/* Storage Section */}
