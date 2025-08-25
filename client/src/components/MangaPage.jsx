@@ -20,6 +20,9 @@ export default function MangaPage() {
   const [additonalNotes, setAdditonalNotes] = useState("");
   const [volumes, setVolumes] = useState([]);
 
+  const [totalPrice, setTotalPrice] = useState(0);
+  const [avgPrice, setAvgPrice] = useState(0);
+
   useEffect(() => {
     async function getMangaInfo() {
       try {
@@ -42,12 +45,16 @@ export default function MangaPage() {
         setVolumes(sortedVolumes);
 
         let counter = 0;
-        for (let vol of volumes) {
+        let priceSum = 0;
+        for (let vol of sortedVolumes) {
           if (vol.owned) {
             counter += 1;
+            priceSum += Number(vol.price);
           }
         }
         setVolumesOwned(counter);
+        setTotalPrice(priceSum.toFixed(2));
+        setAvgPrice(counter > 0 ? priceSum / counter : 0);
       } catch (error) {
         console.error(error);
       }
@@ -187,6 +194,23 @@ export default function MangaPage() {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Price Summary Section */}
+        <div className="mt-10 p-4 rounded-lg bg-gray-900 border border-gray-700 shadow-md">
+          <h2 className="text-xl font-semibold mb-2">Collection Summary</h2>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div>
+              <p className="text-gray-400">Total Price Paid</p>
+              <p className="text-lg font-bold">${totalPrice}</p>
+            </div>
+            <div>
+              <p className="text-gray-400">Average Price per Owned Volume</p>
+              <p className="text-lg font-bold">
+                {volumesOwned > 0 ? `$${avgPrice}` : "N/A"}
+              </p>
             </div>
           </div>
         </div>
