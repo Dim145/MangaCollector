@@ -9,4 +9,12 @@ async function getAllVolumes(user_id, mal_id) {
   }
 }
 
-module.exports = { getAllVolumes };
+async function updateVolumeByID(id, owned, price, store) {
+    try {
+        await volumeQueries.updateVolumeByID(id, owned, price, store)
+  } catch (error) {
+    throw error;
+  }
+}
+
+module.exports = { getAllVolumes, updateVolumeByID };

@@ -9,4 +9,12 @@ async function getAllVolumes(mal_id) {
   }
 }
 
-export { getAllVolumes };
+async function updateVolumeByID(id, owned, price, store) {
+  try {
+    await axios.patch(`/api/user/volume`, { id, owned, price, store });
+  } catch (error) {
+    throw error;
+  }
+}
+
+export { getAllVolumes, updateVolumeByID };

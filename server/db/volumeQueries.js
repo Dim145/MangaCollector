@@ -12,4 +12,17 @@ async function getAllVolumes(user_id, mal_id) {
   }
 }
 
-module.exports = { getAllVolumes };
+async function updateVolumeByID(id, owned, price, store) {
+  try {
+    await db.query(
+      `UPDATE user_volumes
+       SET owned = $1, price = $2, store = $3
+       WHERE id = $4`,
+      [owned, price, store, id]
+    );
+  } catch (error) {
+    throw error;
+  }
+}
+
+module.exports = { getAllVolumes, updateVolumeByID };

@@ -14,4 +14,19 @@ async function getAllVolumes(req, res) {
   }
 }
 
-module.exports = { getAllVolumes };
+async function updateVolumeByID(req, res) {
+    try {
+        const id = req.body.id
+        const owned = req.body.owned
+        const price = req.body.price
+        const store = req.body.store
+        await volumeModel.updateVolumeByID(id, owned, price, store)
+    } catch (error) {
+        res.json({
+      success: false,
+      error: error.message || "Error getting manga volumes",
+    });
+    }
+}
+
+module.exports = { getAllVolumes, updateVolumeByID };
