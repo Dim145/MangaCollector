@@ -1,6 +1,6 @@
 const { Router } = require("express");
 const libraryRouter = new Router();
-const libraryController = require("../controllers/libraryController")
+const libraryController = require("../controllers/libraryController");
 
 libraryRouter.get("/", libraryController.getUserLibrary);
 libraryRouter.get("/:mal_id", libraryController.getUserManga);
@@ -15,5 +15,4 @@ libraryRouter.delete(
 );
 libraryRouter.patch("/:mal_id", libraryController.updateMangaByID);
 
-
-module.exports = libraryRouter
+module.exports = libraryRouter;

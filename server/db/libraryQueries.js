@@ -38,7 +38,10 @@ async function deleteMangaFromUserLibraryByID(mal_id, user_id) {
     [user_id, mal_id],
   );
 
-  await db.query(`DELETE FROM user_volumes WHERE user_id = $1 AND mal_id = $2`, [user_id, mal_id])
+  await db.query(
+    `DELETE FROM user_volumes WHERE user_id = $1 AND mal_id = $2`,
+    [user_id, mal_id],
+  );
 }
 
 async function getTotalVolumesByID(mal_id, user_id) {
@@ -57,19 +60,23 @@ async function getTotalVolumesByID(mal_id, user_id) {
 }
 
 async function removeVolumeByID(mal_id, user_id, vol_num) {
-  await db.query("DELETE FROM user_volumes WHERE user_id = $1 AND mal_id = $2 AND vol_num = $3", 
-    [user_id, mal_id, vol_num]
-  )
+  await db.query(
+    "DELETE FROM user_volumes WHERE user_id = $1 AND mal_id = $2 AND vol_num = $3",
+    [user_id, mal_id, vol_num],
+  );
 }
 
 async function addVolumeByID(mal_id, user_id, vol_num) {
-  await db.query(`INSERT INTO user_volumes (user_id, mal_id, vol_num, owned, price, store) 
-          VALUES ($1, $2, $3, $4, $5, $6)`, [user_id, mal_id, vol_num, false, 0, ""])
+  await db.query(
+    `INSERT INTO user_volumes (user_id, mal_id, vol_num, owned, price, store) 
+          VALUES ($1, $2, $3, $4, $5, $6)`,
+    [user_id, mal_id, vol_num, false, 0, ""],
+  );
 }
 
 async function updateMangaByID(mal_id, user_id, volumes) {
   const oldTotal = await getTotalVolumesByID(mal_id, user_id);
-  
+
   if (oldTotal == volumes) {
     return;
   } else if (oldTotal > volumes) {
