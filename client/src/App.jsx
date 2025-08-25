@@ -8,10 +8,12 @@ import About from "./components/About";
 import ProfilePage from "./components/ProfilePage";
 import MangaPage from "./components/MangaPage";
 import Wishlist from "./components/Wishlist";
+import { useState } from "react";
 
 export default function App() {
   const location = useLocation();
   const manga = location.state;
+  const [googleUser, setGoogleUser] = useState(null)
 
   return (
     <>
@@ -22,7 +24,7 @@ export default function App() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute setGoogleUser={setGoogleUser}>
               <Dashboard />
             </ProtectedRoute>
           }
@@ -30,7 +32,7 @@ export default function App() {
         <Route
           path="/wishlist"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute setGoogleUser={setGoogleUser}>
               <Wishlist />
             </ProtectedRoute>
           }
@@ -38,15 +40,15 @@ export default function App() {
         <Route
           path="/profile"
           element={
-            <ProtectedRoute>
-              <ProfilePage />
+            <ProtectedRoute setGoogleUser={setGoogleUser}>
+              <ProfilePage googleUser={googleUser} />
             </ProtectedRoute>
           }
         />
         <Route
           path="/mangapage"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute setGoogleUser={setGoogleUser}>
               <MangaPage manga={manga} />
             </ProtectedRoute>
           }
