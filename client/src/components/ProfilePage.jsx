@@ -14,18 +14,19 @@ import { getAllVolumes } from "../utils/volume";
 import { getUserLibrary } from "../utils/user";
 
 export default function ProfilePage({ googleUser }) {
+  const defaultSeriesData = [
+    {
+      title: "None",
+      totalCost: 0,
+    },
+  ];
   const [volumes, setVolumes] = useState([]);
   const [totalSeries, setTotalSeries] = useState(0);
   const [totalVolumes, setTotalVolumes] = useState(0);
   const [totalVolumesOwned, setTotalVolumesOwned] = useState(0);
   const [totalCost, setTotalCost] = useState(0);
   const [completionRate, setCompletionRate] = useState(0);
-  const [seriesByCost, setSeriesByCost] = useState([
-    {
-      title: "None",
-      count: 0,
-    },
-  ]);
+  const [seriesByCost, setSeriesByCost] = useState(defaultSeriesData);
 
   const stats = [
     { label: "Series Owned", value: totalSeries },
@@ -79,7 +80,8 @@ export default function ProfilePage({ googleUser }) {
         setTotalVolumesOwned(totalOwnedCounter);
         setTotalCost(totalCostCounter);
         setCompletionRate(
-          Number(((totalOwnedCounter / volumeData.length) * 100).toFixed(2)),
+          Number(((totalOwnedCounter / volumeData.length) * 100).toFixed(2)) ||
+            100,
         );
 
         // top 5 series by cost
@@ -88,7 +90,12 @@ export default function ProfilePage({ googleUser }) {
           .sort((a, b) => b.totalCost - a.totalCost)
           .slice(0, 5);
 
-        setSeriesByCost(sortedSeries);
+        if (sortedSeries.length == 0) {
+          setSeriesByCost(defaultSeriesData);
+        } else {
+          setSeriesByCost(sortedSeries);
+        }
+
         console.log(sortedSeries);
       } catch (error) {
         console.error(error);
@@ -156,7 +163,9 @@ export default function ProfilePage({ googleUser }) {
 
           {/* Series Price Distribution */}
           <div className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm">
-            <h2 className="text-xl font-semibold mb-4">Top 5 Series Price Distribution</h2>
+            <h2 className="text-xl font-semibold mb-4">
+              Top 5 Series Price Distribution
+            </h2>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={seriesByCost}>
                 <XAxis dataKey="title" stroke="#9ca3af" />
