@@ -14,7 +14,6 @@ export default function MangaPage() {
   const { state: manga } = useLocation();
 
   const [isEditing, setIsEditing] = useState(false);
-
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
   const [volumesOwned, setVolumesOwned] = useState(manga.volumes_owned ?? 0);
   const [additonalNotes, setAdditonalNotes] = useState("");
@@ -63,7 +62,7 @@ export default function MangaPage() {
     if (totalVolumes > 0) {
       getVolumeInfo();
     }
-  }, [isEditing, volumes]);
+  }, [isEditing]);
 
   const handleSave = async () => {
     try {
