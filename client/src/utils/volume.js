@@ -1,12 +1,12 @@
 import axios from "./axios";
 
 async function getAllVolumes() {
-    try {
-        const response = await axios.get("/api/user/volume")
-        return response.data;
-    } catch (error) {
-        throw error
-    }
+  try {
+    const response = await axios.get("/api/user/volume");
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
 }
 async function getAllVolumesByID(mal_id) {
   try {

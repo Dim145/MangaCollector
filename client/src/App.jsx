@@ -13,7 +13,7 @@ import { useState } from "react";
 export default function App() {
   const location = useLocation();
   const manga = location.state;
-  const [googleUser, setGoogleUser] = useState(null)
+  const [googleUser, setGoogleUser] = useState(null);
 
   return (
     <>

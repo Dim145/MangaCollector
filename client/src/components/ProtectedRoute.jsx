@@ -10,7 +10,7 @@ export default function ProtectedRoute({ children, setGoogleUser }) {
       const user = await checkAuthStatus();
       if (user) {
         setIsAuthenticated(true);
-        setGoogleUser(user)
+        setGoogleUser(user);
       } else {
         setIsAuthenticated(false);
         navigate("/log-in");
