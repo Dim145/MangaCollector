@@ -15,9 +15,7 @@ export default function Volume({ id, owned, volNum, paid, store }) {
     }
   }
 
-  useEffect(() => {
-
-  }, [isEditing])
+  useEffect(() => {}, [isEditing]);
 
   return (
     <div className="border border-gray-700 rounded-lg p-4 flex flex-col gap-3 bg-gray-900 shadow-sm">

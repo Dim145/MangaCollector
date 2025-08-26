@@ -84,11 +84,15 @@ export default function ProfilePage({ googleUser }) {
             100,
         );
 
-        // top 5 series by cost
+        // top 4 series by cost
         const sortedSeries = Object.entries(costMap)
-          .map(([title, totalCost]) => ({ title, totalCost }))
+          .map(([title, totalCost]) => {
+            // Take the first word and truncate to 8 characters
+            const truncatedTitle = title.split(" ")[0].slice(0, 8);
+            return { title: truncatedTitle, totalCost };
+          })
           .sort((a, b) => b.totalCost - a.totalCost)
-          .slice(0, 5);
+          .slice(0, 4);
 
         if (sortedSeries.length == 0) {
           setSeriesByCost(defaultSeriesData);
@@ -164,7 +168,7 @@ export default function ProfilePage({ googleUser }) {
           {/* Series Price Distribution */}
           <div className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm">
             <h2 className="text-xl font-semibold mb-4">
-              Top 5 Series Price Distribution
+              Top 4 Series Price Distribution
             </h2>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={seriesByCost}>
