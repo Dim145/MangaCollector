@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [results, setResults] = useState([]);
   const [library, setLibrary] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,24 +42,27 @@ export default function Dashboard() {
   };
 
   const addToLibrary = async (manga) => {
-    const mangaData = {
-      name: manga.title,
-      mal_id: manga.mal_id,
-      volumes: manga.volumes == null ? 0 : manga.volumes,
-      volumes_owned: 0,
-      image_url_jpg: manga.images.jpg.image_url,
-    };
-
-    if (library.some((m) => m.mal_id === mangaData.mal_id)) {
-      console.log("Already in library");
-      return;
-    }
-
     try {
+      setIsAdding(true);
+      const mangaData = {
+        name: manga.title,
+        mal_id: manga.mal_id,
+        volumes: manga.volumes == null ? 0 : manga.volumes,
+        volumes_owned: 0,
+        image_url_jpg: manga.images.jpg.image_url,
+      };
+
+      if (library.some((m) => m.mal_id === mangaData.mal_id)) {
+        console.log("Already in library");
+        return;
+      }
+
       await addToUserLibrary(mangaData);
       setLibrary((prev) => [...prev, mangaData]); // 👈 update UI immediately
     } catch (error) {
       console.error(error);
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -95,6 +99,7 @@ export default function Dashboard() {
               <button
                 onClick={searchManga}
                 className="flex-1 sm:flex-none px-5 py-3 rounded-2xl font-semibold bg-gradient-to-r from-gray-700 to-gray-600 hover:scale-105 transform transition"
+                disabled={loading}
               >
                 {loading ? "Searching..." : "Search"}
               </button>
@@ -131,6 +136,7 @@ export default function Dashboard() {
                   <button
                     onClick={() => addToLibrary(manga)}
                     className="px-3 py-1 bg-gradient-to-r from-green-400 to-green-600 hover:scale-105 transform transition rounded-lg text-black text-xs font-semibold"
+                    disabled={isAdding}
                   >
                     Add
                   </button>
