@@ -4,7 +4,7 @@
 
 The app combines clean UI design, robust backend architecture, and authentication via **Google OAuth 2.0**, making collection management seamless and secure.  
 
----
+
 
 ## Features  
 
@@ -13,6 +13,9 @@ The app combines clean UI design, robust backend architecture, and authenticatio
 
 - **Manga Library Management**  
   Add manga to your personal library, track total volumes, and mark which ones you own.  
+
+- **User analytics**  
+  Analyze how much you have spent, how many volumes you are missing, and more.
 
 - **Volume Tracking**  
   Each volume entry includes ownership status, price paid, and store of purchase.  
@@ -26,27 +29,28 @@ The app combines clean UI design, robust backend architecture, and authenticatio
 - **Responsive Design**  
   Fully functional across desktop and mobile for on-the-go collection management.  
 
----
 
 ## Demo
-
-> TBD
-
-- **Dashboard**  
-  ![Homepage Screenshot](docs/screenshots/home.png)  
-
-- **Manga Library View**  
-  ![Library Screenshot](docs/screenshots/library.png)  
-
-- **Volume Editing**  
-  ![Volume Edit Screenshot](docs/screenshots/edit.png)  
 
 - **Authentication (Google OAuth)**  
   ![Auth Screenshot](docs/screenshots/auth.png)  
 
-You can also add a demo GIF recorded with [ScreenToGif](https://www.screentogif.com/) or [RecordIt](https://recordit.co/) to show login → search manga → edit volume flow.  
+- **Manga Library View**  
+  ![Library Screenshot](docs/screenshots/dashboard.png)  
 
----
+- **User Analytics**  
+  ![Analytics Screenshot](docs/screenshots/userAnalytics.png)  
+
+
+- **Manga Editing**  
+  ![Manga Edit Screenshot](docs/screenshots/mangaEditor.png)  
+
+- **Volume Editing**  
+  ![Volume Edit Screenshot](docs/screenshots/volumeEditor.png)  
+
+- **Landing Page**  
+  ![Homepage Screenshot](docs/screenshots/landing.png)  
+
 
 ## Tech Stack  
 
@@ -62,7 +66,6 @@ You can also add a demo GIF recorded with [ScreenToGif](https://www.screentogif.
 - Axios for external RESTful API requests  
 - dotenv for environment configuration  
 
----
 
 ## Deployment  
 
@@ -79,15 +82,11 @@ The project was also an opportunity to deepen my skills in:
 - Working with a **third-party API (MAL)** and integrating it smoothly into a user-facing product.  
 - Delivering a polished, recruiter-ready project with attention to both **frontend design** and **backend architecture**.  
 
----
-
 ## Future Plans  
 
 - Social features (compare collections with friends)  
 - Mobile version via React Native  
 - Price analytics (track spending on manga over time)  
-
----
 
 ## Contact  
 
