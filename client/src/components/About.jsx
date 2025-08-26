@@ -1,4 +1,50 @@
+import Punpun from "../assets/punpun.jpg";
+import Berserk from "../assets/berserk.jpg";
+import Beastars from "../assets/beastars.jpg";
+import TokyoGhoul from "../assets/tokyoghoul.webp";
+import Vinland from "../assets/vinland.jpg";
+import FirePunch from "../assets/firepunch.jpg";
+
 export default function About() {
+  const mockedManga = [
+    {
+      id: 1,
+      title: "Fire Punch",
+      volumes: 8,
+      img: FirePunch,
+    },
+    {
+      id: 2,
+      title: "Goodnight Punpun",
+      volumes: 13,
+      img: Punpun,
+    },
+    {
+      id: 3,
+      title: "Tokyo Ghoul",
+      volumes: 14,
+      img: TokyoGhoul,
+    },
+    {
+      id: 4,
+      title: "Berserk",
+      volumes: 41,
+      img: Berserk,
+    },
+    {
+      id: 5,
+      title: "Vinland Saga",
+      volumes: 27,
+      img: Vinland,
+    },
+    {
+      id: 6,
+      title: "Beastars",
+      volumes: 22,
+      img: Beastars,
+    },
+  ];
+
   return (
     <div className="bg-gradient-to-b from-black via-gray-900 to-black min-h-screen text-white">
       {/* Hero */}
@@ -81,25 +127,7 @@ export default function About() {
             </ul>
           </div>
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-6 md:p-8 shadow-2xl">
-            {/* Mocked dashboard preview */}
-            <div className="space-y-4">
-              <div className="h-8 w-40 rounded-md bg-white/10" />
-              <div className="grid grid-cols-3 gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="rounded-xl overflow-hidden border border-white/10 bg-white/5"
-                  >
-                    <div className="h-28 bg-white/10" />
-                    <div className="p-3 space-y-1">
-                      <div className="h-3 w-2/3 bg-white/10 rounded" />
-                      <div className="h-3 w-1/2 bg-white/10 rounded" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="h-10 rounded-xl bg-white/10" />
-            </div>
+            <MockedDashboard mockedManga={mockedManga} />
           </div>
         </div>
       </section>
@@ -229,6 +257,46 @@ function Testimonial({ quote, name, role }) {
       <div className="mt-4 text-sm">
         <p className="font-semibold">{name}</p>
         <p className="text-gray-400">{role}</p>
+      </div>
+    </div>
+  );
+}
+
+function MockedDashboard({ mockedManga }) {
+  return (
+    <div className="space-y-6 p-4 max-w-6xl mx-auto">
+      {/* Header Skeleton */}
+      <div className="h-fit w-fit rounded-2xl bg-gradient-to-r from-gray-800/80 to-gray-900/80 text-center mx-auto p-6 shadow-lg border border-gray-700 backdrop-blur-sm">
+        <h2 className="text-2xl font-extrabold text-white mb-2 bg-clip-text bg-gradient-to-r from-white to-gray-400">
+          Your Library
+        </h2>
+        <p className="text-gray-400 text-sm">
+          Browse and manage all the manga in your collection
+        </p>
+      </div>
+
+      {/* Manga Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {mockedManga.map((manga) => (
+          <div
+            key={manga.id}
+            className="rounded-xl overflow-hidden border border-white/10 bg-white/5 shadow-lg hover:shadow-xl transition-shadow duration-300"
+          >
+            <div className="h-48 w-full bg-gray-700 overflow-hidden">
+              <img
+                src={manga.img}
+                alt={manga.title}
+                className="h-full w-full object-cover transform hover:scale-105 transition-transform duration-300"
+              />
+            </div>
+            <div className="p-4 space-y-2 bg-gray-900 h-full">
+              <h3 className="text-lg font-semibold text-white">
+                {manga.title}
+              </h3>
+              <p className="text-sm text-gray-400">Volumes: {manga.volumes}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
