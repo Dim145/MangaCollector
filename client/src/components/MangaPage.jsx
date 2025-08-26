@@ -7,7 +7,7 @@ import {
 } from "../utils/user";
 
 import Volume from "./Volume";
-import { getAllVolumes } from "../utils/volume";
+import { getAllVolumesByID } from "../utils/volume";
 
 export default function MangaPage() {
   const navigate = useNavigate();
@@ -40,7 +40,7 @@ export default function MangaPage() {
   useEffect(() => {
     async function getVolumeInfo() {
       try {
-        const response = await getAllVolumes(manga.mal_id);
+        const response = await getAllVolumesByID(manga.mal_id);
         const sortedVolumes = response.sort((a, b) => a.vol_num - b.vol_num);
         setVolumes(sortedVolumes);
 
@@ -83,7 +83,7 @@ export default function MangaPage() {
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.08),transparent_60%)]" />
       <div className="absolute inset-0 -z-10 backdrop-blur-3xl" />
 
-      <div className="pt-8 pb-8 max-w-5xl mx-auto space-y-12">
+      <div className="p-8 max-w-5xl mx-auto space-y-12">
         {/* Manga data */}
         <div className="flex flex-col md:flex-row gap-8 h-full items-stretch">
           <div className="w-full md:max-w-xs">
