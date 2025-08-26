@@ -3,8 +3,21 @@ const volumeModel = require("../models/volumeModel");
 async function getAllVolumes(req, res) {
   try {
     const user_id = req.user.id;
+    const response = await volumeModel.getAllVolumes(user_id);
+    res.json(response);
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message || "Error getting manga volumes",
+    });
+  }
+}
+
+async function getAllVolumesByID(req, res) {
+  try {
+    const user_id = req.user.id;
     const mal_id = req.params.mal_id;
-    const response = await volumeModel.getAllVolumes(user_id, mal_id);
+    const response = await volumeModel.getAllVolumesByID(user_id, mal_id);
     res.json(response);
   } catch (error) {
     res.json({
@@ -15,18 +28,18 @@ async function getAllVolumes(req, res) {
 }
 
 async function updateVolumeByID(req, res) {
-    try {
-        const id = req.body.id
-        const owned = req.body.owned
-        const price = req.body.price
-        const store = req.body.store
-        await volumeModel.updateVolumeByID(id, owned, price, store)
-    } catch (error) {
-        res.json({
+  try {
+    const id = req.body.id;
+    const owned = req.body.owned;
+    const price = req.body.price;
+    const store = req.body.store;
+    await volumeModel.updateVolumeByID(id, owned, price, store);
+  } catch (error) {
+    res.json({
       success: false,
       error: error.message || "Error getting manga volumes",
     });
-    }
+  }
 }
 
-module.exports = { getAllVolumes, updateVolumeByID };
+module.exports = { getAllVolumes, getAllVolumesByID, updateVolumeByID };
