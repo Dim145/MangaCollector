@@ -1,0 +1,23 @@
+version: '3.9'
+
+networks:
+  ip6net:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      driver: default
+        
+services:
+  server:
+    build: ./server
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./server/.env
+    networks:
+      - ip6net
+
+  client:
+    build: ./client
+    ports:
+      - "5173:5173"
