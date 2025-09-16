@@ -5,7 +5,6 @@
 The app combines clean UI design, robust backend architecture, and authentication via **Google OAuth 2.0**, making collection management seamless and secure.  
 
 
-
 ## Features  
 
 - **Google OAuth 2.0 Authentication**  
@@ -22,9 +21,6 @@ The app combines clean UI design, robust backend architecture, and authenticatio
 
 - **MAL API Integration**  
   Fetches manga metadata (title, volumes, cover art, etc.) directly from **MyAnimeList**, keeping the collection accurate.  
-
-- **Notes & Personalization**  
-  Add additional notes or details to individual manga entries.  
 
 - **Responsive Design**  
   Fully functional across desktop and mobile for on-the-go collection management.  

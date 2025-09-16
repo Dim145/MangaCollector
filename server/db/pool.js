@@ -2,8 +2,8 @@ const { Pool } = require("pg");
 require("dotenv").config();
 
 const pool = new Pool({
-  connectionString: process.env.SUPABASE_URL, 
-  ssl: { rejectUnauthorized: false },        // required for Supabase
+  connectionString: process.env.SUPABASE_URL,
+  ssl: { rejectUnauthorized: false }, // required for Supabase
 });
 
 module.exports = pool;

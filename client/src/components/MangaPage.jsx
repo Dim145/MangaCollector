@@ -7,7 +7,7 @@ import {
 } from "../utils/user";
 
 import Volume from "./Volume";
-import { getAllVolumesByID } from "../utils/volume";
+import { getAllVolumesByID, updateVolumeByID } from "../utils/volume";
 
 export default function MangaPage() {
   const navigate = useNavigate();
@@ -16,11 +16,14 @@ export default function MangaPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
   const [volumesOwned, setVolumesOwned] = useState(manga.volumes_owned ?? 0);
-  const [additonalNotes, setAdditonalNotes] = useState("");
   const [volumes, setVolumes] = useState([]);
 
   const [totalPrice, setTotalPrice] = useState(0);
   const [avgPrice, setAvgPrice] = useState(0);
+
+  const [showAddDropdown, setShowAddDropdown] = useState(false);
+  const [addAvgPrice, setAddAvgPrice] = useState("");
+  const [addStore, setAddStore] = useState("");
 
   useEffect(() => {
     async function getMangaInfo() {
@@ -34,7 +37,7 @@ export default function MangaPage() {
     }
 
     getMangaInfo();
-  }, []);
+  }, [isEditing, showAddDropdown]);
 
   useEffect(() => {
     async function getVolumeInfo() {
@@ -62,7 +65,8 @@ export default function MangaPage() {
     if (totalVolumes > 0) {
       getVolumeInfo();
     }
-  }, [isEditing]);
+    console.log(1);
+  }, [isEditing, showAddDropdown]);
 
   const handleSave = async () => {
     try {
@@ -72,6 +76,51 @@ export default function MangaPage() {
       console.error("Failed to update manga:", err);
     } finally {
       setIsEditing(false);
+    }
+  };
+  const handleAddAllVolumes = async () => {
+    if (addAvgPrice >= 0 && addStore.trim() !== "") {
+      try {
+        // Update manga first
+        await updateMangaByID(manga.mal_id, totalVolumes);
+
+        // Update all unowned volumes
+        const updatedVolumes = await Promise.all(
+          volumes.map(async (vol) => {
+            if (!vol.owned) {
+              await updateVolumeByID(vol.id, true, addAvgPrice, addStore);
+              return {
+                ...vol,
+                owned: true,
+                price: addAvgPrice,
+                store: addStore,
+              };
+            }
+            return vol;
+          }),
+        );
+
+        // Update local state so React re-renders
+        setVolumes(updatedVolumes);
+
+        // Recalculate totals
+        const counter = updatedVolumes.filter((v) => v.owned).length;
+        const priceSum = updatedVolumes.reduce(
+          (sum, v) => sum + Number(v.price || 0),
+          0,
+        );
+        setVolumesOwned(counter);
+        setTotalPrice(priceSum.toFixed(2));
+        setAvgPrice(counter > 0 ? priceSum / counter : 0);
+      } catch (error) {
+        console.error(error);
+      }
+
+      setShowAddDropdown(false);
+      setAddAvgPrice("");
+      setAddStore("");
+    } else {
+      alert("Please enter valid average price and store.");
     }
   };
 
@@ -132,24 +181,6 @@ export default function MangaPage() {
                   className={`w-full px-3 py-2 rounded-lg border focus:outline-none bg-gray-900 border-gray-800 text-gray-400 cursor-not-allowed`}
                 />
               </div>
-
-              <div>
-                <label className="block text-gray-300 mb-1">
-                  Additional Notes:
-                </label>
-                <input
-                  type="text"
-                  value={additonalNotes}
-                  disabled={!isEditing}
-                  onChange={(e) => setAdditonalNotes(e.target.value)}
-                  placeholder="..."
-                  className={`w-full px-3 py-2 rounded-lg border focus:outline-none ${
-                    isEditing
-                      ? "bg-gray-800 border-gray-700"
-                      : "bg-gray-900 border-gray-800 text-gray-400 cursor-not-allowed"
-                  }`}
-                />
-              </div>
             </div>
 
             {/* Actions */}
@@ -200,16 +231,69 @@ export default function MangaPage() {
         {/* Price Summary Section */}
         <div className="mt-10 p-4 rounded-lg bg-gray-900 border border-gray-700 shadow-md">
           <h2 className="text-xl font-semibold mb-2">Collection Summary</h2>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div>
-              <p className="text-gray-400">Total Price Paid</p>
-              <p className="text-lg font-bold">${totalPrice}</p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-between">
+            <div className="flex gap-4">
+              <div>
+                <p className="text-gray-400">Total Price Paid</p>
+                <p className="text-lg font-bold">${totalPrice}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Average Price per Owned Volume</p>
+                <p className="text-lg font-bold">
+                  {volumesOwned > 0 ? `$${avgPrice}` : "N/A"}
+                </p>
+              </div>
             </div>
             <div>
-              <p className="text-gray-400">Average Price per Owned Volume</p>
-              <p className="text-lg font-bold">
-                {volumesOwned > 0 ? `$${avgPrice}` : "N/A"}
-              </p>
+              {!showAddDropdown ? (
+                <button
+                  onClick={() => setShowAddDropdown(true)}
+                  className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition"
+                >
+                  Add all volumes to collection
+                </button>
+              ) : (
+                <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 space-y-3">
+                  <div>
+                    <label className="block text-gray-300 mb-1">
+                      Average Price
+                    </label>
+                    <input
+                      type="number"
+                      value={addAvgPrice}
+                      onChange={(e) => setAddAvgPrice(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 mb-1">Store</label>
+                    <input
+                      type="text"
+                      value={addStore}
+                      onChange={(e) => setAddStore(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAddAllVolumes}
+                      className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-black font-semibold transition"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddDropdown(false);
+                        setAddAvgPrice("");
+                        setAddStore("");
+                      }}
+                      className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-black font-semibold transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
