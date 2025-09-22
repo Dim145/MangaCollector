@@ -95,6 +95,17 @@ async function updateMangaByID(mal_id, user_id, volumes) {
   );
 }
 
+async function updateMangaOwned(user_id, mal_id, owned) {
+  try {
+    db.query(
+      `UPDATE user_libraries SET volumes_owned = $3 WHERE user_id = $1 AND mal_id = $2;`,
+      [user_id, mal_id, owned],
+    );
+  } catch (error) {
+    throw error;
+  }
+}
+
 module.exports = {
   getUserLibrary,
   addToUserLibrary,
@@ -102,4 +113,5 @@ module.exports = {
   updateMangaByID,
   getUserManga,
   getTotalVolumesByID,
+  updateMangaOwned,
 };

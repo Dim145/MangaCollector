@@ -77,10 +77,25 @@ async function updateMangaByID(req, res) {
   }
 }
 
+async function updateMangaOwned(req, res) {
+  try {
+    const user_id = req.user.id;
+    const mal_id = req.params.mal_id;
+    const owned = Number(req.params.owned);
+    await libraryModel.updateMangaOwned(user_id, mal_id, owned);
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message || "Error updating manga in library",
+    });
+  }
+}
+
 module.exports = {
   getUserLibrary,
   getUserManga,
   addToUserLibrary,
   deleteMangaFromUserLibraryByID,
   updateMangaByID,
+  updateMangaOwned,
 };

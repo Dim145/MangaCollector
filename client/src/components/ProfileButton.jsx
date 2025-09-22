@@ -62,10 +62,10 @@ export default function ProfileButton() {
               <>
                 <li>
                   <button
-                    onClick={() => navigate("/profile")}
+                    onClick={() => navigate("/dashboard")}
                     className="w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-800"
                   >
-                    Profile
+                    Dashboard
                   </button>
                 </li>
                 <li>
@@ -78,10 +78,10 @@ export default function ProfileButton() {
                 </li>
                 <li>
                   <button
-                    onClick={() => navigate("/dashboard")}
+                    onClick={() => navigate("/profile")}
                     className="w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-800"
                   >
-                    Dashboard
+                    Profile
                   </button>
                 </li>
                 <li>

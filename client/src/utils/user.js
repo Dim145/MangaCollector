@@ -42,10 +42,19 @@ async function updateMangaByID(mal_id, volumes) {
     throw error;
   }
 }
+
+async function updateMangaOwned(mal_id, owned) {
+  try {
+    await axios.patch(`/api/user/library/${mal_id}/${owned}`);
+  } catch (error) {
+    throw error;
+  }
+}
 export {
   addToUserLibrary,
   getUserLibrary,
   getUserManga,
   deleteMangaFromUserLibraryByID,
   updateMangaByID,
+  updateMangaOwned,
 };

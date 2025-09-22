@@ -14,5 +14,6 @@ libraryRouter.delete(
   libraryController.deleteMangaFromUserLibraryByID,
 );
 libraryRouter.patch("/:mal_id", libraryController.updateMangaByID);
+libraryRouter.patch("/:mal_id/:owned", libraryController.updateMangaOwned);
 
 module.exports = libraryRouter;

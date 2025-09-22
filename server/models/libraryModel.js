@@ -40,10 +40,19 @@ async function updateMangaByID(mal_id, user_id, volumes) {
   }
 }
 
+async function updateMangaOwned(user_id, mal_id, owned) {
+  try {
+    await libraryQueries.updateMangaOwned(user_id, mal_id, owned);
+  } catch (error) {
+    throw error;
+  }
+}
+
 module.exports = {
   getUserLibrary,
   getUserManga,
   addToUserLibrary,
   deleteMangaFromUserLibraryByID,
   updateMangaByID,
+  updateMangaOwned,
 };
