@@ -18,12 +18,10 @@ const apiRouter = require("./routes/apiRouter");
 app.use(
   cors({
     origin: process.env.FRONTEND_URL,
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     credentials: true, // allow cookies
   }),
 );
-
-// JSON parsing
-app.use(express.json());
 
 app.use(
   session({
@@ -36,13 +34,20 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production", // true for HTTPS production
+      httpOnly: !process.env.NODE_ENV,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // none for cross-origin production
+      maxAge: 1000 * 60 * 60 * 24 * 7,
     },
   }),
 );
 
+app.set("trust proxy", 1); // Set to 1 for single proxy, or true for multiple
+
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use("/auth", authRouter);

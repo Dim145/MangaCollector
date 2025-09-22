@@ -36,7 +36,7 @@ async function updateVolumeByID(req, res) {
     await volumeModel.updateVolumeByID(id, owned, price, store);
     res.json({
       success: true,
-      message: "Volume updated successfully"
+      message: "Volume updated successfully",
     });
   } catch (error) {
     res.json({
