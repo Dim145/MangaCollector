@@ -30,7 +30,6 @@ export default function MangaPage() {
     async function getMangaInfo() {
       try {
         const response = await getUserManga(manga.mal_id);
-        console.log(response);
         setTotalVolumes(response.volumes);
       } catch (error) {
         console.error(error);
@@ -70,7 +69,7 @@ export default function MangaPage() {
 
   const handleSave = async () => {
     try {
-      console.log(`Updated manga: ${manga.mal_id}`);
+      setTotalVolumes(parseInt(totalVolumes)) 
       await updateMangaByID(manga.mal_id, totalVolumes);
       await getVolumeInfo();
     } catch (err) {
@@ -88,7 +87,6 @@ export default function MangaPage() {
 
         // Update all unowned volumes
         const unownedVolumes = volumes.filter((vol) => !vol.owned);
-        console.log(`Found ${unownedVolumes.length} unowned volumes to update`);
         // Update all unowned volumes
         await Promise.all(
           unownedVolumes.map((vol) =>
@@ -96,7 +94,6 @@ export default function MangaPage() {
           ),
         );
         await getVolumeInfo();
-        console.log("updated");
       } catch (error) {
         console.error(error);
       } finally {
@@ -177,7 +174,6 @@ export default function MangaPage() {
                     <button
                       onClick={async () => {
                         try {
-                          console.log(`deleting : ${manga.mal_id}`);
                           await deleteMangaFromUserLibraryByID(manga.mal_id);
                           navigate("/dashboard");
                         } catch (error) {
@@ -210,57 +206,68 @@ export default function MangaPage() {
           </div>
 
           {/* Price Summary Section */}
-          <div className="mt-10 p-4 rounded-lg bg-gray-900 border border-gray-700 shadow-md">
-            <h2 className="text-xl font-semibold mb-2">Collection Summary</h2>
-            <div className="flex flex-col sm:flex-row gap-4 justify-between">
-              <div className="flex gap-4">
-                <div>
-                  <p className="text-gray-400">Total Price Paid</p>
-                  <p className="text-lg font-bold">${totalPrice}</p>
+          <div className="mt-10 p-6 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 hover:border-white/30 shadow-xl hover:shadow-2xl transition-all duration-200">
+            <h2 className="text-xl font-semibold mb-4 text-white">
+              Collection Summary
+            </h2>
+            <div className="flex flex-col lg:flex-row gap-6 justify-between">
+              <div className="flex flex-col sm:flex-row gap-6">
+                <div className="text-center sm:text-left">
+                  <p className="text-gray-300 text-sm mb-1">Total Price Paid</p>
+                  <p className="text-2xl font-bold text-white">
+                    ${totalPrice.toFixed(2)}
+                  </p>
                 </div>
-                <div>
-                  <p className="text-gray-400">
+                <div className="text-center sm:text-left">
+                  <p className="text-gray-300 text-sm mb-1">
                     Average Price per Owned Volume
                   </p>
-                  <p className="text-lg font-bold">
+                  <p className="text-2xl font-bold text-white">
                     {volumesOwned > 0 ? `$${avgPrice.toFixed(2)}` : "N/A"}
                   </p>
                 </div>
               </div>
-              <div>
+              <div className="flex-shrink-0">
                 {!showAddDropdown ? (
                   <button
                     onClick={() => setShowAddDropdown(true)}
-                    className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition"
+                    className="w-full lg:w-auto px-6 py-3 rounded-lg bg-white text-black font-semibold hover:bg-gray-200 active:bg-gray-300 hover:scale-105 active:scale-95 transform transition-all duration-200 shadow-lg hover:shadow-xl"
                   >
-                    Add all volumes to collection
+                    Add All Volumes to Collection
                   </button>
                 ) : (
-                  <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 space-y-3">
+                  <div className="p-4 bg-black/60 backdrop-blur-sm rounded-lg border border-white/30 space-y-4 min-w-[280px]">
                     <div>
-                      <label className="block text-gray-300 mb-1">
-                        Average Price
+                      <label className="block text-gray-200 text-sm font-medium mb-2">
+                        Average Price per Volume ($)
                       </label>
                       <input
                         type="number"
                         value={addAvgPrice}
                         onChange={(e) => setAddAvgPrice(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none"
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        className="w-full px-3 py-2 rounded-lg bg-black/50 border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/20 focus:bg-black/70 hover:bg-black/60 transition-all duration-200"
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-300 mb-1">Store</label>
+                      <label className="block text-gray-200 text-sm font-medium mb-2">
+                        Store/Location
+                      </label>
                       <input
                         type="text"
                         value={addStore}
                         onChange={(e) => setAddStore(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none"
+                        placeholder="Amazon, Bookstore, etc."
+                        maxLength={50}
+                        className="w-full px-3 py-2 rounded-lg bg-black/50 border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/20 focus:bg-black/70 hover:bg-black/60 transition-all duration-200"
                       />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 pt-2">
                       <button
                         onClick={handleAddAllVolumes}
-                        className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-black font-semibold transition"
+                        className="flex-1 px-4 py-2 rounded-lg font-semibold bg-white text-black hover:bg-gray-200 active:bg-gray-300 hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl"
                       >
                         Confirm
                       </button>
@@ -270,7 +277,7 @@ export default function MangaPage() {
                           setAddAvgPrice("");
                           setAddStore("");
                         }}
-                        className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-black font-semibold transition"
+                        className="flex-1 px-4 py-2 rounded-lg font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl"
                       >
                         Cancel
                       </button>

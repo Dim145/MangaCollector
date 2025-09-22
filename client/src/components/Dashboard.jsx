@@ -16,7 +16,6 @@ export default function Dashboard() {
     async function loadLibrary() {
       try {
         const userLibrary = await getUserLibrary();
-        console.log(userLibrary);
         setLibrary(userLibrary);
       } catch (err) {
         console.error(err);
@@ -35,7 +34,6 @@ export default function Dashboard() {
       );
       const data = await res.json();
       setResults(data.data || []);
-      console.log(data.data);
     } catch (err) {
       console.error("Search error:", err);
     } finally {
@@ -46,7 +44,6 @@ export default function Dashboard() {
   const addToLibrary = async (manga) => {
     try {
       setIsAdding(true);
-      console.log(manga);
       const mangaData = {
         name: manga.title,
         mal_id: manga.mal_id,
