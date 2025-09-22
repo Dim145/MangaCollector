@@ -17,7 +17,7 @@ const apiRouter = require("./routes/apiRouter");
 // Session configuration
 app.use(
   cors({
-    origin: "http://localhost:5173", // frontend URL
+    origin: process.env.FRONTEND_URL,
     credentials: true, // allow cookies
   }),
 );
