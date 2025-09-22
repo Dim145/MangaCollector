@@ -34,10 +34,14 @@ async function updateVolumeByID(req, res) {
     const price = req.body.price;
     const store = req.body.store;
     await volumeModel.updateVolumeByID(id, owned, price, store);
+    res.json({
+      success: true,
+      message: "Volume updated successfully"
+    });
   } catch (error) {
     res.json({
       success: false,
-      error: error.message || "Error getting manga volumes",
+      error: error.message || "Error updating manga volume",
     });
   }
 }
