@@ -111,80 +111,83 @@ export default function ProfilePage({ googleUser }) {
   return (
     <div className="relative min-h-screen text-white overflow-hidden">
       <DefaultBackground>
+        {/* CONTENT */}
+        <div className="p-8 max-w-6xl mx-auto space-y-12">
+          {/* Header */}
+          <header className="text-center space-y-4">
+            <h1 className="text-4xl font-extrabold tracking-tight drop-shadow-md">
+              {googleUser.name}’s Library
+            </h1>
+            <p className="text-gray-400">Your manga collection at a glance</p>
+          </header>
 
-      {/* CONTENT */}
-      <div className="p-8 max-w-6xl mx-auto space-y-12">
-        {/* Header */}
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-extrabold tracking-tight drop-shadow-md">
-            {googleUser.name}’s Library
-          </h1>
-          <p className="text-gray-400">Your manga collection at a glance</p>
-        </header>
+          {/* Analytics Cards */}
+          <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm hover:scale-[1.02] transform transition"
+              >
+                <p className="text-gray-400 text-sm">{stat.label}</p>
+                <p className="text-2xl font-bold mt-2">{stat.value}</p>
+              </div>
+            ))}
+          </section>
 
-        {/* Analytics Cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm hover:scale-[1.02] transform transition"
-            >
-              <p className="text-gray-400 text-sm">{stat.label}</p>
-              <p className="text-2xl font-bold mt-2">{stat.value}</p>
+          {/* Charts Section */}
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Donut Chart */}
+            <div className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm">
+              <h2 className="text-xl font-semibold mb-4">Completion Rate</h2>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={completionData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={4}
+                  >
+                    {completionData.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <p className="text-center text-lg font-bold mt-2">
+                {completionRate}% Complete
+              </p>
             </div>
-          ))}
-        </section>
 
-        {/* Charts Section */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Donut Chart */}
-          <div className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm">
-            <h2 className="text-xl font-semibold mb-4">Completion Rate</h2>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={completionData}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={4}
-                >
-                  {completionData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <p className="text-center text-lg font-bold mt-2">
-              {completionRate}% Complete
+            {/* Series Price Distribution */}
+            <div className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm">
+              <h2 className="text-xl font-semibold mb-4">
+                Top 4 Series Price Distribution
+              </h2>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={seriesByCost}>
+                  <XAxis dataKey="title" stroke="#9ca3af" />
+                  <YAxis stroke="#9ca3af" />
+                  <Tooltip />
+                  <Bar
+                    dataKey="totalCost"
+                    fill="#60a5fa"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          {/* Future Activity Feed */}
+          <section className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm">
+            <h2 className="text-xl font-semibold mb-4">Activity Feed</h2>
+            <p className="text-gray-400 text-sm">
+              Coming soon: your latest manga additions, updates, and more.
             </p>
-          </div>
-
-          {/* Series Price Distribution */}
-          <div className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm">
-            <h2 className="text-xl font-semibold mb-4">
-              Top 4 Series Price Distribution
-            </h2>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={seriesByCost}>
-                <XAxis dataKey="title" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" />
-                <Tooltip />
-                <Bar dataKey="totalCost" fill="#60a5fa" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-
-        {/* Future Activity Feed */}
-        <section className="rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 p-6 shadow-lg backdrop-blur-sm">
-          <h2 className="text-xl font-semibold mb-4">Activity Feed</h2>
-          <p className="text-gray-400 text-sm">
-            Coming soon: your latest manga additions, updates, and more.
-          </p>
-        </section>
-      </div>
+          </section>
+        </div>
       </DefaultBackground>
     </div>
   );

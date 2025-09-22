@@ -69,7 +69,7 @@ export default function MangaPage() {
 
   const handleSave = async () => {
     try {
-      setTotalVolumes(parseInt(totalVolumes)) 
+      setTotalVolumes(parseInt(totalVolumes));
       await updateMangaByID(manga.mal_id, totalVolumes);
       await getVolumeInfo();
     } catch (err) {

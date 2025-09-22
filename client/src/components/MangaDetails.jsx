@@ -1,14 +1,14 @@
 import { useState } from "react";
 
-export default function MangaDetails({ 
-  manga, 
-  totalVolumes, 
-  setTotalVolumes, 
-  volumesOwned, 
-  onSave, 
-  onDelete, 
+export default function MangaDetails({
+  manga,
+  totalVolumes,
+  setTotalVolumes,
+  volumesOwned,
+  onSave,
+  onDelete,
   onBack,
-  isLoading 
+  isLoading,
 }) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -23,7 +23,11 @@ export default function MangaDetails({
   };
 
   const handleDelete = async () => {
-    if (window.confirm("Are you sure you want to delete this manga from your library?")) {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this manga from your library?",
+      )
+    ) {
       try {
         await onDelete();
       } catch (error) {
@@ -65,11 +69,14 @@ export default function MangaDetails({
 
         {/* Editable Form */}
         <div className="bg-black/30 backdrop-blur-sm border border-white/20 hover:border-white/30 rounded-lg p-4 space-y-4 transition-all duration-200">
-          <h3 className="text-lg font-semibold text-white mb-2">Manga Details</h3>
-          
+          <h3 className="text-lg font-semibold text-white mb-2">
+            Manga Details
+          </h3>
+
           <div>
             <label className="block text-gray-300 text-sm font-medium mb-2">
-              Total Volumes {isEditing && "(Edit if there is discrepancy with the data)"}
+              Total Volumes{" "}
+              {isEditing && "(Edit if there is discrepancy with the data)"}
             </label>
             <input
               type="number"
@@ -109,15 +116,15 @@ export default function MangaDetails({
               >
                 Edit Details
               </button>
-              
+
               <button
                 onClick={handleDelete}
                 disabled={isLoading}
                 className="px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-600 text-white font-semibold hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                {isLoading ? 'Deleting...' : 'Delete from Library'}
+                {isLoading ? "Deleting..." : "Delete from Library"}
               </button>
-              
+
               <button
                 onClick={onBack}
                 disabled={isLoading}
@@ -132,12 +139,12 @@ export default function MangaDetails({
                 onClick={handleSave}
                 disabled={isLoading}
                 className={`px-4 py-2 rounded-lg bg-white text-black font-semibold hover:bg-gray-200 active:bg-gray-300 hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${
-                  isLoading ? 'animate-pulse' : ''
+                  isLoading ? "animate-pulse" : ""
                 }`}
               >
-                {isLoading ? 'Saving...' : 'Save Changes'}
+                {isLoading ? "Saving..." : "Save Changes"}
               </button>
-              
+
               <button
                 onClick={handleCancel}
                 disabled={isLoading}
@@ -153,9 +160,11 @@ export default function MangaDetails({
         <div className="bg-black/20 backdrop-blur-sm border border-white/10 rounded-lg p-3">
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${volumesOwned > 0 ? 'bg-white' : 'bg-gray-500'}`} />
+              <div
+                className={`w-2 h-2 rounded-full ${volumesOwned > 0 ? "bg-white" : "bg-gray-500"}`}
+              />
               <span className="text-gray-300">
-                Collection Status: {volumesOwned > 0 ? 'Active' : 'Empty'}
+                Collection Status: {volumesOwned > 0 ? "Active" : "Empty"}
               </span>
             </div>
             <span className="text-gray-400">
