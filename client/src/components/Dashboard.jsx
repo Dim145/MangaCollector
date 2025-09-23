@@ -76,7 +76,7 @@ export default function Dashboard() {
       {/* BACKDROP LAYERS */}
 
       <DefaultBackground>
-        <div className="p-8 max-w-5xl mx-auto space-y-12">
+        <div className="p-8 max-w-6xl mx-auto space-y-12">
           {/* Header */}
           <h1 className="text-3xl font-extrabold text-center bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent tracking-wide">
             Manga Dashboard

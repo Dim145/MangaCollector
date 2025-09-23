@@ -109,7 +109,7 @@ export default function MangaPage() {
   return (
     <div className="relative min-h-screen text-white overflow-hidden">
       <DefaultBackground>
-        <div className="p-8 max-w-5xl mx-auto space-y-12">
+        <div className="p-8 max-w-6xl mx-auto space-y-12">
           {/* Manga data */}
           <div className="flex flex-col md:flex-row gap-8 h-full items-stretch">
             <div className="w-full md:max-w-xs">
