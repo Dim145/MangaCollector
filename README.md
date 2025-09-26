@@ -64,10 +64,9 @@ The app combines clean UI design, robust backend architecture, and authenticatio
 
 
 ## Deployment  
-
-> TBD
-
----
+- Frontend: Vercel
+- Backend: Render
+- Database: Supabase
 
 ## Why I Built This  
 
