@@ -17,7 +17,7 @@ const apiRouter = require("./routes/apiRouter");
 // Session configuration
 app.use(
   cors({
-    origin: "https://manga-collector-gamma.vercel.app",
+    origin: process.env.FRONTEND_URL,
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     credentials: true, // allow cookies
   }),
@@ -36,7 +36,7 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === "production", // true for HTTPS production
       httpOnly: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // none for cross-origin production
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax", // none for cross-origin production
       maxAge: 1000 * 60 * 60 * 24 * 7,
     },
   }),

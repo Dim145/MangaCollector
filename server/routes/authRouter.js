@@ -30,7 +30,7 @@ authRouter.get(
   passport.authenticate("google", { failureRedirect: "/login" }),
   (req, res) => {
     // Successful authentication
-    res.redirect("https://manga-collector-gamma.vercel.app");
+    res.redirect(process.env.FRONTEND_URL);
   },
 );
 authRouter.get("/user", (req, res) => {

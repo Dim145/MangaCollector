@@ -9,7 +9,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: `https://mangacollector.onrender.com/auth/oauth2/callback`,
+      callbackURL: `${process.env.FRONTEND_URL}/auth/oauth2/callback`,
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
