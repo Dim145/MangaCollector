@@ -20,6 +20,8 @@
   },
   "dependencies": {
     "connect-pg-simple": "^10.0.0",
+    "connect-sqlite3": "^0.9.16",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
@@ -27,6 +29,7 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-oauth2": "^1.8.0",
+    "passport-openidconnect": "^0.1.2",
     "pg": "^8.16.3"
   }
 }

@@ -23,6 +23,7 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
+      - "--providers.docker.exposedbydefault=false"
     ports:
       - "12000:80"
       - "8080:8080"
@@ -43,11 +44,14 @@ services:
     environment:
       NODE_ENV: "production"
       PORT: 3000
-      GOOGLE_CLIENT_ID: your google client id
-      GOOGLE_CLIENT_SECRET: your google client secret
-      SESSION_SECRET: "subdued-bunkbed-quench-carpool-suitcase"
+      AUTH_MODE: openidconnect
+      AUTH_ISSUER: https://xxx/
+      AUTH_ISSUER_BASE_PATH: /api/v1/oauth/
+      AUTH_CLIENT_ID: xxx
+      AUTH_CLIENT_SECRET: xxx
+      SESSION_SECRET: "xxx"
       FRONTEND_URL: http://localhost:12000
-      SUPABASE_URL: your supabase database url
+      SUPABASE_URL: postgres://mangacollector:mangacollectormangacollector@db:5432/mangacollector?sslmode=disable
     networks:
       - internal
       - default

@@ -5,7 +5,6 @@ dns.setDefaultResultOrder("ipv4first");
 
 const pool = new Pool({
   connectionString: process.env.SUPABASE_URL,
-  ssl: { rejectUnauthorized: false }, // required for Supabase
 });
 
 module.exports = pool;

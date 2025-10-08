@@ -2,9 +2,9 @@
 const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
-const passport = require("./config/passport");
 const pgSession = require("connect-pg-simple");
 const pool = require("./db/pool.js");
+const cookieParser = require('cookie-parser');
 
 require("dotenv").config();
 
@@ -14,14 +14,23 @@ const PgSession = pgSession(session);
 const authRouter = require("./routes/authRouter");
 const apiRouter = require("./routes/apiRouter");
 
+const corsWhitelist = [process.env.CORS_WHITELIST, process.env.AUTH_ISSUER];
+
 // Session configuration
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin:  function (origin, callback){
+        if (corsWhitelist.indexOf(origin) !== -1) {
+            callback(null, true)
+        } else {
+            callback(new Error('Not allowed by CORS'))
+        }
+    },
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     credentials: true, // allow cookies
   }),
 );
+app.use(cookieParser());
 
 app.use(
   session({
@@ -34,16 +43,17 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === "production", // true for HTTPS production
-      httpOnly: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax", // none for cross-origin production
-      maxAge: 1000 * 60 * 60 * 24 * 7,
+      secure: false, // true for HTTPS production
+      httpOnly: false,
+      sameSite: "lax", // none for cross-origin production
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     },
   }),
 );
 
 app.set("trust proxy", 1); // Set to 1 for single proxy, or true for multiple
 
+const passport = require("./config/passport");
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.json());
