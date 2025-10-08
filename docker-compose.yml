@@ -1,23 +1,64 @@
-version: '3.9'
-
 networks:
-  ip6net:
-    driver: bridge
-    enable_ipv6: true
-    ipam:
-      driver: default
-        
+  internal:
+    internal: true
+
+volumes:
+  db_data:
+
 services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: mangacollector
+      POSTGRES_PASSWORD: mangacollectormangacollector
+      POSTGRES_DB: mangacollector
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "12000:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - default
+      - internal
+
   server:
     build: ./server
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.server.rule=PathPrefix(`/api`) || PathPrefix(`/auth`)"
+      - "traefik.http.services.server.loadbalancer.server.port=3000"
     ports:
       - "3000:3000"
-    env_file:
-      - ./server/.env
+    environment:
+      NODE_ENV: "production"
+      PORT: 3000
+      GOOGLE_CLIENT_ID: your google client id
+      GOOGLE_CLIENT_SECRET: your google client secret
+      SESSION_SECRET: "subdued-bunkbed-quench-carpool-suitcase"
+      FRONTEND_URL: http://localhost:12000
+      SUPABASE_URL: your supabase database url
     networks:
-      - ip6net
+      - internal
+      - default
 
   client:
     build: ./client
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.client.rule=PathPrefix(`/`)"
+      - "traefik.http.services.client.loadbalancer.server.port=5173"
+    environment:
+      FRONTEND_URL: http://localhost:12000
     ports:
       - "5173:5173"
