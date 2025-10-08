@@ -4,7 +4,7 @@ const dns = require("dns");
 dns.setDefaultResultOrder("ipv4first");
 
 const pool = new Pool({
-  connectionString: process.env.SUPABASE_URL,
+  connectionString: process.env.POSTGRES_URL,
 });
 
 pool.query(`

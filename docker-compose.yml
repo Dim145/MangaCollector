@@ -51,7 +51,7 @@ services:
       AUTH_CLIENT_SECRET: xxx
       SESSION_SECRET: "xxx"
       FRONTEND_URL: http://localhost:12000
-      SUPABASE_URL: postgres://mangacollector:mangacollectormangacollector@db:5432/mangacollector?sslmode=disable
+      POSTGRES_URL: postgres://mangacollector:mangacollectormangacollector@db:5432/mangacollector?sslmode=disable
     networks:
       - internal
       - default
