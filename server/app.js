@@ -19,13 +19,7 @@ const corsWhitelist = [process.env.CORS_WHITELIST, process.env.AUTH_ISSUER];
 // Session configuration
 app.use(
   cors({
-    origin:  function (origin, callback){
-        if (corsWhitelist.indexOf(origin) !== -1) {
-            callback(null, true)
-        } else {
-            callback(new Error('Not allowed by CORS'))
-        }
-    },
+    origin: process.env.FRONTEND_URL,
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     credentials: true, // allow cookies
   }),

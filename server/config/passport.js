@@ -78,17 +78,11 @@ passport.use(
 
 // Serialize user to session
 passport.serializeUser((user, done) => done(null, user.id));
-passport.serializeUser(function(user, cb) {
-    process.nextTick(function() {
-        console.log("sel-user", user);
-        cb(null, { id: user.id, username: user.username, name: user.displayName });
-    });
-});
 
 // Deserialize user from session
-passport.deserializeUser(async (user, done) => {
+passport.deserializeUser(async (id, done) => {
   try {
-    const result = await pool.query("SELECT * FROM users WHERE id = $1", [user.id]);
+    const result = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
     done(null, result.rows[0]);
   } catch (err) {
       console.error(err);
