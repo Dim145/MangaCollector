@@ -14,7 +14,9 @@ const PgSession = pgSession(session);
 const authRouter = require("./routes/authRouter");
 const apiRouter = require("./routes/apiRouter");
 
-const corsWhitelist = [process.env.CORS_WHITELIST, process.env.AUTH_ISSUER];
+// migrate db
+const migrate = require("./migrate");
+migrate.latest()
 
 // Session configuration
 app.use(
