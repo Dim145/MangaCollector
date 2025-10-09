@@ -19,5 +19,10 @@ module.exports = {
 
     delete: id => userModel
         .query()
-        .deleteById(id)
+        .deleteById(id),
+
+    findByGoogleId: googleId => userModel
+        .query()
+        .where('google_id', googleId)
+        .first()
 }

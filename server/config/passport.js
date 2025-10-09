@@ -3,27 +3,19 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const OpenIDConnectStrategy = require('passport-openidconnect');
 require("dotenv").config();
 
-const pool = require("../db/pool");
 const path = require("path");
+const users = require("../services/users")
 
 const verifyFunc = async (profile, done) => {
     try {
-        // Save user to DB if they don't exist
-        const result = await pool.query(
-            "SELECT * FROM users WHERE google_id = $1",
-            [profile.id],
-        );
+        let user = await users.findByGoogleId(profile.id);
 
-        let user;
-        if (result.rows.length === 0) {
-            const insert = await pool.query(
-                `INSERT INTO users (google_id, email, name) 
-                 VALUES ($1, $2, $3) RETURNING *`,
-                [profile.id, profile.emails[0].value, profile.displayName],
-            );
-            user = insert.rows[0];
-        } else {
-            user = result.rows[0];
+        if(!user) {
+            user = await users.create({
+                google_id: profile.id,
+                email: profile.emails[0].value,
+                name: profile.displayName
+            });
         }
 
         return done(null, user);
@@ -49,7 +41,6 @@ if (process.env.AUTH_MODE === "google")
 }
 else // generic oidc auth
 {
-    const path = require('path');
     const baseApiUri = path.join(process.env.AUTH_ISSUER, process.env.AUTH_ISSUER_BASE_PATH);
 
     const urlJoin = (...parts) => {
@@ -82,8 +73,8 @@ passport.serializeUser((user, done) => done(null, user.id));
 // Deserialize user from session
 passport.deserializeUser(async (id, done) => {
   try {
-    const result = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
-    done(null, result.rows[0]);
+    const result = await users.get(id);
+    done(null, result);
   } catch (err) {
       console.error(err);
     done(err, null);

@@ -19,7 +19,7 @@ exports.up = function (knex, Promise) {
 
 	// Create Table example:
 
-	return knex.schema.createTable(userModel.tableName, (table) => {
+	return knex.schema.createTableIfNotExists(userModel.tableName, (table) => {
 		 table.increments().primary();
 		 table.dateTime('created_on').notNullable()
 		 table.dateTime('modified_on').notNullable();
@@ -31,7 +31,7 @@ exports.up = function (knex, Promise) {
      .then(() => {
          console.info('[' + migrate_name + '] user Table created');
 
-         return knex.schema.createTable(userLibraryModel.tableName, table => {
+         return knex.schema.createTableIfNotExists(userLibraryModel.tableName, table => {
              table.increments().primary();
 
             table.dateTime('created_on').notNullable()
@@ -48,7 +48,7 @@ exports.up = function (knex, Promise) {
      .then(() => {
             console.info('[' + migrate_name + '] user_libraries Table created');
 
-            return knex.schema.createTable(userVolumeModel.tableName, table => {
+            return knex.schema.createTableIfNotExists(userVolumeModel.tableName, table => {
                 table.increments().primary();
 
                 table.dateTime('created_on').notNullable()
