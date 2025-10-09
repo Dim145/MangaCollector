@@ -1,6 +1,6 @@
 const libraryModel = require('../db/models/user_librarie')
 
-const volumes = require('./volumes');
+const volumesService = require('./volumes');
 
 const libraryService = {
     getUserLibrary: user_id => libraryModel
@@ -20,7 +20,7 @@ const libraryService = {
             .insertAndFetch({ user_id, mal_id, name, volumes, volumes_owned, image_url_jpg });
 
         for(let i = 1; i <= volumes; i++) {
-            await volumes.addVolumeToUser(user_id, mal_id, i);
+            await volumesService.addVolumeToUser(user_id, mal_id, i);
         }
 
         return lib;
@@ -33,7 +33,7 @@ const libraryService = {
             .where('user_id', user_id)
             .andWhere('mal_id', mal_id);
 
-        await volumes.deleteAllByIdForUser(user_id, mal_id);
+        await volumesService.deleteAllByIdForUser(user_id, mal_id);
     },
 
     getTotalVolumesById: (mal_id, user_id) => libraryModel
@@ -53,13 +53,13 @@ const libraryService = {
         else if (oldTotal > volumes)
         {
             for (let i = oldTotal; i > volumes; i--) {
-                await volumes.removeVolumeByID(mal_id, user_id, i);
+                await volumesService.removeVolumeByID(mal_id, user_id, i);
             }
         }
         else if (volumes < volumes)
         {
             for (let i = oldTotal + 1; i <= volumes; i++) {
-                await volumes.addVolumeToUser(user_id, mal_id, i);
+                await volumesService.addVolumeToUser(user_id, mal_id, i);
             }
         }
 

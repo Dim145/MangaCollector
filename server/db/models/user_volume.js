@@ -8,11 +8,6 @@ class UserVolume extends Model {
     $beforeInsert () {
         this.created_on  = now();
         this.modified_on = now();
-
-        // Default for meta
-        if (typeof this.meta === 'undefined') {
-            this.meta = {};
-        }
     }
 
     $beforeUpdate () {
