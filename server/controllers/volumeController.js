@@ -1,9 +1,9 @@
-const volumeModel = require("../models/volumeModel");
+const volumes = require("../services/volumes");
 
 async function getAllVolumes(req, res) {
   try {
     const user_id = req.user.id;
-    const response = await volumeModel.getAllVolumes(user_id);
+    const response = await volumes.getAllVolumesForUser(user_id);
     res.json(response);
   } catch (error) {
     res.json({
@@ -17,7 +17,7 @@ async function getAllVolumesByID(req, res) {
   try {
     const user_id = req.user.id;
     const mal_id = req.params.mal_id;
-    const response = await volumeModel.getAllVolumesByID(user_id, mal_id);
+    const response = await volumes.getAllVolumesForUserById(user_id, mal_id);
     res.json(response);
   } catch (error) {
     res.json({
@@ -33,7 +33,7 @@ async function updateVolumeByID(req, res) {
     const owned = req.body.owned;
     const price = req.body.price;
     const store = req.body.store;
-    await volumeModel.updateVolumeByID(id, owned, price, store);
+    await volumes.updateVolumeById(id, owned, price, store);
     res.json({
       success: true,
       message: "Volume updated successfully",
