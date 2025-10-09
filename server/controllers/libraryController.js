@@ -1,9 +1,9 @@
-const libraryModel = require("../models/libraryModel");
+const library = require("../services/library");
 
 async function getUserLibrary(req, res) {
   try {
     const user_id = req.user.id;
-    const response = await libraryModel.getUserLibrary(user_id);
+    const response = await library.getUserLibrary(user_id);
     return res.json(response);
   } catch (err) {
     return res.json({
@@ -17,7 +17,7 @@ async function getUserManga(req, res) {
   try {
     const user_id = req.user.id;
     const mal_id = req.params.mal_id;
-    const response = await libraryModel.getUserManga(mal_id, user_id);
+    const response = await library.getUserManga(mal_id, user_id);
     return res.json(response);
   } catch (err) {
     return res.json({
@@ -32,7 +32,7 @@ async function addToUserLibrary(req, res) {
     const user_id = req.user.id;
     const mangaData = req.body;
     console.log(mangaData);
-    await libraryModel.addToUserLibrary(user_id, mangaData);
+    await library.addToUserLibrary(user_id, mangaData);
     res.json({ success: true, message: "Added manga to library successfully" });
   } catch (error) {
     res.json({
@@ -46,7 +46,7 @@ async function deleteMangaFromUserLibraryByID(req, res) {
   try {
     const mal_id = req.params.mal_id;
     const user_id = req.user.id;
-    await libraryModel.deleteMangaFromUserLibraryByID(mal_id, user_id);
+    await library.deleteMangaFromUserLibraryByID(mal_id, user_id);
     res.json({
       success: true,
       message: "Removed manga from library successfully",
@@ -64,7 +64,7 @@ async function updateMangaByID(req, res) {
     const mal_id = req.params.mal_id;
     const user_id = req.user.id;
     const volumes = req.body.volumes;
-    await libraryModel.updateMangaByID(mal_id, user_id, volumes);
+    await library.updateMangaById(mal_id, user_id, volumes);
     res.json({
       success: true,
       message: "Updated manga in library successfully",
@@ -82,7 +82,7 @@ async function updateMangaOwned(req, res) {
     const user_id = req.user.id;
     const mal_id = req.params.mal_id;
     const owned = Number(req.params.owned);
-    await libraryModel.updateMangaOwned(user_id, mal_id, owned);
+    await library.updateMangaOwned(user_id, mal_id, owned);
   } catch (error) {
     res.json({
       success: false,
