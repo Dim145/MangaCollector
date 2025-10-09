@@ -49,7 +49,7 @@ export default function Dashboard() {
         mal_id: manga.mal_id,
         volumes: manga.volumes == null ? 0 : manga.volumes,
         volumes_owned: 0,
-        image_url_jpg: manga.images.jpg.image_url,
+        image_url_jpg: manga.images.jpg.large_image_url || manga.images.jpg.image_url,
       };
 
       if (library.some((m) => m.mal_id === mangaData.mal_id)) {
