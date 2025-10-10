@@ -35,6 +35,7 @@ services:
 
   server:
     build: ./server
+    image: dim145/mangacollector-back:latest
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.server.rule=PathPrefix(`/api`) || PathPrefix(`/auth`)"
@@ -58,6 +59,7 @@ services:
 
   client:
     build: ./client
+    image: dim145/mangacollector-front:latest
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.client.rule=PathPrefix(`/`)"
