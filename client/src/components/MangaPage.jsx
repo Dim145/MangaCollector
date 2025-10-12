@@ -118,8 +118,19 @@ export default function MangaPage({manga, showAdultContent}) {
         }
     };
 
-    const updateFromMal = async () => {
-      setGenres(await updateLibFromMal(manga.mal_id))
+    const updateFromMal = async (e) => {
+      const target = e.target;
+
+      // start rotation animation
+      target.classList.add("animate-spin");
+
+      const {new_genres} = await updateLibFromMal(manga.mal_id);
+
+      if(new_genres)
+        setGenres(new_genres);
+
+      // stop rotation animation
+      target.classList.remove("animate-spin");
     }
 
     return <div className="relative min-h-screen text-white overflow-hidden">
@@ -140,7 +151,16 @@ export default function MangaPage({manga, showAdultContent}) {
                         {/* Title + MAL ID */}
                         <div>
                             <h1 className="text-3xl font-bold">{manga.name}</h1>
-                            <p className="text-sm text-gray-400">MAL ID: <a href={`https://myanimelist.net/manga/${manga.mal_id}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition">{manga.mal_id}</a></p>
+                            <p className="text-sm text-gray-400">
+                                MAL ID:
+                                <a href={`https://myanimelist.net/manga/${manga.mal_id}`} target="_blank"
+                                   rel="noopener noreferrer"
+                                   className="underline hover:text-white transition">{manga.mal_id}</a>
+                                &nbsp;
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="transform size-6 inline cursor-pointer duration-1000 " onClick={updateFromMal} >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                </svg>
+                            </p>
                         </div>
 
                         <div>
@@ -219,14 +239,6 @@ export default function MangaPage({manga, showAdultContent}) {
                                 </button>
                             </>)}
                         </div>
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          onClick={updateFromMal}
-                          className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition"
-                        >
-                          Update from MAL
-                        </button>
-                      </div>
                     </div>
                 </div>
 
