@@ -9,5 +9,16 @@ module.exports = {
         return {
             "show-adult-content": !!user["show-adult-content"]
         }
+    },
+    updateUserSettings: async (userId, newSettings) => {
+        const updatedRows = await userModel
+            .query()
+            .patchAndFetchById(userId, {
+                "show-adult-content": newSettings["show-adult-content"]
+            });
+
+        return {
+            "show-adult-content": !!updatedRows["show-adult-content"]
+        }
     }
 }

@@ -14,6 +14,23 @@ async function getUserSettings(req, res) {
     }
 }
 
+async function updateUserSettings(req, res) {
+    try {
+        const user_id = req.user.id;
+        const newSettings = req.body;
+
+        const response = await settings.updateUserSettings(user_id, newSettings);
+        return res.json(response);
+    }
+    catch (err) {
+        return res.json({
+            success: false,
+            error: err.message || "Error updating user's settings",
+        });
+    }
+}
+
 module.exports = {
-    getUserSettings
+    getUserSettings,
+    updateUserSettings
 }

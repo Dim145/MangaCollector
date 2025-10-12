@@ -56,6 +56,10 @@ async function getShowAdultContent() {
     return response.data["show-adult-content"];
 }
 
+async function updateShowAdultContent(showAdultContent) {
+    await axios.post('/api/user/settings', { "show-adult-content": showAdultContent });
+}
+
 export {
     addToUserLibrary,
     getUserLibrary,
@@ -64,4 +68,5 @@ export {
     updateMangaByID,
     updateMangaOwned,
     getShowAdultContent,
+    updateShowAdultContent,
 };

@@ -10,6 +10,7 @@ import MangaPage from "./components/MangaPage";
 import Wishlist from "./components/Wishlist";
 import { useState } from "react";
 import SettingsPage from "@/components/SettingsPage.jsx";
+import DefaultBackground from "@/components/DefaultBackground.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -59,7 +60,9 @@ export default function App() {
             path="/settings"
             element={
               <ProtectedRoute setGoogleUser={setGoogleUser}>
-                <SettingsPage />
+                <DefaultBackground>
+                    <SettingsPage />
+                </DefaultBackground>
               </ProtectedRoute>
             }
           />
