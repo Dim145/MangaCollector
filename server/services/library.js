@@ -113,16 +113,14 @@ const libraryService = {
         const volumes = malInfo.volumes;
 
         for (const lib of libraries) {
-            const newData = {};
             if (volumes && lib.volumes !== volumes) {
-                newData.volumes = volumes;
+                await libraryService.updateMangaById(lib.mal_id, lib.user_id, volumes)
             }
 
             await libraryModel
                 .query()
                 .where('id', lib.id)
                 .patch({
-                    ...newData,
                     genres: genres.join(',')
                 });
         }
