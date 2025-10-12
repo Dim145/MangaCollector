@@ -6,7 +6,12 @@ const hasToBlurImage = ({genres}, showAdultContent = false) => !showAdultContent
 const updateLibFromMal = async (malId) =>
   (await axios.get(`/api/user/library/${malId}/update-from-mal`)).data?.new_genres;
 
+const updateVolumeOwned = async (malId, nbOwned) => {
+    await axios.patch(`/api/user/library/${malId}/${nbOwned}`);
+}
+
 export {
     hasToBlurImage,
-    updateLibFromMal
+    updateLibFromMal,
+    updateVolumeOwned
 };

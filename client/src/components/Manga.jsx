@@ -24,11 +24,8 @@ export default function Manga({ manga, showAdultContent }) {
           {manga.name}
         </h3>
         <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
-          Volumes: {manga.volumes ?? "?"}
+          Volumes: {manga.volumes_owned ?? "?"} / {manga.volumes ?? "?"}
         </p>
-        {/* <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
-          Volumes owned: {manga.volumes_owned}
-        </p> */}
       </div>
     </div>
   );

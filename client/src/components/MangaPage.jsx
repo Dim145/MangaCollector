@@ -3,7 +3,7 @@ import {useEffect, useState} from "react";
 import {
     deleteMangaFromUserLibraryByID, getUserManga, updateMangaByID,
 } from "../utils/user";
-import {updateLibFromMal} from "../utils/library.js";
+import {updateLibFromMal, updateVolumeOwned} from "../utils/library.js";
 
 import Volume from "./Volume";
 import {getAllVolumesByID, updateVolumeByID} from "../utils/volume";
@@ -72,12 +72,27 @@ export default function MangaPage({manga, showAdultContent}) {
             setTotalVolumes(parseInt(totalVolumes));
             await updateMangaByID(manga.mal_id, totalVolumes);
             await getVolumeInfo();
+            await updateVolumeOwned(manga.mal_id, volumesOwned);
         } catch (err) {
             console.error("Failed to update manga:", err);
         } finally {
             setIsEditing(false);
         }
     };
+
+    const volumeUpdateCallback = async ({owned}) => {
+      let newOwned;
+
+      if (!owned) {
+        newOwned = Math.max(0, volumesOwned - 1);
+      }
+      else {
+        newOwned = Math.min(totalVolumes, volumesOwned + 1);
+      }
+
+      setVolumesOwned(newOwned);
+      await updateVolumeOwned(manga.mal_id, newOwned);
+    }
 
     const handleAddAllVolumes = async () => {
         if (addAvgPrice >= 0 && addStore.trim() !== "") {
@@ -90,6 +105,7 @@ export default function MangaPage({manga, showAdultContent}) {
                 // Update all unowned volumes
                 await Promise.all(unownedVolumes.map((vol) => updateVolumeByID(vol.id, true, addAvgPrice, addStore),),);
                 await getVolumeInfo();
+                await updateVolumeOwned(manga.mal_id, volumesOwned);
             } catch (error) {
                 console.error(error);
             } finally {
@@ -306,6 +322,7 @@ export default function MangaPage({manga, showAdultContent}) {
                             owned={vol.owned}
                             paid={vol.price}
                             store={vol.store}
+                            onUpdate={volumeUpdateCallback}
                         />))}
                     </div>
                 </div>

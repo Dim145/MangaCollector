@@ -83,6 +83,10 @@ async function updateMangaOwned(req, res) {
     const mal_id = req.params.mal_id;
     const owned = Number(req.params.owned);
     await library.updateMangaOwned(user_id, mal_id, owned);
+
+    res.json({
+      success: true,
+    })
   } catch (error) {
     res.json({
       success: false,
