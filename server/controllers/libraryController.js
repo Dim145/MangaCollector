@@ -31,7 +31,7 @@ async function addToUserLibrary(req, res) {
   try {
     const user_id = req.user.id;
     const mangaData = req.body;
-    console.log(mangaData);
+
     await library.addToUserLibrary(user_id, mangaData);
     res.json({ success: true, message: "Added manga to library successfully" });
   } catch (error) {

@@ -5,7 +5,13 @@ const volumesService = require('./volumes');
 const libraryService = {
     getUserLibrary: user_id => libraryModel
         .query()
-        .where('user_id', user_id),
+        .where('user_id', user_id)
+        .runAfter((result, query) => {
+            return result.map(manga => ({
+                ...manga,
+                genres: manga.genres ? manga.genres.split(',') : [],
+            }));
+        }),
 
     getUserManga: (mal_id, user_id) => libraryModel
         .query()
@@ -13,11 +19,19 @@ const libraryService = {
         .andWhere('user_id', user_id),
 
     addToUserLibrary: async (user_id, mangaData) => {
-        const { name, mal_id, volumes, volumes_owned, image_url_jpg } = mangaData;
+        const { name, mal_id, volumes, volumes_owned, image_url_jpg, genres } = mangaData;
 
         const lib = await libraryModel
             .query()
-            .insertAndFetch({ user_id, mal_id, name, volumes, volumes_owned, image_url_jpg });
+            .insertAndFetch({
+                user_id,
+                mal_id,
+                name,
+                volumes,
+                volumes_owned,
+                image_url_jpg,
+                genres: (genres || []).join(',')
+            });
 
         for(let i = 1; i <= volumes; i++) {
             await volumesService.addVolumeToUser(user_id, mal_id, i);

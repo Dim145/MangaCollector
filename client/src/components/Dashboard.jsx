@@ -50,6 +50,7 @@ export default function Dashboard() {
         volumes: manga.volumes == null ? 0 : manga.volumes,
         volumes_owned: 0,
         image_url_jpg: manga.images.jpg.large_image_url || manga.images.jpg.image_url,
+        genres: (manga.genres || []).filter(g => g.type === "manga").map(g => g.name),
       };
 
       if (library.some((m) => m.mal_id === mangaData.mal_id)) {
