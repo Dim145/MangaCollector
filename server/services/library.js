@@ -16,7 +16,13 @@ const libraryService = {
     getUserManga: (mal_id, user_id) => libraryModel
         .query()
         .where('mal_id', mal_id)
-        .andWhere('user_id', user_id),
+        .andWhere('user_id', user_id)
+        .runAfter((result, query) => {
+            return result.map(manga => ({
+                ...manga,
+                genres: manga.genres ? manga.genres.split(',') : [],
+            }));
+        }),
 
     addToUserLibrary: async (user_id, mangaData) => {
         const { name, mal_id, volumes, volumes_owned, image_url_jpg, genres } = mangaData;
