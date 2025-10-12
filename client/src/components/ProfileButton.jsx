@@ -68,6 +68,14 @@ export default function ProfileButton() {
                     Dashboard
                   </button>
                 </li>
+                <li>
+                  <button
+                      onClick={() => navigate("/settings")}
+                      className="w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-800"
+                  >
+                      Settings
+                  </button>
+                </li>
                 {/* <li>
                   <button
                     onClick={() => navigate("/wishlist")}

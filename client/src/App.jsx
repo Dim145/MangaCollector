@@ -9,6 +9,7 @@ import ProfilePage from "./components/ProfilePage";
 import MangaPage from "./components/MangaPage";
 import Wishlist from "./components/Wishlist";
 import { useState } from "react";
+import SettingsPage from "@/components/SettingsPage.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -53,6 +54,15 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute setGoogleUser={setGoogleUser}>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
       </Routes>
     </>
   );
