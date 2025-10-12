@@ -12,7 +12,7 @@ import { useState } from "react";
 
 export default function App() {
   const location = useLocation();
-  const manga = location.state;
+  const {manga, showAdultContent} = (location.state || {});
   const [googleUser, setGoogleUser] = useState(null);
 
   return (
@@ -49,7 +49,7 @@ export default function App() {
           path="/mangapage"
           element={
             <ProtectedRoute setGoogleUser={setGoogleUser}>
-              <MangaPage manga={manga} />
+              <MangaPage manga={manga} showAdultContent={showAdultContent} />
             </ProtectedRoute>
           }
         />

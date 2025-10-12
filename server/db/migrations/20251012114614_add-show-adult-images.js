@@ -1,6 +1,7 @@
-const migrate_name = 'add-genres';
+const migrate_name = 'add-show-adult-images';
 
-const userLibraryModel = require('../models/user_librarie');
+const userModel = require('../models/user');
+const userLibraryModel = require("../models/user_librarie");
 
 /**
  * Migrate
@@ -15,11 +16,11 @@ exports.up = function (knex, Promise) {
 
 	console.info('[' + migrate_name + '] Migrating Up...');
 
-    return knex.schema.table(userLibraryModel.tableName, function (access_list) {
-        access_list.string('genres').nullable();
+    return knex.schema.table(userModel.tableName, function (access_list) {
+        access_list.boolean('show-adult-images').defaultTo(false);
     })
         .then(() => {
-            console.info('[' + migrate_name + '] genres Table altered');
+            console.info('[' + migrate_name + '] show-adult-images Table altered');
         });
 };
 
@@ -34,9 +35,9 @@ exports.down = function (knex, Promise) {
     console.info('[' + migrate_name + '] Migrating Down...');
 
     return knex.schema.table(userLibraryModel.tableName, table => {
-        table.dropColumn('genres');
+        table.dropColumn('show-adult-images');
     })
-    .then(() => {
-        console.info('[' + migrate_name + '] access_list Table altered');
-    });
+        .then(() => {
+            console.info('[' + migrate_name + '] show-adult-images Table altered');
+        });
 };

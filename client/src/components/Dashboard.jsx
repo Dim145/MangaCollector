@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getUserLibrary, addToUserLibrary } from "../utils/user";
+import {getUserLibrary, addToUserLibrary, getShowAdultContent} from "../utils/user";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
 import MangaSearchResults from "./MangaSearchResults";
@@ -11,6 +11,7 @@ export default function Dashboard() {
   const [library, setLibrary] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [showAdultContent, setShowAdultContent] = useState(false);
 
   useEffect(() => {
     async function loadLibrary() {
@@ -22,6 +23,11 @@ export default function Dashboard() {
       }
     }
 
+    async function fetchSettings() {
+      setShowAdultContent(await getShowAdultContent())
+    }
+
+    fetchSettings();
     loadLibrary();
   }, [isAdding, loading, results]);
 
@@ -115,7 +121,7 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
               {library.map((manga) => (
-                <Manga key={manga.mal_id} manga={manga} />
+                <Manga key={manga.mal_id} manga={manga} showAdultContent={showAdultContent} />
               ))}
             </div>
           </div>

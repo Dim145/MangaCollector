@@ -7,10 +7,10 @@ import {
 import Volume from "./Volume";
 import {getAllVolumesByID, updateVolumeByID} from "../utils/volume";
 import DefaultBackground from "./DefaultBackground";
+import {hasToBlurImage} from "@/utils/library.js";
 
-export default function MangaPage() {
+export default function MangaPage({manga, showAdultContent}) {
     const navigate = useNavigate();
-    const {state: manga} = useLocation();
 
     const [isEditing, setIsEditing] = useState(false);
     const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
@@ -109,7 +109,7 @@ export default function MangaPage() {
                         <img
                             src={manga.image_url_jpg}
                             alt={manga.name}
-                            className="w-full h-full object-contain rounded-lg shadow-lg"
+                            className={`w-full h-full object-contain rounded-lg shadow-lg ${hasToBlurImage(manga, showAdultContent) ? "blur-sm" : ""}`}
                         />
                     </div>
 
