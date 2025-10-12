@@ -2,14 +2,12 @@
 const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
-const pgSession = require("connect-pg-simple");
-const pool = require("./db/pool.js");
+const {ConnectSessionKnexStore} = require('connect-session-knex');
 const cookieParser = require('cookie-parser');
 
 require("dotenv").config();
 
 const app = express();
-const PgSession = pgSession(session);
 // Routers
 const authRouter = require("./routes/authRouter");
 const apiRouter = require("./routes/apiRouter");
@@ -30,10 +28,9 @@ app.use(cookieParser());
 
 app.use(
   session({
-    store: new PgSession({
-      pool, // re-use your existing pg pool
-      tableName: "session",
-      createTableIfMissing: true,
+    store: new ConnectSessionKnexStore({
+        tableName: 'sessions',
+        knex: require('./db/db'),
     }),
     secret: process.env.SESSION_SECRET,
     resave: false,

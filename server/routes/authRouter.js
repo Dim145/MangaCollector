@@ -38,7 +38,6 @@ authRouter.get(
   },
 );
 authRouter.get("/user", (req, res) => {
-  console.log("User info requested", req.user, req.isAuthenticated());
     if (req.isAuthenticated()) {
     res.json(req.user);
   } else {
