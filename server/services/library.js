@@ -44,7 +44,10 @@ const libraryService = {
         .first(),
 
     updateMangaById: async (mal_id, user_id, volumes) => {
-        const oldTotal = await libraryService.getTotalVolumesById(mal_id, user_id);
+        const oldTotal = (await libraryService.getTotalVolumesById(mal_id, user_id))?.volumes;
+
+        console.log("oldTotal", oldTotal);
+        console.log("volumes", volumes);
 
         if(oldTotal === volumes)
         {
@@ -53,12 +56,14 @@ const libraryService = {
         else if (oldTotal > volumes)
         {
             for (let i = oldTotal; i > volumes; i--) {
+                console.log("Removing volume", i);
                 await volumesService.removeVolumeByID(mal_id, user_id, i);
             }
         }
-        else if (volumes < volumes)
+        else if (oldTotal < volumes)
         {
             for (let i = oldTotal + 1; i <= volumes; i++) {
+                console.log("Adding volume", i);
                 await volumesService.addVolumeToUser(user_id, mal_id, i);
             }
         }
