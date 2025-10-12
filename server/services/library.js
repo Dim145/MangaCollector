@@ -95,6 +95,40 @@ const libraryService = {
         .where('user_id', user_id)
         .andWhere('mal_id', mal_id)
         .patch({ volumes_owned }),
+
+    updateInfosFromMal: async mal_id => {
+        const libraries = await libraryModel
+            .query()
+            .where('mal_id', mal_id);
+
+        const malInfoResponse = await fetch(`https://api.jikan.moe/v4/manga/${mal_id}/full`);
+        const malInfoData = await malInfoResponse.json();
+        const malInfo = malInfoData.data;
+
+        if (!malInfo) {
+            throw new Error('MAL info not found');
+        }
+
+        const genres = (malInfo.genres || []).filter(g => g.type === "manga").map(g => g.name);
+        const volumes = malInfo.volumes;
+
+        for (const lib of libraries) {
+            const newData = {};
+            if (volumes && lib.volumes !== volumes) {
+                newData.volumes = volumes;
+            }
+
+            await libraryModel
+                .query()
+                .where('id', lib.id)
+                .patch({
+                    ...newData,
+                    genres: genres.join(',')
+                });
+        }
+
+        return genres;
+    }
 }
 
 module.exports = libraryService;

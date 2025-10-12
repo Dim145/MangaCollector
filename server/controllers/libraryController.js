@@ -91,6 +91,25 @@ async function updateMangaOwned(req, res) {
   }
 }
 
+async function updateInfosFromMal(req, res) {
+  try {
+    const mal_id = req.params.mal_id;
+    const newGenres = await library.updateInfosFromMal(mal_id);
+
+    res.json({
+      success: true,
+      message: "Updated manga info from MAL successfully",
+      new_genres: newGenres,
+    });
+  }
+  catch (error) {
+    res.json({
+      success: false,
+      error: error.message || "Error updating manga info from MAL",
+    });
+  }
+}
+
 module.exports = {
   getUserLibrary,
   getUserManga,
@@ -98,4 +117,5 @@ module.exports = {
   deleteMangaFromUserLibraryByID,
   updateMangaByID,
   updateMangaOwned,
+  updateInfosFromMal
 };

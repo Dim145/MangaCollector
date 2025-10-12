@@ -1,8 +1,9 @@
-import {useLocation, useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router-dom";
 import {useEffect, useState} from "react";
 import {
     deleteMangaFromUserLibraryByID, getUserManga, updateMangaByID,
 } from "../utils/user";
+import {updateLibFromMal} from "../utils/library.js";
 
 import Volume from "./Volume";
 import {getAllVolumesByID, updateVolumeByID} from "../utils/volume";
@@ -19,6 +20,7 @@ export default function MangaPage({manga, showAdultContent}) {
 
     const [totalPrice, setTotalPrice] = useState(0);
     const [avgPrice, setAvgPrice] = useState(0);
+    const [genres, setGenres] = useState(manga.genres ?? []);
 
     const [showAddDropdown, setShowAddDropdown] = useState(false);
     const [addAvgPrice, setAddAvgPrice] = useState("");
@@ -100,6 +102,10 @@ export default function MangaPage({manga, showAdultContent}) {
         }
     };
 
+    const updateFromMal = async () => {
+      setGenres(await updateLibFromMal(manga.mal_id))
+    }
+
     return <div className="relative min-h-screen text-white overflow-hidden">
         <DefaultBackground>
             <div className="p-8 max-w-6xl mx-auto space-y-12">
@@ -122,7 +128,7 @@ export default function MangaPage({manga, showAdultContent}) {
                         </div>
 
                         <div>
-                            {manga.genres?.map((genre) =>
+                            {genres?.map((genre) =>
                                 <span
                                     key={`genre-${genre}`}
                                     className="inline-block bg-white/10 text-white text-xs font-medium mr-2 mb-2 px-3 py-1 rounded-full hover:bg-white/20 transition-colors duration-200"
@@ -197,6 +203,14 @@ export default function MangaPage({manga, showAdultContent}) {
                                 </button>
                             </>)}
                         </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={updateFromMal}
+                          className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition"
+                        >
+                          Update from MAL
+                        </button>
+                      </div>
                     </div>
                 </div>
 
