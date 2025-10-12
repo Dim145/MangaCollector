@@ -124,7 +124,7 @@ export default function MangaPage({manga, showAdultContent}) {
                         {/* Title + MAL ID */}
                         <div>
                             <h1 className="text-3xl font-bold">{manga.name}</h1>
-                            <p className="text-sm text-gray-400">MAL ID: {manga.mal_id}</p>
+                            <p className="text-sm text-gray-400">MAL ID: <a href={`https://myanimelist.net/manga/${manga.mal_id}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition">{manga.mal_id}</a></p>
                         </div>
 
                         <div>
