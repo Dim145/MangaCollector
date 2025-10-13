@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+import {useState, useEffect, useContext} from "react";
 import {
   getUserLibrary,
   addToUserLibrary,
-  getShowAdultContent,
 } from "../utils/user";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
 import MangaSearchResults from "./MangaSearchResults";
 import MangaSearchBar from "./MangaSearchBar";
+import SettingsContext from "@/SettingsContext.js";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [library, setLibrary] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
-  const [showAdultContent, setShowAdultContent] = useState(false);
+  const {"show-adult-content": showAdultContent} = useContext(SettingsContext);
 
   useEffect(() => {
     async function loadLibrary() {
@@ -27,11 +27,6 @@ export default function Dashboard() {
       }
     }
 
-    async function fetchSettings() {
-      setShowAdultContent(await getShowAdultContent());
-    }
-
-    fetchSettings();
     loadLibrary();
   }, [isAdding, loading, results]);
 

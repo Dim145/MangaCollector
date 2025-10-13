@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import {useContext, useEffect, useState} from "react";
 import {
   deleteMangaFromUserLibraryByID,
   getUserManga,
@@ -12,14 +12,16 @@ import { getAllVolumesByID, updateVolumeByID } from "../utils/volume";
 import DefaultBackground from "./DefaultBackground";
 import { hasToBlurImage } from "@/utils/library.js";
 import {formatCurrency} from "@/utils/price.js";
+import SettingsContext from "@/SettingsContext.js";
 
-export default function MangaPage({ manga, showAdultContent, currencySetting }) {
+export default function MangaPage({ manga, showAdultContent }) {
   const navigate = useNavigate();
 
   const [isEditing, setIsEditing] = useState(false);
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
   const [volumesOwned, setVolumesOwned] = useState(manga.volumes_owned ?? 0);
   const [volumes, setVolumes] = useState([]);
+  const {currency: currencySetting} = useContext(SettingsContext);
 
   const [totalPrice, setTotalPrice] = useState(0);
   const [avgPrice, setAvgPrice] = useState(0);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import {useContext, useEffect, useState} from "react";
 import {
   PieChart,
   Pie,
@@ -14,8 +14,9 @@ import { getAllVolumes } from "../utils/volume";
 import { getUserLibrary } from "../utils/user";
 import DefaultBackground from "./DefaultBackground";
 import {formatCurrency} from "@/utils/price.js";
+import SettingsContext from "@/SettingsContext.js";
 
-export default function ProfilePage({ googleUser, currencySetting }) {
+export default function ProfilePage({ googleUser }) {
   const defaultSeriesData = [
     {
       title: "None",
@@ -29,6 +30,7 @@ export default function ProfilePage({ googleUser, currencySetting }) {
   const [totalCost, setTotalCost] = useState(0);
   const [completionRate, setCompletionRate] = useState(0);
   const [seriesByCost, setSeriesByCost] = useState(defaultSeriesData);
+  const {currency: currencySetting} = useContext(SettingsContext);
 
   const stats = [
     { label: "Series Owned", value: totalSeries },
