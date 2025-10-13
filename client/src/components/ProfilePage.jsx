@@ -13,8 +13,9 @@ import {
 import { getAllVolumes } from "../utils/volume";
 import { getUserLibrary } from "../utils/user";
 import DefaultBackground from "./DefaultBackground";
+import {formatCurrency} from "@/utils/price.js";
 
-export default function ProfilePage({ googleUser }) {
+export default function ProfilePage({ googleUser, currencySetting }) {
   const defaultSeriesData = [
     {
       title: "None",
@@ -32,7 +33,7 @@ export default function ProfilePage({ googleUser }) {
   const stats = [
     { label: "Series Owned", value: totalSeries },
     { label: "Volumes Owned", value: `${totalVolumesOwned} / ${totalVolumes}` },
-    { label: "Library Cost", value: `$${totalCost.toLocaleString()}` },
+    { label: "Library Cost", value: `${formatCurrency(totalCost, currencySetting)}` },
     { label: "Completion Rate", value: `${completionRate}%` },
   ];
 
@@ -90,7 +91,7 @@ export default function ProfilePage({ googleUser }) {
           .map(([title, totalCost]) => {
             // Take the first word and truncate to 8 characters
             const truncatedTitle = title.split(" ")[0].slice(0, 8);
-            return { title: truncatedTitle, totalCost };
+            return { title: truncatedTitle, totalCost: totalCost.toFixed(2) };
           })
           .sort((a, b) => b.totalCost - a.totalCost)
           .slice(0, 4);

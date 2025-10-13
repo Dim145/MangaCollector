@@ -20,7 +20,7 @@ module.exports = {
           res = await settingModel.query().insert({
               user_id: userId,
               "show-adult-content": newSettings["show-adult-content"],
-              currency: getCurrencyByCode(newSettings.currency) || 'USD'
+              currency: getCurrencyByCode(newSettings.currency)?.code || 'USD'
           })
       }
       else {
@@ -29,7 +29,7 @@ module.exports = {
           .where('user_id', userId)
           .patch({
             "show-adult-content": newSettings["show-adult-content"],
-            "currency": getCurrencyByCode(newSettings.currency) || 'USD'
+            "currency": getCurrencyByCode(newSettings.currency)?.code || 'USD'
           });
 
         if(res > 0) {

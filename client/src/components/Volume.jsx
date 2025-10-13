@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { updateVolumeByID } from "../utils/volume";
 
-export default function Volume({ id, owned, volNum, paid, store, onUpdate }) {
+export default function Volume({ id, owned, volNum, paid, store, onUpdate, currencySetting }) {
   const [isEditing, setIsEditing] = useState(false);
   const [ownedStatus, setOwnedStatus] = useState(owned);
   const [price, setPrice] = useState(paid);
@@ -117,7 +117,7 @@ export default function Volume({ id, owned, volNum, paid, store, onUpdate }) {
         {/* Price Input */}
         <div>
           <label className="block text-sm text-gray-300 mb-1.5 font-medium">
-            Price ($)
+            Price ({currencySetting?.symbol || '$'})
           </label>
           <input
             type="number"

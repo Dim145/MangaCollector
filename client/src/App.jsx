@@ -8,14 +8,20 @@ import About from "./components/About";
 import ProfilePage from "./components/ProfilePage";
 import MangaPage from "./components/MangaPage";
 import Wishlist from "./components/Wishlist";
-import { useState } from "react";
+import {useEffect, useState} from "react";
 import SettingsPage from "@/components/SettingsPage.jsx";
 import DefaultBackground from "@/components/DefaultBackground.jsx";
+import {getUserSettings} from "@/utils/user.js";
 
 export default function App() {
   const location = useLocation();
-  const {manga, showAdultContent} = (location.state || {});
+  const { manga, showAdultContent } = location.state || {};
   const [googleUser, setGoogleUser] = useState(null);
+  const [settings, setSettings] = useState(null);
+
+  useEffect(() => {
+    getUserSettings().then(s => setSettings(s));
+  }, []);
 
   return (
     <>
@@ -43,7 +49,7 @@ export default function App() {
           path="/profile"
           element={
             <ProtectedRoute setGoogleUser={setGoogleUser}>
-              <ProfilePage googleUser={googleUser} />
+              <ProfilePage googleUser={googleUser} currencySetting={settings?.currency} />
             </ProtectedRoute>
           }
         />
@@ -51,21 +57,21 @@ export default function App() {
           path="/mangapage"
           element={
             <ProtectedRoute setGoogleUser={setGoogleUser}>
-              <MangaPage manga={manga} showAdultContent={showAdultContent} />
+              <MangaPage manga={manga} showAdultContent={showAdultContent} currencySetting={settings?.currency} />
             </ProtectedRoute>
           }
         />
 
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute setGoogleUser={setGoogleUser}>
-                <DefaultBackground>
-                    <SettingsPage />
-                </DefaultBackground>
-              </ProtectedRoute>
-            }
-          />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute setGoogleUser={setGoogleUser}>
+              <DefaultBackground>
+                <SettingsPage settingsUpdateCallback={s => setSettings(s)} />
+              </DefaultBackground>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </>
   );
