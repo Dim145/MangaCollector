@@ -62,7 +62,7 @@ async function getUserSettings() {
 async function updateSettings(settings) {
   return (
     await axios.post("/api/user/settings", {
-      "show-adult-content": settings.showAdultContent,
+      "show-adult-content": settings["show-adult-content"],
       currency: settings.currency?.code,
     })
   ).data;
