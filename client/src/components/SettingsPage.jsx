@@ -23,7 +23,7 @@ export default function SettingsPage({settingsUpdateCallback}) {
     async function updateSetting() {
       try {
         const newSettings = {
-          showAdultContent,
+          "show-adult-content": showAdultContent,
           currency: currencyObject,
         }
 
@@ -46,7 +46,7 @@ export default function SettingsPage({settingsUpdateCallback}) {
     const selectedCurrency = e.target.value;
 
     const res = await updateSettings({
-      showAdultContent,
+      "show-adult-content": showAdultContent,
       currency: { code: selectedCurrency },
     });
 
