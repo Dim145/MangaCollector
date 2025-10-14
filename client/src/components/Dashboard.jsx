@@ -57,6 +57,8 @@ export default function Dashboard() {
         image_url_jpg:
           manga.images.jpg.large_image_url || manga.images.jpg.image_url,
         genres: (manga.genres || [])
+          .concat(manga.explicit_genres || [])
+          .concat(manga.demographics || [])
           .filter((g) => g.type === "manga")
           .map((g) => g.name),
       };
