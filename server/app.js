@@ -4,10 +4,16 @@ const session = require("express-session");
 const cors = require("cors");
 const {ConnectSessionKnexStore} = require('connect-session-knex');
 const cookieParser = require('cookie-parser');
+const fileUpload = require("express-fileupload");
 
 require("dotenv").config();
 
 const app = express();
+
+app.use(fileUpload({
+  useTempFiles: false
+}));
+
 // Routers
 const authRouter = require("./routes/authRouter");
 const apiRouter = require("./routes/apiRouter");

@@ -53,6 +53,9 @@ services:
       SESSION_SECRET: "xxx"
       FRONTEND_URL: http://localhost:12000
       POSTGRES_URL: postgres://mangacollector:mangacollectormangacollector@db:5432/mangacollector?sslmode=disable
+      STORAGE_DIR: /data
+    volumes:
+      - ./tmp/docker-data:/data
     networks:
       - internal
       - default

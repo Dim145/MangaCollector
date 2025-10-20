@@ -126,6 +126,16 @@ const libraryService = {
         }
 
         return genres;
+    },
+
+    changePoster: async (user_id, mal_id, newPosterPath) => {
+        await libraryModel
+            .query()
+            .where('user_id', user_id)
+            .andWhere('mal_id', mal_id)
+            .patch({
+              image_url_jpg: newPosterPath
+            });
     }
 }
 
