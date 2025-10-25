@@ -38,11 +38,11 @@ async function uploadPoster(req, res) {
     }
 
     const file = files.poster;
-    const filePath = `uploads/images/${userId}/${malId}.${file.name.split('.').pop()}`;
+    const filePath = `uploads/images/${userId}/${malId}.jpg`;
 
     await storage.putFile(filePath, file.data);
 
-    await library.changePoster(userId, malId, filePath);
+    await library.changePoster(userId, malId, `/api/user/storage/poster/${malId}`);
 
     res.json({
       success: true,
@@ -70,7 +70,7 @@ async function getPoster(req, res) {
       });
     }
 
-    const libraryEntry = await library.getUserManga(malId, userId);
+    const libraryEntry = (await library.getUserManga(malId, userId))?.pop();
 
     if (!libraryEntry) {
       return res.status(404).json({
@@ -87,7 +87,7 @@ async function getPoster(req, res) {
       });
     }
 
-    const fileStream = await storage.getFile(libraryEntry.image_url_jpg);
+    const fileStream = await storage.getFile(`uploads/images/${userId}/${malId}.jpg`);
 
     res.setHeader('Content-Disposition', `inline; filename="${malId}_poster"`);
     res.setHeader('Content-Type', 'image/jpeg');

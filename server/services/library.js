@@ -117,12 +117,19 @@ const libraryService = {
                 await libraryService.updateMangaById(lib.mal_id, lib.user_id, volumes)
             }
 
+            const patchObj = {
+              genres: genres.join(',')
+            };
+
+            if(!lib.image_url_jpg)
+            {
+              patchObj.image_url_jpg = malInfo.images?.jpg?.image_url;
+            }
+
             await libraryModel
                 .query()
                 .where('id', lib.id)
-                .patch({
-                    genres: genres.join(',')
-                });
+                .patch(patchObj);
         }
 
         return genres;

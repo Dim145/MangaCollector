@@ -3,7 +3,7 @@ import {useContext, useEffect, useState} from "react";
 import {
   deleteMangaFromUserLibraryByID,
   getUserManga,
-  updateMangaByID,
+  updateMangaByID, uploadPoster,
 } from "../utils/user";
 import { updateLibFromMal, updateVolumeOwned } from "../utils/library.js";
 
@@ -140,6 +140,12 @@ export default function MangaPage({ manga, showAdultContent }) {
     target.classList.remove("animate-spin");
   };
 
+  const handleSelectFile = async (e) => {
+    const image = e.currentTarget.files[0];
+
+    await uploadPoster(manga.mal_id, image);
+  };
+
   return (
     <div className="relative min-h-screen text-white overflow-hidden">
       <DefaultBackground>
@@ -260,6 +266,16 @@ export default function MangaPage({ manga, showAdultContent }) {
                   </>
                 ) : (
                   <>
+                    <button
+                      className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition"
+                    >
+                      <input
+                        type="file"
+                        onChange={handleSelectFile}
+                        accept="image/jpeg"
+                        multiple={false}
+                      />
+                    </button>
                     <button
                       onClick={handleSave}
                       className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-black font-semibold transition"

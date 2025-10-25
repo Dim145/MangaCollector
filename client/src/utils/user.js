@@ -68,6 +68,14 @@ async function updateSettings(settings) {
   ).data;
 }
 
+async function uploadPoster(mangaId, image)
+{
+  const formData = new FormData();
+  formData.append("poster", image);
+
+  return await axios.post(`/api/user/storage/poster/${mangaId}`, formData)
+}
+
 export {
   addToUserLibrary,
   getUserLibrary,
@@ -77,5 +85,6 @@ export {
   updateMangaOwned,
   getShowAdultContent,
   updateSettings,
-  getUserSettings
+  getUserSettings,
+  uploadPoster
 };

@@ -53,6 +53,13 @@ else {
   storageClient = {
     putFile: async (filePath, fileStream) => {
       filePath = path.join(storageDir, filePath);
+
+      const dirname = path.dirname(filePath);
+
+      if(!fs.existsSync(dirname)) {
+        fs.mkdirSync(dirname, { recursive: true });
+      }
+
       const writeStream = fs.createWriteStream(filePath);
 
       return new Promise((resolve, reject) => {
@@ -60,7 +67,8 @@ else {
           fileStream.pipe(writeStream);
         }
         else {
-          fileStream.pipeTo(writeStream);
+          writeStream.write(fileStream);
+          writeStream.end();
         }
         writeStream.on('finish', () => resolve());
         writeStream.on('error', (err) => reject(err));
