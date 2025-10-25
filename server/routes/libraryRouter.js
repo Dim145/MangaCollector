@@ -3,6 +3,7 @@ const libraryRouter = new Router();
 const libraryController = require("../controllers/libraryController");
 
 libraryRouter.get("/", libraryController.getUserLibrary);
+libraryRouter.get("/search", libraryController.searchMangaInUserLibrary);
 libraryRouter.get("/:mal_id", libraryController.getUserManga);
 libraryRouter.get("/:mal_id/update-from-mal", libraryController.updateInfosFromMal);
 

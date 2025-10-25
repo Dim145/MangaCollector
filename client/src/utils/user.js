@@ -81,6 +81,10 @@ async function removePoster(mangaId)
   return (await axios.delete(`/api/user/storage/poster/${mangaId}`)).data?.malPoster;
 }
 
+async function searchInLib(query) {
+  return (await axios.get(`/api/user/library/search`, { params: { q: query } })).data;
+}
+
 export {
   addToUserLibrary,
   getUserLibrary,
@@ -92,5 +96,6 @@ export {
   updateSettings,
   getUserSettings,
   uploadPoster,
-  removePoster
+  removePoster,
+  searchInLib,
 };

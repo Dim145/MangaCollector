@@ -7,7 +7,7 @@ const libraryService = {
     getUserLibrary: user_id => libraryModel
         .query()
         .where('user_id', user_id)
-        .runAfter((result, query) => {
+        .runAfter((result, _) => {
             return result.map(manga => ({
                 ...manga,
                 genres: manga.genres ? manga.genres.split(',') : [],
@@ -146,6 +146,19 @@ const libraryService = {
             .patch({
               image_url_jpg: newPosterPath
             });
+    },
+
+    search: (user_id, query) => {
+        return libraryModel
+          .query()
+          .where('user_id', user_id)
+          .andWhereILike('name', `%${`${query}`.toLowerCase()}%`)
+          .runAfter((result, _) => {
+            return result.map(manga => ({
+              ...manga,
+              genres: manga.genres ? manga.genres.split(',') : [],
+            }));
+          });
     }
 }
 

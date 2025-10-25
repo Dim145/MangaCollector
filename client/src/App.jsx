@@ -13,6 +13,7 @@ import SettingsPage from "@/components/SettingsPage.jsx";
 import DefaultBackground from "@/components/DefaultBackground.jsx";
 import {getUserSettings} from "@/utils/user.js";
 import SettingsContext from "@/SettingsContext.js";
+import AddPage from "@/components/AddPage.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -70,6 +71,17 @@ export default function App() {
               <ProtectedRoute setGoogleUser={setGoogleUser}>
                 <DefaultBackground>
                   <SettingsPage settingsUpdateCallback={s => setSettings(s)} />
+                </DefaultBackground>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/addmanga"
+            element={
+              <ProtectedRoute setGoogleUser={setGoogleUser}>
+                <DefaultBackground>
+                  <AddPage showAdultContent={showAdultContent} />
                 </DefaultBackground>
               </ProtectedRoute>
             }

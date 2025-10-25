@@ -114,6 +114,21 @@ async function updateInfosFromMal(req, res) {
   }
 }
 
+async function searchMangaInUserLibrary(req, res) {
+  try {
+    const user_id = req.user.id;
+    const query = req.query.q;
+    const response = await library.search(user_id, query);
+
+    return res.json(response);
+  } catch (err) {
+    return res.json({
+      success: false,
+      error: err.message || "Error searching manga in user's library",
+    });
+  }
+}
+
 module.exports = {
   getUserLibrary,
   getUserManga,
@@ -121,5 +136,6 @@ module.exports = {
   deleteMangaFromUserLibraryByID,
   updateMangaByID,
   updateMangaOwned,
-  updateInfosFromMal
+  updateInfosFromMal,
+  searchMangaInUserLibrary
 };

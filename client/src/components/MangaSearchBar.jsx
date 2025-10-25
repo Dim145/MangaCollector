@@ -7,6 +7,8 @@ export default function MangaSearchBar({
   clearResults,
   loading,
   hasResults,
+  placeholder,
+  clearText
 }) {
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
@@ -21,7 +23,7 @@ export default function MangaSearchBar({
         <div className="flex-1 relative">
           <input
             type="text"
-            placeholder="Search manga..."
+            placeholder={placeholder || "Search manga..."}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -76,7 +78,7 @@ export default function MangaSearchBar({
               onClick={clearResults}
               className="flex-1 sm:flex-none px-5 py-3 rounded-2xl font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 hover:scale-105 active:scale-95 transform transition-all duration-200 shadow-lg hover:shadow-xl"
             >
-              Clear
+              {clearText || "Clear"}
             </button>
           )}
         </div>

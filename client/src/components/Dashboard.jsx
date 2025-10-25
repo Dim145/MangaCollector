@@ -1,85 +1,55 @@
 import {useState, useEffect, useContext} from "react";
 import {
   getUserLibrary,
-  addToUserLibrary,
+  addToUserLibrary, searchInLib,
 } from "../utils/user";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
 import MangaSearchResults from "./MangaSearchResults";
 import MangaSearchBar from "./MangaSearchBar";
 import SettingsContext from "@/SettingsContext.js";
+import {useNavigate} from "react-router-dom";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
   const [library, setLibrary] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
   const {"show-adult-content": showAdultContent} = useContext(SettingsContext);
+  const [libraryFiltered, setLibraryFiltered] = useState(false);
+
+  const navigate = useNavigate();
+
+  const loadLibrary = async () => {
+    try {
+      const userLibrary = await getUserLibrary();
+      setLibrary(userLibrary);
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   useEffect(() => {
-    async function loadLibrary() {
-      try {
-        const userLibrary = await getUserLibrary();
-        setLibrary(userLibrary);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
     loadLibrary();
-  }, [isAdding, loading, results]);
+  }, []);
 
   const searchManga = async () => {
-    if (!query.trim()) return;
+    if (!query.trim())
+    {
+      await loadLibrary();
+      setLibraryFiltered(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const res = await fetch(
-        `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(query)}&limit=10`,
-      );
-      const data = await res.json();
-      setResults(data.data || []);
+
+      setLibrary(await searchInLib(query));
+      setLibraryFiltered(true);
     } catch (err) {
       console.error("Search error:", err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const addToLibrary = async (manga) => {
-    try {
-      setIsAdding(true);
-      const mangaData = {
-        name: manga.title,
-        mal_id: manga.mal_id,
-        volumes: manga.volumes == null ? 0 : manga.volumes,
-        volumes_owned: 0,
-        image_url_jpg:
-          manga.images.jpg.large_image_url || manga.images.jpg.image_url,
-        genres: (manga.genres || [])
-          .concat(manga.explicit_genres || [])
-          .concat(manga.demographics || [])
-          .filter((g) => g.type === "manga")
-          .map((g) => g.name),
-      };
-
-      if (library.some((m) => m.mal_id === mangaData.mal_id)) {
-        console.log("Already in library");
-        return;
-      }
-
-      await addToUserLibrary(mangaData);
-      setLibrary((prev) => [...prev, mangaData]); // 👈 update UI immediately
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsAdding(false);
-    }
-  };
-
-  const clearResults = () => {
-    setResults([]);
-    setQuery("");
   };
 
   return (
@@ -99,28 +69,32 @@ export default function Dashboard() {
               query={query}
               setQuery={setQuery}
               searchManga={searchManga}
-              clearResults={clearResults}
               loading={loading}
-              hasResults={results.length > 0}
+              placeholder="Search manga in library..."
+              clearResults={() => loadLibrary().then(() => setLibraryFiltered(false)).then(() => setQuery(""))}
+              hasResults={libraryFiltered}
+              clearText="Clear filters"
             />
-
-            {/* Dropdown Results */}
-            {results.length > 0 && (
-              <MangaSearchResults
-                results={results}
-                addToLibrary={addToLibrary}
-                isAdding={isAdding}
-              />
-            )}
           </div>
 
           {/* Storage Section */}
           <div>
-            <div>
-              <h2 className="text-2xl font-bold mb-2 text-white">My Library</h2>
-              <p className="text-2xs mb-4 text-gray-300/75">
-                Click on any manga to enter more information
-              </p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold mb-2 text-white">My Library</h2>
+                <p className="text-2xs mb-4 text-gray-300/75">
+                  Click on any manga to enter more information
+                </p>
+              </div>
+
+              <button
+                onClick={() => navigate("/addmanga")}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg mb-4"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
