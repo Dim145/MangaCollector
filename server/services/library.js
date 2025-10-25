@@ -108,7 +108,11 @@ const libraryService = {
             throw new Error('MAL info not found');
         }
 
-        const genres = (malInfo.genres || []).filter(g => g.type === "manga").map(g => g.name);
+        const genres = (malInfo.genres || [])
+          .concat(malInfo.demographics)
+          .concat(malInfo.explicit_genres)
+          .filter(g => g.type === "manga")
+          .map(g => g.name);
         const volumes = malInfo.volumes;
 
         for (const lib of libraries) {
