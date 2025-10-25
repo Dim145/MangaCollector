@@ -1,6 +1,7 @@
 const libraryModel = require('../db/models/user_librarie')
 
 const volumesService = require('./volumes');
+const {getMangaFromMal} = require("../lib/mal-api");
 
 const libraryService = {
     getUserLibrary: user_id => libraryModel
@@ -101,9 +102,7 @@ const libraryService = {
             .query()
             .where('mal_id', mal_id);
 
-        const malInfoResponse = await fetch(`https://api.jikan.moe/v4/manga/${mal_id}/full`);
-        const malInfoData = await malInfoResponse.json();
-        const malInfo = malInfoData.data;
+        const malInfo = await getMangaFromMal(mal_id);
 
         if (!malInfo) {
             throw new Error('MAL info not found');

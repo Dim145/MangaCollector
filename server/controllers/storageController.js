@@ -1,5 +1,6 @@
 const storage = require("../services/storage");
 const library = require("../services/library");
+const {getMangaFromMal} = require("../lib/mal-api");
 
 async function uploadPoster(req, res) {
   try {
@@ -103,7 +104,57 @@ async function getPoster(req, res) {
   }
 }
 
+async function deletePoster(req, res) {
+  try {
+    const userId = req.user.id;
+    const malId = req.params.mal_id;
+
+    if (!malId) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing mal_id parameter",
+      });
+    }
+
+    const libraryEntry = (await library.getUserManga(malId, userId))?.pop();
+
+    if (!libraryEntry) {
+      return res.status(404).json({
+        success: false,
+        error: "Manga not found in user's library",
+      });
+    }
+
+    if(!libraryEntry.image_url_jpg || `${libraryEntry.image_url_jpg}`.startsWith("http"))
+    {
+      return res.status(404).json({
+        success: false,
+        error: "No custom poster found for this manga",
+      });
+    }
+
+    await storage.removeFile(`uploads/images/${userId}/${malId}.jpg`);
+
+    const malInfo = await getMangaFromMal(malId);
+
+    await library.changePoster(userId, malId, malInfo?.images?.jpg?.large_image_url);
+
+    res.json({
+      success: true,
+      message: "Poster deleted successfully",
+      malPoster: malInfo?.images?.jpg?.large_image_url
+    });
+  }
+  catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message || "Error deleting poster",
+    });
+  }
+}
+
 module.exports = {
   uploadPoster,
-  getPoster
+  getPoster,
+  deletePoster
 }

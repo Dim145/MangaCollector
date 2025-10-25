@@ -76,6 +76,11 @@ async function uploadPoster(mangaId, image)
   return await axios.post(`/api/user/storage/poster/${mangaId}`, formData)
 }
 
+async function removePoster(mangaId)
+{
+  return (await axios.delete(`/api/user/storage/poster/${mangaId}`)).data?.malPoster;
+}
+
 export {
   addToUserLibrary,
   getUserLibrary,
@@ -86,5 +91,6 @@ export {
   getShowAdultContent,
   updateSettings,
   getUserSettings,
-  uploadPoster
+  uploadPoster,
+  removePoster
 };

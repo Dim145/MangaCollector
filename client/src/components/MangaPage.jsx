@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import {useContext, useEffect, useState} from "react";
 import {
   deleteMangaFromUserLibraryByID,
-  getUserManga,
+  getUserManga, removePoster,
   updateMangaByID, uploadPoster,
 } from "../utils/user";
 import { updateLibFromMal, updateVolumeOwned } from "../utils/library.js";
@@ -94,6 +94,10 @@ export default function MangaPage({ manga, showAdultContent }) {
         else
           location.reload();
       }
+      else if (selectedImage === null)
+      {
+        setPoster(await removePoster(manga.mal_id));
+      }
     } catch (err) {
       console.error("Failed to update manga:", err);
     } finally {
@@ -156,9 +160,13 @@ export default function MangaPage({ manga, showAdultContent }) {
     target.classList.remove("animate-spin");
   };
 
-  const handleSelectFile = async (e) => {
+  const handleSelectFile = (e) => {
     setSelectedImage(e.currentTarget.files[0]);
   };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+  }
 
   return (
     <div className="relative min-h-screen text-white overflow-hidden">
@@ -166,12 +174,31 @@ export default function MangaPage({ manga, showAdultContent }) {
         <div className="p-8 max-w-6xl mx-auto space-y-12">
           {/* Manga data */}
           <div className="flex flex-col md:flex-row gap-8 h-full items-stretch">
-            <div className="w-full md:max-w-xs">
-              <img
+            <div className="w-full md:max-w-xs text-right">
+              {poster ? <img
                 src={`${poster}`}
                 alt={manga.name}
                 className={`w-full h-full object-contain rounded-lg shadow-lg ${hasToBlurImage(manga, showAdultContent) ? "blur-sm" : ""}`}
-              />
+              /> : ""}
+              {isEditing && !`${poster}`.startsWith("http") ? <>
+                <button
+                  onClick={removeImage}
+                  className="mt-2 w-full px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-black font-semibold transition absolute mt-O"
+                  style={{
+                    top: "30px",
+                    marginLeft: "-60px",
+                    width: "55px",
+                    height: "40px",
+
+                  }}
+                >
+                  <svg className="w-6 h-6 text-gray-800 dark:text-white inline" aria-hidden="true"
+                       xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M6 18 17.94 6M18 18 6.06 6"/>
+                  </svg>
+                </button>
+              </> : null}
             </div>
 
             {/* Right column: details + form */}
