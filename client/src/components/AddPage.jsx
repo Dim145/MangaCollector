@@ -75,7 +75,7 @@ export default function AddPage({showAdultContent}) {
     setQuery("");
   };
 
-  return <div className="relative min-h-screen text-white overflow-hidden p-8 max-w-6xl mx-auto space-y-12">
+  return <div className="relative text-white overflow-hidden p-8 max-w-6xl mx-auto space-y-12">
     <div className="w-full space-y-4">
       <MangaSearchBar
         query={query}

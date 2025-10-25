@@ -10,7 +10,10 @@ export default function MangaSearchResults({
   }
 
   return (
-    <div className="mt-4 w-full max-h-96 overflow-y-auto bg-black/80 hover:bg-black/90 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl transition-all duration-300">
+    <div
+      className="mt-4 w-full overflow-y-auto bg-black/80 hover:bg-black/90 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl transition-all duration-300"
+      style={{ maxHeight: "calc(100lvh - 250px)" }}
+    >
       {results.map((manga) => (
         <div
           key={manga.mal_id}
