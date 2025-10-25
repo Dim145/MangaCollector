@@ -20,6 +20,8 @@ export default function MangaPage({ manga, showAdultContent }) {
   const [isEditing, setIsEditing] = useState(false);
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
   const [volumesOwned, setVolumesOwned] = useState(manga.volumes_owned ?? 0);
+  const [poster, setPoster] = useState(manga.image_url_jpg);
+
   const [volumes, setVolumes] = useState([]);
   const {currency: currencySetting} = useContext(SettingsContext);
 
@@ -30,6 +32,8 @@ export default function MangaPage({ manga, showAdultContent }) {
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [addAvgPrice, setAddAvgPrice] = useState("");
   const [addStore, setAddStore] = useState("");
+
+  const [selectedImage, setSelectedImage] = useState(undefined);
 
   useEffect(() => {
     async function getMangaInfo() {
@@ -76,8 +80,20 @@ export default function MangaPage({ manga, showAdultContent }) {
     try {
       setTotalVolumes(parseInt(totalVolumes));
       await updateMangaByID(manga.mal_id, totalVolumes);
+
       await getVolumeInfo();
       await updateVolumeOwned(manga.mal_id, volumesOwned);
+
+      if(selectedImage)
+      {
+        await uploadPoster(manga.mal_id, selectedImage);
+
+        const newPoster = `/api/user/storage/poster/${manga.mal_id}`;
+        if(poster !== newPoster)
+          setPoster(`/api/user/storage/poster/${manga.mal_id}`);
+        else
+          location.reload();
+      }
     } catch (err) {
       console.error("Failed to update manga:", err);
     } finally {
@@ -141,9 +157,7 @@ export default function MangaPage({ manga, showAdultContent }) {
   };
 
   const handleSelectFile = async (e) => {
-    const image = e.currentTarget.files[0];
-
-    await uploadPoster(manga.mal_id, image);
+    setSelectedImage(e.currentTarget.files[0]);
   };
 
   return (
@@ -154,7 +168,7 @@ export default function MangaPage({ manga, showAdultContent }) {
           <div className="flex flex-col md:flex-row gap-8 h-full items-stretch">
             <div className="w-full md:max-w-xs">
               <img
-                src={manga.image_url_jpg}
+                src={`${poster}`}
                 alt={manga.name}
                 className={`w-full h-full object-contain rounded-lg shadow-lg ${hasToBlurImage(manga, showAdultContent) ? "blur-sm" : ""}`}
               />
@@ -266,16 +280,26 @@ export default function MangaPage({ manga, showAdultContent }) {
                   </>
                 ) : (
                   <>
-                    <button
+                    <label
                       className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition"
+                      htmlFor="poster"
                     >
+                      <svg className="w-6 h-6 text-gray-800 dark:text-white inline" aria-hidden="true"
+                           xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 5v9m-5 0H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-2M8 9l4-5 4 5m1 8h.01"/>
+                      </svg>
+                      {selectedImage?.name ?? ""}
                       <input
+                        id="poster"
                         type="file"
                         onChange={handleSelectFile}
                         accept="image/jpeg"
                         multiple={false}
+                        hidden={true}
+                        style={{display: 'none'}}
                       />
-                    </button>
+                    </label>
                     <button
                       onClick={handleSave}
                       className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-black font-semibold transition"

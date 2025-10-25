@@ -91,6 +91,8 @@ async function getPoster(req, res) {
 
     res.setHeader('Content-Disposition', `inline; filename="${malId}_poster"`);
     res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'max-age=425061');
+
     fileStream.pipe(res);
   }
   catch (error) {
