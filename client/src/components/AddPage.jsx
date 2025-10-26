@@ -3,7 +3,7 @@ import MangaSearchResults from "@/components/MangaSearchResults.jsx";
 import {useEffect, useState} from "react";
 import {addToUserLibrary, getUserLibrary} from "@/utils/user.js";
 
-export default function AddPage({showAdultContent}) {
+export default function AddPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);

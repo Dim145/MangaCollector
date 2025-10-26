@@ -81,7 +81,7 @@ export default function App() {
             element={
               <ProtectedRoute setGoogleUser={setGoogleUser}>
                 <DefaultBackground>
-                  <AddPage showAdultContent={showAdultContent} />
+                  <AddPage />
                 </DefaultBackground>
               </ProtectedRoute>
             }
