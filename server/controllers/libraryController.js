@@ -97,8 +97,9 @@ async function updateMangaOwned(req, res) {
 
 async function updateInfosFromMal(req, res) {
   try {
+    const user_id = req.user.id;
     const mal_id = req.params.mal_id;
-    const newGenres = await library.updateInfosFromMal(mal_id);
+    const newGenres = await library.updateInfosFromMal(user_id, mal_id);
 
     res.json({
       success: true,

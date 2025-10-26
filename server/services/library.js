@@ -1,6 +1,8 @@
 const libraryModel = require('../db/models/user_librarie')
 
 const volumesService = require('./volumes');
+const settingsService = require('./settings');
+
 const {getMangaFromMal} = require("../lib/mal-api");
 
 const libraryService = {
@@ -97,23 +99,29 @@ const libraryService = {
         .andWhere('mal_id', mal_id)
         .patch({ volumes_owned }),
 
-    updateInfosFromMal: async mal_id => {
-        const libraries = await libraryModel
-            .query()
-            .where('mal_id', mal_id);
-
+    updateInfosFromMal: async (user_id, mal_id) => {
         const malInfo = await getMangaFromMal(mal_id);
 
         if (!malInfo) {
             throw new Error('MAL info not found');
         }
 
+        const libraries = await libraryModel
+          .query()
+          .where('mal_id', mal_id)
+          .andWhere('user_id', user_id);
+
         const genres = (malInfo.genres || [])
           .concat(malInfo.demographics)
           .concat(malInfo.explicit_genres)
           .filter(g => g.type === "manga")
           .map(g => g.name);
+
         const volumes = malInfo.volumes;
+
+        const settings = await settingsService.getUserSettings(user_id);
+
+        const titleFromMal = malInfo.titles.find(t => t.type === settings.titleType)?.title || malInfo.title;
 
         for (const lib of libraries) {
             if (volumes && lib.volumes !== volumes) {
@@ -121,7 +129,8 @@ const libraryService = {
             }
 
             const patchObj = {
-              genres: genres.join(',')
+              genres: genres.join(','),
+              name: titleFromMal,
             };
 
             if(!lib.image_url_jpg)

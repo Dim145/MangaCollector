@@ -64,6 +64,7 @@ async function updateSettings(settings) {
     await axios.post("/api/user/settings", {
       "show-adult-content": settings["show-adult-content"],
       currency: settings.currency?.code,
+      titleType: settings.titleType,
     })
   ).data;
 }

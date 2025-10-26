@@ -5,6 +5,7 @@ import {formatCurrency} from "@/utils/price.js";
 export default function SettingsPage({settingsUpdateCallback}) {
   const [showAdultContent, setShowAdultContent] = useState(false);
   const [currencyObject, setCurrencyObject] = useState(null);
+  const [titleType, setTitleType] = useState("Default");
 
   let fetching = useRef(true);
 
@@ -14,6 +15,7 @@ export default function SettingsPage({settingsUpdateCallback}) {
 
       setShowAdultContent(settings["show-adult-content"] || false);
       setCurrencyObject(settings["currency"]);
+      setTitleType(settings["titleType"] || "Default");
     }
 
     fetchData().then(() => setTimeout(() => (fetching.current = false), 100));
@@ -25,6 +27,7 @@ export default function SettingsPage({settingsUpdateCallback}) {
         const newSettings = {
           "show-adult-content": showAdultContent,
           currency: currencyObject,
+          titleType: titleType,
         }
 
         await updateSettings(newSettings);
@@ -40,7 +43,7 @@ export default function SettingsPage({settingsUpdateCallback}) {
     if (!fetching.current) {
       updateSetting();
     }
-  }, [fetching, showAdultContent]);
+  }, [fetching, showAdultContent, titleType]);
 
   const handleCurrencyChange = async (e) => {
     const selectedCurrency = e.target.value;
@@ -48,6 +51,7 @@ export default function SettingsPage({settingsUpdateCallback}) {
     const res = await updateSettings({
       "show-adult-content": showAdultContent,
       currency: { code: selectedCurrency },
+      titleType: titleType,
     });
 
     if (settingsUpdateCallback) {
@@ -90,6 +94,21 @@ export default function SettingsPage({settingsUpdateCallback}) {
           <span className="ml-2 pl-2">
               Exemple: {formatCurrency(165.182, currencyObject)}
             </span>
+        </div>
+
+        <div className="mb-4">
+          <label className="flex items-center">
+            <span className="ml-2">Title Type: </span>
+            <select
+              className="form-select h-10 w-48 ml-2 rounded border-2 border-solid border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              value={titleType}
+              onChange={(e) => setTitleType(e.target.value)}
+            >
+              <option value="Default">Default</option>
+              <option value="English">English</option>
+              <option value="Japanese">Japanese</option>
+            </select>
+          </label>
         </div>
       </div>
     </Fragment>
