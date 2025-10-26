@@ -99,12 +99,13 @@ async function updateInfosFromMal(req, res) {
   try {
     const user_id = req.user.id;
     const mal_id = req.params.mal_id;
-    const newGenres = await library.updateInfosFromMal(user_id, mal_id);
+    const {newGenres, name} = await library.updateInfosFromMal(user_id, mal_id);
 
     res.json({
       success: true,
       message: "Updated manga info from MAL successfully",
       new_genres: newGenres,
+      new_name: name
     });
   }
   catch (error) {

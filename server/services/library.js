@@ -144,7 +144,10 @@ const libraryService = {
                 .patch(patchObj);
         }
 
-        return genres;
+        return {
+          genres,
+          name: titleFromMal
+        };
     },
 
     changePoster: async (user_id, mal_id, newPosterPath) => {

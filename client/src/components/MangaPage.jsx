@@ -34,6 +34,7 @@ export default function MangaPage({ manga, showAdultContent }) {
   const [addStore, setAddStore] = useState("");
 
   const [selectedImage, setSelectedImage] = useState(undefined);
+  const [name, setName] = useState(manga.name);
 
   useEffect(() => {
     async function getMangaInfo() {
@@ -152,9 +153,13 @@ export default function MangaPage({ manga, showAdultContent }) {
     // start rotation animation
     target.classList.add("animate-spin");
 
-    const { new_genres } = await updateLibFromMal(manga.mal_id);
+    const { new_genres, new_name } = await updateLibFromMal(manga.mal_id);
 
-    if (new_genres) setGenres(new_genres);
+    if (new_genres)
+      setGenres(new_genres);
+
+    if (new_name)
+      setName(new_name);
 
     // stop rotation animation
     target.classList.remove("animate-spin");
@@ -177,7 +182,7 @@ export default function MangaPage({ manga, showAdultContent }) {
             <div className="w-full md:max-w-xs text-right">
               {poster ? <img
                 src={`${poster}`}
-                alt={manga.name}
+                alt={name}
                 className={`w-full h-full object-contain rounded-lg shadow-lg ${hasToBlurImage(manga, showAdultContent) ? "blur-sm" : ""}`}
               /> : ""}
               {isEditing && !`${poster}`.startsWith("http") ? <>
@@ -205,7 +210,7 @@ export default function MangaPage({ manga, showAdultContent }) {
             <div className="flex-1 space-y-6">
               {/* Title + MAL ID */}
               <div>
-                <h1 className="text-3xl font-bold">{manga.name}</h1>
+                <h1 className="text-3xl font-bold">{name}</h1>
                 <p className="text-sm text-gray-400">
                   MAL ID:
                   <a
