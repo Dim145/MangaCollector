@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import {useContext, useEffect, useState} from "react";
+import {Fragment, useContext, useEffect, useState} from "react";
 import {
   deleteMangaFromUserLibraryByID,
   getUserManga, removePoster,
@@ -13,11 +13,14 @@ import DefaultBackground from "./DefaultBackground";
 import { hasToBlurImage } from "@/utils/library.js";
 import {formatCurrency} from "@/utils/price.js";
 import SettingsContext from "@/SettingsContext.js";
+import Modal from "@/components/utils/Modal.jsx";
 
 export default function MangaPage({ manga, showAdultContent }) {
   const navigate = useNavigate();
 
   const [isEditing, setIsEditing] = useState(false);
+  const [posterPopUp, setPosterPopUp] = useState(false);
+
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
   const [volumesOwned, setVolumesOwned] = useState(manga.volumes_owned ?? 0);
   const [poster, setPoster] = useState(manga.image_url_jpg);
@@ -34,7 +37,7 @@ export default function MangaPage({ manga, showAdultContent }) {
   const [addStore, setAddStore] = useState("");
 
   const [selectedImage, setSelectedImage] = useState(undefined);
-  const [name, setName] = useState(manga.name);
+  const [name, setName] = useState(manga.name || "Unknown Title");
 
   useEffect(() => {
     async function getMangaInfo() {
@@ -180,11 +183,29 @@ export default function MangaPage({ manga, showAdultContent }) {
           {/* Manga data */}
           <div className="flex flex-col md:flex-row gap-8 h-full items-stretch">
             <div className="w-full md:max-w-xs text-right">
-              {poster ? <img
-                src={`${poster}`}
-                alt={name}
-                className={`w-full h-full object-contain rounded-lg shadow-lg ${hasToBlurImage(manga, showAdultContent) ? "blur-sm" : ""}`}
-              /> : ""}
+              {poster ? <Fragment>
+                {!hasToBlurImage(manga, showAdultContent) ? <Modal
+                  popupOpen={posterPopUp}
+                  handleClose={() => setPosterPopUp(false)}
+                  additionalClasses="m-2"
+                >
+                  <img
+                    src={`${poster}`}
+                    alt={name}
+                    style={{
+                      maxHeight: 'calc(100vh - 150px)',
+                      height: '100vh'
+                    }}
+                    className="max-w-full object-contain rounded-lg shadow-lg"
+                  />
+                </Modal> : ""}
+                <img
+                  src={`${poster}`}
+                  alt={name}
+                  onClick={() => setPosterPopUp(true)}
+                  className={`max-w-full max-h-full object-contain rounded-lg shadow-lg ${hasToBlurImage(manga, showAdultContent) ? "blur-sm" : "cursor-pointer"}`}
+                />
+              </Fragment>: ""}
               {isEditing && !`${poster}`.startsWith("http") ? <>
                 <button
                   onClick={removeImage}
@@ -212,7 +233,7 @@ export default function MangaPage({ manga, showAdultContent }) {
               <div>
                 <h1 className="text-3xl font-bold">{name}</h1>
                 {manga.mal_id > 0 ? <p className="text-sm text-gray-400">
-                  MAL ID:
+                  MAL ID: &nbsp;
                   <a
                     href={`https://myanimelist.net/manga/${manga.mal_id}`}
                     target="_blank"
