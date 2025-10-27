@@ -86,6 +86,10 @@ async function searchInLib(query) {
   return (await axios.get(`/api/user/library/search`, { params: { q: query } })).data;
 }
 
+async function addCustomEntryToUserLibrary(mangaData) {
+  return (await axios.post(`/api/user/library/custom`, mangaData)).data;
+}
+
 export {
   addToUserLibrary,
   getUserLibrary,
@@ -99,4 +103,5 @@ export {
   uploadPoster,
   removePoster,
   searchInLib,
+  addCustomEntryToUserLibrary
 };

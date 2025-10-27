@@ -21,6 +21,10 @@ class UserVolume extends Model {
     static get tableName () {
         return 'user_libraries';
     }
+
+    get isCustomEntry() {
+      return this.mal_id < 0;
+    }
 }
 
 module.exports = UserVolume;

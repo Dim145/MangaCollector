@@ -8,7 +8,8 @@ export default function MangaSearchBar({
   loading,
   hasResults,
   placeholder,
-  clearText
+  clearText,
+  additionalButtons,
 }) {
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
@@ -71,6 +72,9 @@ export default function MangaSearchBar({
               "Search"
             )}
           </button>
+
+          {/* Additional Buttons */}
+          {additionalButtons ? additionalButtons : ""}
 
           {/* Clear Button */}
           {hasResults && (

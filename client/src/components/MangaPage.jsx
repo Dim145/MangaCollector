@@ -129,7 +129,7 @@ export default function MangaPage({ manga, showAdultContent }) {
         const unownedVolumes = volumes.filter((vol) => !vol.owned);
         // Update all unowned volumes
         await Promise.all(
-          unownedVolumes.map((vol) =>
+          unownedVolumes?.map((vol) =>
             updateVolumeByID(vol.id, true, addAvgPrice, addStore),
           ),
         );
@@ -211,7 +211,7 @@ export default function MangaPage({ manga, showAdultContent }) {
               {/* Title + MAL ID */}
               <div>
                 <h1 className="text-3xl font-bold">{name}</h1>
-                <p className="text-sm text-gray-400">
+                {manga.mal_id > 0 ? <p className="text-sm text-gray-400">
                   MAL ID:
                   <a
                     href={`https://myanimelist.net/manga/${manga.mal_id}`}
@@ -237,11 +237,11 @@ export default function MangaPage({ manga, showAdultContent }) {
                       d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
                     />
                   </svg>
-                </p>
+                </p> : ""}
               </div>
 
               <div>
-                {genres?.map((genre) => (
+                {(genres || []).map((genre) => (
                   <span
                     key={`genre-${genre}`}
                     className="inline-block bg-white/10 text-white text-xs font-medium mr-2 mb-2 px-3 py-1 rounded-full hover:bg-white/20 transition-colors duration-200"
@@ -431,7 +431,7 @@ export default function MangaPage({ manga, showAdultContent }) {
           <div className="mt-10">
             <h2 className="text-2xl font-bold mb-4">Volumes</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {volumes.map((vol) => (
+              {(volumes || []).map((vol) => (
                 <Volume
                   key={vol.id}
                   id={vol.id}

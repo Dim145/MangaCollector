@@ -32,6 +32,13 @@ async function addToUserLibrary(req, res) {
     const user_id = req.user.id;
     const mangaData = req.body;
 
+    if(!mangaData.mal_id || mangaData.mal_id <= 0) {
+      return res.json({
+        success: false,
+        error: "Invalid MAL ID",
+      }, 400)
+    }
+
     await library.addToUserLibrary(user_id, mangaData);
     res.json({ success: true, message: "Added manga to library successfully" });
   } catch (error) {
@@ -131,6 +138,24 @@ async function searchMangaInUserLibrary(req, res) {
   }
 }
 
+async function addCustomEntryToUserLibrary(req, res) {
+  try {
+    const user_id = req.user.id;
+    const mangaData = req.body;
+
+    mangaData.mal_id = null; // Custom entries have no MAL ID
+    mangaData.image_url_jpg = null; // Custom entries have no image URL on creation (at this time)
+
+    const newCustomLib = await library.addCustomEntryToLib(user_id, mangaData);
+    res.json({ success: true, message: "Added custom entry to library successfully", newEntry: newCustomLib });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message || "Error inserting to library",
+    });
+  }
+}
+
 module.exports = {
   getUserLibrary,
   getUserManga,
@@ -139,5 +164,6 @@ module.exports = {
   updateMangaByID,
   updateMangaOwned,
   updateInfosFromMal,
-  searchMangaInUserLibrary
+  searchMangaInUserLibrary,
+  addCustomEntryToUserLibrary
 };

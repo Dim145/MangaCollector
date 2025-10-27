@@ -40,6 +40,12 @@ const libraryService = {
                 volumes_owned,
                 image_url_jpg,
                 genres: (genres || []).join(',')
+            })
+            .runAfter((result, query) => {
+              return {
+                ...result,
+                genres: result.genres ? result.genres.split(',') : [],
+              };
             });
 
         for(let i = 1; i <= volumes; i++) {
@@ -171,6 +177,29 @@ const libraryService = {
               genres: manga.genres ? manga.genres.split(',') : [],
             }));
           });
+    },
+
+    addCustomEntryToLib: async (user_id, mangaData) => {
+      const { name, volumes, volumes_owned, genres } = mangaData;
+
+      const customEntryCount = await libraryModel
+        .query()
+        .where('user_id', user_id)
+        .andWhere('mal_id', '<', 0)
+        .min('mal_id')
+        .first()
+        .then(res => res.min || 0);
+
+      const mal_id = customEntryCount - 1;
+
+      return await libraryService.addToUserLibrary(user_id, {
+        name,
+        mal_id,
+        volumes,
+        volumes_owned,
+        image_url_jpg: null,
+        genres
+      });
     }
 }
 
