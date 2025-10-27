@@ -122,7 +122,7 @@ export default function AddPage() {
         loading={loading}
         hasResults={results.length > 0}
         additionalButtons={<button
-          onClick={() => setCustomEntry(true)}
+          onClick={() => setCustomEntry(!customEntry)}
           title="Add Custom Entry"
           className={`
               flex-1 sm:flex-none px-5 py-3 rounded-2xl font-semibold text-white
