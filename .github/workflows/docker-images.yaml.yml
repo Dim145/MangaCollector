@@ -27,7 +27,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.REGISTRY_DOMAIN }}/${{ secrets.BACK_IMAGE_NAME }}:latest
-            ${{ secrets.REGISTRY_DOMAIN }}/${{ secrets.BACH_IMAGE_NAME }}:${{ github.ref_name }}
+            ${{ secrets.REGISTRY_DOMAIN }}/${{ secrets.BACK_IMAGE_NAME }}:${{ github.ref_name }}
       
 
       - name: Build and push frontend
