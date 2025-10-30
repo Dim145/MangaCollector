@@ -9,7 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: ${{ secrets.REGISTRY_DOMAIN && secrets.REGISTRY_USERNAME && secrets.BACK_IMAGE_NAME && secrets.FRONT_IMAGE_NAME }}
     steps:
       - uses: actions/checkout@v5
 
