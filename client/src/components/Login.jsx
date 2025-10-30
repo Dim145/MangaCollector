@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import {useState, useEffect, useContext} from "react";
 import { useNavigate } from "react-router-dom";
 import { checkAuthStatus, initiateOAuth } from "../utils/auth";
+import SettingsContext from "@/SettingsContext.js";
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+
+  const { authName, authIcon } = useContext(SettingsContext)
 
   useEffect(() => {
     // Check if user is already authenticated
@@ -52,7 +55,7 @@ export default function Login() {
             Welcome to MangaCollector
           </h1>
           <p className="text-gray-400">
-            Sign in with your Google account to get started
+            Sign in with your {authName} account to get started
           </p>
         </div>
 
@@ -70,7 +73,7 @@ export default function Login() {
           {isLoading ? (
             <div className="w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
           ) : (
-            <svg className="w-6 h-6" viewBox="0 0 24 24">
+            `${authName}`.toLowerCase() === "google" ? <svg className="w-6 h-6" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -87,10 +90,10 @@ export default function Login() {
                 fill="#EA4335"
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
-            </svg>
+            </svg> : <img src={authIcon} alt={authName} className="w-6 h-6" />
           )}
           <span className="text-lg">
-            {isLoading ? "Redirecting..." : "Continue with Google"}
+            {isLoading ? "Redirecting..." : "Continue with " + authName}
           </span>
         </button>
 

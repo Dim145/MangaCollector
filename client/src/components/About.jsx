@@ -4,6 +4,8 @@ import Beastars from "../assets/beastars.jpg";
 import TokyoGhoul from "../assets/tokyoghoul.webp";
 import Vinland from "../assets/vinland.jpg";
 import FirePunch from "../assets/firepunch.jpg";
+import {useContext} from "react";
+import SettingsContext from "@/SettingsContext.js";
 
 export default function About() {
   const mockedManga = [
@@ -45,6 +47,8 @@ export default function About() {
     },
   ];
 
+  const { authName } = useContext(SettingsContext);
+
   return (
     <div className="bg-gradient-to-b from-black via-gray-900 to-black min-h-screen text-white">
       {/* Hero */}
@@ -66,7 +70,7 @@ export default function About() {
             <p className="text-base md:text-lg text-gray-300/80 max-w-3xl mx-auto">
               Search series via the MyAnimeList API, add them to your library,
               and log each volume’s ownership, and price. Store them securely
-              with Google OAuth 2.0.
+              with {authName} OAuth 2.0.
             </p>
             <div className="flex items-center justify-center gap-3 pt-2">
               <a
@@ -79,7 +83,7 @@ export default function About() {
                 href="/log-in"
                 className="rounded-2xl px-6 py-3 font-semibold border border-white/15 bg-white/5 text-white hover:bg-white/10 transition"
               >
-                Sign up with Google
+                Sign up with {authName}
               </a>
             </div>
           </div>
@@ -121,7 +125,7 @@ export default function About() {
                 Toggle ownership, record prices, and note purchase locations.
               </FeatureItem>
               <FeatureItem title="Secure sessions">
-                Google OAuth 2.0 with cookie-based sessions keeps access simple
+                {authName} OAuth 2.0 with cookie-based sessions keeps access simple
                 and safe.
               </FeatureItem>
             </ul>
@@ -153,7 +157,7 @@ export default function About() {
             role="Seinen enthusiast"
           />
           <Testimonial
-            quote="The Google login + sessions just work. No friction."
+            quote={`The ${authName} login + sessions just work. No friction.`}
             name="Marco D."
             role="Full-stack dev & reader"
           />
@@ -167,7 +171,7 @@ export default function About() {
             Start organizing your shelf today
           </h3>
           <p className="text-gray-300/80 mb-6">
-            Sign in with Google, search your favorites, and start logging
+            Sign in with {authName}, search your favorites, and start logging
             volumes in minutes.
           </p>
           <div className="flex justify-center gap-3">

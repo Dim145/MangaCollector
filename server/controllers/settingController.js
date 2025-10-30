@@ -4,6 +4,10 @@ async function getUserSettings(req, res) {
     try {
         const user_id = req.user.id;
         const response = await settings.getUserSettings(user_id);
+
+        response.authName = process.env.AUTH_NAME || "Google";
+        response.authIcon = process.env.AUTH_ICON || "google";
+
         return res.json(response);
     } catch (err) {
         return res.json({
