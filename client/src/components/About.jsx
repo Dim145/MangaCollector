@@ -4,10 +4,12 @@ import Beastars from "../assets/beastars.jpg";
 import TokyoGhoul from "../assets/tokyoghoul.webp";
 import Vinland from "../assets/vinland.jpg";
 import FirePunch from "../assets/firepunch.jpg";
-import {useContext} from "react";
+import {useContext, useEffect, useState} from "react";
 import SettingsContext from "@/SettingsContext.js";
 
 export default function About() {
+  const [topMangas, setTopMangas] = useState([]);
+
   const mockedManga = [
     {
       id: 1,
@@ -46,6 +48,34 @@ export default function About() {
       img: Beastars,
     },
   ];
+
+  useEffect(() => {
+    const getTopMangas = async () => {
+      const response = await fetch(
+        `https://api.jikan.moe/v4/top/manga?type=manga&limit=6`,
+      );
+
+      if (!response.ok) {
+        throw new Error(`Error fetching top mangas: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      const top = (data.data || []).map(m => ({
+        id: m.mal_id,
+        title: m.title_english,
+        volumes: m.volumes || "N/A",
+        img: m.images?.jpg?.large_image_url,
+      }));
+
+      setTopMangas(top);
+    }
+
+    getTopMangas().catch(error => {
+      console.error(error);
+      setTopMangas(mockedManga);
+    });
+  }, []);
 
   const { authName } = useContext(SettingsContext);
 
@@ -131,7 +161,7 @@ export default function About() {
             </ul>
           </div>
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-6 md:p-8 shadow-2xl">
-            <MockedDashboard mockedManga={mockedManga} />
+            <MockedDashboard mockedManga={topMangas} />
           </div>
         </div>
       </section>
