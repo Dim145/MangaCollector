@@ -17,7 +17,7 @@ import AddPage from "@/components/AddPage.jsx";
 
 export default function App() {
   const location = useLocation();
-  const { manga, showAdultContent } = location.state || {};
+  const { manga, adult_content_level } = location.state || {};
   const [googleUser, setGoogleUser] = useState(null);
   const [settings, setSettings] = useState({});
 
@@ -60,7 +60,7 @@ export default function App() {
             path="/mangapage"
             element={
               <ProtectedRoute setGoogleUser={setGoogleUser}>
-                <MangaPage manga={manga} showAdultContent={showAdultContent} />
+                <MangaPage manga={manga} adult_content_level={adult_content_level} />
               </ProtectedRoute>
             }
           />

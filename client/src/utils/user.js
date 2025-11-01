@@ -51,10 +51,6 @@ async function updateMangaOwned(mal_id, owned) {
   }
 }
 
-async function getShowAdultContent() {
-  return (await getUserSettings())["show-adult-content"];
-}
-
 async function getUserSettings() {
   return (await axios.get(`/api/user/settings`)).data;
 }
@@ -62,9 +58,9 @@ async function getUserSettings() {
 async function updateSettings(settings) {
   return (
     await axios.post("/api/user/settings", {
-      "show-adult-content": settings["show-adult-content"],
       currency: settings.currency?.code,
       titleType: settings.titleType,
+      adult_content_level: settings.adult_content_level
     })
   ).data;
 }
@@ -97,7 +93,6 @@ export {
   deleteMangaFromUserLibraryByID,
   updateMangaByID,
   updateMangaOwned,
-  getShowAdultContent,
   updateSettings,
   getUserSettings,
   uploadPoster,

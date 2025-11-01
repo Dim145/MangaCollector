@@ -7,7 +7,7 @@ export default function MangaSearchResults({
   addToLibrary,
   isAdding
 }) {
-  const {"show-adult-content": showAdultContent} = useContext(SettingsContext);
+  const {adult_content_level} = useContext(SettingsContext);
 
   if (results.length === 0) {
     return null;
@@ -28,7 +28,7 @@ export default function MangaSearchResults({
             <img
               src={manga.images.jpg.image_url}
               alt={manga.title}
-              className={`h-24 w-auto rounded-md shadow-lg group-hover:scale-105 transition-transform duration-300 ${hasToBlurImage({genres: manga.genres.map(g => g.name)}, showAdultContent) ? "blur-sm" : ""}`}
+              className={`h-24 w-auto rounded-md shadow-lg group-hover:scale-105 transition-transform duration-300 ${hasToBlurImage({genres: manga.genres.map(g => g.name)}, adult_content_level) ? "blur-sm" : ""}`}
             />
             <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-md" />
           </div>

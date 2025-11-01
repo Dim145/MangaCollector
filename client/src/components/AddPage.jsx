@@ -18,7 +18,7 @@ export default function AddPage() {
   const [customEntryGenres, setCustomEntryGenres] = useState("");
   const [customEntryVolumes, setCustomEntryVolumes] = useState(0);
 
-  const {"show-adult-content": showAdultContent} = useContext(SettingsContext);
+  const {adult_content_level} = useContext(SettingsContext);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -103,7 +103,7 @@ export default function AddPage() {
 
     if(res.success)
     {
-      navigate("/mangapage", { state: { manga: res.newEntry, showAdultContent } })
+      navigate("/mangapage", { state: { manga: res.newEntry, adult_content_level } })
     }
   }
 

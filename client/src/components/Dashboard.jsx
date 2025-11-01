@@ -1,27 +1,27 @@
 import {useState, useEffect, useContext} from "react";
 import {
   getUserLibrary,
-  addToUserLibrary, searchInLib,
+  searchInLib,
 } from "../utils/user";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
-import MangaSearchResults from "./MangaSearchResults";
 import MangaSearchBar from "./MangaSearchBar";
 import SettingsContext from "@/SettingsContext.js";
 import {useNavigate} from "react-router-dom";
+import {filterAdultGenreIfNeeded} from "@/utils/library.js";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [library, setLibrary] = useState([]);
   const [loading, setLoading] = useState(false);
-  const {"show-adult-content": showAdultContent} = useContext(SettingsContext);
+  const {adult_content_level} = useContext(SettingsContext);
   const [libraryFiltered, setLibraryFiltered] = useState(false);
 
   const navigate = useNavigate();
 
   const loadLibrary = async () => {
     try {
-      const userLibrary = await getUserLibrary();
+      const userLibrary = filterAdultGenreIfNeeded(adult_content_level, await getUserLibrary());
       setLibrary(userLibrary);
     } catch (err) {
       console.error(err);
@@ -102,7 +102,7 @@ export default function Dashboard() {
                 <Manga
                   key={manga.mal_id}
                   manga={manga}
-                  showAdultContent={showAdultContent}
+                  adult_content_level={adult_content_level}
                 />
               ))}
             </div>

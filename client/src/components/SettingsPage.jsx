@@ -3,7 +3,7 @@ import { getUserSettings, updateSettings } from "@/utils/user.js";
 import {formatCurrency} from "@/utils/price.js";
 
 export default function SettingsPage({settingsUpdateCallback}) {
-  const [showAdultContent, setShowAdultContent] = useState(false);
+  const [showAdultContent, setShowAdultContent] = useState(0);
   const [currencyObject, setCurrencyObject] = useState(null);
   const [titleType, setTitleType] = useState("Default");
 
@@ -13,9 +13,9 @@ export default function SettingsPage({settingsUpdateCallback}) {
     async function fetchData() {
       const settings = await getUserSettings(true);
 
-      setShowAdultContent(settings["show-adult-content"] || false);
-      setCurrencyObject(settings["currency"]);
-      setTitleType(settings["titleType"] || "Default");
+      setShowAdultContent(settings?.adult_content_level || 0);
+      setCurrencyObject(settings?.currency);
+      setTitleType(settings?.titleType || "Default");
     }
 
     fetchData().then(() => setTimeout(() => (fetching.current = false), 100));
@@ -25,7 +25,7 @@ export default function SettingsPage({settingsUpdateCallback}) {
     async function updateSetting() {
       try {
         const newSettings = {
-          "show-adult-content": showAdultContent,
+          adult_content_level: showAdultContent,
           currency: currencyObject,
           titleType: titleType,
         }
@@ -49,7 +49,7 @@ export default function SettingsPage({settingsUpdateCallback}) {
     const selectedCurrency = e.target.value;
 
     const res = await updateSettings({
-      "show-adult-content": showAdultContent,
+      adult_content_level: showAdultContent,
       currency: { code: selectedCurrency },
       titleType: titleType,
     });
@@ -67,13 +67,16 @@ export default function SettingsPage({settingsUpdateCallback}) {
         <h1 className="text-3xl font-bold mb-6">Settings</h1>
         <div className="mb-4">
           <label className="flex items-center">
-            <input
-              type="checkbox"
-              checked={showAdultContent}
-              onChange={() => setShowAdultContent(!showAdultContent)}
-              className="form-checkbox h-5 w-5 text-blue-600"
-            />
-            <span className="ml-2">Show Adult Content</span>
+            <span className="ml-2">Adult Content: </span>
+            <select
+              className="form-select h-10 w-48 ml-2 rounded border-2 border-solid border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              value={showAdultContent}
+              onChange={(e) => setShowAdultContent(Number(e.target.value))}
+              >
+              <option value={0}>Blur</option>
+              <option value={1}>Hide</option>
+              <option value={2}>Show</option>
+            </select>
           </label>
         </div>
         {/* Additional settings can be added here */}

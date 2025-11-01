@@ -15,7 +15,7 @@ import {formatCurrency} from "@/utils/price.js";
 import SettingsContext from "@/SettingsContext.js";
 import Modal from "@/components/utils/Modal.jsx";
 
-export default function MangaPage({ manga, showAdultContent }) {
+export default function MangaPage({ manga, adult_content_level }) {
   const navigate = useNavigate();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -184,7 +184,7 @@ export default function MangaPage({ manga, showAdultContent }) {
           <div className="flex flex-col md:flex-row gap-8 h-full items-stretch">
             <div className="w-full md:max-w-xs text-right">
               {poster ? <Fragment>
-                {!hasToBlurImage(manga, showAdultContent) ? <Modal
+                {!hasToBlurImage(manga, adult_content_level) ? <Modal
                   popupOpen={posterPopUp}
                   handleClose={() => setPosterPopUp(false)}
                   additionalClasses="m-2"
@@ -203,7 +203,7 @@ export default function MangaPage({ manga, showAdultContent }) {
                   src={`${poster}`}
                   alt={name}
                   onClick={() => setPosterPopUp(true)}
-                  className={`max-w-full max-h-full object-contain rounded-lg shadow-lg ${hasToBlurImage(manga, showAdultContent) ? "blur-sm" : "cursor-pointer"}`}
+                  className={`max-w-full max-h-full object-contain rounded-lg shadow-lg ${hasToBlurImage(manga, adult_content_level) ? "blur-sm" : "cursor-pointer"}`}
                 />
               </Fragment>: ""}
               {isEditing && !`${poster}`.startsWith("http") ? <>
