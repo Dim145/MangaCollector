@@ -1,25 +1,31 @@
-import React, {useContext} from "react";
+import React, {Fragment, useContext} from "react";
 import SettingsContext from "@/SettingsContext.js";
 import {hasToBlurImage} from "@/utils/library.js";
+import Modal from "@/components/utils/Modal.jsx";
 
 export default function MangaSearchResults({
   results,
   addToLibrary,
-  isAdding
+  isAdding,
+  isInLibrary
 }) {
+  const [imgUrl, setImgUrl] = React.useState(undefined);
+
   const {adult_content_level} = useContext(SettingsContext);
 
   if (results.length === 0) {
     return null;
   }
 
-  return (
+  return <Fragment>
     <div
       className="mt-4 w-full overflow-y-auto bg-black/80 hover:bg-black/90 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl transition-all duration-300"
       style={{ maxHeight: "calc(100lvh - 250px)" }}
     >
-      {results.map((manga) => (
-        <div
+      {results.map((manga) => {
+        const blurImage = hasToBlurImage({genres: manga.genres.map(g => g.name)}, adult_content_level);
+
+        return <div
           key={manga.mal_id}
           className="flex items-center gap-3 p-3 hover:bg-white/5 transition-all duration-200 group border-b border-white/5 last:border-b-0"
         >
@@ -28,9 +34,12 @@ export default function MangaSearchResults({
             <img
               src={manga.images.jpg.image_url}
               alt={manga.title}
-              className={`h-24 w-auto rounded-md shadow-lg group-hover:scale-105 transition-transform duration-300 ${hasToBlurImage({genres: manga.genres.map(g => g.name)}, adult_content_level) ? "blur-sm" : ""}`}
+              className={`h-24 w-auto rounded-md shadow-lg group-hover:scale-105 transition-transform duration-300 ${blurImage ? "blur-sm" : "cursor-pointer"}`}
             />
-            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-md" />
+            <div
+              className={`absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-md ${!blurImage ? "cursor-pointer" : ""}`}
+              onClick={() => !blurImage && setImgUrl(manga.images.jpg.large_image_url)}
+            />
           </div>
 
           {/* Manga Information */}
@@ -44,7 +53,18 @@ export default function MangaSearchResults({
           </div>
 
           {/* Add Button */}
-          <button
+          {isInLibrary(manga.mal_id) ? <Fragment>
+            <span className="text-green-500 px-4 py-2">
+              <svg xmlns="http://www.w3.org/2000/svg"
+                   fill="none"
+                   viewBox="0 0 24 24"
+                   strokeWidth={1.5}
+                   stroke="currentColor"
+                   className="size-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+            </span>
+          </Fragment> : <button
             onClick={() => addToLibrary(manga)}
             className={`
               px-4 py-2 bg-white text-black text-xs font-semibold rounded-lg
@@ -56,9 +76,9 @@ export default function MangaSearchResults({
             disabled={isAdding}
           >
             {isAdding ? "Adding..." : "Add"}
-          </button>
+          </button>}
         </div>
-      ))}
+      })}
 
       {/* Scroll Indicator */}
       {results.length > 5 && (
@@ -67,5 +87,21 @@ export default function MangaSearchResults({
         </div>
       )}
     </div>
-  );
+
+    <Modal
+      popupOpen={imgUrl}
+      handleClose={() => setImgUrl(undefined)}
+      additionalClasses="m-2"
+    >
+      <img
+        src={`${imgUrl}`}
+        alt="poster"
+        style={{
+          maxHeight: 'calc(100vh - 150px)',
+          height: '100vh'
+        }}
+        className="max-w-full object-contain rounded-lg shadow-lg"
+      />
+    </Modal>
+  </Fragment>;
 }

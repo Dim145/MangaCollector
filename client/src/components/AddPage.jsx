@@ -192,6 +192,7 @@ export default function AddPage() {
           results={results}
           addToLibrary={addToLibrary}
           isAdding={isAdding}
+          isInLibrary={(mal_id) => library.some((m) => m.mal_id === mal_id)}
         />
       )}
     </div>
