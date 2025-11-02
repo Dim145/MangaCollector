@@ -209,7 +209,7 @@ export default function MangaPage({ manga, adult_content_level }) {
               {isEditing && !`${poster}`.startsWith("http") ? <>
                 <button
                   onClick={removeImage}
-                  className="mt-2 w-full px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-black font-semibold transition absolute mt-O"
+                  className="mt-2 w-full px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-black font-semibold absolute mt-O active:scale-95 transform transition-all duration-200 hover:scale-105"
                   style={{
                     top: "30px",
                     marginLeft: "-60px",
@@ -307,7 +307,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                   <>
                     <button
                       onClick={() => setIsEditing(true)}
-                      className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition"
+                      className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition active:scale-95 transform duration-200 hover:scale-105"
                     >
                       Edit
                     </button>
@@ -320,13 +320,13 @@ export default function MangaPage({ manga, adult_content_level }) {
                           console.error(error);
                         }
                       }}
-                      className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-black font-semibold transition"
+                      className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-black font-semibold transition active:scale-95 transform duration-200 hover:scale-105"
                     >
                       Delete
                     </button>
                     <button
                       onClick={() => navigate("/dashboard")}
-                      className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition"
+                      className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition active:scale-95 transform duration-200 hover:scale-105"
                     >
                       Back
                     </button>
@@ -334,7 +334,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 ) : (
                   <>
                     <label
-                      className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition"
+                      className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-black font-semibold transition active:scale-95 transform duration-200 hover:scale-105"
                       htmlFor="poster"
                     >
                       <svg className="w-6 h-6 text-gray-800 dark:text-white inline" aria-hidden="true"
@@ -355,7 +355,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                     </label>
                     <button
                       onClick={handleSave}
-                      className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-black font-semibold transition"
+                      className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-black font-semibold transition active:scale-95 transform duration-200 hover:scale-105"
                     >
                       Save
                     </button>

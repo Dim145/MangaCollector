@@ -89,7 +89,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => navigate("/addmanga")}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg mb-4"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-900 text-white rounded-lg mb-4 active:scale-95 transform transition-all duration-200 hover:scale-105"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
