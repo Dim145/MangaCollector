@@ -5,6 +5,7 @@ const cors = require("cors");
 const {ConnectSessionKnexStore} = require('connect-session-knex');
 const cookieParser = require('cookie-parser');
 const fileUpload = require("express-fileupload");
+const knex = require('./db/db');
 
 require("dotenv").config();
 
@@ -36,7 +37,7 @@ app.use(
   session({
     store: new ConnectSessionKnexStore({
         tableName: 'sessions',
-        knex: require('./db/db'),
+        knex: knex,
     }),
     secret: process.env.SESSION_SECRET,
     resave: false,

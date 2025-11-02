@@ -8,7 +8,7 @@ import About from "./components/About";
 import ProfilePage from "./components/ProfilePage";
 import MangaPage from "./components/MangaPage";
 import Wishlist from "./components/Wishlist";
-import {useEffect, useState} from "react";
+import {useEffect, useLayoutEffect, useState} from "react";
 import SettingsPage from "@/components/SettingsPage.jsx";
 import DefaultBackground from "@/components/DefaultBackground.jsx";
 import {getUserSettings} from "@/utils/user.js";
@@ -24,6 +24,11 @@ export default function App() {
   useEffect(() => {
     getUserSettings().then(s => setSettings(s));
   }, []);
+
+  useLayoutEffect(() => {
+    // Scroll to the top of the page when the route changes
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname]);
 
   return (
     <>
