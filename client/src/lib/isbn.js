@@ -1,22 +1,61 @@
 import { db } from "./db.js";
 
 /*
- * ISBN → manga resolution.
+ * ISBN → manga resolution via Google Books.
  *
- * Takes a raw EAN-13 barcode value, asks Google Books for the title, then
- * tries to tease out "series + volume number" with a pile of regexes
- * covering EN / FR / JP patterns most manga publishers use.
+ * Rate-limit safety, top to bottom:
+ *   1. Dexie cache (30 days) — same ISBN never re-queried
+ *   2. Negative cache (10 min for "no match", longer for 429)
+ *   3. Client-side throttle — min 600 ms between two Google Books calls
+ *   4. Adaptive cooldown — after a 429, back off for 60 s (exponential on repeat)
+ *   5. Optional API key (localStorage) — bumps per-IP anonymous quota to the
+ *      per-project quota of the Google Cloud project owning the key
  *
- * The caller then passes `title` to Jikan for the real MAL match — this
- * module is just about turning a number into words.
- *
- * Results are cached in Dexie for 30 days (ISBNs don't move).
+ * Caller sees any quota problem as a thrown Error with a user-friendly
+ * message, so the scanner UI can surface it cleanly.
  */
 
 const GOOGLE_BOOKS = "https://www.googleapis.com/books/v1/volumes";
-const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days for positive hits
+const NO_MATCH_TTL_MS = 10 * 60 * 1000; // 10 min for "no match"
+const MIN_GAP_MS = 600;
 
-// Ordered from most-specific to most-generic. First match wins.
+const API_KEY_STORAGE = "mc:google-books-key";
+
+let lastCallAt = 0;
+let cooldownUntil = 0;
+let consecutive429 = 0;
+
+/* ─── API key helpers (localStorage) ─────────────────────────────── */
+
+export function getApiKey() {
+  try {
+    return localStorage.getItem(API_KEY_STORAGE) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function setApiKey(key) {
+  try {
+    const trimmed = (key || "").trim();
+    if (trimmed) localStorage.setItem(API_KEY_STORAGE, trimmed);
+    else localStorage.removeItem(API_KEY_STORAGE);
+    // A new key resets the per-IP cooldown: the request now carries
+    // identity, so the anonymous throttle no longer applies.
+    cooldownUntil = 0;
+    consecutive429 = 0;
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getCooldownRemainingMs() {
+  return Math.max(0, cooldownUntil - Date.now());
+}
+
+/* ─── Helpers ────────────────────────────────────────────────────── */
+
 const VOL_PATTERNS = [
   /,?\s*vol(?:ume|\.)?\s*(\d+)\b/i,
   /,?\s*tome\s*(\d+)\b/i,
@@ -29,10 +68,6 @@ const VOL_PATTERNS = [
   /\s+(\d+)\s*$/,
 ];
 
-/**
- * Split a full book title into series name + volume number.
- * Returns `{ title, volume }` — volume is `null` if none detected.
- */
 export function parseTitleVolume(fullTitle) {
   if (!fullTitle) return { title: "", volume: null };
   for (const pattern of VOL_PATTERNS) {
@@ -40,14 +75,17 @@ export function parseTitleVolume(fullTitle) {
     if (match) {
       const volume = parseInt(match[1], 10);
       if (Number.isNaN(volume)) continue;
-      const title = fullTitle.replace(pattern, "").trim().replace(/[,:;\-–—]+$/, "").trim();
+      const title = fullTitle
+        .replace(pattern, "")
+        .trim()
+        .replace(/[,:;\-–—]+$/, "")
+        .trim();
       return { title: title || fullTitle, volume };
     }
   }
   return { title: fullTitle.trim(), volume: null };
 }
 
-/** Strip hyphens/spaces and validate length. */
 export function normalizeISBN(raw) {
   const clean = String(raw || "").replace(/[-\s]/g, "");
   if (!/^(\d{10}|\d{13})$/.test(clean)) return null;
@@ -57,11 +95,12 @@ export function normalizeISBN(raw) {
 async function readCached(isbn) {
   try {
     const row = await db.isbnCache.get(isbn);
-    if (!row) return null;
-    if (Date.now() - row.ts > CACHE_TTL_MS) return null;
+    if (!row) return undefined; // not in cache at all
+    const ttl = row.result == null ? NO_MATCH_TTL_MS : CACHE_TTL_MS;
+    if (Date.now() - row.ts > ttl) return undefined;
     return row.result;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
@@ -73,33 +112,71 @@ async function writeCached(isbn, result) {
   }
 }
 
-/**
- * Resolve an ISBN to a manga-shaped record.
- *
- * Return shape on success:
- *   {
- *     isbn, rawTitle,
- *     title,      // series name, volume stripped
- *     volume,     // number or null
- *     authors: string[],
- *     publisher, thumbnail, description,
- *     language,   // "en", "fr", "ja"…
- *   }
- *
- * Returns `null` when Google Books has no match.
- */
+async function throttle() {
+  const now = Date.now();
+
+  if (now < cooldownUntil) {
+    const remainS = Math.ceil((cooldownUntil - now) / 1000);
+    const err = new Error(
+      `Google Books rate limit — retrying in ${remainS}s. Add an API key in Settings to avoid this.`
+    );
+    err.code = "RATE_LIMITED";
+    throw err;
+  }
+
+  const wait = Math.max(0, lastCallAt + MIN_GAP_MS - now);
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastCallAt = Date.now();
+}
+
+function triggerCooldown() {
+  consecutive429 += 1;
+  // 60s × 2^(n-1), capped at 10 min
+  const seconds = Math.min(60 * 2 ** (consecutive429 - 1), 600);
+  cooldownUntil = Date.now() + seconds * 1000;
+}
+
+function clearCooldown() {
+  consecutive429 = 0;
+  cooldownUntil = 0;
+}
+
+/* ─── Public API ─────────────────────────────────────────────────── */
+
 export async function lookupISBN(rawIsbn) {
   const isbn = normalizeISBN(rawIsbn);
   if (!isbn) throw new Error("Invalid ISBN");
 
   const cached = await readCached(isbn);
-  if (cached !== null) return cached;
+  if (cached !== undefined) return cached;
 
-  const res = await fetch(
-    `${GOOGLE_BOOKS}?q=isbn:${isbn}&maxResults=1`,
-    { headers: { Accept: "application/json" } }
-  );
-  if (!res.ok) throw new Error(`Google Books error: ${res.status}`);
+  await throttle();
+
+  const apiKey = getApiKey();
+  const params = new URLSearchParams({
+    q: `isbn:${isbn}`,
+    maxResults: "1",
+  });
+  if (apiKey) params.set("key", apiKey);
+
+  const res = await fetch(`${GOOGLE_BOOKS}?${params.toString()}`, {
+    headers: { Accept: "application/json" },
+  });
+
+  if (res.status === 429) {
+    triggerCooldown();
+    const err = new Error(
+      "Google Books rate limit reached. Add an API key in Settings, or wait a bit before scanning more."
+    );
+    err.code = "RATE_LIMITED";
+    throw err;
+  }
+
+  if (!res.ok) {
+    throw new Error(`Google Books error: ${res.status}`);
+  }
+
+  clearCooldown();
 
   const data = await res.json();
   const item = data.items?.[0];

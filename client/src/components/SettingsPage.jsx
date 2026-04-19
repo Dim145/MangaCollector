@@ -4,6 +4,7 @@ import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
 import { forceResyncFromServer } from "@/lib/sync.js";
+import { getApiKey, setApiKey } from "@/lib/isbn.js";
 import { formatCurrency } from "@/utils/price.js";
 
 const ADULT_OPTIONS = [
@@ -47,12 +48,33 @@ export default function SettingsPage() {
   const [restoreError, setRestoreError] = useState(null);
   const [restoreDone, setRestoreDone] = useState(false);
 
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeyRevealed, setApiKeyRevealed] = useState(false);
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+
   useEffect(() => {
     if (!settings) return;
     setShowAdultContent(settings?.adult_content_level || 0);
     setCurrencyObject(settings?.currency);
     setTitleType(settings?.titleType || "Default");
   }, [settings]);
+
+  useEffect(() => {
+    setApiKeyInput(getApiKey() ?? "");
+  }, []);
+
+  const handleApiKeySave = () => {
+    setApiKey(apiKeyInput);
+    setApiKeySaved(true);
+    setTimeout(() => setApiKeySaved(false), 1500);
+  };
+
+  const handleApiKeyClear = () => {
+    setApiKey("");
+    setApiKeyInput("");
+    setApiKeySaved(true);
+    setTimeout(() => setApiKeySaved(false), 1500);
+  };
 
   const save = async (next) => {
     try {
@@ -305,6 +327,145 @@ export default function SettingsPage() {
                 </p>
               </label>
             ))}
+          </div>
+        </section>
+
+        {/* ─── Scanner / Google Books API key ─── */}
+        <section
+          className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+          style={{ animationDelay: "250ms" }}
+        >
+          <div className="mb-4">
+            <h2 className="font-display text-lg font-semibold text-washi">
+              Barcode scanner
+            </h2>
+            <p className="mt-1 text-xs text-washi-muted">
+              Scanning looks up each ISBN on Google Books. An optional API key
+              lifts the anonymous per-IP rate limit — without it, scanning
+              several volumes in a row can hit a 429.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="google-books-key"
+              className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
+            >
+              Google Books API key
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="google-books-key"
+                type={apiKeyRevealed ? "text" : "password"}
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="AIzaSy…"
+                autoComplete="off"
+                spellCheck={false}
+                className="flex-1 rounded-lg border border-border bg-ink-0/60 px-3 py-2 font-mono text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+              />
+              <button
+                type="button"
+                onClick={() => setApiKeyRevealed((v) => !v)}
+                aria-label={apiKeyRevealed ? "Hide key" : "Reveal key"}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border text-washi-muted transition hover:text-washi"
+              >
+                {apiKeyRevealed ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4"
+                  >
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4"
+                  >
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <a
+                href="https://console.cloud.google.com/apis/library/books.googleapis.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim transition hover:text-washi"
+              >
+                Get a key
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-3 w-3"
+                >
+                  <path d="M7 17 17 7M7 7h10v10" />
+                </svg>
+              </a>
+              <div className="flex items-center gap-2">
+                {apiKeyInput && (
+                  <button
+                    type="button"
+                    onClick={handleApiKeyClear}
+                    className="rounded-full border border-border bg-transparent px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleApiKeySave}
+                  disabled={apiKeyInput === (getApiKey() ?? "")}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-40"
+                >
+                  {apiKeySaved ? (
+                    <>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-2.5 w-2.5"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Saved
+                    </>
+                  ) : (
+                    "Save key"
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-gold/20 bg-gold/5 p-3 text-[11px] text-washi-muted">
+              <p>
+                <span className="font-semibold text-gold">Tip:</span> restrict
+                the key to your HTTP referrer in Google Cloud Console — it'll
+                be rejected if leaked and used on another domain. The key is
+                stored in your browser only (localStorage), never on the server.
+              </p>
+            </div>
           </div>
         </section>
 
