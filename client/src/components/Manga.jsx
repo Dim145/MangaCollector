@@ -1,8 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { hasToBlurImage } from "@/utils/library.js";
+import { useT } from "@/i18n/index.jsx";
 
 export default function Manga({ manga, adult_content_level }) {
   const navigate = useNavigate();
+  const t = useT();
 
   const owned = manga.volumes_owned ?? 0;
   const total = manga.volumes ?? 0;
@@ -54,7 +56,7 @@ export default function Manga({ manga, adult_content_level }) {
             >
               <polyline points="20 6 9 17 4 12" />
             </svg>
-            Complete
+            {t("manga.complete")}
           </div>
         )}
 
@@ -69,7 +71,7 @@ export default function Manga({ manga, adult_content_level }) {
               <span className="text-washi-dim"> / {total || "?"}</span>
             </span>
             <span className="text-[10px] font-medium text-washi-dim">
-              vols
+              {t("manga.volumesShort")}
             </span>
           </div>
 

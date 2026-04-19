@@ -7,36 +7,29 @@ import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
 import { forceResyncFromServer } from "@/lib/sync.js";
 import { getApiKey, setApiKey } from "@/lib/isbn.js";
 import { formatCurrency } from "@/utils/price.js";
+import { LANGUAGES, useT } from "@/i18n/index.jsx";
 
-const ADULT_OPTIONS = [
-  {
-    value: 0,
-    label: "Blur",
-    description: "Cover art is blurred, volumes stay visible",
-  },
-  {
-    value: 1,
-    label: "Hide",
-    description: "Adult titles are fully excluded from view",
-  },
-  { value: 2, label: "Show", description: "Display everything as-is" },
+const ADULT_OPTION_VALUES = [
+  { value: 0, key: "Blur" },
+  { value: 1, key: "Hide" },
+  { value: 2, key: "Show" },
 ];
 
-const TITLE_OPTIONS = [
-  { value: "Default", label: "Default (MAL)" },
-  { value: "English", label: "English" },
-  { value: "Japanese", label: "Japanese" },
+const TITLE_OPTION_VALUES = [
+  { value: "Default", key: "Default" },
+  { value: "English", key: "English" },
+  { value: "Japanese", key: "Japanese" },
 ];
 
-const THEME_OPTIONS = [
-  { value: "dark", label: "Dark", description: "Ink & hanko red" },
-  { value: "light", label: "Light", description: "Washi paper" },
-  { value: "auto", label: "Auto", description: "Follows your system" },
+const THEME_OPTION_VALUES = [
+  { value: "dark", key: "Dark" },
+  { value: "light", key: "Light" },
+  { value: "auto", key: "Auto" },
 ];
 
 const CURRENCIES = [
-  { code: "USD", label: "US Dollar", flag: "🇺🇸" },
-  { code: "EUR", label: "Euro", flag: "🇪🇺" },
+  { code: "USD", key: "USD", flag: "🇺🇸" },
+  { code: "EUR", key: "EUR", flag: "🇪🇺" },
 ];
 
 export default function SettingsPage() {
@@ -44,11 +37,28 @@ export default function SettingsPage() {
   const updateSettings = useUpdateSettings();
   const online = useOnline();
   const pending = usePendingCount();
+  const t = useT();
+
+  const ADULT_OPTIONS = ADULT_OPTION_VALUES.map((o) => ({
+    value: o.value,
+    label: t(`settings.adult${o.key}`),
+    description: t(`settings.adult${o.key}Desc`),
+  }));
+  const TITLE_OPTIONS = TITLE_OPTION_VALUES.map((o) => ({
+    value: o.value,
+    label: t(`settings.title${o.key}`),
+  }));
+  const THEME_OPTIONS = THEME_OPTION_VALUES.map((o) => ({
+    value: o.value,
+    label: t(`settings.theme${o.key}`),
+    description: t(`settings.theme${o.key}Desc`),
+  }));
 
   const [showAdultContent, setShowAdultContent] = useState(0);
   const [currencyObject, setCurrencyObject] = useState(null);
   const [titleType, setTitleType] = useState("Default");
   const [theme, setTheme] = useState("dark");
+  const [language, setLanguage] = useState("en");
   const [saved, setSaved] = useState(false);
 
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -66,6 +76,7 @@ export default function SettingsPage() {
     setCurrencyObject(settings?.currency);
     setTitleType(settings?.titleType || "Default");
     setTheme(settings?.theme || "dark");
+    setLanguage(settings?.language || "en");
   }, [settings]);
 
   useEffect(() => {
@@ -95,45 +106,38 @@ export default function SettingsPage() {
     }
   };
 
+  const baseSettings = () => ({
+    adult_content_level: showAdultContent,
+    currency: currencyObject,
+    titleType,
+    theme,
+    language,
+  });
+
   const handleAdultChange = (value) => {
     setShowAdultContent(value);
-    save({
-      adult_content_level: value,
-      currency: currencyObject,
-      titleType,
-      theme,
-    });
+    save({ ...baseSettings(), adult_content_level: value });
   };
 
   const handleTitleChange = (value) => {
     setTitleType(value);
-    save({
-      adult_content_level: showAdultContent,
-      currency: currencyObject,
-      titleType: value,
-      theme,
-    });
+    save({ ...baseSettings(), titleType: value });
   };
 
   const handleThemeChange = (value) => {
     setTheme(value);
-    save({
-      adult_content_level: showAdultContent,
-      currency: currencyObject,
-      titleType,
-      theme: value,
-    });
+    save({ ...baseSettings(), theme: value });
+  };
+
+  const handleLanguageChange = (value) => {
+    setLanguage(value);
+    save({ ...baseSettings(), language: value });
   };
 
   const handleCurrencyChange = (code) => {
     const nextCurrency = { code };
     setCurrencyObject(nextCurrency);
-    save({
-      adult_content_level: showAdultContent,
-      currency: nextCurrency,
-      titleType,
-      theme,
-    });
+    save({ ...baseSettings(), currency: nextCurrency });
   };
 
   const handleRestore = async () => {
@@ -163,14 +167,14 @@ export default function SettingsPage() {
       <header className="mb-8 animate-fade-up">
         <div className="flex items-baseline gap-3">
           <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
-            SETTINGS · 設定
+            {t("settings.heading")}
           </span>
           <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
         </div>
         <div className="mt-2 flex items-baseline justify-between gap-4">
           <h1 className="font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">
             <span className="text-hanko-gradient font-semibold not-italic">
-              Preferences
+              {t("settings.preferences")}
             </span>
           </h1>
           <div
@@ -185,7 +189,7 @@ export default function SettingsPage() {
                 saved ? "bg-gold" : "bg-washi-dim"
               }`}
             />
-            {saved ? "Saved" : "Synced"}
+            {saved ? t("common.saved") : t("settings.synced")}
           </div>
         </div>
       </header>
@@ -197,10 +201,10 @@ export default function SettingsPage() {
         <section className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up">
           <div className="mb-4">
             <h2 className="font-display text-lg font-semibold text-washi">
-              Appearance
+              {t("settings.appearance")}
             </h2>
             <p className="mt-1 text-xs text-washi-muted">
-              Dark ink or washi paper. Auto follows your operating system.
+              {t("settings.appearanceBody")}
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -258,13 +262,81 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* ─── Language ─── */}
+        <section
+          className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+          style={{ animationDelay: "50ms" }}
+        >
+          <div className="mb-4">
+            <h2 className="font-display text-lg font-semibold text-washi">
+              {t("settings.language")}
+            </h2>
+            <p className="mt-1 text-xs text-washi-muted">
+              {t("settings.languageBody")}
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {LANGUAGES.map((lang) => (
+              <label
+                key={lang.code}
+                className={`group relative cursor-pointer overflow-hidden rounded-xl border p-3 transition ${
+                  language === lang.code
+                    ? "border-hanko/60 bg-hanko/10"
+                    : "border-border bg-ink-0/40 hover:border-border/80"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="language"
+                  value={lang.code}
+                  checked={language === lang.code}
+                  onChange={() => handleLanguageChange(lang.code)}
+                  className="sr-only"
+                />
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{lang.flag}</span>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`font-display text-sm font-semibold ${
+                        language === lang.code
+                          ? "text-hanko-bright"
+                          : "text-washi"
+                      }`}
+                    >
+                      {lang.label}
+                    </p>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                      {lang.code}
+                    </p>
+                  </div>
+                </div>
+                {language === lang.code && (
+                  <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-hanko text-washi">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-2.5 w-2.5"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                )}
+              </label>
+            ))}
+          </div>
+        </section>
+
         <section className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up">
           <div className="mb-4">
             <h2 className="font-display text-lg font-semibold text-washi">
-              Adult content
+              {t("settings.adultContent")}
             </h2>
             <p className="mt-1 text-xs text-washi-muted">
-              How mature titles appear throughout your archive.
+              {t("settings.adultBody")}
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -321,15 +393,15 @@ export default function SettingsPage() {
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <h2 className="font-display text-lg font-semibold text-washi">
-                Currency
+                {t("settings.currency")}
               </h2>
               <p className="mt-1 text-xs text-washi-muted">
-                How prices are displayed across volumes and summaries.
+                {t("settings.currencyBody")}
               </p>
             </div>
             <div className="shrink-0 rounded-lg border border-border bg-ink-0 px-3 py-2 text-right">
               <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                Preview
+                {t("settings.currencyPreview")}
               </p>
               <p className="font-display text-base font-semibold text-gold">
                 {formatCurrency(165.182, currencyObject)}
@@ -358,7 +430,9 @@ export default function SettingsPage() {
                   >
                     {c.code}
                   </p>
-                  <p className="text-[10px] text-washi-muted">{c.label}</p>
+                  <p className="text-[10px] text-washi-muted">
+                    {t(`settings.currency${c.key}`)}
+                  </p>
                 </div>
                 {currencyObject?.code === c.code && (
                   <span className="grid h-5 w-5 place-items-center rounded-full bg-hanko text-washi">
@@ -383,10 +457,10 @@ export default function SettingsPage() {
         <section className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up" style={{ animationDelay: "200ms" }}>
           <div className="mb-4">
             <h2 className="font-display text-lg font-semibold text-washi">
-              Title language
+              {t("settings.titleLanguage")}
             </h2>
             <p className="mt-1 text-xs text-washi-muted">
-              Which title is preferred when MAL provides alternatives.
+              {t("settings.titleBody")}
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -426,12 +500,10 @@ export default function SettingsPage() {
         >
           <div className="mb-4">
             <h2 className="font-display text-lg font-semibold text-washi">
-              Barcode scanner
+              {t("settings.barcodeScanner")}
             </h2>
             <p className="mt-1 text-xs text-washi-muted">
-              Scanning looks up each ISBN on Google Books. An optional API key
-              lifts the anonymous per-IP rate limit — without it, scanning
-              several volumes in a row can hit a 429.
+              {t("settings.scannerBody")}
             </p>
           </div>
 
@@ -440,7 +512,7 @@ export default function SettingsPage() {
               htmlFor="google-books-key"
               className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
             >
-              Google Books API key
+              {t("settings.apiKeyLabel")}
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -448,7 +520,7 @@ export default function SettingsPage() {
                 type={apiKeyRevealed ? "text" : "password"}
                 value={apiKeyInput}
                 onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="AIzaSy…"
+                placeholder={t("settings.apiKeyPlaceholder")}
                 autoComplete="off"
                 spellCheck={false}
                 className="flex-1 rounded-lg border border-border bg-ink-0/60 px-3 py-2 font-mono text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
@@ -456,7 +528,11 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setApiKeyRevealed((v) => !v)}
-                aria-label={apiKeyRevealed ? "Hide key" : "Reveal key"}
+                aria-label={
+                  apiKeyRevealed
+                    ? t("settings.hideKey")
+                    : t("settings.revealKey")
+                }
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border text-washi-muted transition hover:text-washi"
               >
                 {apiKeyRevealed ? (
@@ -496,7 +572,7 @@ export default function SettingsPage() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim transition hover:text-washi"
               >
-                Get a key
+                {t("settings.getKey")}
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
@@ -516,7 +592,7 @@ export default function SettingsPage() {
                     onClick={handleApiKeyClear}
                     className="rounded-full border border-border bg-transparent px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
                   >
-                    Clear
+                    {t("common.clear")}
                   </button>
                 )}
                 <button
@@ -538,22 +614,17 @@ export default function SettingsPage() {
                       >
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      Saved
+                      {t("settings.keySaved")}
                     </>
                   ) : (
-                    "Save key"
+                    t("settings.saveKey")
                   )}
                 </button>
               </div>
             </div>
 
             <div className="mt-4 rounded-lg border border-gold/20 bg-gold/5 p-3 text-[11px] text-washi-muted">
-              <p>
-                <span className="font-semibold text-gold">Tip:</span> restrict
-                the key to your HTTP referrer in Google Cloud Console — it'll
-                be rejected if leaked and used on another domain. The key is
-                stored in your browser only (localStorage), never on the server.
-              </p>
+              <p>{t("settings.apiKeyTip")}</p>
             </div>
           </div>
         </section>
@@ -582,12 +653,11 @@ export default function SettingsPage() {
                   </svg>
                 </span>
                 <h2 className="font-display text-lg font-semibold text-washi">
-                  Data
+                  {t("settings.dataSection")}
                 </h2>
               </div>
               <p className="mt-1 text-xs text-washi-muted">
-                Offline archive cached on this device. Pull fresh state from the
-                server when you want to start clean.
+                {t("settings.dataBody")}
               </p>
             </div>
           </div>
@@ -596,26 +666,24 @@ export default function SettingsPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="font-display text-sm font-semibold text-washi">
-                  Restore from server
+                  {t("settings.restoreFromServer")}
                 </p>
                 <p className="mt-1 text-xs text-washi-muted">
-                  Replace the local archive with the latest server state.
-                  {pending > 0 && (
-                    <>
-                      {" "}
-                      <span className="font-semibold text-hanko-bright">
-                        {pending} pending change{pending > 1 ? "s" : ""}
-                      </span>{" "}
-                      will be discarded.
-                    </>
-                  )}
+                  {t("settings.restoreDesc")}
+                  {pending > 0 &&
+                    t(
+                      pending === 1
+                        ? "settings.pendingDiscardOne"
+                        : "settings.pendingDiscardMany",
+                      { n: pending }
+                    )}
                 </p>
               </div>
               <button
                 onClick={() => setConfirmRestore(true)}
                 disabled={!online}
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                title={online ? "" : "Requires a connection"}
+                title={online ? "" : t("settings.restoreConnectionHint")}
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -631,7 +699,7 @@ export default function SettingsPage() {
                   <path d="M3 22v-6h6" />
                   <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
                 </svg>
-                Restore
+                {t("settings.restore")}
               </button>
             </div>
           </div>
@@ -650,23 +718,25 @@ export default function SettingsPage() {
             復
           </div>
           <h3 className="text-center font-display text-xl font-semibold text-washi">
-            Restore from server?
+            {t("settings.restoreModalTitle")}
           </h3>
 
           <p className="mt-3 text-center text-sm text-washi-muted">
-            Your local archive — library, volumes, settings — will be
-            <strong className="text-washi"> replaced </strong>
-            with a fresh copy from the server.
+            {t("settings.restoreModalBody")}
           </p>
 
           {pending > 0 && (
             <div className="mt-4 rounded-lg border border-hanko/30 bg-hanko/10 p-3 text-xs text-washi">
               <p className="font-semibold text-hanko-bright">
-                {pending} pending change{pending > 1 ? "s" : ""} will be discarded
+                {t(
+                  pending === 1
+                    ? "settings.pendingWarningOne"
+                    : "settings.pendingWarningMany",
+                  { n: pending }
+                )}
               </p>
               <p className="mt-1 text-washi-muted">
-                Edits queued offline that haven't synced yet will be permanently
-                lost.
+                {t("settings.pendingWarningDetail")}
               </p>
             </div>
           )}
@@ -679,7 +749,7 @@ export default function SettingsPage() {
 
           {restoreDone && (
             <div className="mt-4 rounded-lg border border-gold/30 bg-gold/10 p-3 text-xs text-gold">
-              Archive restored successfully.
+              {t("settings.restoreDone")}
             </div>
           )}
 
@@ -689,7 +759,7 @@ export default function SettingsPage() {
               disabled={restoring}
               className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi disabled:opacity-50"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               onClick={handleRestore}
@@ -699,12 +769,12 @@ export default function SettingsPage() {
               {restoring ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
-                  Restoring…
+                  {t("settings.restoringState")}
                 </span>
               ) : restoreDone ? (
-                "Done"
+                t("common.done")
               ) : (
-                "Yes, restore"
+                t("settings.restoreConfirm")
               )}
             </button>
           </div>

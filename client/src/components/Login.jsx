@@ -2,12 +2,14 @@ import { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SettingsContext from "@/SettingsContext.js";
 import { checkAuthStatus, initiateOAuth } from "../utils/auth";
+import { useT } from "@/i18n/index.jsx";
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const { authName, authIcon } = useContext(SettingsContext);
+  const t = useT();
 
   useEffect(() => {
     (async () => {
@@ -17,8 +19,9 @@ export default function Login() {
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("error") === "auth_failed") {
-      setError("Authentication failed. Please try again.");
+      setError(t("login.authFailed"));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   const handleLogin = () => {
@@ -27,7 +30,7 @@ export default function Login() {
     initiateOAuth();
   };
 
-  const providerLabel = authName || "your account";
+  const providerLabel = authName || t("login.providerFallback");
   const isGoogle = String(authName || "").toLowerCase() === "google";
 
   return (
@@ -71,13 +74,16 @@ export default function Login() {
             MC
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
-            MangaCollector · 収集家
+            {t("login.brandLabel")}
           </span>
           <h1 className="mt-3 font-display text-4xl font-light italic tracking-tight text-washi md:text-5xl">
-            Welcome <span className="text-hanko-gradient font-semibold not-italic">back</span>
+            {t("login.welcomeBack")}{" "}
+            <span className="text-hanko-gradient font-semibold not-italic">
+              {t("login.back")}
+            </span>
           </h1>
           <p className="mt-3 max-w-xs text-sm text-washi-muted">
-            Sign in to continue curating the stories that matter to you.
+            {t("login.byline")}
           </p>
         </div>
 
@@ -148,31 +154,29 @@ export default function Login() {
               )
             )}
             <span className="relative">
-              {isLoading ? "Redirecting…" : `Continue with ${providerLabel}`}
+              {isLoading
+                ? t("login.redirecting")
+                : t("login.continueWith", { provider: providerLabel })}
             </span>
           </button>
 
           <div className="mt-6 divider-ornament font-mono text-[10px] uppercase tracking-[0.2em]">
-            <span>what you get</span>
+            <span>{t("login.whatYouGet")}</span>
           </div>
 
           {/* Features */}
           <ul className="mt-4 space-y-3">
-            <Feature>Volume-level tracking with prices & sources</Feature>
-            <Feature>MyAnimeList-powered covers and metadata</Feature>
-            <Feature>Private, yours — encrypted sessions only</Feature>
+            <Feature>{t("login.benefit1")}</Feature>
+            <Feature>{t("login.benefit2")}</Feature>
+            <Feature>{t("login.benefit3")}</Feature>
           </ul>
         </div>
 
         <p className="mt-6 text-center text-[10px] uppercase tracking-wider text-washi-dim">
-          By signing in, you agree to our{" "}
-          <a href="#" className="underline-offset-4 hover:text-washi hover:underline">
-            Terms
-          </a>{" "}
-          &{" "}
-          <a href="#" className="underline-offset-4 hover:text-washi hover:underline">
-            Privacy Policy
-          </a>
+          {t("login.terms", {
+            terms: t("login.termsLabel"),
+            privacy: t("login.privacyLabel"),
+          })}
         </p>
       </div>
     </div>

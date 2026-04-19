@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useT } from "@/i18n/index.jsx";
 
 /*
  * Cold-start hero loader. Only shown when we truly have nothing to paint
@@ -8,11 +9,13 @@ import { useEffect, useState } from "react";
  * never feels frozen.
  */
 export default function PageLoader({
-  message = "Preparing your archive",
+  message,
   kanji = "読",
   fullscreen = false,
 }) {
   const [slow, setSlow] = useState(false);
+  const t = useT();
+  const label = message ?? t("loader.preparing");
 
   useEffect(() => {
     const t = setTimeout(() => setSlow(true), 3000);
@@ -54,13 +57,13 @@ export default function PageLoader({
 
         <div className="max-w-sm space-y-1.5">
           <p className="font-display text-xl italic text-washi">
-            {message}
+            {label}
             <span className="inline-block w-[1.5ch] text-left">
               <DotsEllipsis />
             </span>
           </p>
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
-            {slow ? "Taking a bit longer than usual…" : "A single moment"}
+            {slow ? t("loader.slower") : t("loader.aMoment")}
           </p>
         </div>
 

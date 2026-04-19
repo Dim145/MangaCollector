@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAuthStatus, getCachedUser } from "../utils/auth";
 import DefaultBackground from "./DefaultBackground";
+import { useT } from "@/i18n/index.jsx";
 
 /*
  * Render protected children as long as we have ANY reason to believe the
@@ -15,6 +16,7 @@ import DefaultBackground from "./DefaultBackground";
  *                                                          downtime)
  */
 export default function ProtectedRoute({ children, setGoogleUser }) {
+  const t = useT();
   const [status, setStatus] = useState(() => {
     const cached = getCachedUser();
     return cached
@@ -74,7 +76,7 @@ export default function ProtectedRoute({ children, setGoogleUser }) {
             </span>
           </div>
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim animate-pulse">
-            Loading archive…
+            {t("auth.loadingArchive")}
           </p>
         </div>
       </DefaultBackground>
@@ -92,20 +94,19 @@ export default function ProtectedRoute({ children, setGoogleUser }) {
             待
           </span>
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
-            Server unreachable
+            {t("auth.serverUnreachableLabel")}
           </p>
           <h1 className="font-display text-2xl font-light italic text-washi md:text-3xl">
-            Can't verify your session just yet.
+            {t("auth.verifyingSession")}
           </h1>
           <p className="text-sm text-washi-muted">
-            The backend is currently unreachable. We'll reconnect automatically
-            — no action needed.
+            {t("auth.verifyingBody")}
           </p>
           <button
             onClick={() => window.location.reload()}
             className="mt-2 rounded-full border border-border bg-ink-1/60 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi"
           >
-            Retry now
+            {t("common.retryNow")}
           </button>
         </div>
       </DefaultBackground>

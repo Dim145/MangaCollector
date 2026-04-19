@@ -1,6 +1,8 @@
 import DefaultBackground from "./DefaultBackground";
+import { useT } from "@/i18n/index.jsx";
 
 export default function Wishlist() {
+  const t = useT();
   return (
     <DefaultBackground>
       <div className="mx-auto flex min-h-[70vh] max-w-3xl flex-col items-center justify-center px-4 pt-8 pb-nav text-center sm:px-6 md:pt-12 md:pb-16">
@@ -9,14 +11,16 @@ export default function Wishlist() {
             望
           </span>
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
-            WISHLIST · 欲しい
+            {t("wishlist.labelJp")}
           </p>
           <h1 className="mt-3 font-display text-4xl font-light italic text-washi md:text-6xl">
-            Coming <span className="text-hanko-gradient font-semibold not-italic">soon.</span>
+            {t("wishlist.comingSoon")}{" "}
+            <span className="text-hanko-gradient font-semibold not-italic">
+              {t("wishlist.comingSoonAccent")}
+            </span>
           </h1>
           <p className="mx-auto mt-4 max-w-md text-sm text-washi-muted md:text-base">
-            We're designing a dedicated space to track the volumes you dream of
-            owning — pre-orders, re-prints and holy grails all in one place.
+            {t("wishlist.body")}
           </p>
 
           <a
@@ -34,7 +38,7 @@ export default function Wishlist() {
             >
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
-            Back to library
+            {t("wishlist.backLib")}
           </a>
         </div>
       </div>

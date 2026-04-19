@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import ProfileButton from "./ProfileButton";
 import { checkAuthStatus } from "../utils/auth";
+import { useT } from "@/i18n/index.jsx";
 
-const NAV_ITEMS = [
+const NAV_ITEMS_BASE = [
   {
     to: "/dashboard",
-    label: "Library",
+    key: "library",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -24,7 +25,7 @@ const NAV_ITEMS = [
   },
   {
     to: "/addmanga",
-    label: "Add",
+    key: "add",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -43,7 +44,7 @@ const NAV_ITEMS = [
   },
   {
     to: "/profile",
-    label: "Stats",
+    key: "stats",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -61,7 +62,7 @@ const NAV_ITEMS = [
   },
   {
     to: "/settings",
-    label: "Settings",
+    key: "settings",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -83,6 +84,11 @@ export default function Header() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const t = useT();
+  const NAV_ITEMS = NAV_ITEMS_BASE.map((item) => ({
+    ...item,
+    label: t(`nav.${item.key}`),
+  }));
 
   useEffect(() => {
     (async () => {

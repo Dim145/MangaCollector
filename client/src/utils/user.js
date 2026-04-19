@@ -62,6 +62,7 @@ async function updateSettings(settings) {
       titleType: settings.titleType,
       adult_content_level: settings.adult_content_level,
       theme: settings.theme,
+      language: settings.language,
     })
   ).data;
 }

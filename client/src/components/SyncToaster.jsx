@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { onSyncError } from "@/lib/sync.js";
+import { useT } from "@/i18n/index.jsx";
 
 /**
  * Stacked transient toasts surfacing sync failures.
@@ -8,17 +9,18 @@ import { onSyncError } from "@/lib/sync.js";
  */
 export default function SyncToaster() {
   const [toasts, setToasts] = useState([]);
+  const t = useT();
 
   useEffect(() => {
     return onSyncError((e) => {
       const id = `${Date.now()}-${Math.random()}`;
-      const message =
-        e.detail?.message || "A change couldn't be saved to the server.";
+      const message = e.detail?.message || t("sync.defaultError");
       setToasts((prev) => [...prev, { id, message }]);
       setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
+        setToasts((prev) => prev.filter((x) => x.id !== id));
       }, 6000);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (toasts.length === 0) return null;
@@ -28,9 +30,9 @@ export default function SyncToaster() {
       className="fixed bottom-4 right-4 z-[200] flex w-full max-w-sm flex-col gap-2 px-4 sm:bottom-6 sm:right-6 sm:px-0"
       aria-live="assertive"
     >
-      {toasts.map((t) => (
+      {toasts.map((toast) => (
         <div
-          key={t.id}
+          key={toast.id}
           className="pointer-events-auto flex items-start gap-3 rounded-xl border border-hanko/40 bg-ink-1/95 p-3 shadow-2xl backdrop-blur-xl animate-fade-up"
           role="alert"
         >
@@ -51,18 +53,18 @@ export default function SyncToaster() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-display text-sm font-semibold text-washi">
-              Change rejected
+              {t("sync.changeRejected")}
             </p>
-            <p className="mt-0.5 text-xs text-washi-muted">{t.message}</p>
+            <p className="mt-0.5 text-xs text-washi-muted">{toast.message}</p>
             <p className="mt-1 text-[10px] text-washi-dim">
-              Your local view has been synced to the server.
+              {t("sync.locallyResynced")}
             </p>
           </div>
           <button
             onClick={() =>
-              setToasts((prev) => prev.filter((x) => x.id !== t.id))
+              setToasts((prev) => prev.filter((x) => x.id !== toast.id))
             }
-            aria-label="Dismiss"
+            aria-label={t("sync.dismiss")}
             className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-washi-dim transition hover:text-washi"
           >
             <svg

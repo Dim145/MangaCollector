@@ -13,6 +13,7 @@ import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { addCustomEntryToUserLibrary } from "@/utils/user.js";
 import { db } from "@/lib/db.js";
 import { lookupISBN, normalizeISBN, searchMangaOnMal } from "@/lib/isbn.js";
+import { useT } from "@/i18n/index.jsx";
 
 const TRANSIENT_ERROR_TIMEOUT_MS = 2500;
 
@@ -50,6 +51,7 @@ export default function AddPage() {
     useContext(SettingsContext);
   const navigate = useNavigate();
   const online = useOnline();
+  const t = useT();
 
   // onBarcodeDetected is a stable useCallback([]) — expose the current
   // currency code through a ref so prefill stays in sync with settings.
@@ -340,10 +342,13 @@ export default function AddPage() {
           <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
         </div>
         <h1 className="mt-2 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">
-          Add to your <span className="text-hanko-gradient font-semibold not-italic">archive</span>
+          {t("add.title")}{" "}
+          <span className="text-hanko-gradient font-semibold not-italic">
+            {t("add.titleAccent")}
+          </span>
         </h1>
         <p className="mt-3 max-w-2xl text-sm text-washi-muted">
-          Scan a barcode, search MyAnimeList, or create a custom entry.
+          {t("add.subtitle")}
         </p>
       </header>
 
@@ -370,15 +375,13 @@ export default function AddPage() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
-              Fastest way
+              {t("add.scanFast")}
             </p>
             <p className="mt-1 font-display text-lg font-semibold text-washi">
-              Scan a volume's barcode
+              {t("add.scanCta")}
             </p>
             <p className="mt-0.5 text-xs text-washi-muted">
-              {online
-                ? "Point your camera at the ISBN barcode on the back cover."
-                : "Reconnect to use the scanner."}
+              {online ? t("add.scanHint") : t("add.scanOffline")}
             </p>
           </div>
           <svg
@@ -406,7 +409,7 @@ export default function AddPage() {
               : "text-washi-muted hover:text-washi"
           }`}
         >
-          MAL Search
+          {t("add.tabMalSearch")}
         </button>
         <button
           onClick={() => setCustomEntry(true)}
@@ -416,39 +419,37 @@ export default function AddPage() {
               : "text-washi-muted hover:text-washi"
           }`}
         >
-          Custom Entry
+          {t("add.tabCustomEntry")}
         </button>
       </div>
 
       {customEntry ? (
         <section className="animate-fade-up">
-          {!online && <OnlineOnlyNotice label="Custom entries" />}
+          {!online && <OnlineOnlyNotice label={t("add.customEntryLabel")} />}
           <div className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur md:p-8">
             <p className="mb-6 rounded-lg border border-gold/20 bg-gold/5 p-3 text-xs text-washi-muted">
-              <span className="font-semibold text-gold">Note:</span> Custom
-              entries work great for titles not listed on MyAnimeList, doujinshi,
-              or physical-only releases.
+              {t("add.customNote")}
             </p>
             <div className="space-y-5">
-              <Field label="Title">
+              <Field label={t("add.titleField")}>
                 <input
                   type="text"
                   value={customEntryTitle}
                   onChange={(e) => setCustomEntryTitle(e.target.value)}
-                  placeholder="e.g. Underground Illustrations"
+                  placeholder={t("add.titlePlaceholder")}
                   className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
                 />
               </Field>
-              <Field label="Genres">
+              <Field label={t("add.genresField")}>
                 <input
                   type="text"
                   value={customEntryGenres}
                   onChange={(e) => setCustomEntryGenres(e.target.value)}
-                  placeholder="Comma-separated, e.g. Action, Fantasy, Seinen"
+                  placeholder={t("add.genresPlaceholder")}
                   className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
                 />
               </Field>
-              <Field label="Number of volumes">
+              <Field label={t("add.volumesField")}>
                 <input
                   type="number"
                   value={customEntryVolumes}
@@ -469,21 +470,21 @@ export default function AddPage() {
                 }}
                 className="rounded-full border border-border bg-transparent px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleSaveCustomEntry}
                 disabled={!customEntryTitle.trim() || !online}
                 className="rounded-full bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi shadow-lg transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create entry
+                {t("add.createEntry")}
               </button>
             </div>
           </div>
         </section>
       ) : (
         <section className="space-y-6 animate-fade-up">
-          {!online && <OnlineOnlyNotice label="MAL search" />}
+          {!online && <OnlineOnlyNotice label={t("add.malSearchLabel")} />}
           <MangaSearchBar
             query={query}
             setQuery={setQuery}
@@ -491,7 +492,11 @@ export default function AddPage() {
             clearResults={clearResults}
             loading={loading}
             hasResults={results.length > 0}
-            placeholder={online ? "Search MyAnimeList…" : "Offline — search unavailable"}
+            placeholder={
+              online
+                ? t("add.searchPlaceholder")
+                : t("add.offlinePlaceholder")
+            }
           />
 
           {loading ? (
@@ -519,10 +524,10 @@ export default function AddPage() {
           ) : searched ? (
             <div className="rounded-2xl border border-dashed border-border bg-ink-1/30 p-8 text-center">
               <p className="font-display text-lg italic text-washi-muted">
-                No results for "{query}"
+                {t("add.noResults", { query })}
               </p>
               <p className="mt-2 text-xs text-washi-dim">
-                Try another keyword, or switch to "Custom Entry" above.
+                {t("add.noResultsHint")}
               </p>
             </div>
           ) : (
@@ -531,10 +536,10 @@ export default function AddPage() {
                 捜
               </div>
               <p className="font-display text-lg italic text-washi">
-                Begin with a title.
+                {t("add.beginPrompt")}
               </p>
               <p className="mt-1 text-xs text-washi-muted">
-                Every great archive starts with a single volume.
+                {t("add.beginHint")}
               </p>
             </div>
           )}
@@ -621,22 +626,20 @@ export default function AddPage() {
             限
           </div>
           <h3 className="text-center font-display text-xl font-semibold text-washi">
-            Google Books rate-limited
+            {t("scan.rateLimitTitle")}
           </h3>
           <p className="mt-3 text-sm text-washi-muted">
             {rateLimited?.message}
           </p>
           <p className="mt-3 rounded-lg border border-gold/20 bg-gold/5 p-3 text-xs text-washi-muted">
-            <span className="font-semibold text-gold">Fix:</span> add a Google
-            Books API key in Settings → Barcode scanner. The key is free, lifts
-            the per-IP quota, and can be restricted to your domain.
+            {t("scan.rateLimitFix")}
           </p>
           <div className="mt-5 flex gap-2">
             <button
               onClick={() => setRateLimited(null)}
               className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi"
             >
-              Close
+              {t("common.close")}
             </button>
             <button
               onClick={() => {
@@ -645,7 +648,7 @@ export default function AddPage() {
               }}
               className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright"
             >
-              Open Settings
+              {t("common.openSettings")}
             </button>
           </div>
         </div>
@@ -667,6 +670,7 @@ function Field({ label, children }) {
 }
 
 function OnlineOnlyNotice({ label }) {
+  const t = useT();
   return (
     <div
       className="mb-4 flex items-start gap-2 rounded-lg border border-hanko/30 bg-hanko/10 p-3 text-xs text-washi"
@@ -687,11 +691,10 @@ function OnlineOnlyNotice({ label }) {
         <line x1="12" y1="20" x2="12.01" y2="20" />
       </svg>
       <div>
-        <p className="font-semibold">{label} requires a connection</p>
-        <p className="mt-0.5 text-washi-muted">
-          Reconnect to use this feature — your library is fully editable
-          offline in the meantime.
+        <p className="font-semibold">
+          {t("add.requiresConnection", { label })}
         </p>
+        <p className="mt-0.5 text-washi-muted">{t("add.offlineHint")}</p>
       </div>
     </div>
   );
@@ -709,6 +712,7 @@ function ScanMatchCard({
   onConfirm,
   onCancel,
 }) {
+  const t = useT();
   const candidate = result.candidates[candidateIdx];
   const inLibrary = library.some((m) => m.mal_id === candidate.mal_id);
   const scannedVol = Number(result.volume) || 1;
@@ -740,10 +744,10 @@ function ScanMatchCard({
     <>
       <div className="border-b border-border p-4">
         <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
-          ISBN {result.isbn}
+          {t("scan.isbnPrefix", { isbn: result.isbn })}
         </p>
         <p className="mt-1 text-xs text-washi-muted">
-          Google Books: <span className="italic">"{result.book.rawTitle}"</span>
+          {t("scan.googleBooksRaw", { title: result.book.rawTitle })}
         </p>
       </div>
 
@@ -757,7 +761,7 @@ function ScanMatchCard({
         )}
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-            MAL match
+            {t("scan.match")}
           </p>
           <h3 className="mt-1 font-display text-lg font-semibold leading-tight text-washi">
             {candidate.title}
@@ -769,9 +773,11 @@ function ScanMatchCard({
               </p>
             )}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-            <span>{candidate.volumes ?? "?"} vols</span>
+            <span>
+              {t("searchResults.vols", { n: candidate.volumes ?? "?" })}
+            </span>
             {candidate.score && <span className="text-gold">★ {candidate.score}</span>}
-            {inLibrary && <span className="text-gold">in library</span>}
+            {inLibrary && <span className="text-gold">{t("scan.inLibrary")}</span>}
           </div>
 
           {result.candidates.length > 1 && (
@@ -781,7 +787,10 @@ function ScanMatchCard({
               }
               className="mt-2 inline-flex items-center gap-1 rounded-full border border-border bg-ink-0/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi"
             >
-              Not this one? ({candidateIdx + 1}/{result.candidates.length})
+              {t("scan.notThisOne", {
+                current: candidateIdx + 1,
+                total: result.candidates.length,
+              })}
             </button>
           )}
         </div>
@@ -789,13 +798,13 @@ function ScanMatchCard({
 
       <div className="border-t border-border p-4">
         <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-          Volume number
+          {t("scan.volumeNumber")}
         </label>
         <div className="mt-1.5 flex items-center gap-2">
           <button
             onClick={() => setVolume(Math.max(1, Number(result.volume || 1) - 1))}
             className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-ink-0/40 text-washi transition hover:border-hanko/40"
-            aria-label="Decrement volume"
+            aria-label="-"
           >
             −
           </button>
@@ -809,14 +818,14 @@ function ScanMatchCard({
           <button
             onClick={() => setVolume(Number(result.volume || 0) + 1)}
             className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-ink-0/40 text-washi transition hover:border-hanko/40"
-            aria-label="Increment volume"
+            aria-label="+"
           >
             +
           </button>
         </div>
         {!result.book.volume && (
           <p className="mt-1.5 text-[10px] text-washi-dim">
-            We couldn't auto-detect the volume number — please verify.
+            {t("scan.volumeUndetected")}
           </p>
         )}
       </div>
@@ -827,7 +836,7 @@ function ScanMatchCard({
           htmlFor="scan-price"
           className="block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
         >
-          Price ({currencySetting?.symbol ?? "$"}) — only this volume
+          {t("scan.priceLabel", { symbol: currencySetting?.symbol ?? "$" })}
         </label>
         <input
           id="scan-price"
@@ -870,8 +879,8 @@ function ScanMatchCard({
             <div className="min-w-0 flex-1">
               <p className="font-display text-sm font-semibold text-washi">
                 {missing.length === 1
-                  ? `Volume ${missing[0]} is missing before this one`
-                  : `${missing.length} volumes are missing before this one`}
+                  ? t("scan.missingVolumesOne", { n: missing[0] })
+                  : t("scan.missingVolumesMany", { n: missing.length })}
               </p>
               <p className="mt-0.5 font-mono text-[11px] text-washi-muted">
                 {summarizeRange(missing)}
@@ -894,10 +903,13 @@ function ScanMatchCard({
               {committing ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
-                  Adding {missing.length + 1} volumes…
+                  {t("scan.addingVolumes", { n: missing.length + 1 })}
                 </span>
               ) : (
-                `Add vol ${scannedVol} + ${missing.length} missing`
+                t("scan.addVolPlusMissing", {
+                  n: scannedVol,
+                  missing: missing.length,
+                })
               )}
             </button>
             <button
@@ -905,14 +917,14 @@ function ScanMatchCard({
               disabled={committing || !Number(result.volume)}
               className="w-full rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-semibold text-washi-muted transition hover:border-hanko/40 hover:text-washi disabled:opacity-50"
             >
-              Only add vol {scannedVol}
+              {t("scan.onlyAddVol", { n: scannedVol })}
             </button>
             <button
               onClick={onCancel}
               disabled={committing}
               className="w-full rounded-lg border border-transparent px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-washi-dim transition hover:text-washi disabled:opacity-50"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </>
         ) : (
@@ -922,7 +934,7 @@ function ScanMatchCard({
               disabled={committing}
               className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi disabled:opacity-50"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               onClick={() => onConfirm({ missingVolumes: [] })}
@@ -932,12 +944,12 @@ function ScanMatchCard({
               {committing ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
-                  Adding…
+                  {t("scan.addingSingle")}
                 </span>
               ) : inLibrary ? (
-                "Mark volume as owned"
+                t("scan.markVolOwned")
               ) : (
-                "Add to library"
+                t("scan.addToLibrary")
               )}
             </button>
           </>
@@ -948,8 +960,8 @@ function ScanMatchCard({
 }
 
 function GoogleBooksPriceHint({ bookPrice, userCurrency }) {
-  const sameCurrency =
-    userCurrency && bookPrice.currency === userCurrency;
+  const t = useT();
+  const sameCurrency = userCurrency && bookPrice.currency === userCurrency;
   return (
     <p
       className={`mt-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider ${
@@ -968,9 +980,14 @@ function GoogleBooksPriceHint({ bookPrice, userCurrency }) {
         <circle cx="12" cy="12" r="10" />
         <path d="M12 6v6l4 2" />
       </svg>
-      Google Books: {bookPrice.amount.toFixed(2)} {bookPrice.currency}
-      {!sameCurrency && " — different currency, not pre-filled"}
-      {bookPrice.source === "list" && sameCurrency && " (list price)"}
+      {t("scan.googleBooksPrice", {
+        amount: bookPrice.amount.toFixed(2),
+        currency: bookPrice.currency,
+      })}
+      {!sameCurrency && t("scan.googleBooksPriceDiffCurrency")}
+      {bookPrice.source === "list" &&
+        sameCurrency &&
+        t("scan.googleBooksListPrice")}
     </p>
   );
 }
@@ -996,26 +1013,22 @@ function summarizeRange(nums) {
 }
 
 function NotFoundCard({ notFound, onRescan, onManual, onClose }) {
+  const t = useT();
   return (
     <div className="text-center">
       <div className="hanko-seal mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
         ?
       </div>
       <h3 className="font-display text-xl font-semibold text-washi">
-        No match found
+        {t("scan.noMatchTitle")}
       </h3>
       <p className="mt-2 text-sm text-washi-muted">
-        ISBN{" "}
-        <span className="font-mono text-washi">{notFound.isbn}</span>
-        {notFound.bookTitle ? (
-          <>
-            {" "}resolved to{" "}
-            <span className="italic text-washi">"{notFound.bookTitle}"</span>,
-            but no matching series on MyAnimeList.
-          </>
-        ) : (
-          " — not in Google Books either."
-        )}
+        {notFound.bookTitle
+          ? t("scan.noMatchBodyWithTitle", {
+              isbn: notFound.isbn,
+              title: notFound.bookTitle,
+            })
+          : t("scan.noMatchBodyNoTitle", { isbn: notFound.isbn })}
       </p>
 
       <div className="mt-5 grid gap-2">
@@ -1024,21 +1037,21 @@ function NotFoundCard({ notFound, onRescan, onManual, onClose }) {
           onClick={onRescan}
           className="rounded-lg bg-hanko px-4 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95"
         >
-          Scan another barcode
+          {t("scan.scanAnother")}
         </button>
         <button
           type="button"
           onClick={onManual}
           className="rounded-lg border border-border bg-ink-0/40 px-4 py-2.5 text-sm font-semibold text-washi-muted transition hover:border-hanko/40 hover:text-washi"
         >
-          Enter manually
+          {t("scan.enterManually")}
         </button>
         <button
           type="button"
           onClick={onClose}
           className="rounded-lg border border-transparent px-4 py-2 text-xs font-semibold uppercase tracking-wider text-washi-dim transition hover:text-washi"
         >
-          Close scanner
+          {t("scan.closeScanner")}
         </button>
       </div>
     </div>

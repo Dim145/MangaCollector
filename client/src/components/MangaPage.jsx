@@ -15,11 +15,13 @@ import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
+import { useT } from "@/i18n/index.jsx";
 
 export default function MangaPage({ manga, adult_content_level }) {
   const navigate = useNavigate();
   const { currency: currencySetting } = useContext(SettingsContext);
   const online = useOnline();
+  const t = useT();
 
   const [isEditing, setIsEditing] = useState(false);
   const [posterPopUp, setPosterPopUp] = useState(false);
@@ -29,7 +31,7 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
   const [poster, setPoster] = useState(manga.image_url_jpg);
   const [genres, setGenres] = useState(manga.genres ?? []);
-  const [name, setName] = useState(manga.name || "Unknown Title");
+  const [name, setName] = useState(manga.name || t("manga.unknownTitle"));
 
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [addAvgPrice, setAddAvgPrice] = useState("");
@@ -198,7 +200,7 @@ export default function MangaPage({ manga, adult_content_level }) {
           >
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
-          Back to library
+          {t("manga.backToLibrary")}
         </button>
 
         {/* Hero */}
@@ -259,8 +261,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                         <line x1="12" y1="3" x2="12" y2="15" />
                       </svg>
                       {selectedImage?.name
-                        ? `Selected: ${selectedImage.name.substring(0, 16)}…`
-                        : "Upload cover"}
+                        ? t("manga.selected", {
+                            name: selectedImage.name.substring(0, 16) + "…",
+                          })
+                        : t("manga.uploadCover")}
                       <input
                         id="poster"
                         type="file"
@@ -272,7 +276,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                     </label>
                   ) : (
                     <div className="rounded-lg border border-dashed border-washi-dim/40 bg-ink-1/60 px-3 py-2 text-center font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                      Cover upload requires connection
+                      {t("manga.uploadOffline")}
                     </div>
                   )}
                   {!`${poster}`.startsWith("http") && !selectedImagePreview && online && (
@@ -292,7 +296,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                         <line x1="18" y1="6" x2="6" y2="18" />
                         <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
-                      Remove uploaded cover
+                      {t("manga.removeCover")}
                     </button>
                   )}
                 </div>
@@ -302,15 +306,15 @@ export default function MangaPage({ manga, adult_content_level }) {
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
-                  Series · 作品
+                  {t("manga.seriesLabel")}
                 </span>
                 {manga.mal_id > 0 && (
                   <button
                     onClick={updateFromMal}
                     disabled={refreshing || !online}
-                    aria-label="Refresh from MyAnimeList"
+                    aria-label={t("manga.refreshMalTitle")}
                     className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi disabled:opacity-40"
-                    title={online ? "Refresh metadata from MyAnimeList" : "Requires connection"}
+                    title={online ? t("manga.refreshMalTitle") : t("manga.refreshOffline")}
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -342,7 +346,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                   rel="noopener noreferrer"
                   className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim hover:text-washi"
                 >
-                  MAL #{manga.mal_id}
+                  {t("manga.malLink", { id: manga.mal_id })}
                   <svg
                     viewBox="0 0 24 24"
                     fill="none"
@@ -374,7 +378,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <div className="flex items-baseline justify-between gap-4">
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-                      Collection
+                      {t("manga.collection")}
                     </p>
                     <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-washi">
                       {volumesLoading ? (
@@ -391,7 +395,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                   </div>
                   <div className="text-right">
                     <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-                      Progress
+                      {t("manga.progress")}
                     </p>
                     <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-gold">
                       {volumesLoading ? (
@@ -415,7 +419,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 {isEditing && (
                   <div className="mt-4 border-t border-border pt-4">
                     <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                      Total volumes (override)
+                      {t("manga.totalVolumes")}
                     </label>
                     <input
                       type="number"
@@ -446,7 +450,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                       >
                         <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                       </svg>
-                      Edit
+                      {t("common.edit")}
                     </button>
                     <button
                       onClick={() => setConfirmDelete(true)}
@@ -465,7 +469,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                         <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
                       </svg>
-                      Remove
+                      {t("common.remove")}
                     </button>
                   </>
                 ) : (
@@ -485,7 +489,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                       >
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      Save changes
+                      {t("manga.saveChanges")}
                     </button>
                     <button
                       onClick={() => {
@@ -495,7 +499,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                       }}
                       className="inline-flex flex-1 items-center justify-center rounded-full border border-border px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
                     >
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                   </>
                 )}
@@ -506,16 +510,16 @@ export default function MangaPage({ manga, adult_content_level }) {
 
         <section className="mb-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "150ms" }}>
           <SummaryCard
-            label="Total paid"
+            label={t("manga.totalPaid")}
             value={formatCurrency(totalPrice, currencySetting)}
-            hint={`${volumesOwned} owned volumes`}
+            hint={t("manga.ownedCount", { n: volumesOwned })}
             loading={volumesLoading}
             skeletonWidth="5ch"
           />
           <SummaryCard
-            label="Average / volume"
+            label={t("manga.averagePerVolume")}
             value={volumesOwned > 0 ? formatCurrency(avgPrice, currencySetting) : "—"}
-            hint="Across owned copies"
+            hint={t("manga.acrossOwned")}
             loading={volumesLoading}
             skeletonWidth="4ch"
           />
@@ -527,13 +531,13 @@ export default function MangaPage({ manga, adult_content_level }) {
                 className="group relative h-full w-full overflow-hidden rounded-2xl border border-dashed border-border bg-ink-1/40 p-5 text-left backdrop-blur transition hover:border-hanko/40 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-                  Bulk action
+                  {t("manga.bulkActionLabel")}
                 </p>
                 <p className="mt-2 font-display text-base font-semibold text-washi">
-                  Add all remaining volumes
+                  {t("manga.bulkActionTitle")}
                 </p>
                 <p className="mt-1 text-xs text-washi-muted">
-                  Fill ownership & set price at once
+                  {t("manga.bulkActionHint")}
                 </p>
                 <span className="absolute bottom-4 right-4 grid h-8 w-8 place-items-center rounded-full bg-hanko/20 text-hanko transition group-hover:bg-hanko group-hover:text-washi">
                   <svg
@@ -552,12 +556,12 @@ export default function MangaPage({ manga, adult_content_level }) {
             ) : (
               <div className="rounded-2xl border border-hanko/30 bg-ink-1/80 p-4 backdrop-blur animate-fade-up">
                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-hanko">
-                  Bulk add
+                  {t("manga.bulkAdd")}
                 </p>
                 <div className="mt-3 space-y-3">
                   <div>
                     <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                      Avg price ({currencySetting?.symbol || "$"})
+                      {t("manga.avgPrice", { symbol: currencySetting?.symbol || "$" })}
                     </label>
                     <input
                       type="number"
@@ -571,13 +575,13 @@ export default function MangaPage({ manga, adult_content_level }) {
                   </div>
                   <div>
                     <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                      Store
+                      {t("manga.storeLabel")}
                     </label>
                     <input
                       type="text"
                       value={addStore}
                       onChange={(e) => setAddStore(e.target.value)}
-                      placeholder="Amazon, bookstore…"
+                      placeholder={t("manga.storePlaceholder")}
                       maxLength={50}
                       className="w-full rounded-lg border border-border bg-ink-0 px-3 py-2 text-sm text-washi focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
                     />
@@ -587,7 +591,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                       onClick={handleAddAllVolumes}
                       className="flex-1 rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95"
                     >
-                      Confirm
+                      {t("common.confirm")}
                     </button>
                     <button
                       onClick={() => {
@@ -597,7 +601,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                       }}
                       className="flex-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
                     >
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                   </div>
                 </div>
@@ -609,10 +613,10 @@ export default function MangaPage({ manga, adult_content_level }) {
         <section className="animate-fade-up" style={{ animationDelay: "300ms" }}>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-2xl font-semibold italic text-washi">
-              Volumes
+              {t("manga.volumesTitle")}
             </h2>
             <span className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              {volumes?.length ?? 0} entries
+              {t("manga.volumesCount", { n: volumes?.length ?? 0 })}
             </span>
           </div>
 
@@ -651,7 +655,7 @@ export default function MangaPage({ manga, adult_content_level }) {
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-border bg-ink-1/30 p-8 text-center text-sm text-washi-muted">
-              No volumes yet. Set the total above and they'll appear here.
+              {t("manga.noVolumesYet")}
             </div>
           )}
         </section>
@@ -674,23 +678,23 @@ export default function MangaPage({ manga, adult_content_level }) {
             削
           </div>
           <h3 className="text-center font-display text-xl font-semibold text-washi">
-            Remove from your library?
+            {t("manga.removeTitle")}
           </h3>
           <p className="mt-2 text-center text-sm text-washi-muted">
-            "{name}" and its volume records will be permanently deleted.
+            {t("manga.removeBody", { name })}
           </p>
           <div className="mt-5 flex gap-2">
             <button
               onClick={() => setConfirmDelete(false)}
               className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi"
             >
-              Keep it
+              {t("manga.keepIt")}
             </button>
             <button
               onClick={confirmDeleteManga}
               className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright"
             >
-              Remove
+              {t("common.remove")}
             </button>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useContext, useState } from "react";
 import SettingsContext from "@/SettingsContext.js";
 import { hasToBlurImage } from "@/utils/library.js";
 import Modal from "@/components/utils/Modal.jsx";
+import { useT } from "@/i18n/index.jsx";
 
 export default function MangaSearchResults({
   results,
@@ -11,6 +12,7 @@ export default function MangaSearchResults({
 }) {
   const [imgUrl, setImgUrl] = useState(undefined);
   const { adult_content_level } = useContext(SettingsContext);
+  const t = useT();
 
   if (!results?.length) return null;
 
@@ -19,7 +21,7 @@ export default function MangaSearchResults({
       <div className="overflow-hidden rounded-2xl border border-border bg-ink-1/80 backdrop-blur-xl shadow-2xl animate-fade-up">
         <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-            {results.length} matches · 結果
+            {t("searchResults.matches", { n: results.length })}
           </span>
           <span className="rounded-full bg-hanko/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-hanko-bright">
             MyAnimeList
@@ -49,7 +51,7 @@ export default function MangaSearchResults({
                     setImgUrl(manga.images.jpg.large_image_url)
                   }
                   disabled={blurImage}
-                  aria-label={`View ${manga.title} cover`}
+                  aria-label={manga.title}
                   className="relative flex-shrink-0 overflow-hidden rounded-md border border-border shadow-md"
                 >
                   <img
@@ -68,11 +70,7 @@ export default function MangaSearchResults({
                     {manga.title}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                    {manga.volumes ? (
-                      <span>{manga.volumes} vols</span>
-                    ) : (
-                      <span>? vols</span>
-                    )}
+                    <span>{t("searchResults.vols", { n: manga.volumes ?? "?" })}</span>
                     {manga.status && (
                       <>
                         <span className="h-0.5 w-0.5 rounded-full bg-washi-dim" />
@@ -93,7 +91,7 @@ export default function MangaSearchResults({
                   {inLib ? (
                     <span
                       className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gold"
-                      title="Already in library"
+                      title={t("searchResults.owned")}
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -106,7 +104,7 @@ export default function MangaSearchResults({
                       >
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      Owned
+                      {t("searchResults.owned")}
                     </span>
                   ) : (
                     <button
@@ -129,7 +127,7 @@ export default function MangaSearchResults({
                           <path d="M12 5v14M5 12h14" />
                         </svg>
                       )}
-                      Add
+                      {t("common.add")}
                     </button>
                   )}
                 </div>

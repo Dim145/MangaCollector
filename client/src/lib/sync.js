@@ -177,6 +177,7 @@ export async function enqueueSettingsUpdate(settings) {
         titleType: settings.titleType,
         adult_content_level: settings.adult_content_level,
         theme: settings.theme,
+        language: settings.language,
       },
       ts: Date.now(),
     });

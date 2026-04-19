@@ -7,12 +7,14 @@ import Skeleton from "./ui/Skeleton.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
+import { useT } from "@/i18n/index.jsx";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all"); // all | complete | inprogress
   const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
+  const t = useT();
 
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const library = useMemo(
@@ -60,35 +62,38 @@ export default function Dashboard() {
         <header className="mb-8 animate-fade-up">
           <div className="flex items-baseline gap-3">
             <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
-              ARCHIVE · 本棚
+              {t("dashboard.archive")}
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
           </div>
           <h1 className="mt-2 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl">
-            Your <span className="text-hanko-gradient font-semibold not-italic">Library</span>
+            {t("dashboard.yourLibrary")}{" "}
+            <span className="text-hanko-gradient font-semibold not-italic">
+              {t("dashboard.library")}
+            </span>
           </h1>
 
           {/* Stat chips */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatChip
-              label="Series"
+              label={t("dashboard.series")}
               value={stats.series}
               loading={isInitialLoad}
             />
             <StatChip
-              label="Volumes"
+              label={t("dashboard.volumes")}
               value={`${stats.owned}/${stats.total || "?"}`}
               loading={isInitialLoad}
               width="6ch"
             />
             <StatChip
-              label="Complete"
+              label={t("dashboard.complete")}
               value={stats.complete}
               accent="gold"
               loading={isInitialLoad}
             />
             <StatChip
-              label="Progress"
+              label={t("dashboard.progress")}
               value={
                 stats.total
                   ? `${Math.round((stats.owned / stats.total) * 100)}%`
@@ -108,35 +113,35 @@ export default function Dashboard() {
             setQuery={setQuery}
             searchManga={() => {}}
             loading={false}
-            placeholder="Search your library…"
+            placeholder={t("dashboard.searchPlaceholder")}
             clearResults={() => setQuery("")}
             hasResults={Boolean(query)}
-            clearText="Clear"
+            clearText={t("dashboard.clearFilter")}
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div
               className="inline-flex rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur"
               role="tablist"
-              aria-label="Filter"
+              aria-label={t("common.search")}
             >
               {[
-                { id: "all", label: "All" },
-                { id: "inprogress", label: "Ongoing" },
-                { id: "complete", label: "Complete" },
-              ].map((t) => (
+                { id: "all", label: t("dashboard.tabAll") },
+                { id: "inprogress", label: t("dashboard.tabOngoing") },
+                { id: "complete", label: t("dashboard.tabComplete") },
+              ].map((tab) => (
                 <button
-                  key={t.id}
+                  key={tab.id}
                   role="tab"
-                  aria-selected={filter === t.id}
-                  onClick={() => setFilter(t.id)}
+                  aria-selected={filter === tab.id}
+                  onClick={() => setFilter(tab.id)}
                   className={`rounded-full px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition ${
-                    filter === t.id
+                    filter === tab.id
                       ? "bg-hanko text-washi shadow-md"
                       : "text-washi-muted hover:text-washi"
                   }`}
                 >
-                  {t.label}
+                  {tab.label}
                 </button>
               ))}
             </div>
@@ -156,7 +161,7 @@ export default function Dashboard() {
               >
                 <path d="M12 5v14M5 12h14" />
               </svg>
-              Add manga
+              {t("dashboard.addManga")}
             </button>
           </div>
         </section>
@@ -213,18 +218,17 @@ function StatChip({ label, value, accent, loading, width }) {
 }
 
 function EmptyState({ hasQuery, onAdd }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-ink-1/30 px-6 py-16 text-center animate-fade-up">
       <div className="hanko-seal mb-4 grid h-16 w-16 place-items-center rounded-md font-display text-xl">
         空
       </div>
       <h2 className="font-display text-2xl italic text-washi">
-        {hasQuery ? "No match" : "The shelf is empty"}
+        {hasQuery ? t("dashboard.noMatchTitle") : t("dashboard.emptyTitle")}
       </h2>
       <p className="mt-2 max-w-md text-sm text-washi-muted">
-        {hasQuery
-          ? "We couldn't find a title with that name in your archive."
-          : "Start curating your collection — search a title, add a volume, and watch your archive grow."}
+        {hasQuery ? t("dashboard.noMatchBody") : t("dashboard.emptyBody")}
       </p>
       {!hasQuery && (
         <button
@@ -242,7 +246,7 @@ function EmptyState({ hasQuery, onAdd }) {
           >
             <path d="M12 5v14M5 12h14" />
           </svg>
-          Add your first series
+          {t("dashboard.addFirst")}
         </button>
       )}
     </div>

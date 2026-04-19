@@ -16,11 +16,13 @@ import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { formatCurrency } from "@/utils/price.js";
+import { useT } from "@/i18n/index.jsx";
 
 export default function ProfilePage({ googleUser }) {
   const { currency: currencySetting } = useContext(SettingsContext);
   const { data: library, isInitialLoad: loadingLib } = useLibrary();
   const { data: volumes, isInitialLoad: loadingVol } = useAllVolumes();
+  const t = useT();
 
   const loading = loadingLib || loadingVol;
 
@@ -74,7 +76,7 @@ export default function ProfilePage({ googleUser }) {
     { name: "Missing", value: Math.max(0, 100 - completionRate) },
   ];
 
-  const userName = googleUser?.name ?? "Reader";
+  const userName = googleUser?.name ?? t("profile.reader");
 
   return (
     <DefaultBackground>
@@ -82,47 +84,45 @@ export default function ProfilePage({ googleUser }) {
         <header className="mb-10 animate-fade-up">
           <div className="flex items-baseline gap-3">
             <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
-              PROFILE · 統計
+              {t("profile.profile")}
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
           </div>
           <h1 className="mt-2 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">
-            Hello,{" "}
+            {t("profile.helloName")}{" "}
             <span className="text-hanko-gradient font-semibold not-italic">
               {userName}
             </span>
           </h1>
-          <p className="mt-2 text-sm text-washi-muted">
-            Your archive at a glance — curated with care, volume by volume.
-          </p>
+          <p className="mt-2 text-sm text-washi-muted">{t("profile.byline")}</p>
         </header>
 
         <section className="mb-8 grid gap-4 animate-fade-up sm:grid-cols-2 lg:grid-cols-4">
           <HeroStat
-            label="Series"
+            label={t("profile.series")}
             value={totalSeries}
-            hint="In archive"
+            hint={t("profile.inArchive")}
             loading={loading}
           />
           <HeroStat
-            label="Volumes"
+            label={t("profile.volumes")}
             value={`${totalVolumesOwned}`}
             sub={`/ ${totalVolumes}`}
-            hint="Owned / tracked"
+            hint={t("profile.ownedTracked")}
             accent="hanko"
             loading={loading}
           />
           <HeroStat
-            label="Invested"
+            label={t("profile.invested")}
             value={formatCurrency(totalCost, currencySetting)}
-            hint="Total collection value"
+            hint={t("profile.totalValue")}
             accent="gold"
             loading={loading}
           />
           <HeroStat
-            label="Completion"
+            label={t("profile.completion")}
             value={`${completionRate}%`}
-            hint="Of tracked volumes"
+            hint={t("profile.ofTracked")}
             loading={loading}
           />
         </section>
@@ -130,10 +130,10 @@ export default function ProfilePage({ googleUser }) {
         <section className="mb-8 grid gap-6 animate-fade-up md:grid-cols-2" style={{ animationDelay: "200ms" }}>
           <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-              Completion rate
+              {t("profile.completionRateLabel")}
             </p>
             <h2 className="mt-1 font-display text-xl font-semibold text-washi">
-              Progression
+              {t("profile.progression")}
             </h2>
 
             <div className="relative mt-4 flex h-64 items-center justify-center">
@@ -170,7 +170,7 @@ export default function ProfilePage({ googleUser }) {
                       {completionRate}%
                     </p>
                     <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                      complete
+                      {t("profile.completeShort")}
                     </p>
                   </div>
                 </>
@@ -180,16 +180,20 @@ export default function ProfilePage({ googleUser }) {
 
           <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-              Top spend
+              {t("profile.topSpend")}
             </p>
             <h2 className="mt-1 font-display text-xl font-semibold text-washi">
-              Most valued series
+              {t("profile.mostValued")}
             </h2>
 
             <div className="mt-4 h-64">
               {loading ? (
                 <Skeleton.Bars count={5} maxHeight={230} />
-              ) : seriesByCost.length > 0 ? (
+              ) : seriesByCost.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-sm text-washi-muted">
+                  {t("profile.startAdding")}
+                </div>
+              ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={seriesByCost}>
                     <defs>
@@ -222,7 +226,7 @@ export default function ProfilePage({ googleUser }) {
                       }}
                       formatter={(value) => [
                         formatCurrency(value, currencySetting),
-                        "Spent",
+                        t("profile.tooltipSpent"),
                       ]}
                       labelFormatter={(_, pl) =>
                         pl?.[0]?.payload?.fullTitle ?? ""
@@ -235,10 +239,6 @@ export default function ProfilePage({ googleUser }) {
                     />
                   </BarChart>
                 </ResponsiveContainer>
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-washi-muted">
-                  Start adding owned volumes with a price to see trends.
-                </div>
               )}
             </div>
           </div>
@@ -252,21 +252,21 @@ export default function ProfilePage({ googleUser }) {
               </span>
             </div>
             <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
-              Insight
+              {t("profile.insightLabel")}
             </p>
             <h3 className="mt-2 max-w-xl font-display text-xl font-semibold italic text-washi md:text-2xl">
               {totalVolumesOwned === 0
-                ? "Start collecting to see your journey unfold."
+                ? t("profile.insightEmpty")
                 : completionRate === 100
-                  ? "A completionist's dream — every series in perfect harmony."
+                  ? t("profile.insightComplete")
                   : completionRate > 75
-                    ? "You're so close. Less than a quarter separates you from a complete archive."
+                    ? t("profile.insightAlmost")
                     : completionRate > 50
-                      ? "Over halfway there — your shelves are filling up beautifully."
-                      : "Every collection starts with a single volume. You're building something special."}
+                      ? t("profile.insightHalfway")
+                      : t("profile.insightBeginning")}
             </h3>
             <p className="mt-2 max-w-xl text-sm text-washi-muted">
-              Activity feed & personalized recommendations coming soon.
+              {t("profile.comingSoon")}
             </p>
           </div>
         </section>

@@ -9,6 +9,8 @@ const DEFAULT_TITLE_TYPE: &str = "Default";
 const DEFAULT_CURRENCY: &str = "USD";
 const DEFAULT_THEME: &str = "dark";
 const VALID_THEMES: &[&str] = &["dark", "light", "auto"];
+const DEFAULT_LANGUAGE: &str = "en";
+const VALID_LANGUAGES: &[&str] = &["en", "fr", "es"];
 
 pub fn get_currency_by_code(code: &str) -> Option<CurrencyInfo> {
     match code {
@@ -51,6 +53,7 @@ pub async fn get_user_settings(db: &Db, user_id: i32) -> Result<SettingRow, AppE
         title_type: Some(DEFAULT_TITLE_TYPE.into()),
         adult_content_level: 0,
         theme: Some(DEFAULT_THEME.into()),
+        language: Some(DEFAULT_LANGUAGE.into()),
     }))
 }
 
@@ -83,6 +86,13 @@ pub async fn update_user_settings(
         .unwrap_or(DEFAULT_THEME)
         .to_string();
 
+    let language = req
+        .language
+        .as_deref()
+        .filter(|l| VALID_LANGUAGES.contains(l))
+        .unwrap_or(DEFAULT_LANGUAGE)
+        .to_string();
+
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),
@@ -91,6 +101,7 @@ pub async fn update_user_settings(
         title_type: Set(Some(title_type)),
         adult_content_level: Set(adult_content_level),
         theme: Set(Some(theme)),
+        language: Set(Some(language)),
         ..Default::default()
     };
 
@@ -100,6 +111,7 @@ pub async fn update_user_settings(
             setting::Column::TitleType,
             setting::Column::AdultContentLevel,
             setting::Column::Theme,
+            setting::Column::Language,
             setting::Column::ModifiedOn,
         ])
         .to_owned();

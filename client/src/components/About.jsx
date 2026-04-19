@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from "react";
+import { useT } from "@/i18n/index.jsx";
 import Punpun from "../assets/punpun.jpg";
 import Berserk from "../assets/berserk.jpg";
 import Beastars from "../assets/beastars.jpg";
@@ -19,6 +20,7 @@ const MOCKED = [
 export default function About() {
   const [topMangas, setTopMangas] = useState(MOCKED);
   const { authName } = useContext(SettingsContext);
+  const t = useT();
 
   useEffect(() => {
     (async () => {
@@ -63,23 +65,27 @@ export default function About() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-hanko opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-hanko" />
               </span>
-              v1.0 · Archive your collection
+              {t("about.version")}
             </span>
 
             <h1 className="mt-6 font-display text-5xl font-light leading-[0.95] tracking-tight text-washi md:text-7xl lg:text-8xl animate-fade-up">
-              Every <em className="italic font-semibold text-hanko-gradient not-italic md:italic">volume</em>,
+              {t("about.heroStart")}{" "}
+              <em className="italic font-semibold text-hanko-gradient not-italic md:italic">
+                {t("about.heroAccent")}
+              </em>
+              {t("about.heroEnd1")}
               <br />
-              beautifully{" "}
-              <span className="inline-block text-ink-gradient">archived.</span>
+              {t("about.heroEnd2")}{" "}
+              <span className="inline-block text-ink-gradient">
+                {t("about.heroArchived")}
+              </span>
             </h1>
 
             <p
               className="mx-auto mt-6 max-w-xl text-base text-washi-muted md:text-lg animate-fade-up"
               style={{ animationDelay: "100ms" }}
             >
-              MangaCollector is a quiet, devoted space to catalogue, track and
-              cherish the series that shape you — volume by volume, shelf by
-              shelf.
+              {t("about.subHero")}
             </p>
 
             <div
@@ -90,7 +96,7 @@ export default function About() {
                 href="/log-in"
                 className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-hanko px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-washi shadow-xl glow-red transition hover:scale-[1.02] hover:bg-hanko-bright active:scale-95 sm:w-auto"
               >
-                Get started
+                {t("about.getStarted")}
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
@@ -108,7 +114,7 @@ export default function About() {
                 href="/dashboard"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-ink-1/60 px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-washi-muted backdrop-blur transition hover:border-border/80 hover:text-washi sm:w-auto"
               >
-                Open dashboard
+                {t("about.openDashboard")}
               </a>
             </div>
           </div>
@@ -169,25 +175,20 @@ export default function About() {
           <div className="grid gap-8 md:grid-cols-2 md:gap-16">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
-                PHILOSOPHY · 想い
+                {t("about.philosophy")}
               </p>
               <h2 className="mt-3 font-display text-3xl font-light italic leading-tight text-washi md:text-5xl">
-                A library worth
+                {t("about.philosophyHeading1")}
                 <br />
                 <span className="text-hanko-gradient font-semibold not-italic">
-                  returning to.
+                  {t("about.philosophyHeading2")}
                 </span>
               </h2>
             </div>
             <div className="space-y-5 text-base text-washi-muted md:text-lg">
-              <p>
-                We believe collecting manga is an act of devotion. Each volume is
-                a fragment of a world you've walked through — its weight, its
-                spine, its smell of ink and paper, all of it matters.
-              </p>
+              <p>{t("about.philosophyBody1")}</p>
               <p className="border-l-2 border-hanko/50 pl-4 font-display italic text-washi">
-                "Track what you own. Remember what you've paid. Celebrate what
-                you've completed."
+                "{t("about.philosophyQuote")}"
               </p>
             </div>
           </div>
@@ -199,44 +200,44 @@ export default function About() {
         <div className="mx-auto max-w-6xl">
           <div className="mb-10">
             <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
-              FEATURES · 機能
+              {t("about.featuresLabel")}
             </span>
             <h2 className="mt-2 font-display text-3xl font-semibold italic text-washi md:text-4xl">
-              Crafted for collectors.
+              {t("about.featuresHeading")}
             </h2>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <FeatureCard
               number="01"
-              title="Volume tracking"
-              description="Toggle ownership, record prices, log store locations. Nothing slips through."
+              title={t("about.f1Title")}
+              description={t("about.f1Body")}
             />
             <FeatureCard
               number="02"
-              title="MAL powered search"
-              description="Instant metadata and cover art sourced from MyAnimeList. No manual entry unless you want it."
+              title={t("about.f2Title")}
+              description={t("about.f2Body")}
               accent
             />
             <FeatureCard
               number="03"
-              title="Analytics"
-              description="See completion rates, top-spent series, and how your collection grows over time."
+              title={t("about.f3Title")}
+              description={t("about.f3Body")}
             />
             <FeatureCard
               number="04"
-              title="Custom entries"
-              description="Doujinshi, rare prints, and obscure finds all welcomed. Add what MAL doesn't know."
+              title={t("about.f4Title")}
+              description={t("about.f4Body")}
             />
             <FeatureCard
               number="05"
-              title="Adult filters"
-              description="Fine-grained control over mature content — blur, hide, or show as you prefer."
+              title={t("about.f5Title")}
+              description={t("about.f5Body")}
             />
             <FeatureCard
               number="06"
-              title="Secure sessions"
-              description="OAuth 2.0 via your provider of choice. No passwords to manage, no data sold."
+              title={t("about.f6Title")}
+              description={t("about.f6Body")}
               accent
             />
           </div>
@@ -248,28 +249,28 @@ export default function About() {
         <div className="mx-auto max-w-6xl">
           <div className="mb-10 text-center">
             <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
-              VOICES · 声
+              {t("about.voicesLabel")}
             </span>
             <h2 className="mt-2 font-display text-3xl font-semibold italic text-washi md:text-4xl">
-              From fellow readers.
+              {t("about.voicesHeading")}
             </h2>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
             <Testimonial
-              quote="I finally stopped losing track of which volumes I own."
-              name="Kenji T."
-              role="Collector · 300+ volumes"
+              quote={t("about.t1Quote")}
+              name={t("about.t1Name")}
+              role={t("about.t1Role")}
             />
             <Testimonial
-              quote="Search is instant, metadata is accurate. Feels like my second shelf."
-              name="Aiko R."
-              role="Seinen enthusiast"
+              quote={t("about.t2Quote")}
+              name={t("about.t2Name")}
+              role={t("about.t2Role")}
             />
             <Testimonial
-              quote={`The ${authName || "OAuth"} login just works. No friction at all.`}
-              name="Marco D."
-              role="Full-stack dev & reader"
+              quote={t("about.t3Quote", { provider: authName || "OAuth" })}
+              name={t("about.t3Name")}
+              role={t("about.t3Role")}
             />
           </div>
         </div>
@@ -288,20 +289,23 @@ export default function About() {
             </span>
             <div className="relative">
               <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
-                BEGIN
+                {t("about.begin")}
               </p>
               <h2 className="mt-3 font-display text-3xl font-light italic leading-tight text-washi md:text-5xl">
-                Your archive <span className="font-semibold not-italic text-hanko-gradient">awaits.</span>
+                {t("about.ctaHeading1")}{" "}
+                <span className="font-semibold not-italic text-hanko-gradient">
+                  {t("about.ctaHeading2")}
+                </span>
               </h2>
               <p className="mx-auto mt-4 max-w-md text-sm text-washi-muted md:text-base">
-                Sign in, search a title, and start the quiet joy of cataloguing.
+                {t("about.ctaBody")}
               </p>
               <div className="mt-8">
                 <a
                   href="/log-in"
                   className="group inline-flex items-center gap-2 rounded-full bg-washi px-8 py-4 text-sm font-semibold uppercase tracking-wider text-ink-0 shadow-xl transition hover:scale-[1.02] active:scale-95"
                 >
-                  Start collecting
+                  {t("about.startCollecting")}
                   <svg
                     viewBox="0 0 24 24"
                     fill="none"
@@ -329,7 +333,7 @@ export default function About() {
               MC
             </span>
             <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              © {new Date().getFullYear()} MangaCollector
+              {t("about.footerYear", { year: new Date().getFullYear() })}
             </p>
           </div>
           <nav className="flex items-center gap-5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">

@@ -15,6 +15,7 @@ pub struct Model {
     pub title_type: Option<String>,
     pub adult_content_level: i32,
     pub theme: Option<String>,
+    pub language: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -45,6 +46,7 @@ pub struct SettingsResponse {
     pub title_type: String,
     pub adult_content_level: i32,
     pub theme: String,
+    pub language: String,
     #[serde(rename = "authName")]
     pub auth_name: String,
     #[serde(rename = "authIcon")]
@@ -59,4 +61,5 @@ pub struct UpdateSettingsRequest {
     pub title_type: Option<String>,
     pub adult_content_level: Option<i32>,
     pub theme: Option<String>,
+    pub language: Option<String>,
 }

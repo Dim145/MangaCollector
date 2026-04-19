@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { useT } from "@/i18n/index.jsx";
 
 /**
  * Full-screen loading overlay shown while an ISBN is being resolved (or
@@ -12,6 +13,7 @@ export default function ScanLoadingView({
   onClose,
 }) {
   const isError = Boolean(errorMessage);
+  const t = useT();
 
   const view = (
     <div
@@ -39,7 +41,7 @@ export default function ScanLoadingView({
       <button
         type="button"
         onClick={onClose}
-        aria-label="Close"
+        aria-label={t("common.close")}
         className="absolute grid h-12 w-12 place-items-center rounded-full border border-border bg-ink-0/80 text-washi backdrop-blur-md transition hover:bg-hanko hover:border-hanko active:scale-95"
         style={{
           top: `calc(0.75rem + env(safe-area-inset-top))`,
@@ -87,23 +89,23 @@ export default function ScanLoadingView({
               isError ? "text-hanko-bright" : "text-washi"
             }`}
           >
-            {isError ? "Something went wrong" : "Looking up ISBN…"}
+            {isError ? t("scan.somethingWrong") : t("scan.lookingUpTitle")}
           </p>
           <p
             className={`text-sm ${
               isError ? "text-washi" : "text-washi-muted"
             }`}
           >
-            {errorMessage || statusMessage || "A single moment."}
+            {errorMessage || statusMessage || t("scan.genericWait")}
           </p>
           {!isError && (
             <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
-              Querying Google Books · MyAnimeList
+              {t("scan.queryingSources")}
             </p>
           )}
           {isError && (
             <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
-              Retrying automatically…
+              {t("scan.retryingAuto")}
             </p>
           )}
         </div>

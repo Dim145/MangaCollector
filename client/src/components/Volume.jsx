@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { formatCurrency } from "@/utils/price.js";
+import { useT } from "@/i18n/index.jsx";
 
 export default function Volume({
   id,
@@ -19,6 +20,7 @@ export default function Volume({
 
   const updateVolume = useUpdateVolume();
   const isLoading = updateVolume.isPending;
+  const t = useT();
 
   async function persist(nextOwned, nextPrice, nextStore, ownedChanged) {
     await updateVolume.mutateAsync({
@@ -70,7 +72,7 @@ export default function Volume({
         <button
           onClick={toggleOwned}
           disabled={isEditing || isLoading}
-          aria-label={ownedStatus ? "Mark as not owned" : "Mark as owned"}
+          aria-label={ownedStatus ? t("volume.markNotOwned") : t("volume.markOwned")}
           className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${
             ownedStatus
               ? "border-hanko bg-hanko text-washi shadow-md glow-red"
@@ -82,7 +84,7 @@ export default function Volume({
           ) : (
             <>
               <span className="text-[10px] font-semibold uppercase tracking-wider">
-                Vol
+                {t("manga.volumesShort")}
               </span>
               <span className="absolute -bottom-0.5 right-0.5 text-[9px]">
                 {volNum}
@@ -93,7 +95,7 @@ export default function Volume({
 
         <div className="min-w-0 flex-1">
           <p className="font-display text-base font-semibold leading-none text-washi">
-            Volume {volNum}
+            {t("volume.volume", { n: volNum })}
           </p>
           <div className="mt-1 flex items-baseline gap-2">
             <span
@@ -101,7 +103,7 @@ export default function Volume({
                 ownedStatus ? "text-gold" : "text-washi-dim"
               }`}
             >
-              {ownedStatus ? "In Collection" : "Missing"}
+              {ownedStatus ? t("volume.inCollection") : t("volume.missing")}
             </span>
             {ownedStatus && price > 0 && (
               <span className="font-mono text-xs text-washi-muted">
@@ -114,7 +116,7 @@ export default function Volume({
         {!isEditing ? (
           <button
             onClick={() => setIsEditing(true)}
-            aria-label="Edit volume"
+            aria-label={t("common.edit")}
             className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-washi-dim transition hover:bg-washi/5 hover:text-washi"
           >
             <svg
@@ -136,12 +138,12 @@ export default function Volume({
         <div className="space-y-3 border-t border-border bg-ink-0/40 p-4 animate-fade-up">
           <div>
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              Status
+              {t("volume.statusLabel")}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { v: true, label: "Owned" },
-                { v: false, label: "Missing" },
+                { v: true, label: t("volume.ownedOption") },
+                { v: false, label: t("volume.missingOption") },
               ].map((opt) => (
                 <button
                   key={String(opt.v)}
@@ -165,7 +167,7 @@ export default function Volume({
               htmlFor={`price-${id}`}
               className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
             >
-              Price ({currencySetting?.symbol || "$"})
+              {t("volume.priceLabel", { symbol: currencySetting?.symbol || "$" })}
             </label>
             <input
               id={`price-${id}`}
@@ -187,7 +189,7 @@ export default function Volume({
               htmlFor={`store-${id}`}
               className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
             >
-              Store / Location
+              {t("volume.storeLabel")}
             </label>
             <input
               id={`store-${id}`}
@@ -195,7 +197,7 @@ export default function Volume({
               maxLength={30}
               value={purchaseLocation ?? ""}
               onChange={(e) => setPurchaseLocation(e.target.value)}
-              placeholder="Amazon, local shop…"
+              placeholder={t("volume.storePlaceholder")}
               className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
             />
           </div>
@@ -206,14 +208,14 @@ export default function Volume({
               disabled={isLoading}
               className="flex-1 rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
             >
-              {isLoading ? "Saving…" : "Save"}
+              {isLoading ? t("common.saving") : t("common.save")}
             </button>
             <button
               onClick={handleCancel}
               disabled={isLoading}
               className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi hover:border-border/80"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>

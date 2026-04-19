@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { startScan } from "@/lib/barcode.js";
+import { useT } from "@/i18n/index.jsx";
 
 /**
  * Full-screen camera scanner. Fires `onDetect(rawISBN)` once the parent
@@ -24,6 +25,7 @@ export default function BarcodeScanner({
   const firedRef = useRef(false);
   const [error, setError] = useState(null);
   const [state, setState] = useState("requesting");
+  const t = useT();
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -75,10 +77,10 @@ export default function BarcodeScanner({
           setState("denied");
         } else if (err?.name === "NotFoundError") {
           setState("failed");
-          setError("No camera available on this device.");
+          setError(null); // use cameraUnavailable label
         } else {
           setState("failed");
-          setError(err?.message ?? "Failed to open the camera.");
+          setError(err?.message ?? null);
         }
       }
     })();
@@ -131,7 +133,7 @@ export default function BarcodeScanner({
       <button
         type="button"
         onClick={() => onCloseRef.current?.()}
-        aria-label="Close scanner"
+        aria-label={t("scan.closeScanner")}
         className="absolute grid h-12 w-12 place-items-center rounded-full border border-border bg-ink-0/80 text-washi backdrop-blur-md transition hover:bg-hanko hover:border-hanko active:scale-95"
         style={{
           top: `calc(0.75rem + env(safe-area-inset-top))`,
@@ -176,10 +178,10 @@ export default function BarcodeScanner({
           />
         </span>
         <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi">
-          {state === "requesting" && "Opening…"}
-          {state === "running" && "Scanning"}
-          {state === "denied" && "Denied"}
-          {state === "failed" && "Unavailable"}
+          {state === "requesting" && t("scan.opening")}
+          {state === "running" && t("scan.scanning")}
+          {state === "denied" && t("scan.denied")}
+          {state === "failed" && t("scan.unavailable")}
         </span>
       </div>
 
@@ -195,11 +197,10 @@ export default function BarcodeScanner({
           {state === "denied" && (
             <div className="space-y-2 text-center">
               <p className="font-display text-sm font-semibold text-hanko-bright">
-                Camera access refused
+                {t("scan.cameraDenied")}
               </p>
               <p className="text-xs text-washi-muted">
-                Grant camera permission in your browser settings, then try
-                again. Nothing is sent to any server.
+                {t("scan.cameraDeniedBody")}
               </p>
             </div>
           )}
@@ -207,10 +208,10 @@ export default function BarcodeScanner({
           {state === "failed" && (
             <div className="space-y-2 text-center">
               <p className="font-display text-sm font-semibold text-hanko-bright">
-                {error ?? "Scanner unavailable"}
+                {error ?? t("scan.cameraUnavailable")}
               </p>
               <p className="text-xs text-washi-muted">
-                You can enter an ISBN manually or search by title instead.
+                {t("scan.cameraUnavailableBody")}
               </p>
             </div>
           )}
@@ -219,15 +220,15 @@ export default function BarcodeScanner({
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="font-display text-sm font-semibold text-washi truncate">
-                  {statusMessage ?? "Point the camera at the barcode"}
+                  {statusMessage ?? t("scan.pointCamera")}
                 </p>
                 <p className="mt-0.5 text-[11px] text-washi-muted">
-                  EAN-13 · ISBN-13 — hold still, ~15 cm away
+                  {t("scan.ean13Hint")}
                 </p>
               </div>
               {recentCount > 0 && (
                 <div className="shrink-0 rounded-full bg-gold/20 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-gold">
-                  {recentCount} scanned
+                  {t("scan.scannedCount", { n: recentCount })}
                 </div>
               )}
             </div>
@@ -235,7 +236,7 @@ export default function BarcodeScanner({
 
           {state === "requesting" && (
             <p className="text-center font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-              Asking for camera permission…
+              {t("scan.askingPermission")}
             </p>
           )}
         </div>

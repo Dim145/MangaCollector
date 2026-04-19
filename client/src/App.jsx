@@ -1,6 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
+import {
+  bootstrapLanguage,
+  I18nProvider,
+  rememberLanguage,
+} from "@/i18n/index.jsx";
 
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -36,8 +41,7 @@ function SettingsProvider({ children }) {
     [provider, settings]
   );
 
-  // Sync theme preference to the DOM whenever it changes server-side or
-  // via local edit. Cached in localStorage so cold-start picks the right
+  // Theme — apply to DOM + cache locally so cold-start picks the right
   // palette before React mounts.
   useEffect(() => {
     const pref = settings?.theme ?? "dark";
@@ -45,11 +49,34 @@ function SettingsProvider({ children }) {
     rememberThemePreference(pref);
   }, [settings?.theme]);
 
+  // Language — stash the latest authoritative value in localStorage so the
+  // next cold-start picks the right bundle synchronously (see I18nBoundary).
+  useEffect(() => {
+    if (settings?.language) rememberLanguage(settings.language);
+  }, [settings?.language]);
+
   return (
     <SettingsContext.Provider value={merged}>
       {children}
     </SettingsContext.Provider>
   );
+}
+
+/**
+ * Reads the language once at startup from localStorage, then follows live
+ * settings updates. Wraps the rest of the tree in an I18nProvider so every
+ * useT() call resolves against the right bundle from the very first render.
+ */
+function I18nBoundary({ children }) {
+  const { data: settings } = useUserSettings();
+  const [lang, setLang] = useState(bootstrapLanguage);
+
+  useEffect(() => {
+    const next = settings?.language;
+    if (next && next !== lang) setLang(next);
+  }, [settings?.language, lang]);
+
+  return <I18nProvider lang={lang}>{children}</I18nProvider>;
 }
 
 function AppShell() {
@@ -138,9 +165,11 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <AppShell />
-      </SettingsProvider>
+      <I18nBoundary>
+        <SettingsProvider>
+          <AppShell />
+        </SettingsProvider>
+      </I18nBoundary>
     </QueryClientProvider>
   );
 }

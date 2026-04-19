@@ -4,6 +4,7 @@ import {
   getServerReachable,
   onConnectivityChange,
 } from "@/lib/connectivity.js";
+import { useT } from "@/i18n/index.jsx";
 
 function useConnectivityDetail() {
   const [state, setState] = useState(() => ({
@@ -35,6 +36,7 @@ export default function OfflineBanner() {
   const { browserOnline, serverReachable } = useConnectivityDetail();
   const pending = usePendingCount();
   const online = browserOnline && serverReachable;
+  const t = useT();
 
   if (online && pending === 0) return null;
 
@@ -46,9 +48,9 @@ export default function OfflineBanner() {
 
   const label =
     cause === "offline"
-      ? "Offline"
+      ? t("offline.offline")
       : cause === "server"
-        ? "Server unreachable"
+        ? t("offline.serverUnreachable")
         : null;
 
   const bg =
@@ -82,21 +84,26 @@ export default function OfflineBanner() {
           <p className="truncate font-mono text-[10px] uppercase tracking-[0.2em] text-washi">
             {cause === "syncing" ? (
               <>
-                Syncing{" "}
+                {t("offline.syncing")}{" "}
                 <span className="font-sans font-semibold text-gold">
                   {pending}
                 </span>{" "}
-                change{pending > 1 ? "s" : ""}
+                {pending === 1 ? "change" : "changes"}
               </>
             ) : cause === "server" ? (
               <>
                 {label} —{" "}
                 {pending > 0 ? (
                   <span className="font-sans font-semibold text-washi">
-                    {pending} change{pending > 1 ? "s" : ""} queued
+                    {t(
+                      pending === 1
+                        ? "offline.changesQueuedOne"
+                        : "offline.changesQueuedMany",
+                      { n: pending }
+                    )}
                   </span>
                 ) : (
-                  "will retry when it recovers"
+                  t("offline.willRetry")
                 )}
               </>
             ) : (
@@ -104,10 +111,15 @@ export default function OfflineBanner() {
                 {label} —{" "}
                 {pending > 0 ? (
                   <span className="font-sans font-semibold text-washi">
-                    {pending} change{pending > 1 ? "s" : ""} queued
+                    {t(
+                      pending === 1
+                        ? "offline.changesQueuedOne"
+                        : "offline.changesQueuedMany",
+                      { n: pending }
+                    )}
                   </span>
                 ) : (
-                  "changes will sync when reconnected"
+                  t("offline.willSync")
                 )}
               </>
             )}
