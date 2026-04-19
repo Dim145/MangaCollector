@@ -18,7 +18,7 @@ services:
       - internal
 
   traefik:
-    image: traefik:v2.10
+    image: traefik:v2
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -34,7 +34,7 @@ services:
       - internal
 
   server:
-    build: ./server
+    build: ./server-rust
     image: dim145/mangacollector-back:latest
     labels:
       - "traefik.enable=true"
