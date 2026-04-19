@@ -6,8 +6,9 @@ use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 
 use crate::db::Db;
 use crate::errors::AppError;
+use crate::models::activity::event_types;
 use crate::models::library::{self, ActiveModel, AddCustomRequest, AddLibraryRequest, Entity as LibraryEntity, LibraryEntry};
-use crate::services::{settings, volume};
+use crate::services::{activity, settings, volume};
 use crate::services::mal_api::get_manga_from_mal;
 
 pub async fn get_user_library(db: &Db, user_id: i32) -> Result<Vec<LibraryEntry>, AppError> {
@@ -87,7 +88,22 @@ pub async fn add_to_user_library(
         volume::add_volume_tx(&txn, user_id, row.mal_id.unwrap_or(0), vol_num).await?;
     }
 
+    // Log activity within the same transaction so it's atomic with the add
+    activity::record(
+        &txn,
+        user_id,
+        event_types::SERIES_ADDED,
+        row.mal_id,
+        None,
+        Some(row.name.clone()),
+        None,
+    )
+    .await;
+
     txn.commit().await.map_err(AppError::from)?;
+
+    // Milestone check AFTER commit (uses fresh DB view)
+    activity::check_series_milestone(db, user_id).await;
 
     Ok(LibraryEntry::from(row))
 }
@@ -127,6 +143,15 @@ pub async fn add_custom_entry(
 }
 
 pub async fn delete_manga(db: &Db, mal_id: i32, user_id: i32) -> Result<(), AppError> {
+    // Capture the title before delete so the activity log can reference it
+    let row = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+    let name = row.map(|r| r.name);
+
     let txn = db.begin().await.map_err(AppError::from)?;
     volume::delete_all_for_user_by_mal_id_tx(&txn, user_id, mal_id).await?;
     LibraryEntity::delete_many()
@@ -135,6 +160,18 @@ pub async fn delete_manga(db: &Db, mal_id: i32, user_id: i32) -> Result<(), AppE
         .exec(&txn)
         .await
         .map_err(AppError::from)?;
+
+    activity::record(
+        &txn,
+        user_id,
+        event_types::SERIES_REMOVED,
+        Some(mal_id),
+        None,
+        name,
+        None,
+    )
+    .await;
+
     txn.commit().await.map_err(AppError::from)?;
     Ok(())
 }
@@ -211,10 +248,34 @@ pub async fn update_volumes_owned(
         .map_err(AppError::from)?;
 
     if let Some(existing) = row {
+        let previous_owned = existing.volumes_owned;
+        let total_volumes = existing.volumes;
+        let name = existing.name.clone();
+
         let mut active: ActiveModel = existing.into();
         active.volumes_owned = Set(volumes_owned);
         active.modified_on = Set(now);
         active.update(db).await.map_err(AppError::from)?;
+
+        // Completion milestone — emit once when the series flips to full
+        if total_volumes > 0
+            && previous_owned < total_volumes
+            && volumes_owned >= total_volumes
+        {
+            activity::record(
+                db,
+                user_id,
+                event_types::SERIES_COMPLETED,
+                Some(mal_id),
+                None,
+                Some(name),
+                Some(total_volumes),
+            )
+            .await;
+        }
+
+        // Cross-library volume milestones (50, 100, 250, …)
+        activity::check_volume_milestone(db, user_id).await;
     }
 
     Ok(())

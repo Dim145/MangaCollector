@@ -438,4 +438,46 @@ export default {
     aMoment: "Un instante",
     slower: "Está tardando un poco más de lo habitual…",
   },
+  activity: {
+    label: "RECIENTE · 最近",
+    title: "Actividad",
+    empty: "Nada registrado todavía.",
+    emptyHint:
+      "Las altas, bajas y ediciones de tomos aparecerán aquí.",
+    seriesAdded: "{title} añadido a tu biblioteca",
+    seriesRemoved: "{title} eliminado",
+    seriesCompleted: "{title} completado — {n} tomos",
+    volumeOwned: "Tomo {n} de {title} marcado como poseído",
+    volumeUnowned: "Tomo {n} de {title} marcado como faltante",
+    milestoneVolumes: "{n} tomos poseídos alcanzados",
+    milestoneSeries: "{n} series seguidas alcanzadas",
+  },
+  gap: {
+    label: "CASI · あと少し",
+    byline:
+      "Series más cerca de la completitud — los tomos que aún faltan en tus estanterías.",
+    missingOne: "Falta 1 tomo",
+    missingMany: "Faltan {n} tomos",
+  },
+  recs: {
+    label: "DESCUBRE · 発見",
+    title: "Quizá también te guste",
+    byline:
+      "Sugerencias basadas en las series de las que más tomos tienes, tomadas de las recomendaciones de lectores de MyAnimeList.",
+    rateLimited:
+      "MyAnimeList nos está limitando ahora — vuelve en un minuto y las sugerencias aparecerán.",
+    recommendedBy: "Por {n} de tus series",
+    viewOnMal: "Ver en MAL",
+    ownedLabel: "¿Cuántos tomos ya tienes?",
+    ownedHintZero:
+      "Añadir la serie sin tomos poseídos — puedes marcarlos más tarde.",
+    ownedHintFilled:
+      "Los tomos 1 a {n} se marcarán como poseídos (de {max}).",
+    priceLabel: "Precio por tomo ({symbol})",
+    priceHint:
+      "El mismo precio se aplicará a los {n} tomos poseídos. Ajustable desde la página de la serie.",
+    addSeries: "Añadir serie",
+    addSeriesWithOne: "Añadir serie + 1 tomo",
+    addSeriesWithN: "Añadir serie + {n} tomos",
+  },
 };

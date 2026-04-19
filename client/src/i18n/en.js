@@ -430,4 +430,46 @@ export default {
     aMoment: "A single moment",
     slower: "Taking a bit longer than usual…",
   },
+  activity: {
+    label: "RECENT · 最近",
+    title: "Activity",
+    empty: "Nothing logged yet.",
+    emptyHint:
+      "Adds, removals and volume edits will show up here.",
+    seriesAdded: "Added {title} to your library",
+    seriesRemoved: "Removed {title}",
+    seriesCompleted: "Completed {title} — {n} volumes",
+    volumeOwned: "Marked volume {n} of {title} as owned",
+    volumeUnowned: "Marked volume {n} of {title} as missing",
+    milestoneVolumes: "Reached {n} volumes owned",
+    milestoneSeries: "Reached {n} series tracked",
+  },
+  gap: {
+    label: "NEARLY THERE · あと少し",
+    byline:
+      "Series closest to completion — the volumes still missing from your shelves.",
+    missingOne: "1 volume to go",
+    missingMany: "{n} volumes to go",
+  },
+  recs: {
+    label: "DISCOVER · 発見",
+    title: "You might also like",
+    byline:
+      "Based on the series you own most of, drawn from MyAnimeList reader picks.",
+    rateLimited:
+      "MyAnimeList is throttling us right now — come back in a minute and suggestions will populate.",
+    recommendedBy: "By {n} of your series",
+    viewOnMal: "View on MAL",
+    ownedLabel: "How many volumes do you already own?",
+    ownedHintZero:
+      "Add the series with no owned volumes — you can mark them later.",
+    ownedHintFilled:
+      "Volumes 1 to {n} will be marked as owned (out of {max}).",
+    priceLabel: "Price per volume ({symbol})",
+    priceHint:
+      "The same price will be applied to all {n} owned volumes. Adjust later from the series page.",
+    addSeries: "Add series",
+    addSeriesWithOne: "Add series + 1 volume",
+    addSeriesWithN: "Add series + {n} volumes",
+  },
 };

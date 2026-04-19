@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 export default function Modal({
   children,
@@ -26,12 +27,17 @@ export default function Modal({
   }, [popupOpen, handleClose]);
 
   if (!popupOpen) return null;
+  if (typeof document === "undefined") return null;
 
-  return (
+  const overlay = (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-ink-0/80 backdrop-blur-md p-4 animate-fade-in"
+      className="fixed inset-0 flex items-center justify-center bg-ink-0/80 backdrop-blur-md p-4 animate-fade-in"
+      // Inline style z-index to escape any stacking context traps from
+      // ancestors (DefaultBackground's `isolate`, transformed elements, etc.)
+      // Portaled to document.body as belt-and-braces.
+      style={{ zIndex: 2147483630 }}
       onClick={(e) => {
         if (e.target !== e.currentTarget) return;
         handleClose?.();
@@ -66,4 +72,9 @@ export default function Modal({
       </div>
     </div>
   );
+
+  // Portal into <body> so DefaultBackground's `isolate` (and any other
+  // ancestor stacking context) can't trap the overlay under the header
+  // or adjacent sections.
+  return createPortal(overlay, document.body);
 }

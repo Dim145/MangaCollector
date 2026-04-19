@@ -3,7 +3,7 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{health, library, settings, storage, volume};
+use crate::handlers::{activity, health, library, settings, storage, volume};
 use crate::state::AppState;
 
 pub fn api_router() -> Router<AppState> {
@@ -43,4 +43,6 @@ fn user_router() -> Router<AppState> {
         // Settings routes
         .route("/settings", get(settings::get_settings))
         .route("/settings", post(settings::update_settings))
+        // Activity feed
+        .route("/activity", get(activity::list_activity))
 }

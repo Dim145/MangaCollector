@@ -51,6 +51,21 @@ db.version(3).stores({
   isbnCache: "isbn, ts",
 });
 
+// v4 — activity feed cache + MAL recommendations cache for /profile.
+db.version(4).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  // One row per source series — stores the list of recommended manga with a
+  // fetch timestamp so we can TTL the cache.
+  malRecommendations: "mal_id, ts",
+});
+
 export const SETTINGS_KEY = "user";
 
 /** Replace the entire library cache. */

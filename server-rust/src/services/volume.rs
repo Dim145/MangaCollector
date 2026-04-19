@@ -6,7 +6,10 @@ use sea_orm::{
 
 use crate::db::Db;
 use crate::errors::AppError;
+use crate::models::activity::event_types;
+use crate::models::library::{self as library_mod, Entity as LibraryEntity};
 use crate::models::volume::{self, ActiveModel, Entity as VolumeEntity, Volume};
+use crate::services::activity;
 
 /// Return value for `update_by_id` — we keep a lightweight result so the
 /// handler can respond "ok" even when the row no longer exists (idempotent
@@ -44,9 +47,14 @@ pub async fn update_by_id(
     store: Option<String>,
 ) -> Result<VolumeUpdateResult, AppError> {
     let now = Utc::now().naive_utc();
-    // Idempotent update — if the row is gone (e.g. a queued offline edit
-    // replays after the manga was deleted), just return `affected = false`
-    // rather than surfacing a DB error.
+
+    // Fetch the existing row upfront so we can detect an ownership change
+    // (for activity logging) and still behave idempotently if it's gone.
+    let existing = VolumeEntity::find_by_id(id)
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+
     let res = VolumeEntity::update_many()
         .filter(volume::Column::Id.eq(id))
         .col_expr(volume::Column::Owned, owned.into())
@@ -68,6 +76,37 @@ pub async fn update_by_id(
         .exec(db)
         .await
         .map_err(AppError::from)?;
+
+    // Log ownership transitions only — price/store edits alone don't produce
+    // an activity entry.
+    if let Some(prev) = existing {
+        if prev.owned != owned {
+            let mal_id = prev.mal_id.unwrap_or(0);
+            let series_name = LibraryEntity::find()
+                .filter(library_mod::Column::UserId.eq(prev.user_id))
+                .filter(library_mod::Column::MalId.eq(mal_id))
+                .one(db)
+                .await
+                .ok()
+                .flatten()
+                .map(|r| r.name);
+
+            activity::record(
+                db,
+                prev.user_id,
+                if owned {
+                    event_types::VOLUME_OWNED
+                } else {
+                    event_types::VOLUME_UNOWNED
+                },
+                Some(mal_id),
+                Some(prev.vol_num),
+                series_name,
+                None,
+            )
+            .await;
+        }
+    }
 
     Ok(VolumeUpdateResult {
         affected: res.rows_affected > 0,

@@ -435,4 +435,46 @@ export default {
     aMoment: "Un instant",
     slower: "Cela prend un peu plus de temps que d'habitude…",
   },
+  activity: {
+    label: "RÉCENT · 最近",
+    title: "Activité",
+    empty: "Rien à afficher pour l'instant.",
+    emptyHint:
+      "Ajouts, suppressions et modifications de tomes apparaîtront ici.",
+    seriesAdded: "{title} ajouté à votre bibliothèque",
+    seriesRemoved: "{title} supprimé",
+    seriesCompleted: "{title} complété — {n} tomes",
+    volumeOwned: "Tome {n} de {title} marqué possédé",
+    volumeUnowned: "Tome {n} de {title} marqué manquant",
+    milestoneVolumes: "{n} tomes possédés atteints",
+    milestoneSeries: "{n} séries suivies atteintes",
+  },
+  gap: {
+    label: "PRESQUE · あと少し",
+    byline:
+      "Les séries les plus proches de la complétion — les tomes qui manquent encore sur vos étagères.",
+    missingOne: "1 tome à compléter",
+    missingMany: "{n} tomes à compléter",
+  },
+  recs: {
+    label: "DÉCOUVERTE · 発見",
+    title: "Vous aimerez peut-être",
+    byline:
+      "Suggestions basées sur les séries dont vous possédez le plus de tomes, issues des recommandations de lecteurs MyAnimeList.",
+    rateLimited:
+      "MyAnimeList nous limite pour l'instant — reviens dans une minute et les suggestions apparaîtront.",
+    recommendedBy: "Par {n} de vos séries",
+    viewOnMal: "Voir sur MAL",
+    ownedLabel: "Combien de tomes possédez-vous déjà ?",
+    ownedHintZero:
+      "Ajouter la série sans tomes possédés — vous pourrez les marquer plus tard.",
+    ownedHintFilled:
+      "Les tomes 1 à {n} seront marqués comme possédés (sur {max}).",
+    priceLabel: "Prix par tome ({symbol})",
+    priceHint:
+      "Le même prix sera appliqué aux {n} tomes possédés. Modifiable depuis la page de la série.",
+    addSeries: "Ajouter la série",
+    addSeriesWithOne: "Ajouter la série + 1 tome",
+    addSeriesWithN: "Ajouter la série + {n} tomes",
+  },
 };

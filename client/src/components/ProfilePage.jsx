@@ -12,6 +12,8 @@ import {
 } from "recharts";
 import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
+import ActivityFeed from "./ActivityFeed.jsx";
+import MalRecommendations from "./MalRecommendations.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
@@ -265,10 +267,21 @@ export default function ProfilePage({ googleUser }) {
                       ? t("profile.insightHalfway")
                       : t("profile.insightBeginning")}
             </h3>
-            <p className="mt-2 max-w-xl text-sm text-washi-muted">
-              {t("profile.comingSoon")}
-            </p>
           </div>
+        </section>
+
+        <section
+          className="mt-8 animate-fade-up"
+          style={{ animationDelay: "450ms" }}
+        >
+          <ActivityFeed limit={20} />
+        </section>
+
+        <section
+          className="mt-8 animate-fade-up"
+          style={{ animationDelay: "550ms" }}
+        >
+          <MalRecommendations />
         </section>
       </div>
     </DefaultBackground>

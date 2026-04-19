@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
 import MangaSearchBar from "./MangaSearchBar";
+import GapSuggestions from "./GapSuggestions.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
@@ -105,6 +106,9 @@ export default function Dashboard() {
             />
           </div>
         </header>
+
+        {/* R1 — "Complete your collection" suggestions */}
+        {!isInitialLoad && !isEmpty && <GapSuggestions />}
 
         {/* Controls */}
         <section className="mb-8 space-y-4" aria-label="Controls">

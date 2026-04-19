@@ -26,7 +26,16 @@ export function useScanCommit() {
   const { data: library } = useLibrary();
 
   return useCallback(
-    async ({ manga, volumeNumbers, scannedVolume, price = 0 }) => {
+    async ({
+      manga,
+      volumeNumbers,
+      scannedVolume,
+      price = 0,
+      // 'scanned' (default): price applied only to `scannedVolume` (barcode flow)
+      // 'all'              : price applied to every volume in `volumeNumbers`
+      //                      (recommendation flow — "I paid X per volume")
+      priceMode = "scanned",
+    }) => {
       if (!Array.isArray(volumeNumbers) || volumeNumbers.length === 0) {
         throw new Error("No volume numbers to commit");
       }
@@ -87,7 +96,8 @@ export function useScanCommit() {
           alreadyOwned.push(num);
           continue;
         }
-        const volPrice = num === scanned ? priceNum : 0;
+        const volPrice =
+          priceMode === "all" || num === scanned ? priceNum : 0;
         await updateVolumeByID(target.id, true, volPrice, target.store ?? "");
         newlyOwned.push(num);
       }
