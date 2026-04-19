@@ -102,7 +102,6 @@ export default function BarcodeScanner({
         if (stream) stream.getTracks().forEach((t) => t.stop());
       })();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const scanner = (

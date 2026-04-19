@@ -217,7 +217,7 @@ export default function AddPage() {
       `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`
     );
 
-    let candidates = [];
+    let candidates;
     try {
       candidates = await searchMangaOnMal(book.title, 5);
     } catch (err) {

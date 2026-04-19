@@ -1,54 +1,29 @@
 import axios from "./axios";
-import { checkAuthStatus } from "./auth";
 
 async function addToUserLibrary(mangaData) {
-  try {
-    await axios.post(`/api/user/library`, mangaData);
-  } catch (error) {
-    throw error;
-  }
+  await axios.post(`/api/user/library`, mangaData);
 }
 
 async function getUserLibrary() {
-  try {
-    const response = await axios.get(`/api/user/library`);
-    return response.data;
-  } catch (error) {
-    throw error;
-  }
+  const response = await axios.get(`/api/user/library`);
+  return response.data;
 }
 
 async function getUserManga(mal_id) {
-  try {
-    const response = await axios.get(`/api/user/library/${mal_id}`);
-    return response.data[0];
-  } catch (error) {
-    throw error;
-  }
+  const response = await axios.get(`/api/user/library/${mal_id}`);
+  return response.data[0];
 }
 
 async function deleteMangaFromUserLibraryByID(mal_id) {
-  try {
-    await axios.delete(`/api/user/library/${mal_id}`);
-  } catch (error) {
-    throw error;
-  }
+  await axios.delete(`/api/user/library/${mal_id}`);
 }
 
 async function updateMangaByID(mal_id, volumes) {
-  try {
-    await axios.patch(`/api/user/library/${mal_id}`, { volumes });
-  } catch (error) {
-    throw error;
-  }
+  await axios.patch(`/api/user/library/${mal_id}`, { volumes });
 }
 
 async function updateMangaOwned(mal_id, owned) {
-  try {
-    await axios.patch(`/api/user/library/${mal_id}/${owned}`);
-  } catch (error) {
-    throw error;
-  }
+  await axios.patch(`/api/user/library/${mal_id}/${owned}`);
 }
 
 async function getUserSettings() {
@@ -67,16 +42,14 @@ async function updateSettings(settings) {
   ).data;
 }
 
-async function uploadPoster(mangaId, image)
-{
+async function uploadPoster(mangaId, image) {
   const formData = new FormData();
   formData.append("poster", image);
 
-  return await axios.post(`/api/user/storage/poster/${mangaId}`, formData)
+  return await axios.post(`/api/user/storage/poster/${mangaId}`, formData);
 }
 
-async function removePoster(mangaId)
-{
+async function removePoster(mangaId) {
   return (await axios.delete(`/api/user/storage/poster/${mangaId}`)).data?.malPoster;
 }
 
@@ -100,5 +73,5 @@ export {
   uploadPoster,
   removePoster,
   searchInLib,
-  addCustomEntryToUserLibrary
+  addCustomEntryToUserLibrary,
 };

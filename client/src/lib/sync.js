@@ -1,7 +1,6 @@
 import axios from "@/utils/axios.js";
 import { cacheLibrary, cacheVolumesForManga, cacheSettings, db } from "./db.js";
 import {
-  getServerReachable,
   isFullyOnline,
   onConnectivityChange,
   probeServer,
