@@ -189,6 +189,21 @@ export async function lookupISBN(rawIsbn) {
   const fullTitle = [info.title, info.subtitle].filter(Boolean).join(" ");
   const { title, volume } = parseTitleVolume(fullTitle);
 
+  // Price — Google Books exposes it on `saleInfo`. `retailPrice` is what
+  // they actually sell it for (after discounts); `listPrice` is the
+  // publisher-declared MSRP. Prefer retail, fall back to list. Often
+  // absent for manga, especially outside US/UK/JP markets.
+  const sale = item.saleInfo || {};
+  let price = null;
+  const picked = sale.retailPrice ?? sale.listPrice;
+  if (picked && typeof picked.amount === "number") {
+    price = {
+      amount: picked.amount,
+      currency: picked.currencyCode,
+      source: sale.retailPrice ? "retail" : "list",
+    };
+  }
+
   const result = {
     isbn,
     rawTitle: fullTitle,
@@ -204,6 +219,7 @@ export async function lookupISBN(rawIsbn) {
       null,
     description: info.description,
     language: info.language,
+    price,
   };
 
   await writeCached(isbn, result);

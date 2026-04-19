@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
@@ -46,9 +46,17 @@ export default function AddPage() {
   const [committing, setCommitting] = useState(false);
   const [recentScans, setRecentScans] = useState([]);
 
-  const { adult_content_level } = useContext(SettingsContext);
+  const { adult_content_level, currency: currencySetting } =
+    useContext(SettingsContext);
   const navigate = useNavigate();
   const online = useOnline();
+
+  // onBarcodeDetected is a stable useCallback([]) — expose the current
+  // currency code through a ref so prefill stays in sync with settings.
+  const currencyCodeRef = useRef(currencySetting?.code);
+  useEffect(() => {
+    currencyCodeRef.current = currencySetting?.code;
+  }, [currencySetting?.code]);
 
   const { data: library } = useLibrary();
   const addManga = useAddManga();
@@ -228,6 +236,9 @@ export default function AddPage() {
       book,
       candidates,
       volume: book.volume ?? 1,
+      // Prefill price only when Google Books gave us one in the same currency
+      // as the user's settings — otherwise leave at 0 (they can type it).
+      price: pickDefaultPrice(book, currencyCodeRef.current),
     });
     setScanCandidateIdx(0);
     setScanPhase("positive");
@@ -238,6 +249,7 @@ export default function AddPage() {
     if (!scanResult) return;
     const candidate = scanResult.candidates[scanCandidateIdx];
     const volume = Number(scanResult.volume) || 1;
+    const price = Number(scanResult.price) || 0;
     const volumeNumbers = [
       ...missingVolumes.filter((n) => n !== volume),
       volume,
@@ -245,7 +257,12 @@ export default function AddPage() {
 
     setCommitting(true);
     try {
-      const res = await commitScan({ manga: candidate, volumeNumbers });
+      const res = await commitScan({
+        manga: candidate,
+        volumeNumbers,
+        scannedVolume: volume,
+        price,
+      });
       setRecentScans((prev) =>
         [
           {
@@ -282,6 +299,18 @@ export default function AddPage() {
     setCustomEntry(true);
     if (prefillTitle) setCustomEntryTitle(prefillTitle);
   };
+
+  // Helper — only pre-fill the price when Google Books gives us one in the
+  // currency the user actually collects in. Otherwise we'd confuse them
+  // (e.g. showing 7.99 as "price" when it's actually 7.99 USD for a JP
+  // edition priced in yen).
+  function pickDefaultPrice(book, userCurrencyCode) {
+    const p = book?.price;
+    if (!p || typeof p.amount !== "number") return 0;
+    if (!userCurrencyCode) return 0;
+    if (p.currency !== userCurrencyCode) return 0;
+    return p.amount;
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
@@ -548,7 +577,11 @@ export default function AddPage() {
               setVolume={(v) =>
                 setScanResult((r) => (r ? { ...r, volume: v } : r))
               }
+              setPrice={(p) =>
+                setScanResult((r) => (r ? { ...r, price: p } : r))
+              }
               library={library}
+              currencySetting={currencySetting}
               committing={committing}
               onConfirm={commitCurrentScan}
               onCancel={resumeScanning}
@@ -669,7 +702,9 @@ function ScanMatchCard({
   candidateIdx,
   setCandidateIdx,
   setVolume,
+  setPrice,
   library,
+  currencySetting,
   committing,
   onConfirm,
   onCancel,
@@ -786,6 +821,35 @@ function ScanMatchCard({
         )}
       </div>
 
+      {/* Price field with optional Google Books hint */}
+      <div className="border-t border-border p-4">
+        <label
+          htmlFor="scan-price"
+          className="block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
+        >
+          Price ({currencySetting?.symbol ?? "$"}) — only this volume
+        </label>
+        <input
+          id="scan-price"
+          type="number"
+          step="0.01"
+          min="0"
+          value={result.price ?? 0}
+          onChange={(e) => setPrice(e.target.value)}
+          onFocus={(e) => {
+            if (Number(e.target.value) === 0) e.target.select();
+          }}
+          placeholder="0.00"
+          className="mt-1.5 w-full rounded-lg border border-border bg-ink-0 px-3 py-2 font-display text-sm font-semibold text-washi focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+        />
+        {result.book.price && (
+          <GoogleBooksPriceHint
+            bookPrice={result.book.price}
+            userCurrency={currencySetting?.code}
+          />
+        )}
+      </div>
+
       {/* Gap-fill proposal */}
       {missing.length > 0 && (
         <div className="border-t border-gold/20 bg-gold/5 p-4">
@@ -880,6 +944,34 @@ function ScanMatchCard({
         )}
       </div>
     </>
+  );
+}
+
+function GoogleBooksPriceHint({ bookPrice, userCurrency }) {
+  const sameCurrency =
+    userCurrency && bookPrice.currency === userCurrency;
+  return (
+    <p
+      className={`mt-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider ${
+        sameCurrency ? "text-gold" : "text-washi-dim"
+      }`}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-3 w-3"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 6v6l4 2" />
+      </svg>
+      Google Books: {bookPrice.amount.toFixed(2)} {bookPrice.currency}
+      {!sameCurrency && " — different currency, not pre-filled"}
+      {bookPrice.source === "list" && sameCurrency && " (list price)"}
+    </p>
   );
 }
 

@@ -26,13 +26,16 @@ export function useScanCommit() {
   const { data: library } = useLibrary();
 
   return useCallback(
-    async ({ manga, volumeNumbers }) => {
+    async ({ manga, volumeNumbers, scannedVolume, price = 0 }) => {
       if (!Array.isArray(volumeNumbers) || volumeNumbers.length === 0) {
         throw new Error("No volume numbers to commit");
       }
       const sorted = [...volumeNumbers].sort((a, b) => a - b);
       const maxVolume = sorted[sorted.length - 1];
       if (maxVolume < 1) throw new Error("Invalid volume number");
+
+      const scanned = scannedVolume ?? maxVolume;
+      const priceNum = Number(price) || 0;
 
       const mangaData = {
         name: manga.title,
@@ -70,7 +73,9 @@ export function useScanCommit() {
       let volumes = await getAllVolumesByID(mangaData.mal_id);
       await cacheVolumesForManga(mangaData.mal_id, volumes);
 
-      // 3. Mark each target vol as owned — skip any that were already owned
+      // 3. Mark each target vol as owned — skip any that were already owned.
+      // The scanned volume gets the price the user confirmed; gap-fill
+      // volumes stay at 0 (the user didn't tell us what those cost).
       const newlyOwned = [];
       const alreadyOwned = [];
       for (const num of sorted) {
@@ -82,7 +87,8 @@ export function useScanCommit() {
           alreadyOwned.push(num);
           continue;
         }
-        await updateVolumeByID(target.id, true, 0, target.store ?? "");
+        const volPrice = num === scanned ? priceNum : 0;
+        await updateVolumeByID(target.id, true, volPrice, target.store ?? "");
         newlyOwned.push(num);
       }
 
