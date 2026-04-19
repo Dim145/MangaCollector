@@ -2,11 +2,54 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!--
+      Theme bootstrap — runs synchronously BEFORE the stylesheet loads and
+      BEFORE the body is parsed. Reads the user's saved preference from
+      localStorage (same key as lib/theme.js) and flips the `data-theme`
+      attribute on <html>. The stylesheet then applies the right palette
+      on its very first paint — zero flash.
+
+      Also sets colorScheme and a placeholder background-color on <html>
+      so the gap between HTML parse and stylesheet apply stays the right
+      shade instead of default white.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("mc:theme") || "dark";
+          var resolved =
+            stored === "auto"
+              ? window.matchMedia("(prefers-color-scheme: light)").matches
+                ? "light"
+                : "dark"
+              : stored === "light"
+                ? "light"
+                : "dark";
+          var root = document.documentElement;
+          if (resolved === "light") {
+            root.setAttribute("data-theme", "light");
+          }
+          root.style.colorScheme = resolved;
+          root.style.backgroundColor =
+            resolved === "light" ? "#ffffff" : "#15100f";
+        } catch (_) {
+          /* fallback: dark stays as default */
+        }
+      })();
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="./src/assets/logo.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#161012" />
-    <meta name="description" content="MangaCollector — archive, curate and cherish your manga library volume by volume." />
-    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="MangaCollector — archive, curate and cherish your manga library volume by volume."
+    />
+    <meta name="color-scheme" content="dark light" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
