@@ -472,4 +472,27 @@ export default {
     addSeriesWithOne: "Add series + 1 volume",
     addSeriesWithN: "Add series + {n} volumes",
   },
+  avatar: {
+    label: "AVATAR · 顔",
+    title: "Choose your",
+    titleAccent: "face",
+    byline:
+      "Pick a portrait from the characters of the series you collect — pulled live from MyAnimeList.",
+    mainOnly: "Main only",
+    remove: "Use initial",
+    stillFetching: "Fetching more characters…",
+    changeAria: "Change profile avatar",
+    emptyNoLibrary: "No sources yet",
+    emptyNoLibraryHint:
+      "Add a series to your library and their characters will appear here.",
+    emptyRateLimit: "MyAnimeList is throttling us",
+    emptyRateLimitHint:
+      "Come back in a minute and the gallery will populate.",
+    emptyNoMain: "No main characters found",
+    emptyNoMainHint:
+      "Toggle the filter off to browse supporting characters as well.",
+    emptyGeneric: "No portraits available",
+    emptyGenericHint:
+      "MyAnimeList has no character entries for these series.",
+  },
 };

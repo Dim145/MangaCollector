@@ -1,4 +1,4 @@
-import { useContext, useMemo } from "react";
+import { useContext, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -14,9 +14,11 @@ import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
 import ActivityFeed from "./ActivityFeed.jsx";
 import MalRecommendations from "./MalRecommendations.jsx";
+import AvatarPicker from "./AvatarPicker.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
+import { useUserSettings } from "@/hooks/useSettings.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -24,6 +26,9 @@ export default function ProfilePage({ googleUser }) {
   const { currency: currencySetting } = useContext(SettingsContext);
   const { data: library, isInitialLoad: loadingLib } = useLibrary();
   const { data: volumes, isInitialLoad: loadingVol } = useAllVolumes();
+  const { data: settings } = useUserSettings();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const t = useT();
 
   const loading = loadingLib || loadingVol;
@@ -79,6 +84,8 @@ export default function ProfilePage({ googleUser }) {
   ];
 
   const userName = googleUser?.name ?? t("profile.reader");
+  const initial = userName?.[0]?.toUpperCase() ?? "U";
+  const avatarUrl = !avatarFailed ? settings?.avatarUrl ?? null : null;
 
   return (
     <DefaultBackground>
@@ -90,14 +97,62 @@ export default function ProfilePage({ googleUser }) {
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
           </div>
-          <h1 className="mt-2 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">
-            {t("profile.helloName")}{" "}
-            <span className="text-hanko-gradient font-semibold not-italic">
-              {userName}
-            </span>
-          </h1>
-          <p className="mt-2 text-sm text-washi-muted">{t("profile.byline")}</p>
+
+          <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-center">
+            {/* Avatar — click to open picker */}
+            <button
+              onClick={() => setPickerOpen(true)}
+              aria-label={t("avatar.changeAria")}
+              className={`group relative h-20 w-20 shrink-0 overflow-hidden rounded-full ring-1 ring-border transition-all hover:ring-hanko hover:shadow-[0_0_32px_rgba(220,38,38,0.35)] md:h-24 md:w-24 ${
+                avatarUrl ? "bg-ink-2" : "bg-gradient-to-br from-gold to-gold-muted"
+              }`}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  onError={() => setAvatarFailed(true)}
+                />
+              ) : (
+                <span className="absolute inset-0 grid place-items-center font-display text-3xl font-bold text-ink-0 md:text-4xl">
+                  {initial}
+                </span>
+              )}
+              <span className="absolute inset-0 flex items-center justify-center bg-ink-0/60 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-6 w-6 text-washi"
+                >
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </span>
+            </button>
+
+            <div className="min-w-0 flex-1">
+              <h1 className="font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">
+                {t("profile.helloName")}{" "}
+                <span className="text-hanko-gradient font-semibold not-italic">
+                  {userName}
+                </span>
+              </h1>
+              <p className="mt-2 text-sm text-washi-muted">
+                {t("profile.byline")}
+              </p>
+            </div>
+          </div>
         </header>
+
+        <AvatarPicker
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+        />
 
         <section className="mb-8 grid gap-4 animate-fade-up sm:grid-cols-2 lg:grid-cols-4">
           <HeroStat

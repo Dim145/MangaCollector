@@ -54,6 +54,7 @@ pub async fn get_user_settings(db: &Db, user_id: i32) -> Result<SettingRow, AppE
         adult_content_level: 0,
         theme: Some(DEFAULT_THEME.into()),
         language: Some(DEFAULT_LANGUAGE.into()),
+        avatar_url: None,
     }))
 }
 
@@ -93,6 +94,8 @@ pub async fn update_user_settings(
         .unwrap_or(DEFAULT_LANGUAGE)
         .to_string();
 
+    let avatar_url = req.avatar_url.clone();
+
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),
@@ -102,6 +105,7 @@ pub async fn update_user_settings(
         adult_content_level: Set(adult_content_level),
         theme: Set(Some(theme)),
         language: Set(Some(language)),
+        avatar_url: Set(avatar_url),
         ..Default::default()
     };
 
@@ -112,6 +116,7 @@ pub async fn update_user_settings(
             setting::Column::AdultContentLevel,
             setting::Column::Theme,
             setting::Column::Language,
+            setting::Column::AvatarUrl,
             setting::Column::ModifiedOn,
         ])
         .to_owned();

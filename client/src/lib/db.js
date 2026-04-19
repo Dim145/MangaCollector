@@ -66,6 +66,22 @@ db.version(4).stores({
   malRecommendations: "mal_id, ts",
 });
 
+// v5 — character catalogue keyed by series mal_id, used by the avatar picker.
+// Each row holds the full character list fetched from Jikan so the picker
+// can render a grouped grid without re-hitting the API on every open.
+db.version(5).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+});
+
 export const SETTINGS_KEY = "user";
 
 /** Replace the entire library cache. */
@@ -122,6 +138,9 @@ export async function clearAllUserData() {
         db.outboxLibrary,
         db.outboxVolumes,
         db.outboxSettings,
+        db.activity,
+        db.malRecommendations,
+        db.mangaCharacters,
       ],
       async () => {
         await db.library.clear();
@@ -130,6 +149,9 @@ export async function clearAllUserData() {
         await db.outboxLibrary.clear();
         await db.outboxVolumes.clear();
         await db.outboxSettings.clear();
+        await db.activity.clear();
+        await db.malRecommendations.clear();
+        await db.mangaCharacters.clear();
       }
     );
   } catch (err) {

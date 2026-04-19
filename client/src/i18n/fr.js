@@ -477,4 +477,27 @@ export default {
     addSeriesWithOne: "Ajouter la série + 1 tome",
     addSeriesWithN: "Ajouter la série + {n} tomes",
   },
+  avatar: {
+    label: "AVATAR · 顔",
+    title: "Choisissez votre",
+    titleAccent: "visage",
+    byline:
+      "Sélectionnez un portrait parmi les personnages des séries que vous collectionnez — importés depuis MyAnimeList.",
+    mainOnly: "Principaux uniquement",
+    remove: "Remettre l'initiale",
+    stillFetching: "Récupération d'autres personnages…",
+    changeAria: "Changer l'avatar",
+    emptyNoLibrary: "Aucune source",
+    emptyNoLibraryHint:
+      "Ajoutez une série à votre bibliothèque et ses personnages apparaîtront ici.",
+    emptyRateLimit: "MyAnimeList nous limite",
+    emptyRateLimitHint:
+      "Revenez dans une minute, la galerie se chargera.",
+    emptyNoMain: "Aucun personnage principal trouvé",
+    emptyNoMainHint:
+      "Désactivez le filtre pour voir aussi les personnages secondaires.",
+    emptyGeneric: "Aucun portrait disponible",
+    emptyGenericHint:
+      "MyAnimeList n'a pas de personnages référencés pour ces séries.",
+  },
 };

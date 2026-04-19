@@ -2,14 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { checkAuthStatus, logout } from "../utils/auth";
 import { useT } from "@/i18n/index.jsx";
+import { useUserSettings } from "@/hooks/useSettings.js";
 
 export default function ProfileButton() {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const [user, setUser] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const t = useT();
+  const { data: settings } = useUserSettings();
+  const avatarUrl = !avatarFailed ? settings?.avatarUrl ?? null : null;
 
   useEffect(() => {
     const verifyAuth = async () => {
@@ -74,10 +78,25 @@ export default function ProfileButton() {
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label="Open account menu"
-        className="group relative grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-gold to-gold-muted font-display text-sm font-bold text-ink-0 transition-transform hover:scale-105 active:scale-95 ring-2 ring-transparent hover:ring-gold/50 focus-visible:ring-hanko"
+        className={`group relative grid h-9 w-9 place-items-center overflow-hidden rounded-full font-display text-sm font-bold text-ink-0 transition-transform hover:scale-105 active:scale-95 ring-2 ring-transparent focus-visible:ring-hanko ${
+          avatarUrl
+            ? "bg-ink-2 hover:ring-hanko/60"
+            : "bg-gradient-to-br from-gold to-gold-muted hover:ring-gold/50"
+        }`}
       >
-        <span className="absolute inset-0 rounded-full bg-gradient-to-br from-gold/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity blur-md" />
-        <span className="relative">{initial}</span>
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={() => setAvatarFailed(true)}
+          />
+        ) : (
+          <>
+            <span className="absolute inset-0 rounded-full bg-gradient-to-br from-gold/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity blur-md" />
+            <span className="relative">{initial}</span>
+          </>
+        )}
       </button>
 
       {isOpen && (
@@ -86,8 +105,23 @@ export default function ProfileButton() {
           className="absolute right-0 mt-3 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2/95 shadow-2xl backdrop-blur-xl animate-slide-down"
         >
           <div className="flex items-center gap-3 border-b border-border p-3">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-gold to-gold-muted font-display text-base font-bold text-ink-0">
-              {initial}
+            <div
+              className={`grid h-10 w-10 place-items-center overflow-hidden rounded-full font-display text-base font-bold text-ink-0 ${
+                avatarUrl
+                  ? "bg-ink-2"
+                  : "bg-gradient-to-br from-gold to-gold-muted"
+              }`}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={() => setAvatarFailed(true)}
+                />
+              ) : (
+                initial
+              )}
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-washi">
