@@ -20,15 +20,23 @@ import Dexie from "dexie";
 export const db = new Dexie("mangacollector");
 
 db.version(1).stores({
-  // Server-mirrored tables
   library: "mal_id, name",
   volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
   settings: "key",
-
-  // Outbox (pending mutations)
   outboxLibrary: "mal_id, ts",
   outboxVolumes: "id, ts",
   outboxSettings: "key",
+});
+
+// v2 — ISBN lookup cache (avoids re-hitting Google Books for the same barcode)
+db.version(2).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, ts",
+  outboxSettings: "key",
+  isbnCache: "isbn, ts",
 });
 
 export const SETTINGS_KEY = "user";

@@ -1,11 +1,17 @@
-import { useContext, useState } from "react";
+import { useCallback, useContext, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
+import BarcodeScanner from "@/components/BarcodeScanner.jsx";
+import Modal from "@/components/utils/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
-import { useLibrary, useAddManga } from "@/hooks/useLibrary.js";
+import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
+import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { addCustomEntryToUserLibrary } from "@/utils/user.js";
+import { lookupISBN, normalizeISBN, searchMangaOnMal } from "@/lib/isbn.js";
+
+const SCAN_DEDUPE_WINDOW_MS = 2500;
 
 export default function AddPage() {
   const [query, setQuery] = useState("");
@@ -18,24 +24,31 @@ export default function AddPage() {
   const [customEntryGenres, setCustomEntryGenres] = useState("");
   const [customEntryVolumes, setCustomEntryVolumes] = useState(0);
 
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanStatus, setScanStatus] = useState("");
+  const [scanResult, setScanResult] = useState(null); // {isbn, book, candidates, volume}
+  const [scanCandidateIdx, setScanCandidateIdx] = useState(0);
+  const [committing, setCommitting] = useState(false);
+  const [recentScans, setRecentScans] = useState([]);
+  const [scanError, setScanError] = useState(null);
+
+  const lastDecodedRef = useRef({ isbn: null, ts: 0 });
+
   const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
   const online = useOnline();
 
   const { data: library } = useLibrary();
   const addManga = useAddManga();
+  const commitScan = useScanCommit();
 
   const searchManga = async () => {
-    if (!query.trim()) return;
-    if (!online) return; // button is disabled; noop safeguard
+    if (!query.trim() || !online) return;
     try {
       setLoading(true);
       setSearched(true);
-      const res = await fetch(
-        `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(query)}&limit=10`
-      );
-      const data = await res.json();
-      setResults(data.data || []);
+      const data = await searchMangaOnMal(query, 10);
+      setResults(data);
     } catch (err) {
       console.error("Search error:", err);
     } finally {
@@ -57,7 +70,6 @@ export default function AddPage() {
         .filter((g) => g.type === "manga")
         .map((g) => g.name),
     };
-
     if (library.some((m) => m.mal_id === mangaData.mal_id)) return;
     await addManga.mutateAsync(mangaData);
   };
@@ -69,9 +81,7 @@ export default function AddPage() {
   };
 
   const handleSaveCustomEntry = async () => {
-    if (!customEntryTitle.trim()) return;
-    if (!online) return;
-
+    if (!customEntryTitle.trim() || !online) return;
     const mangaData = {
       name: customEntryTitle,
       mal_id: null,
@@ -83,14 +93,128 @@ export default function AddPage() {
         .map((g) => g.trim())
         .filter((g) => g.length > 0),
     };
-
-    // Custom entries need a server-assigned negative mal_id to avoid
-    // collisions — so this path is online-only by design.
     const res = await addCustomEntryToUserLibrary(mangaData);
     if (res.success) {
       navigate("/mangapage", {
         state: { manga: res.newEntry, adult_content_level },
       });
+    }
+  };
+
+  // ─── Barcode scanning ─────────────────────────────────────────────────
+
+  const closeScanner = () => {
+    setScannerOpen(false);
+    setScanStatus("");
+    setScanResult(null);
+    setScanCandidateIdx(0);
+    setScanError(null);
+    lastDecodedRef.current = { isbn: null, ts: 0 };
+  };
+
+  const dismissResult = () => {
+    setScanResult(null);
+    setScanCandidateIdx(0);
+    setScanError(null);
+    setScanStatus("");
+  };
+
+  const onBarcodeDetected = useCallback(
+    async (raw) => {
+      const isbn = normalizeISBN(raw);
+      if (!isbn) return; // not a valid EAN-13 / ISBN-10 — ignore
+
+      // Debounce: same barcode within the window → ignore
+      const now = Date.now();
+      if (
+        lastDecodedRef.current.isbn === isbn &&
+        now - lastDecodedRef.current.ts < SCAN_DEDUPE_WINDOW_MS
+      ) {
+        return;
+      }
+      // Also: if we're already showing a result card, don't auto-swap
+      if (scanResult) return;
+
+      lastDecodedRef.current = { isbn, ts: now };
+
+      // Soft haptic feedback where available
+      try {
+        navigator.vibrate?.(30);
+      } catch {
+        /* ignore */
+      }
+
+      setScanStatus(`ISBN ${isbn} — looking up…`);
+      setScanError(null);
+      try {
+        const book = await lookupISBN(isbn);
+        if (!book) {
+          setScanError(
+            `No match for ISBN ${isbn}. You can search by title or add a custom entry.`
+          );
+          setScanStatus("");
+          return;
+        }
+
+        setScanStatus(
+          `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`
+        );
+        const candidates = await searchMangaOnMal(book.title, 5);
+        if (!candidates.length) {
+          setScanError(
+            `"${book.title}" isn't on MyAnimeList. Try a custom entry.`
+          );
+          setScanStatus("");
+          return;
+        }
+
+        setScanResult({
+          isbn,
+          book,
+          candidates,
+          volume: book.volume ?? 1,
+        });
+        setScanCandidateIdx(0);
+        setScanStatus("");
+      } catch (err) {
+        console.error(err);
+        setScanError(err?.message ?? "Lookup failed");
+        setScanStatus("");
+      }
+    },
+    [scanResult]
+  );
+
+  const commitCurrentScan = async () => {
+    if (!scanResult) return;
+    const candidate = scanResult.candidates[scanCandidateIdx];
+    const volume = Number(scanResult.volume) || 1;
+    setCommitting(true);
+    try {
+      const res = await commitScan({ manga: candidate, volumeNumber: volume });
+      setRecentScans((prev) => [
+        {
+          id: `${candidate.mal_id}-${volume}-${Date.now()}`,
+          title: candidate.title,
+          volume,
+          cover:
+            candidate.images?.jpg?.image_url ??
+            candidate.images?.jpg?.small_image_url,
+          alreadyOwned: res.alreadyOwned,
+          added: res.added,
+        },
+        ...prev,
+      ].slice(0, 8));
+      try {
+        navigator.vibrate?.([30, 40, 30]);
+      } catch {
+        /* ignore */
+      }
+      dismissResult();
+    } catch (err) {
+      setScanError(err?.message ?? "Failed to add");
+    } finally {
+      setCommitting(false);
     }
   };
 
@@ -125,11 +249,60 @@ export default function AddPage() {
           Add to your <span className="text-hanko-gradient font-semibold not-italic">archive</span>
         </h1>
         <p className="mt-3 max-w-2xl text-sm text-washi-muted">
-          Search MyAnimeList to import a series with full metadata, or create a
-          custom entry for niche titles and physical editions.
+          Scan a barcode, search MyAnimeList, or create a custom entry.
         </p>
       </header>
 
+      {/* ─── Scan hero CTA ─── */}
+      <section className="mb-6 animate-fade-up">
+        <button
+          onClick={() => setScannerOpen(true)}
+          disabled={!online}
+          className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-hanko/30 bg-gradient-to-br from-hanko/20 via-ink-1/50 to-gold/5 p-5 text-left backdrop-blur transition hover:border-hanko/60 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-hanko text-washi shadow-lg glow-red">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-6 w-6"
+            >
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="M7 9v6M10 9v6M13 9v6M16 9v6" />
+            </svg>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
+              Fastest way
+            </p>
+            <p className="mt-1 font-display text-lg font-semibold text-washi">
+              Scan a volume's barcode
+            </p>
+            <p className="mt-0.5 text-xs text-washi-muted">
+              {online
+                ? "Point your camera at the ISBN barcode on the back cover."
+                : "Reconnect to use the scanner."}
+            </p>
+          </div>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5 shrink-0 text-washi-muted transition-transform group-hover:translate-x-1"
+          >
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+        </button>
+      </section>
+
+      {/* ─── Tabs for search/custom ─── */}
       <div className="mb-6 inline-flex rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur">
         <button
           onClick={() => setCustomEntry(false)}
@@ -162,51 +335,27 @@ export default function AddPage() {
               entries work great for titles not listed on MyAnimeList, doujinshi,
               or physical-only releases.
             </p>
-
             <div className="space-y-5">
-              <div>
-                <label
-                  htmlFor="title"
-                  className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
-                >
-                  Title
-                </label>
+              <Field label="Title">
                 <input
-                  id="title"
                   type="text"
                   value={customEntryTitle}
                   onChange={(e) => setCustomEntryTitle(e.target.value)}
                   placeholder="e.g. Underground Illustrations"
                   className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
                 />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="genres"
-                  className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
-                >
-                  Genres
-                </label>
+              </Field>
+              <Field label="Genres">
                 <input
-                  id="genres"
                   type="text"
                   value={customEntryGenres}
                   onChange={(e) => setCustomEntryGenres(e.target.value)}
                   placeholder="Comma-separated, e.g. Action, Fantasy, Seinen"
                   className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
                 />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="volumes"
-                  className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
-                >
-                  Number of volumes
-                </label>
+              </Field>
+              <Field label="Number of volumes">
                 <input
-                  id="volumes"
                   type="number"
                   value={customEntryVolumes}
                   onChange={(e) => setCustomEntryVolumes(Number(e.target.value))}
@@ -214,9 +363,8 @@ export default function AddPage() {
                   placeholder="0"
                   className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
                 />
-              </div>
+              </Field>
             </div>
-
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 onClick={() => {
@@ -298,6 +446,91 @@ export default function AddPage() {
           )}
         </section>
       )}
+
+      {/* ─── Scanner modal (full-screen) ─── */}
+      {scannerOpen && (
+        <BarcodeScanner
+          onDetect={onBarcodeDetected}
+          onClose={closeScanner}
+          statusMessage={scanStatus || "Point the camera at the barcode"}
+          recentCount={recentScans.length}
+        />
+      )}
+
+      {/* ─── Scan result card (confirmation) ─── */}
+      <Modal
+        popupOpen={Boolean(scannerOpen && (scanResult || scanError))}
+        handleClose={committing ? undefined : dismissResult}
+      >
+        <div className="max-w-md overflow-hidden rounded-2xl border border-border bg-ink-1 shadow-2xl">
+          {scanError ? (
+            <ScanErrorCard
+              message={scanError}
+              onDismiss={dismissResult}
+            />
+          ) : scanResult ? (
+            <ScanMatchCard
+              result={scanResult}
+              candidateIdx={scanCandidateIdx}
+              setCandidateIdx={setScanCandidateIdx}
+              setVolume={(v) =>
+                setScanResult((r) => (r ? { ...r, volume: v } : r))
+              }
+              library={library}
+              committing={committing}
+              onConfirm={commitCurrentScan}
+              onCancel={dismissResult}
+            />
+          ) : null}
+        </div>
+      </Modal>
+
+      {/* ─── Recently scanned stack (under scanner) ─── */}
+      {scannerOpen && recentScans.length > 0 && !scanResult && !scanError && (
+        <div className="pointer-events-none fixed left-1/2 top-1/2 z-[125] w-[92%] max-w-xs -translate-x-1/2 -translate-y-1/2">
+          <div className="rounded-2xl border border-border bg-ink-0/80 p-3 backdrop-blur-xl shadow-2xl animate-fade-up">
+            <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-gold">
+              Last added
+            </p>
+            <ul className="max-h-56 space-y-2 overflow-y-auto">
+              {recentScans.map((s) => (
+                <li
+                  key={s.id}
+                  className="flex items-center gap-2"
+                >
+                  {s.cover && (
+                    <img
+                      src={s.cover}
+                      alt=""
+                      className="h-10 w-7 shrink-0 rounded border border-border object-cover"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display text-xs font-semibold text-washi">
+                      {s.title}
+                    </p>
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-washi-dim">
+                      vol {s.volume}
+                      {s.alreadyOwned && " · already owned"}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
+        {label}
+      </label>
+      {children}
     </div>
   );
 }
@@ -323,14 +556,159 @@ function OnlineOnlyNotice({ label }) {
         <line x1="12" y1="20" x2="12.01" y2="20" />
       </svg>
       <div>
-        <p className="font-semibold">
-          {label} requires a connection
-        </p>
+        <p className="font-semibold">{label} requires a connection</p>
         <p className="mt-0.5 text-washi-muted">
-          Reconnect to use this feature — your library is fully editable in the
-          meantime.
+          Reconnect to use this feature — your library is fully editable
+          offline in the meantime.
         </p>
       </div>
+    </div>
+  );
+}
+
+function ScanMatchCard({
+  result,
+  candidateIdx,
+  setCandidateIdx,
+  setVolume,
+  library,
+  committing,
+  onConfirm,
+  onCancel,
+}) {
+  const candidate = result.candidates[candidateIdx];
+  const inLibrary = library.some((m) => m.mal_id === candidate.mal_id);
+
+  return (
+    <>
+      <div className="border-b border-border p-4">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+          ISBN {result.isbn}
+        </p>
+        <p className="mt-1 text-xs text-washi-muted">
+          Google Books: <span className="italic">"{result.book.rawTitle}"</span>
+        </p>
+      </div>
+
+      <div className="flex gap-3 p-4">
+        {candidate.images?.jpg?.image_url && (
+          <img
+            src={candidate.images.jpg.image_url}
+            alt=""
+            className="h-32 w-24 shrink-0 rounded-md border border-border object-cover shadow-lg"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+            MAL match
+          </p>
+          <h3 className="mt-1 font-display text-lg font-semibold leading-tight text-washi">
+            {candidate.title}
+          </h3>
+          {candidate.title_english &&
+            candidate.title_english !== candidate.title && (
+              <p className="text-xs italic text-washi-muted">
+                {candidate.title_english}
+              </p>
+            )}
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+            <span>{candidate.volumes ?? "?"} vols</span>
+            {candidate.score && <span className="text-gold">★ {candidate.score}</span>}
+            {inLibrary && <span className="text-gold">in library</span>}
+          </div>
+
+          {result.candidates.length > 1 && (
+            <button
+              onClick={() =>
+                setCandidateIdx((i) => (i + 1) % result.candidates.length)
+              }
+              className="mt-2 inline-flex items-center gap-1 rounded-full border border-border bg-ink-0/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi"
+            >
+              Not this one? ({candidateIdx + 1}/{result.candidates.length})
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-border p-4">
+        <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
+          Volume number
+        </label>
+        <div className="mt-1.5 flex items-center gap-2">
+          <button
+            onClick={() => setVolume(Math.max(1, Number(result.volume || 1) - 1))}
+            className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-ink-0/40 text-washi transition hover:border-hanko/40"
+            aria-label="Decrement volume"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            min={1}
+            value={result.volume ?? ""}
+            onChange={(e) => setVolume(Number(e.target.value) || 1)}
+            className="w-full rounded-lg border border-border bg-ink-0 px-3 py-2 text-center font-display text-lg font-semibold text-washi focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+          />
+          <button
+            onClick={() => setVolume(Number(result.volume || 0) + 1)}
+            className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-ink-0/40 text-washi transition hover:border-hanko/40"
+            aria-label="Increment volume"
+          >
+            +
+          </button>
+        </div>
+        {!result.book.volume && (
+          <p className="mt-1.5 text-[10px] text-washi-dim">
+            We couldn't auto-detect the volume number — please verify.
+          </p>
+        )}
+      </div>
+
+      <div className="flex gap-2 border-t border-border bg-ink-0/40 p-4">
+        <button
+          onClick={onCancel}
+          disabled={committing}
+          className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={committing || !Number(result.volume)}
+          className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+        >
+          {committing ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
+              Adding…
+            </span>
+          ) : inLibrary ? (
+            "Mark volume as owned"
+          ) : (
+            "Add to library"
+          )}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function ScanErrorCard({ message, onDismiss }) {
+  return (
+    <div className="p-5 text-center">
+      <div className="hanko-seal mx-auto mb-3 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
+        ?
+      </div>
+      <h3 className="font-display text-lg font-semibold text-washi">
+        No match found
+      </h3>
+      <p className="mt-2 text-xs text-washi-muted">{message}</p>
+      <button
+        onClick={onDismiss}
+        className="mt-5 w-full rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi"
+      >
+        Try another barcode
+      </button>
     </div>
   );
 }

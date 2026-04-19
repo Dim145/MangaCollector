@@ -13,6 +13,8 @@
     "@radix-ui/react-avatar": "^1.1.10",
     "@tailwindcss/vite": "^4.1.13",
     "@tanstack/react-query": "^5.56.0",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "axios": "^1.11.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
