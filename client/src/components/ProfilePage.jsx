@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from "react";
+import { lazy, Suspense, useContext, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -14,7 +14,8 @@ import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
 import ActivityFeed from "./ActivityFeed.jsx";
 import MalRecommendations from "./MalRecommendations.jsx";
-import AvatarPicker from "./AvatarPicker.jsx";
+// Modal — only needed on click, deferred so it doesn't bloat the profile chunk.
+const AvatarPicker = lazy(() => import("./AvatarPicker.jsx"));
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
@@ -149,10 +150,14 @@ export default function ProfilePage({ googleUser }) {
           </div>
         </header>
 
-        <AvatarPicker
-          open={pickerOpen}
-          onClose={() => setPickerOpen(false)}
-        />
+        {pickerOpen && (
+          <Suspense fallback={null}>
+            <AvatarPicker
+              open={pickerOpen}
+              onClose={() => setPickerOpen(false)}
+            />
+          </Suspense>
+        )}
 
         <section className="mb-8 grid gap-4 animate-fade-up sm:grid-cols-2 lg:grid-cols-4">
           <HeroStat

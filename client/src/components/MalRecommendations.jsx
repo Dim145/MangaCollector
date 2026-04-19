@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import Skeleton from "./ui/Skeleton.jsx";
-import MalRecommendationModal from "./MalRecommendationModal.jsx";
 import { useMalRecommendations } from "@/hooks/useMalRecommendations.js";
 import { useT } from "@/i18n/index.jsx";
+// Only mounts when a tile is clicked — deferred out of the profile chunk.
+const MalRecommendationModal = lazy(
+  () => import("./MalRecommendationModal.jsx")
+);
 
 /**
  * R2 — "You might also like". Clicking a cover opens a modal that pulls
@@ -87,11 +90,15 @@ export default function MalRecommendations() {
             ))}
       </div>
 
-      <MalRecommendationModal
-        open={Boolean(selected)}
-        rec={selected}
-        onClose={() => setSelected(null)}
-      />
+      {selected && (
+        <Suspense fallback={null}>
+          <MalRecommendationModal
+            open={Boolean(selected)}
+            rec={selected}
+            onClose={() => setSelected(null)}
+          />
+        </Suspense>
+      )}
     </section>
   );
 }

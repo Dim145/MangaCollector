@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -7,20 +7,25 @@ import {
   rememberLanguage,
 } from "@/i18n/index.jsx";
 
+// Eager — always on screen, no point code-splitting these
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DefaultBackground from "@/components/DefaultBackground.jsx";
-
-import About from "./components/About";
-import Login from "./components/Login";
-import Dashboard from "./components/Dashboard";
-import MangaPage from "./components/MangaPage";
-import AddPage from "@/components/AddPage.jsx";
-import ProfilePage from "./components/ProfilePage";
-import SettingsPage from "@/components/SettingsPage.jsx";
-import Wishlist from "./components/Wishlist";
 import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
+import PageLoader from "@/components/PageLoader.jsx";
+
+// Lazy routes — each lands in its own JS chunk so first paint ships less.
+// Recharts rides with ProfilePage, @zxing rides with AddPage via its own
+// dynamic import inside barcode.js.
+const About = lazy(() => import("./components/About"));
+const Login = lazy(() => import("./components/Login"));
+const Dashboard = lazy(() => import("./components/Dashboard"));
+const MangaPage = lazy(() => import("./components/MangaPage"));
+const AddPage = lazy(() => import("@/components/AddPage.jsx"));
+const ProfilePage = lazy(() => import("./components/ProfilePage"));
+const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
+const Wishlist = lazy(() => import("./components/Wishlist"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -32,6 +37,39 @@ import {
 } from "@/lib/theme.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
+import axios from "@/utils/axios.js";
+import {
+  cacheAllVolumes,
+  cacheLibrary,
+  cacheSettings,
+  db,
+  SETTINGS_KEY,
+} from "@/lib/db.js";
+
+/**
+ * Warm the Dexie cache for core user data during idle time after mount,
+ * so internal navigation (Dashboard/Profile/Settings) paints from cache
+ * without waiting for an HTTP round-trip.
+ *
+ * Gated on a positive "was-authenticated" signal (any existing Dexie row)
+ * so first-time visitors on the About page don't fire 401s.
+ */
+async function prefetchCoreUserData() {
+  try {
+    const hasPrior = await db.settings.get(SETTINGS_KEY);
+    if (!hasPrior) return;
+  } catch {
+    return;
+  }
+
+  // Best-effort; failures are swallowed. React Query/Dexie recover on the
+  // next actual useQuery invocation.
+  await Promise.allSettled([
+    axios.get("/api/user/library").then((r) => cacheLibrary(r.data)),
+    axios.get("/api/user/volume").then((r) => cacheAllVolumes(r.data)),
+    axios.get("/api/user/settings").then((r) => cacheSettings(r.data)),
+  ]);
+}
 
 function SettingsProvider({ children }) {
   const provider = useAuthProvider();
@@ -94,6 +132,7 @@ function AppShell() {
       <OfflineBanner />
       <SyncToaster />
       <main className="relative">
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<About />} />
           <Route path="/log-in" element={<Login />} />
@@ -150,6 +189,7 @@ function AppShell() {
             }
           />
         </Routes>
+        </Suspense>
       </main>
     </>
   );
@@ -161,6 +201,29 @@ export default function App() {
     // that feeds the sync runner's "is-server-reachable" signal.
     installConnectivityWatcher();
     installSyncRunner();
+
+    // Prime the Dexie cache in the background so the first internal nav is
+    // instant. Uses requestIdleCallback to stay out of the critical path;
+    // falls back to setTimeout on Safari (no rIC support).
+    const schedule =
+      typeof window !== "undefined" && "requestIdleCallback" in window
+        ? (fn) => window.requestIdleCallback(fn, { timeout: 3000 })
+        : (fn) => setTimeout(fn, 800);
+    const handle = schedule(() => {
+      prefetchCoreUserData();
+    });
+
+    return () => {
+      if (typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        try {
+          window.cancelIdleCallback(handle);
+        } catch {
+          /* noop */
+        }
+      } else {
+        clearTimeout(handle);
+      }
+    };
   }, []);
 
   return (

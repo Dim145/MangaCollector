@@ -20,7 +20,11 @@ export const queryClient = new QueryClient({
         if (status >= 400 && status < 500) return false;
         return failureCount < 2;
       },
-      staleTime: 30_000,
+      // Dexie is the source of truth via useLiveQuery, so React Query only
+      // needs to trigger background refreshes once per session window. A 5-min
+      // staleTime keeps navigations between Dashboard/Profile/Settings from
+      // re-hitting the server every 30s. Tab-focus still refetches (below).
+      staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: true,
     },
     mutations: {

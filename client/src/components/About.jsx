@@ -3,7 +3,7 @@ import { useT } from "@/i18n/index.jsx";
 import Punpun from "../assets/punpun.jpg";
 import Berserk from "../assets/berserk.jpg";
 import Beastars from "../assets/beastars.jpg";
-import TokyoGhoul from "../assets/tokyoghoul.webp";
+import TokyoGhoul from "../assets/tokyoghoul.jpg";
 import Vinland from "../assets/vinland.jpg";
 import FirePunch from "../assets/firepunch.jpg";
 import SettingsContext from "@/SettingsContext.js";

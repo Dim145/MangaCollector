@@ -109,4 +109,18 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split heavy, stable-API libraries into their own chunks so their
+        // hashes don't churn on every app-code change — better long-term
+        // browser cache hit rate, faster repeat visits.
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          charts: ["recharts"],
+          storage: ["dexie", "dexie-react-hooks", "@tanstack/react-query"],
+        },
+      },
+    },
+  },
 });
