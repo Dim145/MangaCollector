@@ -71,10 +71,15 @@ pub async fn oauth_callback(
     let _ = session.remove::<String>(SESSION_CSRF_TOKEN).await;
     let _ = session.remove::<String>(SESSION_NONCE).await;
 
-    let user_info =
-        exchange_code_for_user(&state.oidc_client.client, params.code, pkce_verifier, nonce)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+    let user_info = exchange_code_for_user(
+        &state.oidc_client.client,
+        &state.oidc_client.http_client,
+        params.code,
+        pkce_verifier,
+        nonce,
+    )
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?;
 
     // Find or create user
     let user = match users::find_by_provider_id(&state.db, &user_info.provider_id).await? {

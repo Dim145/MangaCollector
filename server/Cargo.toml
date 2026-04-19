@@ -1,7 +1,8 @@
 [package]
 name = "manga-collector-server"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 
 [[bin]]
 name = "manga-collector-server"
@@ -9,30 +10,31 @@ path = "src/main.rs"
 
 [dependencies]
 # Web framework
-axum = { version = "0.7", features = ["multipart", "macros"] }
-axum-extra = { version = "0.9", features = ["cookie", "typed-header"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+axum = { version = "0.8", features = ["multipart", "macros"] }
+axum-extra = { version = "0.12", features = ["cookie", "typed-header"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
-# Sessions
-tower-sessions = "0.13"
-tower-sessions-sqlx-store = { version = "0.14", features = ["postgres"] }
+# Sessions — tower-sessions-sqlx-store 0.15 still depends on
+# tower-sessions-core 0.14, so we pin to 0.14 to keep the trait impls aligned.
+tower-sessions = "0.14"
+tower-sessions-sqlx-store = { version = "0.15", features = ["postgres"] }
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "rust_decimal"] }
-sea-orm = { version = "1", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-chrono", "with-rust_decimal"] }
+sea-orm = { version = "1.1", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-chrono", "with-rust_decimal"] }
 
 # OAuth / OIDC
-openidconnect = { version = "3.5", features = ["reqwest"] }
+openidconnect = { version = "4", features = ["reqwest"] }
 
-# HTTP client (MAL API)
+# HTTP client (MAL API, OIDC)
 reqwest = { version = "0.12", features = ["json"] }
 
 # S3 / MinIO
-aws-sdk-s3 = "1.43"
+aws-sdk-s3 = "1.129"
 aws-credential-types = { version = "1.2", features = ["hardcoded-credentials"] }
 
 # Serialization
@@ -40,7 +42,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # Decimal for price
-rust_decimal = { version = "1.35", features = ["serde-with-str"] }
+rust_decimal = { version = "1.41", features = ["serde-with-str"] }
 
 # Environment config
 dotenvy = "0.15"
@@ -50,13 +52,13 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Error handling
 anyhow = "1"
-thiserror = "1"
+thiserror = "2"
 
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Async trait
+# Async trait (still needed for our own StorageBackend trait)
 async-trait = "0.1"
 
 # Bytes / futures
@@ -71,5 +73,8 @@ url = "2"
 
 [profile.release]
 opt-level = 3
-lto = true
-codegen-units = 1
+# "thin" LTO gets ~95% of the perf of full LTO for ~40% of the link time.
+# codegen-units = 16 (the cargo default for release) lets the compiler
+# parallelise codegen across cores — huge win with a 200+ crate dep graph.
+lto = "thin"
+codegen-units = 16

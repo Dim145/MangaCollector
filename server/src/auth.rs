@@ -1,11 +1,12 @@
-use async_trait::async_trait;
 use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request::Parts;
-use openidconnect::core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata, CoreTokenResponse};
-use openidconnect::reqwest::async_http_client;
+use openidconnect::core::{
+    CoreAuthenticationFlow, CoreClient, CoreProviderMetadata, CoreTokenResponse,
+};
 use openidconnect::{
-    AuthorizationCode, ClientId, ClientSecret, CsrfToken, IssuerUrl, Nonce,
-    PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
+    AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointMaybeSet,
+    EndpointNotSet, EndpointSet, IssuerUrl, Nonce, PkceCodeChallenge, PkceCodeVerifier,
+    RedirectUrl, Scope,
 };
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
@@ -18,14 +19,35 @@ use crate::services::users;
 
 // ── OIDC client state ─────────────────────────────────────────────────────────
 
+/// Fully-configured OIDC client after provider discovery + redirect URL
+/// wiring. openidconnect 4 tracks endpoint-configuration state at the type
+/// level, so we have to spell out the fully-set shape explicitly.
+pub type OidcCoreClient = CoreClient<
+    EndpointSet,      // HasAuthUrl
+    EndpointNotSet,   // HasDeviceAuthUrl
+    EndpointNotSet,   // HasIntrospectionUrl
+    EndpointNotSet,   // HasRevocationUrl
+    EndpointMaybeSet, // HasTokenUrl
+    EndpointMaybeSet, // HasUserInfoUrl
+>;
+
 pub struct OidcState {
-    pub client: CoreClient,
+    pub client: OidcCoreClient,
+    /// reqwest client dedicated to OIDC traffic. openidconnect 4 mandates
+    /// `redirect::Policy::none()` to prevent SSRF-style attacks during token
+    /// exchange, so we can't share the general-purpose client.
+    pub http_client: reqwest::Client,
 }
 
 pub async fn build_oidc_client(config: &Config) -> anyhow::Result<OidcState> {
+    let http_client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|e| anyhow::anyhow!("Failed to build OIDC HTTP client: {}", e))?;
+
     let issuer_url = IssuerUrl::new(config.auth_issuer.clone())?;
 
-    let provider_metadata = CoreProviderMetadata::discover_async(issuer_url, async_http_client)
+    let provider_metadata = CoreProviderMetadata::discover_async(issuer_url, &http_client)
         .await
         .map_err(|e| anyhow::anyhow!("OIDC discovery failed: {}", e))?;
 
@@ -41,7 +63,10 @@ pub async fn build_oidc_client(config: &Config) -> anyhow::Result<OidcState> {
             .map_err(|e| anyhow::anyhow!("Invalid redirect URL: {}", e))?,
     );
 
-    Ok(OidcState { client })
+    Ok(OidcState {
+        client,
+        http_client,
+    })
 }
 
 // ── Session keys ──────────────────────────────────────────────────────────────
@@ -61,7 +86,7 @@ pub struct OAuthStartData {
     pub nonce: String,
 }
 
-pub fn build_auth_url(client: &CoreClient) -> OAuthStartData {
+pub fn build_auth_url(client: &OidcCoreClient) -> OAuthStartData {
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
     let (auth_url, csrf_token, nonce) = client
         .authorize_url(
@@ -98,7 +123,8 @@ pub struct CallbackUserInfo {
 }
 
 pub async fn exchange_code_for_user(
-    client: &CoreClient,
+    client: &OidcCoreClient,
+    http_client: &reqwest::Client,
     code: String,
     pkce_verifier_secret: String,
     nonce_secret: String,
@@ -108,8 +134,9 @@ pub async fn exchange_code_for_user(
 
     let token_response: CoreTokenResponse = client
         .exchange_code(AuthorizationCode::new(code))
+        .map_err(|e| anyhow::anyhow!("Exchange code endpoint not configured: {}", e))?
         .set_pkce_verifier(pkce_verifier)
-        .request_async(async_http_client)
+        .request_async(http_client)
         .await
         .map_err(|e| anyhow::anyhow!("Token exchange failed: {}", e))?;
 
@@ -131,7 +158,7 @@ pub async fn exchange_code_for_user(
     let name = claims
         .name()
         .and_then(|n: &openidconnect::LocalizedClaim<openidconnect::EndUserName>| n.get(None))
-        .map(|n| n.to_string());
+        .map(|n: &openidconnect::EndUserName| n.to_string());
 
     Ok(CallbackUserInfo {
         provider_id,
@@ -146,7 +173,6 @@ pub async fn exchange_code_for_user(
 /// to enforce authentication. Returns 401 if no valid session is found.
 pub struct AuthenticatedUser(pub User);
 
-#[async_trait]
 impl<S> FromRequestParts<S> for AuthenticatedUser
 where
     S: Send + Sync,
