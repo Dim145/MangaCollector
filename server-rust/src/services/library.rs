@@ -39,7 +39,7 @@ pub async fn add_to_user_library(
     user_id: i32,
     req: AddLibraryRequest,
 ) -> Result<LibraryEntry, AppError> {
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
     let genres_str = req
         .genres
         .as_deref()
@@ -214,7 +214,7 @@ pub async fn update_manga_volumes(
         }
     }
 
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
     // Partial update — use ActiveModel with only changed fields
     let row = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
@@ -239,7 +239,7 @@ pub async fn update_volumes_owned(
     mal_id: i32,
     volumes_owned: i32,
 ) -> Result<(), AppError> {
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
     let row = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(library::Column::MalId.eq(mal_id))
@@ -287,7 +287,7 @@ pub async fn change_poster(
     mal_id: i32,
     new_poster_path: Option<String>,
 ) -> Result<(), AppError> {
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
     let row = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(library::Column::MalId.eq(mal_id))
@@ -371,7 +371,7 @@ pub async fn update_infos_from_mal(
             }
         }
 
-        let now = Utc::now().naive_utc();
+        let now = Utc::now();
         // Only overwrite image if no custom poster set
         let image_update = if row.image_url_jpg.is_none() {
             mal_data

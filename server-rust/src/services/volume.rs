@@ -46,7 +46,7 @@ pub async fn update_by_id(
     price: Option<Decimal>,
     store: Option<String>,
 ) -> Result<VolumeUpdateResult, AppError> {
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
 
     // Fetch the existing row upfront so we can detect an ownership change
     // (for activity logging) and still behave idempotently if it's gone.
@@ -114,7 +114,7 @@ pub async fn update_by_id(
 }
 
 pub async fn add_volume(db: &Db, user_id: i32, mal_id: i32, vol_num: i32) -> Result<Volume, AppError> {
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),
@@ -135,7 +135,7 @@ pub async fn add_volume_tx(
     mal_id: i32,
     vol_num: i32,
 ) -> Result<(), AppError> {
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),

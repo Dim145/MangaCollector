@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub created_on: chrono::NaiveDateTime,
-    pub modified_on: chrono::NaiveDateTime,
+    pub created_on: chrono::DateTime<chrono::Utc>,
+    pub modified_on: chrono::DateTime<chrono::Utc>,
     pub user_id: i32,
     pub mal_id: Option<i32>,
     pub name: String,
@@ -27,8 +27,8 @@ impl ActiveModelBehavior for ActiveModel {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibraryEntry {
     pub id: i32,
-    pub created_on: chrono::NaiveDateTime,
-    pub modified_on: chrono::NaiveDateTime,
+    pub created_on: chrono::DateTime<chrono::Utc>,
+    pub modified_on: chrono::DateTime<chrono::Utc>,
     pub user_id: i32,
     pub mal_id: Option<i32>,
     pub name: String,

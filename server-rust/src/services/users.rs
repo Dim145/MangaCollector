@@ -23,7 +23,7 @@ pub async fn create(
     email: Option<&str>,
     name: Option<&str>,
 ) -> Result<User, AppError> {
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),

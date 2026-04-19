@@ -14,7 +14,7 @@ pub struct Model {
     pub vol_num: Option<i32>,
     pub name: Option<String>,
     pub count_value: Option<i32>,
-    pub created_on: chrono::NaiveDateTime,
+    pub created_on: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -46,8 +46,8 @@ pub async fn get_user_settings(db: &Db, user_id: i32) -> Result<SettingRow, AppE
     // If no settings row yet, return defaults (no DB row needed until first update)
     Ok(row.unwrap_or_else(|| SettingRow {
         id: 0,
-        created_on: Utc::now().naive_utc(),
-        modified_on: Utc::now().naive_utc(),
+        created_on: Utc::now(),
+        modified_on: Utc::now(),
         user_id,
         currency: DEFAULT_CURRENCY.into(),
         title_type: Some(DEFAULT_TITLE_TYPE.into()),
@@ -62,7 +62,7 @@ pub async fn update_user_settings(
     user_id: i32,
     req: &UpdateSettingsRequest,
 ) -> Result<SettingRow, AppError> {
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
 
     let currency_code = req
         .currency

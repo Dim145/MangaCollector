@@ -24,7 +24,7 @@ pub async fn record(
     name: Option<String>,
     count_value: Option<i32>,
 ) {
-    let now = Utc::now().naive_utc();
+    let now = Utc::now();
     let model = ActiveModel {
         user_id: Set(user_id),
         event_type: Set(event_type.to_string()),
