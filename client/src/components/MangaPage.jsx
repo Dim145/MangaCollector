@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
+import Skeleton from "./ui/Skeleton.jsx";
 import Modal from "@/components/utils/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import {
@@ -37,7 +38,10 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [selectedImage, setSelectedImage] = useState(undefined);
   const [selectedImagePreview, setSelectedImagePreview] = useState(null);
 
-  const { data: volumes } = useVolumesForManga(manga.mal_id);
+  const {
+    data: volumes,
+    isInitialLoad: volumesLoading,
+  } = useVolumesForManga(manga.mal_id);
   const updateManga = useUpdateManga();
   const deleteManga = useDeleteManga();
   const updateVolumesOwned = useUpdateVolumesOwned();
@@ -373,8 +377,16 @@ export default function MangaPage({ manga, adult_content_level }) {
                       Collection
                     </p>
                     <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-washi">
-                      <span className="text-hanko-gradient">{volumesOwned}</span>
-                      <span className="text-washi-dim"> / {totalVolumes || "?"}</span>
+                      {volumesLoading ? (
+                        <Skeleton.Stat width="6ch" />
+                      ) : (
+                        <>
+                          <span className="text-hanko-gradient">{volumesOwned}</span>
+                          <span className="text-washi-dim">
+                            {" "}/ {totalVolumes || "?"}
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="text-right">
@@ -382,16 +394,22 @@ export default function MangaPage({ manga, adult_content_level }) {
                       Progress
                     </p>
                     <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-gold">
-                      {completion}%
+                      {volumesLoading ? (
+                        <Skeleton.Stat width="4ch" />
+                      ) : (
+                        `${completion}%`
+                      )}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-washi/15">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-hanko via-hanko-bright to-gold transition-all duration-700"
-                    style={{ width: `${completion}%` }}
-                  />
+                  {!volumesLoading && (
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-hanko via-hanko-bright to-gold transition-all duration-700"
+                      style={{ width: `${completion}%` }}
+                    />
+                  )}
                 </div>
 
                 {isEditing && (
@@ -491,11 +509,15 @@ export default function MangaPage({ manga, adult_content_level }) {
             label="Total paid"
             value={formatCurrency(totalPrice, currencySetting)}
             hint={`${volumesOwned} owned volumes`}
+            loading={volumesLoading}
+            skeletonWidth="5ch"
           />
           <SummaryCard
             label="Average / volume"
             value={volumesOwned > 0 ? formatCurrency(avgPrice, currencySetting) : "—"}
             hint="Across owned copies"
+            loading={volumesLoading}
+            skeletonWidth="4ch"
           />
           <div className="sm:col-span-2 lg:col-span-1">
             {!showAddDropdown ? (
@@ -594,7 +616,24 @@ export default function MangaPage({ manga, adult_content_level }) {
             </span>
           </div>
 
-          {volumes?.length > 0 ? (
+          {volumesLoading ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border bg-ink-1/30 p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-lg" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : volumes?.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {volumes.map((vol) => (
                 <Volume
@@ -660,16 +699,24 @@ export default function MangaPage({ manga, adult_content_level }) {
   );
 }
 
-function SummaryCard({ label, value, hint }) {
+function SummaryCard({ label, value, hint, loading, skeletonWidth }) {
   return (
     <div className="rounded-2xl border border-border bg-ink-1/50 p-5 backdrop-blur">
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
         {label}
       </p>
       <p className="mt-2 font-display text-2xl font-semibold tabular-nums text-washi">
-        {value}
+        {loading ? <Skeleton.Stat width={skeletonWidth} /> : value}
       </p>
-      {hint && <p className="mt-1 text-xs text-washi-muted">{hint}</p>}
+      {hint && (
+        <p className="mt-1 text-xs text-washi-muted">
+          {loading ? (
+            <Skeleton className="h-3 w-32 align-middle" />
+          ) : (
+            hint
+          )}
+        </p>
+      )}
     </div>
   );
 }

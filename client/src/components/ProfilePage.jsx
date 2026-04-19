@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import DefaultBackground from "./DefaultBackground";
+import Skeleton from "./ui/Skeleton.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
@@ -18,8 +19,8 @@ import { formatCurrency } from "@/utils/price.js";
 
 export default function ProfilePage({ googleUser }) {
   const { currency: currencySetting } = useContext(SettingsContext);
-  const { data: library, isLoading: loadingLib } = useLibrary();
-  const { data: volumes, isLoading: loadingVol } = useAllVolumes();
+  const { data: library, isInitialLoad: loadingLib } = useLibrary();
+  const { data: volumes, isInitialLoad: loadingVol } = useAllVolumes();
 
   const loading = loadingLib || loadingVol;
 
@@ -135,31 +136,45 @@ export default function ProfilePage({ googleUser }) {
               Progression
             </h2>
 
-            <div className="relative mt-4 h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={completionData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={65}
-                    outerRadius={95}
-                    paddingAngle={3}
-                    stroke="none"
-                  >
-                    <Cell fill="var(--hanko)" />
-                    <Cell fill="var(--ink-2)" />
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                <p className="font-display text-4xl font-semibold tabular-nums text-hanko-gradient">
-                  {completionRate}%
-                </p>
-                <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                  complete
-                </p>
-              </div>
+            <div className="relative mt-4 flex h-64 items-center justify-center">
+              {loading ? (
+                <>
+                  <Skeleton.Circle size={190} thickness={30} />
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5">
+                    <Skeleton className="h-6 w-16" />
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                      complete
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={completionData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={65}
+                        outerRadius={95}
+                        paddingAngle={3}
+                        stroke="none"
+                      >
+                        <Cell fill="var(--hanko)" />
+                        <Cell fill="var(--ink-2)" />
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <p className="font-display text-4xl font-semibold tabular-nums text-hanko-gradient">
+                      {completionRate}%
+                    </p>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                      complete
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -172,7 +187,9 @@ export default function ProfilePage({ googleUser }) {
             </h2>
 
             <div className="mt-4 h-64">
-              {seriesByCost.length > 0 ? (
+              {loading ? (
+                <Skeleton.Bars count={5} maxHeight={230} />
+              ) : seriesByCost.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={seriesByCost}>
                     <defs>
@@ -270,20 +287,22 @@ function HeroStat({ label, value, sub, hint, accent, loading }) {
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
         {label}
       </p>
-      {loading ? (
-        <div className="mt-3 h-9 w-24 animate-shimmer rounded" />
-      ) : (
-        <p
-          className={`mt-2 font-display text-3xl font-semibold tabular-nums md:text-4xl ${accentClass}`}
-        >
-          {value}
-          {sub && (
-            <span className="ml-1 font-mono text-sm font-normal text-washi-dim">
-              {sub}
-            </span>
-          )}
-        </p>
-      )}
+      <p
+        className={`mt-2 font-display text-3xl font-semibold tabular-nums md:text-4xl ${accentClass}`}
+      >
+        {loading ? (
+          <Skeleton.Stat width="5ch" />
+        ) : (
+          <>
+            {value}
+            {sub && (
+              <span className="ml-1 font-mono text-sm font-normal text-washi-dim">
+                {sub}
+              </span>
+            )}
+          </>
+        )}
+      </p>
       {hint && (
         <p className="mt-1 text-[11px] text-washi-muted">{hint}</p>
       )}

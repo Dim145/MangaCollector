@@ -17,7 +17,7 @@ export function useVolumesForManga(mal_id) {
     return rows.sort((a, b) => a.vol_num - b.vol_num);
   }, [mal_id]);
 
-  useQuery({
+  const query = useQuery({
     queryKey: ["volumes", mal_id],
     enabled: mal_id != null,
     queryFn: async () => {
@@ -27,9 +27,16 @@ export function useVolumesForManga(mal_id) {
     },
   });
 
+  const safe = data ?? [];
+  const dexieReady = data !== undefined;
+  const pending = query.isPending && mal_id != null;
+
   return {
-    data: data ?? [],
-    isLoading: data === undefined,
+    data: safe,
+    isInitialLoad: !dexieReady || (safe.length === 0 && pending),
+    isRefetching: query.isFetching && !pending && safe.length > 0,
+    isEmpty: dexieReady && safe.length === 0 && !pending,
+    isLoading: !dexieReady || (safe.length === 0 && pending),
   };
 }
 
@@ -37,7 +44,7 @@ export function useVolumesForManga(mal_id) {
 export function useAllVolumes() {
   const data = useLiveQuery(() => db.volumes.toArray(), []);
 
-  useQuery({
+  const query = useQuery({
     queryKey: ["volumes-all"],
     queryFn: async () => {
       const { data } = await axios.get(`/api/user/volume`);
@@ -46,9 +53,16 @@ export function useAllVolumes() {
     },
   });
 
+  const safe = data ?? [];
+  const dexieReady = data !== undefined;
+  const pending = query.isPending;
+
   return {
-    data: data ?? [],
-    isLoading: data === undefined,
+    data: safe,
+    isInitialLoad: !dexieReady || (safe.length === 0 && pending),
+    isRefetching: query.isFetching && !pending && safe.length > 0,
+    isEmpty: dexieReady && safe.length === 0 && !pending,
+    isLoading: !dexieReady || (safe.length === 0 && pending),
   };
 }
 

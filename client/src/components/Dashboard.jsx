@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
 import MangaSearchBar from "./MangaSearchBar";
+import Skeleton from "./ui/Skeleton.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
@@ -13,7 +14,7 @@ export default function Dashboard() {
   const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
 
-  const { data: rawLibrary, isLoading } = useLibrary();
+  const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const library = useMemo(
     () => filterAdultGenreIfNeeded(adult_content_level, rawLibrary ?? []),
     [adult_content_level, rawLibrary]
@@ -69,9 +70,23 @@ export default function Dashboard() {
 
           {/* Stat chips */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatChip label="Series" value={stats.series} />
-            <StatChip label="Volumes" value={`${stats.owned}/${stats.total || "?"}`} />
-            <StatChip label="Complete" value={stats.complete} accent="gold" />
+            <StatChip
+              label="Series"
+              value={stats.series}
+              loading={isInitialLoad}
+            />
+            <StatChip
+              label="Volumes"
+              value={`${stats.owned}/${stats.total || "?"}`}
+              loading={isInitialLoad}
+              width="6ch"
+            />
+            <StatChip
+              label="Complete"
+              value={stats.complete}
+              accent="gold"
+              loading={isInitialLoad}
+            />
             <StatChip
               label="Progress"
               value={
@@ -80,6 +95,8 @@ export default function Dashboard() {
                   : "—"
               }
               accent="hanko"
+              loading={isInitialLoad}
+              width="5ch"
             />
           </div>
         </header>
@@ -146,16 +163,13 @@ export default function Dashboard() {
 
         {/* Grid */}
         <section>
-          {isLoading ? (
+          {isInitialLoad ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {[...Array(12)].map((_, i) => (
-                <div
-                  key={i}
-                  className="aspect-[2/3] w-full animate-shimmer rounded-lg"
-                />
+                <Skeleton.Card key={i} />
               ))}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : isEmpty || filtered.length === 0 ? (
             <EmptyState hasQuery={Boolean(query)} onAdd={() => navigate("/addmanga")} />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -176,7 +190,7 @@ export default function Dashboard() {
   );
 }
 
-function StatChip({ label, value, accent }) {
+function StatChip({ label, value, accent, loading, width }) {
   const accentClass =
     accent === "hanko"
       ? "text-hanko-bright"
@@ -188,8 +202,10 @@ function StatChip({ label, value, accent }) {
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
         {label}
       </p>
-      <p className={`mt-2 font-display text-2xl font-semibold tabular-nums md:text-3xl ${accentClass}`}>
-        {value}
+      <p
+        className={`mt-2 font-display text-2xl font-semibold tabular-nums md:text-3xl ${accentClass}`}
+      >
+        {loading ? <Skeleton.Stat width={width} /> : value}
       </p>
       <div className="pointer-events-none absolute -bottom-6 -right-6 h-16 w-16 rounded-full bg-hanko/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
     </div>

@@ -13,11 +13,21 @@ import {
 /**
  * Live library read — always reads from Dexie (works offline).
  * Silently kicks off a background refetch when online.
+ *
+ * Loading states:
+ *   - isInitialLoad : Dexie hasn't answered yet OR Dexie is empty AND a
+ *                     network fetch is in flight (true on cold-start).
+ *                     Use to show a skeleton instead of zero values.
+ *   - isRefetching  : Dexie already has data, we're revalidating from the
+ *                     server in the background. No user-visible loader
+ *                     needed — just a subtle indicator if desired.
+ *   - isEmpty       : Genuinely no data (fetch done, Dexie empty).
+ *                     Use to show the empty state.
  */
 export function useLibrary() {
   const data = useLiveQuery(() => db.library.toArray(), []);
 
-  useQuery({
+  const query = useQuery({
     queryKey: ["library"],
     queryFn: async () => {
       const { data } = await axios.get(`/api/user/library`);
@@ -26,10 +36,17 @@ export function useLibrary() {
     },
   });
 
+  const safe = data ?? [];
+  const dexieReady = data !== undefined;
+  const pending = query.isPending;
+
   return {
-    data: data ?? [],
-    // "isLoading" is only true on the very first load before Dexie is ready.
-    isLoading: data === undefined,
+    data: safe,
+    isInitialLoad: !dexieReady || (safe.length === 0 && pending),
+    isRefetching: query.isFetching && !pending && safe.length > 0,
+    isEmpty: dexieReady && safe.length === 0 && !pending,
+    // Backwards-compat alias — some call sites still use `isLoading`
+    isLoading: !dexieReady || (safe.length === 0 && pending),
   };
 }
 

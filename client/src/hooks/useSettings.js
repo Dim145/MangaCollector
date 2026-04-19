@@ -7,11 +7,12 @@ import { enqueueSettingsUpdate } from "@/lib/sync.js";
 
 /**
  * Live user settings from Dexie, refreshed from backend in the background.
+ * Same loading semantics as other data hooks — see useLibrary for details.
  */
 export function useUserSettings() {
   const row = useLiveQuery(() => db.settings.get(SETTINGS_KEY), []);
 
-  useQuery({
+  const query = useQuery({
     queryKey: ["settings"],
     queryFn: async () => {
       const { data } = await axios.get(`/api/user/settings`);
@@ -21,12 +22,19 @@ export function useUserSettings() {
   });
 
   const settings = row
-    ? Object.fromEntries(
-        Object.entries(row).filter(([k]) => k !== "key")
-      )
+    ? Object.fromEntries(Object.entries(row).filter(([k]) => k !== "key"))
     : null;
 
-  return { data: settings, isLoading: row === undefined };
+  const dexieReady = row !== undefined;
+  const pending = query.isPending;
+
+  return {
+    data: settings,
+    isInitialLoad: !dexieReady || (row === null && pending),
+    isRefetching: query.isFetching && !pending && dexieReady && row !== null,
+    isEmpty: dexieReady && row === null && !pending,
+    isLoading: !dexieReady || (row === null && pending),
+  };
 }
 
 export async function bootstrapSettings() {

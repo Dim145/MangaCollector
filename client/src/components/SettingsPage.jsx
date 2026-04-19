@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/utils/Modal.jsx";
+import Skeleton from "@/components/ui/Skeleton.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
@@ -39,7 +40,7 @@ const CURRENCIES = [
 ];
 
 export default function SettingsPage() {
-  const { data: settings } = useUserSettings();
+  const { data: settings, isInitialLoad: settingsLoading } = useUserSettings();
   const updateSettings = useUpdateSettings();
   const online = useOnline();
   const pending = usePendingCount();
@@ -189,7 +190,9 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <div className="space-y-6">
+      {settingsLoading && <SettingsSkeleton />}
+
+      <div className={`space-y-6 ${settingsLoading ? "hidden" : ""}`}>
         {/* ─── Theme ─── */}
         <section className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up">
           <div className="mb-4">
@@ -707,6 +710,44 @@ export default function SettingsPage() {
           </div>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+/** Skeleton placeholder while settings stream in from Dexie + server. */
+function SettingsSkeleton() {
+  return (
+    <div className="space-y-6 animate-fade-up">
+      {[3, 3, 2, 3, 0, 0].map((cols, sectionIdx) => (
+        <section
+          key={sectionIdx}
+          className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur"
+        >
+          <div className="mb-4 space-y-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-3 w-64" />
+          </div>
+          {cols > 0 ? (
+            <div
+              className={`grid gap-2 ${
+                cols === 2 ? "grid-cols-2" : "sm:grid-cols-3"
+              }`}
+            >
+              {Array.from({ length: cols }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border p-3"
+                >
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="mt-2 h-3 w-32" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Skeleton className="h-10 w-full" />
+          )}
+        </section>
+      ))}
     </div>
   );
 }
