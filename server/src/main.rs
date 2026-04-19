@@ -29,6 +29,13 @@ use crate::storage::{LocalStorage, S3Storage, StorageBackend};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Health-check subcommand: loopback HTTP call to /api/health, exit 0 on
+    // success and 1 on failure. Invoked by the Docker HEALTHCHECK so the
+    // scratch-based image doesn't need curl/wget.
+    if std::env::args().any(|a| a == "--health") {
+        std::process::exit(run_health_check().await);
+    }
+
     // Initialise tracing
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
@@ -108,4 +115,28 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     Ok(())
+}
+
+/// Loopback healthcheck used by `--health`. Hits the running server's
+/// `/api/health` endpoint over 127.0.0.1 and mirrors its pass/fail signal as
+/// a process exit code.
+async fn run_health_check() -> i32 {
+    let port = std::env::var("PORT")
+        .ok()
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(3000);
+    let url = format!("http://127.0.0.1:{}/api/health", port);
+
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return 1,
+    };
+
+    match client.get(&url).send().await {
+        Ok(resp) if resp.status().is_success() => 0,
+        _ => 1,
+    }
 }
