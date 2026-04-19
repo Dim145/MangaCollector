@@ -105,6 +105,7 @@ dist
 **/.vitepress/cache
 
 **/target
+.claude/
 
 # Docusaurus cache and generated files
 .docusaurus
