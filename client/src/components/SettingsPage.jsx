@@ -27,6 +27,12 @@ const TITLE_OPTIONS = [
   { value: "Japanese", label: "Japanese" },
 ];
 
+const THEME_OPTIONS = [
+  { value: "dark", label: "Dark", description: "Ink & hanko red" },
+  { value: "light", label: "Light", description: "Washi paper" },
+  { value: "auto", label: "Auto", description: "Follows your system" },
+];
+
 const CURRENCIES = [
   { code: "USD", label: "US Dollar", flag: "🇺🇸" },
   { code: "EUR", label: "Euro", flag: "🇪🇺" },
@@ -41,6 +47,7 @@ export default function SettingsPage() {
   const [showAdultContent, setShowAdultContent] = useState(0);
   const [currencyObject, setCurrencyObject] = useState(null);
   const [titleType, setTitleType] = useState("Default");
+  const [theme, setTheme] = useState("dark");
   const [saved, setSaved] = useState(false);
 
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -57,6 +64,7 @@ export default function SettingsPage() {
     setShowAdultContent(settings?.adult_content_level || 0);
     setCurrencyObject(settings?.currency);
     setTitleType(settings?.titleType || "Default");
+    setTheme(settings?.theme || "dark");
   }, [settings]);
 
   useEffect(() => {
@@ -92,6 +100,7 @@ export default function SettingsPage() {
       adult_content_level: value,
       currency: currencyObject,
       titleType,
+      theme,
     });
   };
 
@@ -101,6 +110,17 @@ export default function SettingsPage() {
       adult_content_level: showAdultContent,
       currency: currencyObject,
       titleType: value,
+      theme,
+    });
+  };
+
+  const handleThemeChange = (value) => {
+    setTheme(value);
+    save({
+      adult_content_level: showAdultContent,
+      currency: currencyObject,
+      titleType,
+      theme: value,
     });
   };
 
@@ -111,6 +131,7 @@ export default function SettingsPage() {
       adult_content_level: showAdultContent,
       currency: nextCurrency,
       titleType,
+      theme,
     });
   };
 
@@ -169,6 +190,71 @@ export default function SettingsPage() {
       </header>
 
       <div className="space-y-6">
+        {/* ─── Theme ─── */}
+        <section className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up">
+          <div className="mb-4">
+            <h2 className="font-display text-lg font-semibold text-washi">
+              Appearance
+            </h2>
+            <p className="mt-1 text-xs text-washi-muted">
+              Dark ink or washi paper. Auto follows your operating system.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {THEME_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                className={`group relative cursor-pointer overflow-hidden rounded-xl border p-3 transition ${
+                  theme === opt.value
+                    ? "border-hanko/60 bg-hanko/10"
+                    : "border-border bg-ink-0/40 hover:border-border/80"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="theme"
+                  value={opt.value}
+                  checked={theme === opt.value}
+                  onChange={() => handleThemeChange(opt.value)}
+                  className="sr-only"
+                />
+                <div className="flex items-center gap-2.5">
+                  <ThemeSwatch value={opt.value} />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`font-display text-sm font-semibold ${
+                        theme === opt.value
+                          ? "text-hanko-bright"
+                          : "text-washi"
+                      }`}
+                    >
+                      {opt.label}
+                    </p>
+                    <p className="mt-0.5 text-[10px] leading-tight text-washi-muted">
+                      {opt.description}
+                    </p>
+                  </div>
+                </div>
+                {theme === opt.value && (
+                  <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-hanko text-washi">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-2.5 w-2.5"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                )}
+              </label>
+            ))}
+          </div>
+        </section>
+
         <section className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up">
           <div className="mb-4">
             <h2 className="font-display text-lg font-semibold text-washi">
@@ -622,5 +708,54 @@ export default function SettingsPage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+/** Tiny visual preview of each theme option — two tones + a hanko dot. */
+function ThemeSwatch({ value }) {
+  if (value === "auto") {
+    return (
+      <span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-border">
+        <span
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, oklch(0.08 0.005 30) 0% 50%, oklch(0.98 0.008 85) 50% 100%)",
+          }}
+        />
+        <span
+          className="relative h-2 w-2 rounded-full"
+          style={{ background: "oklch(0.6 0.22 25)" }}
+        />
+      </span>
+    );
+  }
+
+  const bg = value === "dark" ? "oklch(0.11 0.008 30)" : "oklch(0.95 0.012 82)";
+  const border =
+    value === "dark"
+      ? "oklch(0.96 0.012 85 / 0.1)"
+      : "oklch(0.2 0.012 40 / 0.14)";
+  const text = value === "dark" ? "oklch(0.96 0.012 85)" : "oklch(0.2 0.012 40)";
+
+  return (
+    <span
+      className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg border"
+      style={{ background: bg, borderColor: border }}
+    >
+      <span
+        className="font-display text-[11px] font-semibold italic"
+        style={{ color: text }}
+      >
+        Aa
+      </span>
+      <span
+        className="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full"
+        style={{
+          background:
+            value === "dark" ? "oklch(0.6 0.22 25)" : "oklch(0.52 0.22 25)",
+        }}
+      />
+    </span>
   );
 }

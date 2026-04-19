@@ -144,7 +144,7 @@ export default function Header() {
                     `relative flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
                       isActive
                         ? "bg-hanko text-washi shadow-md glow-red"
-                        : "text-washi-muted hover:text-washi hover:bg-white/5"
+                        : "text-washi-muted hover:text-washi hover:bg-washi/10"
                     }`
                   }
                 >
@@ -181,7 +181,7 @@ export default function Header() {
                   `relative flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[10px] font-medium uppercase tracking-wider tap-none transition ${
                     isActive
                       ? "text-washi"
-                      : "text-washi-dim active:bg-white/5"
+                      : "text-washi-dim active:bg-washi/10"
                   } ${item.featured && "flex-none"}`
                 }
                 end

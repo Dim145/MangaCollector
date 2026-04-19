@@ -75,7 +75,7 @@ export default function Manga({ manga, adult_content_level }) {
 
           {/* Progress bar */}
           {total > 0 && (
-            <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-white/10">
+            <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-washi/15">
               <div
                 className={`h-full transition-all duration-500 ${
                   complete

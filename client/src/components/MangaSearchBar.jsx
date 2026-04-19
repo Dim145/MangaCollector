@@ -46,7 +46,7 @@ export default function MangaSearchBar({
           <button
             onClick={() => setQuery("")}
             aria-label="Clear"
-            className="absolute right-28 top-1/2 -translate-y-1/2 grid h-7 w-7 place-items-center rounded-full text-washi-dim transition hover:text-washi hover:bg-white/10"
+            className="absolute right-28 top-1/2 -translate-y-1/2 grid h-7 w-7 place-items-center rounded-full text-washi-dim transition hover:text-washi hover:bg-washi/10"
             tabIndex={-1}
           >
             <svg

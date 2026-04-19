@@ -198,7 +198,7 @@ function MenuItem({ onClick, icon, label, danger }) {
         className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
           danger
             ? "text-hanko-bright hover:bg-hanko/10"
-            : "text-washi hover:bg-white/5"
+            : "text-washi hover:bg-washi/10"
         }`}
       >
         <span className={danger ? "text-hanko-bright" : "text-washi-muted"}>

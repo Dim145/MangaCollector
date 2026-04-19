@@ -115,7 +115,7 @@ export default function Volume({
           <button
             onClick={() => setIsEditing(true)}
             aria-label="Edit volume"
-            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-washi-dim transition hover:bg-white/5 hover:text-washi"
+            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-washi-dim transition hover:bg-washi/5 hover:text-washi"
           >
             <svg
               viewBox="0 0 24 24"

@@ -60,7 +60,8 @@ async function updateSettings(settings) {
     await axios.post("/api/user/settings", {
       currency: settings.currency?.code,
       titleType: settings.titleType,
-      adult_content_level: settings.adult_content_level
+      adult_content_level: settings.adult_content_level,
+      theme: settings.theme,
     })
   ).data;
 }

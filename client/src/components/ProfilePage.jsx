@@ -147,8 +147,8 @@ export default function ProfilePage({ googleUser }) {
                     paddingAngle={3}
                     stroke="none"
                   >
-                    <Cell fill="oklch(0.6 0.22 25)" />
-                    <Cell fill="oklch(0.21 0.012 28)" />
+                    <Cell fill="var(--hanko)" />
+                    <Cell fill="var(--ink-2)" />
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
@@ -177,31 +177,31 @@ export default function ProfilePage({ googleUser }) {
                   <BarChart data={seriesByCost}>
                     <defs>
                       <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="oklch(0.68 0.24 25)" />
-                        <stop offset="100%" stopColor="oklch(0.48 0.2 25)" />
+                        <stop offset="0%" stopColor="var(--hanko-bright)" />
+                        <stop offset="100%" stopColor="var(--hanko-deep)" />
                       </linearGradient>
                     </defs>
                     <XAxis
                       dataKey="title"
-                      stroke="oklch(0.58 0.015 60)"
+                      stroke="var(--washi-dim)"
                       fontSize={10}
                       tickLine={false}
                       axisLine={false}
                     />
                     <YAxis
-                      stroke="oklch(0.58 0.015 60)"
+                      stroke="var(--washi-dim)"
                       fontSize={10}
                       tickLine={false}
                       axisLine={false}
                     />
                     <Tooltip
-                      cursor={{ fill: "oklch(0.21 0.012 28 / 0.6)" }}
+                      cursor={{ fill: "var(--ink-2)", fillOpacity: 0.6 }}
                       contentStyle={{
-                        background: "oklch(0.11 0.008 30)",
-                        border: "1px solid oklch(0.96 0.012 85 / 0.1)",
+                        background: "var(--ink-1)",
+                        border: "1px solid var(--border)",
                         borderRadius: "0.5rem",
                         fontSize: 12,
-                        color: "oklch(0.96 0.012 85)",
+                        color: "var(--washi)",
                       }}
                       formatter={(value) => [
                         formatCurrency(value, currencySetting),

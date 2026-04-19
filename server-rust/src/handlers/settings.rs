@@ -20,6 +20,7 @@ pub async fn get_settings(
         currency,
         title_type: row.title_type.unwrap_or_else(|| "Default".into()),
         adult_content_level: row.adult_content_level,
+        theme: row.theme.unwrap_or_else(|| "dark".into()),
         auth_name: state.config.auth_name.clone(),
         auth_icon: state.config.auth_icon.clone(),
     }))
@@ -40,6 +41,7 @@ pub async fn update_settings(
         currency,
         title_type: row.title_type.unwrap_or_else(|| "Default".into()),
         adult_content_level: row.adult_content_level,
+        theme: row.theme.unwrap_or_else(|| "dark".into()),
         auth_name: state.config.auth_name.clone(),
         auth_icon: state.config.auth_icon.clone(),
     }))

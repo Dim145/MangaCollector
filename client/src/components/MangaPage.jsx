@@ -387,7 +387,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                   </div>
                 </div>
 
-                <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+                <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-washi/15">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-hanko via-hanko-bright to-gold transition-all duration-700"
                     style={{ width: `${completion}%` }}

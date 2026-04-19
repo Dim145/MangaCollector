@@ -176,6 +176,7 @@ export async function enqueueSettingsUpdate(settings) {
         currency: settings.currency?.code ?? settings.currency,
         titleType: settings.titleType,
         adult_content_level: settings.adult_content_level,
+        theme: settings.theme,
       },
       ts: Date.now(),
     });

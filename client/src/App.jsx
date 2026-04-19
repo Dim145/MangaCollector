@@ -21,6 +21,10 @@ import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { installConnectivityWatcher } from "@/lib/connectivity.js";
 import { installSyncRunner } from "@/lib/sync.js";
+import {
+  applyThemePreference,
+  rememberThemePreference,
+} from "@/lib/theme.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 
@@ -31,6 +35,16 @@ function SettingsProvider({ children }) {
     () => ({ ...(provider ?? {}), ...(settings ?? {}) }),
     [provider, settings]
   );
+
+  // Sync theme preference to the DOM whenever it changes server-side or
+  // via local edit. Cached in localStorage so cold-start picks the right
+  // palette before React mounts.
+  useEffect(() => {
+    const pref = settings?.theme ?? "dark";
+    applyThemePreference(pref);
+    rememberThemePreference(pref);
+  }, [settings?.theme]);
+
   return (
     <SettingsContext.Provider value={merged}>
       {children}

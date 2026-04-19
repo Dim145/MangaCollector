@@ -1,7 +1,8 @@
 export default function DefaultBackground({ children }) {
   return (
     <div className="relative isolate grain min-h-[calc(100svh-4rem)] overflow-hidden">
-      {/* Ambient radial gradients */}
+      {/* Ambient radial gradients — colours resolve from theme tokens so
+          light mode gets pastel hints, dark mode keeps the deep hanko glow. */}
       <div
         className="pointer-events-none absolute inset-0 -z-10"
         aria-hidden="true"
@@ -10,28 +11,29 @@ export default function DefaultBackground({ children }) {
           className="absolute -top-40 left-1/2 h-[40rem] w-[40rem] -translate-x-1/2 rounded-full opacity-40 blur-3xl"
           style={{
             background:
-              "radial-gradient(circle, oklch(0.6 0.22 25 / 0.35), transparent 70%)",
+              "radial-gradient(circle, var(--scene-red), transparent 70%)",
           }}
         />
         <div
           className="absolute bottom-0 right-0 h-[30rem] w-[30rem] rounded-full opacity-30 blur-3xl"
           style={{
             background:
-              "radial-gradient(circle, oklch(0.82 0.13 78 / 0.25), transparent 70%)",
+              "radial-gradient(circle, var(--scene-gold), transparent 70%)",
           }}
         />
         <div
           className="absolute top-1/3 -left-20 h-[20rem] w-[20rem] rounded-full opacity-20 blur-3xl"
           style={{
             background:
-              "radial-gradient(circle, oklch(0.82 0.07 12 / 0.4), transparent 70%)",
+              "radial-gradient(circle, var(--scene-sakura), transparent 70%)",
           }}
         />
       </div>
 
-      {/* Fine grid */}
+      {/* Fine grid — uses text colour so it's a faint ink line in light,
+          faint cream line in dark. */}
       <svg
-        className="pointer-events-none absolute inset-0 -z-10 h-full w-full opacity-[0.04]"
+        className="pointer-events-none absolute inset-0 -z-10 h-full w-full text-washi opacity-[0.04]"
         aria-hidden="true"
       >
         <defs>
@@ -52,13 +54,13 @@ export default function DefaultBackground({ children }) {
         <rect width="100%" height="100%" fill="url(#bg-grid)" />
       </svg>
 
-      {/* Vignette */}
+      {/* Vignette — dark ring in dark mode, invisible on white page. */}
       <div
         className="pointer-events-none absolute inset-0 -z-10"
         aria-hidden="true"
         style={{
           background:
-            "radial-gradient(ellipse 100% 70% at 50% 0%, transparent, oklch(0.08 0.005 30 / 0.8) 100%)",
+            "radial-gradient(ellipse 100% 70% at 50% 0%, transparent, var(--scene-vignette) 100%)",
         }}
       />
 

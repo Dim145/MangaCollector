@@ -75,6 +75,77 @@
   --sidebar-accent-foreground: var(--washi);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--hanko);
+
+  /* Body ambient gradients — extracted so light mode can tone them down */
+  --bg-glow-red: oklch(0.6 0.22 25 / 0.15);
+  --bg-glow-gold: oklch(0.82 0.13 78 / 0.06);
+  /* Scene glows for DefaultBackground (blurred orbs + vignette) */
+  --scene-red: oklch(0.6 0.22 25 / 0.35);
+  --scene-gold: oklch(0.82 0.13 78 / 0.25);
+  --scene-sakura: oklch(0.82 0.07 12 / 0.4);
+  --scene-vignette: oklch(0.08 0.005 30 / 0.8);
+  --scroll-track: var(--ink-0);
+  --scroll-thumb: var(--ink-3);
+}
+
+/* ─────────────────────────────────────────────
+   Light theme — Washi paper
+   Inverted palette keeping the hanko red + gold leaf. Sakura tone shifts
+   to a warmer, deeper pink so it stays visible on cream paper.
+   Activated by setting data-theme="light" on <html>.
+   ───────────────────────────────────────────── */
+
+:root[data-theme="light"] {
+  /* Surfaces — genuinely white page, cards step up in tint for contrast */
+  --ink-0: oklch(1 0 0);                     /* pure white page */
+  --ink-1: oklch(0.965 0.004 82);            /* card — subtle warmth */
+  --ink-2: oklch(0.925 0.007 80);            /* raised */
+  --ink-3: oklch(0.85 0.01 78);              /* heavy overlay */
+
+  /* Text — deep sumi ink, WCAG-AA at every level on white */
+  --washi: oklch(0.17 0.015 40);             /* body — ~14:1 */
+  --washi-muted: oklch(0.36 0.02 40);        /* secondary — ~7:1 */
+  --washi-dim: oklch(0.46 0.02 45);          /* captions — ~4.6:1 */
+
+  /* Signature — deeper red so it reads against pure white */
+  --hanko: oklch(0.5 0.22 25);
+  --hanko-bright: oklch(0.56 0.23 25);
+  --hanko-deep: oklch(0.38 0.18 25);
+  --hanko-glow: oklch(0.5 0.22 25 / 0.22);
+
+  /* Accent — gold darkened so it's readable as a text colour */
+  --gold: oklch(0.52 0.14 78);
+  --gold-muted: oklch(0.44 0.12 75);
+  --sakura: oklch(0.56 0.15 20);
+
+  /* Semantic */
+  --success: oklch(0.5 0.16 150);
+  --warning: oklch(0.6 0.15 70);
+  --danger: var(--hanko-bright);
+
+  /* Borders / inputs — dark alpha on white */
+  --border: oklch(0.17 0.015 40 / 0.16);
+  --input: oklch(0.17 0.015 40 / 0.05);
+  --ring: var(--hanko);
+
+  /* Ambient — barely-there pastel glows */
+  --bg-glow-red: oklch(0.5 0.22 25 / 0.06);
+  --bg-glow-gold: oklch(0.52 0.14 78 / 0.07);
+  /* Scene glows for DefaultBackground — softened for white page */
+  --scene-red: oklch(0.5 0.22 25 / 0.1);
+  --scene-gold: oklch(0.52 0.14 78 / 0.08);
+  --scene-sakura: oklch(0.56 0.15 20 / 0.12);
+  /* Vignette uses page colour so it blends invisibly on white */
+  --scene-vignette: oklch(1 0 0 / 0);
+  --scroll-track: var(--ink-1);
+  --scroll-thumb: var(--ink-3);
+
+  /* Recharts */
+  --chart-1: var(--hanko);
+  --chart-2: var(--gold);
+  --chart-3: var(--sakura);
+  --chart-4: oklch(0.42 0.16 240);
+  --chart-5: oklch(0.35 0.05 30);
 }
 
 @theme inline {
@@ -165,8 +236,8 @@
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11", "cv02";
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.6 0.22 25 / 0.15), transparent 60%),
-      radial-gradient(ellipse 60% 40% at 100% 100%, oklch(0.82 0.13 78 / 0.06), transparent 60%);
+      radial-gradient(ellipse 80% 50% at 50% -10%, var(--bg-glow-red), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 100% 100%, var(--bg-glow-gold), transparent 60%);
     background-attachment: fixed;
     min-height: 100vh;
   }
@@ -188,12 +259,12 @@
     height: 10px;
   }
   ::-webkit-scrollbar-track {
-    background: var(--ink-0);
+    background: var(--scroll-track);
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--ink-3);
+    background: var(--scroll-thumb);
     border-radius: 10px;
-    border: 2px solid var(--ink-0);
+    border: 2px solid var(--scroll-track);
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--hanko-deep);

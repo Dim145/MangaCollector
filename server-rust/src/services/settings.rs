@@ -7,6 +7,8 @@ use crate::models::setting::{self, ActiveModel, CurrencyInfo, Entity as SettingE
 
 const DEFAULT_TITLE_TYPE: &str = "Default";
 const DEFAULT_CURRENCY: &str = "USD";
+const DEFAULT_THEME: &str = "dark";
+const VALID_THEMES: &[&str] = &["dark", "light", "auto"];
 
 pub fn get_currency_by_code(code: &str) -> Option<CurrencyInfo> {
     match code {
@@ -48,6 +50,7 @@ pub async fn get_user_settings(db: &Db, user_id: i32) -> Result<SettingRow, AppE
         currency: DEFAULT_CURRENCY.into(),
         title_type: Some(DEFAULT_TITLE_TYPE.into()),
         adult_content_level: 0,
+        theme: Some(DEFAULT_THEME.into()),
     }))
 }
 
@@ -73,6 +76,13 @@ pub async fn update_user_settings(
 
     let adult_content_level = req.adult_content_level.unwrap_or(0);
 
+    let theme = req
+        .theme
+        .as_deref()
+        .filter(|t| VALID_THEMES.contains(t))
+        .unwrap_or(DEFAULT_THEME)
+        .to_string();
+
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),
@@ -80,6 +90,7 @@ pub async fn update_user_settings(
         currency: Set(currency_code),
         title_type: Set(Some(title_type)),
         adult_content_level: Set(adult_content_level),
+        theme: Set(Some(theme)),
         ..Default::default()
     };
 
@@ -88,6 +99,7 @@ pub async fn update_user_settings(
             setting::Column::Currency,
             setting::Column::TitleType,
             setting::Column::AdultContentLevel,
+            setting::Column::Theme,
             setting::Column::ModifiedOn,
         ])
         .to_owned();

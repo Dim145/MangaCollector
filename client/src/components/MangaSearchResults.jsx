@@ -40,7 +40,7 @@ export default function MangaSearchResults({
             return (
               <li
                 key={manga.mal_id}
-                className="group flex items-center gap-3 px-3 py-3 transition-colors hover:bg-white/[0.03] sm:gap-4 sm:px-4"
+                className="group flex items-center gap-3 px-3 py-3 transition-colors hover:bg-washi/5 sm:gap-4 sm:px-4"
               >
                 {/* Cover */}
                 <button
