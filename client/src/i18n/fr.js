@@ -500,4 +500,14 @@ export default {
     emptyGenericHint:
       "MyAnimeList n'a pas de personnages référencés pour ces séries.",
   },
+  install: {
+    cta: "Installer l'app",
+    iosLabel: "AJOUTER À L'ÉCRAN D'ACCUEIL · iOS",
+    iosTitle: "Installer sur votre iPhone",
+    iosStep1Prefix: "Dans Safari, touchez le bouton Partager",
+    iosShareButton: "Partager",
+    iosStep2: "Faites défiler et touchez « Sur l'écran d'accueil ».",
+    iosStep3: "Touchez « Ajouter » — l'icône rejoint votre écran d'accueil et s'ouvre comme une vraie app.",
+    iosClose: "C'est fait",
+  },
 };

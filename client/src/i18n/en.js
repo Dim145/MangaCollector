@@ -495,4 +495,14 @@ export default {
     emptyGenericHint:
       "MyAnimeList has no character entries for these series.",
   },
+  install: {
+    cta: "Install app",
+    iosLabel: "ADD TO HOME SCREEN · iOS",
+    iosTitle: "Install on your iPhone",
+    iosStep1Prefix: "In Safari, tap the Share button",
+    iosShareButton: "Share",
+    iosStep2: "Scroll and tap \"Add to Home Screen\".",
+    iosStep3: "Tap \"Add\" — the icon lands on your home screen and opens like a native app.",
+    iosClose: "Got it",
+  },
 };

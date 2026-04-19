@@ -12,7 +12,12 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",
-      includeAssets: ["src/assets/logo.svg"],
+      includeAssets: [
+        "pwa-192x192.png",
+        "pwa-512x512.png",
+        "pwa-maskable.png",
+        "apple-touch-icon.png",
+      ],
       manifest: {
         name: "MangaCollector",
         short_name: "MangaCol",
@@ -26,10 +31,22 @@ export default defineConfig({
         start_url: "/",
         icons: [
           {
-            src: "src/assets/logo.svg",
-            sizes: "any",
-            type: "image/svg+xml",
+            src: "/pwa-192x192.png",
+            sizes: "192x192",
+            type: "image/png",
             purpose: "any",
+          },
+          {
+            src: "/pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/pwa-maskable.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
       },

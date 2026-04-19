@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import ProfileButton from "./ProfileButton";
+import InstallPrompt from "./InstallPrompt";
 import { checkAuthStatus } from "../utils/auth";
 import { useT } from "@/i18n/index.jsx";
 
@@ -163,6 +164,7 @@ export default function Header() {
 
           {/* Right cluster */}
           <div className="flex items-center gap-2">
+            <InstallPrompt />
             <ProfileButton />
           </div>
         </div>
