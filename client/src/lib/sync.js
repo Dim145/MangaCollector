@@ -7,6 +7,7 @@ import {
   probeServer,
 } from "./connectivity.js";
 import { queryClient } from "./queryClient.js";
+import { flushPendingLogout, hasPendingLogout } from "@/utils/auth.js";
 
 /*
  * Sync service — flushes the Dexie outbox tables to the backend.
@@ -385,6 +386,22 @@ export async function forceResyncFromServer() {
 }
 
 /**
+ * When the server is reachable again, attempt any pending logout BEFORE
+ * running data sync — so a stale session gets invalidated server-side
+ * before anything else can refresh the cache.
+ */
+async function onServerRecover() {
+  if (hasPendingLogout()) {
+    await flushPendingLogout();
+    // Don't sync after a successful logout — outbox was already cleared by
+    // logout() locally, and sending requests with an invalidated cookie
+    // would just produce 401s.
+    return;
+  }
+  if (isFullyOnline()) syncOutbox();
+}
+
+/**
  * Install sync runner.
  *
  * Unlike a naive `online`-event listener, we subscribe to the combined
@@ -395,19 +412,25 @@ export async function forceResyncFromServer() {
 export function installSyncRunner() {
   onConnectivityChange((e) => {
     if (e.detail?.serverReachable && navigator.onLine) {
-      syncOutbox();
+      onServerRecover();
     }
   });
 
   // Slow safety-net retry for any stuck ops that slipped past the events.
   setInterval(() => {
-    if (isFullyOnline()) syncOutbox();
+    if (isFullyOnline()) {
+      if (hasPendingLogout()) flushPendingLogout();
+      else syncOutbox();
+    }
   }, 60_000);
 
   // Initial pass — defer to let the first probe complete.
   setTimeout(() => {
-    if (isFullyOnline()) syncOutbox();
-    else if (navigator.onLine && !getServerReachable()) {
+    if (hasPendingLogout() && isFullyOnline()) {
+      flushPendingLogout();
+    } else if (isFullyOnline()) {
+      syncOutbox();
+    } else if (navigator.onLine && !getServerReachable()) {
       probeServer();
     }
   }, 800);

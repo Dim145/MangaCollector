@@ -70,3 +70,34 @@ export async function readSettings() {
   const { key, ...rest } = row;
   return rest;
 }
+
+/**
+ * Wipe every trace of the current user from local storage. Used on logout
+ * so the next visitor on this browser can't see residual data, even though
+ * the server may still consider the session alive for a bit longer.
+ */
+export async function clearAllUserData() {
+  try {
+    await db.transaction(
+      "rw",
+      [
+        db.library,
+        db.volumes,
+        db.settings,
+        db.outboxLibrary,
+        db.outboxVolumes,
+        db.outboxSettings,
+      ],
+      async () => {
+        await db.library.clear();
+        await db.volumes.clear();
+        await db.settings.clear();
+        await db.outboxLibrary.clear();
+        await db.outboxVolumes.clear();
+        await db.outboxSettings.clear();
+      }
+    );
+  } catch (err) {
+    console.warn("[db] clearAllUserData failed:", err?.message);
+  }
+}
