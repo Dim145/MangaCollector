@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { updateVolumeByID } from "../utils/volume";
+import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { formatCurrency } from "@/utils/price.js";
 
 export default function Volume({
   id,
+  mal_id,
   owned,
   volNum,
   paid,
@@ -15,18 +16,20 @@ export default function Volume({
   const [ownedStatus, setOwnedStatus] = useState(owned);
   const [price, setPrice] = useState(Number(paid) || 0);
   const [purchaseLocation, setPurchaseLocation] = useState(store ?? "");
-  const [isLoading, setIsLoading] = useState(false);
+
+  const updateVolume = useUpdateVolume();
+  const isLoading = updateVolume.isPending;
 
   async function persist(nextOwned, nextPrice, nextStore, ownedChanged) {
-    try {
-      setIsLoading(true);
-      await updateVolumeByID(id, nextOwned, Number(nextPrice) || 0, nextStore);
-      onUpdate?.({ ownedChanged });
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
+    await updateVolume.mutateAsync({
+      id,
+      mal_id,
+      vol_num: volNum,
+      owned: nextOwned,
+      price: Number(nextPrice) || 0,
+      store: nextStore ?? "",
+    });
+    onUpdate?.({ ownedChanged });
   }
 
   const toggleOwned = async () => {
@@ -63,7 +66,6 @@ export default function Volume({
           : "border-border bg-ink-1/40 hover:border-border/80"
       }`}
     >
-      {/* Volume number & ownership */}
       <div className="flex items-center gap-3 p-4">
         <button
           onClick={toggleOwned}
@@ -130,7 +132,6 @@ export default function Volume({
         ) : null}
       </div>
 
-      {/* Inline edit form */}
       {isEditing && (
         <div className="space-y-3 border-t border-border bg-ink-0/40 p-4 animate-fade-up">
           <div>
@@ -218,7 +219,6 @@ export default function Volume({
         </div>
       )}
 
-      {/* Store chip (non-editing) */}
       {!isEditing && ownedStatus && purchaseLocation && (
         <div className="flex items-center gap-1.5 border-t border-border/50 px-4 py-2 text-[11px] text-washi-muted">
           <svg

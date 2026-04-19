@@ -5,23 +5,20 @@ import Volume from "./Volume";
 import Modal from "@/components/utils/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import {
-  deleteMangaFromUserLibraryByID,
-  getUserManga,
-  removePoster,
-  updateMangaByID,
-  uploadPoster,
-} from "../utils/user";
-import {
-  hasToBlurImage,
-  updateLibFromMal,
-  updateVolumeOwned,
-} from "../utils/library.js";
-import { getAllVolumesByID, updateVolumeByID } from "../utils/volume";
+  useDeleteManga,
+  useUpdateManga,
+  useUpdateVolumesOwned,
+} from "@/hooks/useLibrary.js";
+import { useVolumesForManga, useUpdateVolume } from "@/hooks/useVolumes.js";
+import { useOnline } from "@/hooks/useOnline.js";
+import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
+import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 
 export default function MangaPage({ manga, adult_content_level }) {
   const navigate = useNavigate();
   const { currency: currencySetting } = useContext(SettingsContext);
+  const online = useOnline();
 
   const [isEditing, setIsEditing] = useState(false);
   const [posterPopUp, setPosterPopUp] = useState(false);
@@ -29,11 +26,7 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [refreshing, setRefreshing] = useState(false);
 
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
-  const [volumesOwned, setVolumesOwned] = useState(manga.volumes_owned ?? 0);
   const [poster, setPoster] = useState(manga.image_url_jpg);
-  const [volumes, setVolumes] = useState([]);
-  const [totalPrice, setTotalPrice] = useState(0);
-  const [avgPrice, setAvgPrice] = useState(0);
   const [genres, setGenres] = useState(manga.genres ?? []);
   const [name, setName] = useState(manga.name || "Unknown Title");
 
@@ -44,63 +37,55 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [selectedImage, setSelectedImage] = useState(undefined);
   const [selectedImagePreview, setSelectedImagePreview] = useState(null);
 
-  useEffect(() => {
-    async function getMangaInfo() {
-      try {
-        const response = await getUserManga(manga.mal_id);
-        if (response?.volumes != null) setTotalVolumes(response.volumes);
-      } catch (error) {
-        console.error(error);
+  const { data: volumes } = useVolumesForManga(manga.mal_id);
+  const updateManga = useUpdateManga();
+  const deleteManga = useDeleteManga();
+  const updateVolumesOwned = useUpdateVolumesOwned();
+  const updateVolume = useUpdateVolume();
+
+  // Derive owned counts & pricing from the live volumes table
+  const { volumesOwned, totalPrice, avgPrice } = useMemo(() => {
+    let counter = 0;
+    let sum = 0;
+    for (const v of volumes) {
+      if (v.owned) {
+        counter += 1;
+        sum += Number(v.price) || 0;
       }
     }
-    getMangaInfo();
-  }, [manga.mal_id]);
+    return {
+      volumesOwned: counter,
+      totalPrice: sum,
+      avgPrice: counter > 0 ? sum / counter : 0,
+    };
+  }, [volumes]);
 
-  async function getVolumeInfo() {
-    try {
-      const response = await getAllVolumesByID(manga.mal_id);
-      const sortedVolumes = response.sort((a, b) => a.vol_num - b.vol_num);
-      setVolumes(sortedVolumes);
-
-      let counter = 0;
-      let priceSum = 0;
-      for (const vol of sortedVolumes) {
-        if (vol.owned) {
-          counter += 1;
-          priceSum += Number(vol.price) || 0;
-        }
-      }
-      setVolumesOwned(counter);
-      setTotalPrice(priceSum);
-      setAvgPrice(counter > 0 ? priceSum / counter : 0);
-      return counter;
-    } catch (error) {
-      console.error(error);
-      return null;
-    }
-  }
-
+  // Keep total volumes input in sync when live data arrives
   useEffect(() => {
-    if (totalVolumes > 0) getVolumeInfo();
-  }, [totalVolumes, isEditing]);
+    if (!isEditing) setTotalVolumes(manga.volumes ?? 0);
+  }, [manga.volumes, isEditing]);
 
   const handleSave = async () => {
     try {
-      setTotalVolumes(parseInt(totalVolumes));
-      await updateMangaByID(manga.mal_id, totalVolumes);
-      await getVolumeInfo();
-      await updateVolumeOwned(manga.mal_id, volumesOwned);
+      const newTotal = parseInt(totalVolumes) || 0;
+      await updateManga.mutateAsync({ mal_id: manga.mal_id, volumes: newTotal });
 
-      if (selectedImage) {
-        await uploadPoster(manga.mal_id, selectedImage);
-        const newPoster = `/api/user/storage/poster/${manga.mal_id}`;
-        if (poster !== newPoster) setPoster(newPoster);
-        else location.reload();
-      } else if (selectedImage === null) {
-        setPoster(await removePoster(manga.mal_id));
+      // Poster upload is online-only (file payloads can't be queued)
+      if (selectedImage && online) {
+        try {
+          await uploadPoster(manga.mal_id, selectedImage);
+          const newPoster = `/api/user/storage/poster/${manga.mal_id}`;
+          setPoster(newPoster + `?t=${Date.now()}`);
+        } catch (err) {
+          console.error("Poster upload failed:", err);
+        }
+      } else if (selectedImage === null && online) {
+        try {
+          setPoster(await removePoster(manga.mal_id));
+        } catch (err) {
+          console.error("Poster remove failed:", err);
+        }
       }
-    } catch (err) {
-      console.error("Failed to update manga:", err);
     } finally {
       setIsEditing(false);
       setSelectedImage(undefined);
@@ -108,31 +93,32 @@ export default function MangaPage({ manga, adult_content_level }) {
     }
   };
 
-  const volumeUpdateCallback = async ({ ownedChanged } = {}) => {
-    // Re-fetch from the server so the count reflects reality instead of
-    // assuming +/- 1 locally (which double-counts when saving a price edit
-    // without toggling ownership).
-    const newOwned = await getVolumeInfo();
-    if (ownedChanged && newOwned != null) {
-      await updateVolumeOwned(manga.mal_id, newOwned);
-    }
+  const volumeUpdateCallback = async () => {
+    await updateVolumesOwned.mutateAsync({
+      mal_id: manga.mal_id,
+      nbOwned: volumesOwned,
+    });
   };
 
   const handleAddAllVolumes = async () => {
     const numericPrice = Number(addAvgPrice) || 0;
     if (numericPrice >= 0 && addStore.trim() !== "") {
       try {
-        await updateMangaByID(manga.mal_id, totalVolumes);
         const unownedVolumes = volumes.filter((vol) => !vol.owned);
         await Promise.all(
           unownedVolumes.map((vol) =>
-            updateVolumeByID(vol.id, true, numericPrice, addStore)
+            updateVolume.mutateAsync({
+              ...vol,
+              owned: true,
+              price: numericPrice,
+              store: addStore,
+            })
           )
         );
-        const newOwned = await getVolumeInfo();
-        if (newOwned != null) {
-          await updateVolumeOwned(manga.mal_id, newOwned);
-        }
+        await updateVolumesOwned.mutateAsync({
+          mal_id: manga.mal_id,
+          nbOwned: volumes.length,
+        });
       } catch (error) {
         console.error(error);
       } finally {
@@ -144,6 +130,7 @@ export default function MangaPage({ manga, adult_content_level }) {
   };
 
   const updateFromMal = async () => {
+    if (!online) return;
     setRefreshing(true);
     try {
       const { new_genres, new_name } = await updateLibFromMal(manga.mal_id);
@@ -173,17 +160,17 @@ export default function MangaPage({ manga, adult_content_level }) {
 
   const confirmDeleteManga = async () => {
     try {
-      await deleteMangaFromUserLibraryByID(manga.mal_id);
+      await deleteManga.mutateAsync(manga.mal_id);
       navigate("/dashboard");
     } catch (error) {
       console.error(error);
     }
   };
 
-  const completion = useMemo(
-    () => (totalVolumes > 0 ? Math.round((volumesOwned / totalVolumes) * 100) : 0),
-    [volumesOwned, totalVolumes]
-  );
+  const completion = useMemo(() => {
+    const total = totalVolumes || manga.volumes || 0;
+    return total > 0 ? Math.round((volumesOwned / total) * 100) : 0;
+  }, [volumesOwned, totalVolumes, manga.volumes]);
 
   const isBlurred = hasToBlurImage(manga, adult_content_level);
   const displayPoster = selectedImagePreview || poster;
@@ -191,7 +178,7 @@ export default function MangaPage({ manga, adult_content_level }) {
   return (
     <DefaultBackground>
       <div className="mx-auto max-w-6xl px-4 pt-4 pb-nav md:pb-16 sm:px-6 md:pt-10">
-        {/* Back button */}
+        {/* Back */}
         <button
           onClick={() => navigate("/dashboard")}
           className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
@@ -210,9 +197,8 @@ export default function MangaPage({ manga, adult_content_level }) {
           Back to library
         </button>
 
-        {/* Hero — cover + meta */}
+        {/* Hero */}
         <section className="relative mb-12 animate-fade-up">
-          {/* Blurred cover backdrop (visual noise behind hero) */}
           {displayPoster && !isBlurred && (
             <div
               className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
@@ -228,7 +214,6 @@ export default function MangaPage({ manga, adult_content_level }) {
           )}
 
           <div className="grid gap-6 md:grid-cols-[minmax(0,280px)_1fr] md:gap-10">
-            {/* Cover */}
             <div className="mx-auto w-full max-w-[220px] md:mx-0 md:max-w-none">
               <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border shadow-2xl glow-red">
                 {displayPoster ? (
@@ -249,39 +234,44 @@ export default function MangaPage({ manga, adult_content_level }) {
                 )}
               </div>
 
-              {/* Poster controls when editing */}
               {isEditing && (
                 <div className="mt-3 space-y-2">
-                  <label
-                    htmlFor="poster"
-                    className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-ink-1 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/50 hover:text-washi"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-4 w-4"
+                  {online ? (
+                    <label
+                      htmlFor="poster"
+                      className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-ink-1 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/50 hover:text-washi"
                     >
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="17 8 12 3 7 8" />
-                      <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
-                    {selectedImage?.name
-                      ? `Selected: ${selectedImage.name.substring(0, 16)}…`
-                      : "Upload cover"}
-                    <input
-                      id="poster"
-                      type="file"
-                      onChange={handleSelectFile}
-                      accept="image/jpeg,image/png,image/webp"
-                      multiple={false}
-                      className="sr-only"
-                    />
-                  </label>
-                  {!`${poster}`.startsWith("http") && !selectedImagePreview && (
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-4 w-4"
+                      >
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                      {selectedImage?.name
+                        ? `Selected: ${selectedImage.name.substring(0, 16)}…`
+                        : "Upload cover"}
+                      <input
+                        id="poster"
+                        type="file"
+                        onChange={handleSelectFile}
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple={false}
+                        className="sr-only"
+                      />
+                    </label>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-washi-dim/40 bg-ink-1/60 px-3 py-2 text-center font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                      Cover upload requires connection
+                    </div>
+                  )}
+                  {!`${poster}`.startsWith("http") && !selectedImagePreview && online && (
                     <button
                       onClick={removeImage}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-hanko/30 bg-hanko/10 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/20"
@@ -305,7 +295,6 @@ export default function MangaPage({ manga, adult_content_level }) {
               )}
             </div>
 
-            {/* Details */}
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
@@ -314,10 +303,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                 {manga.mal_id > 0 && (
                   <button
                     onClick={updateFromMal}
-                    disabled={refreshing}
+                    disabled={refreshing || !online}
                     aria-label="Refresh from MyAnimeList"
-                    className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi"
-                    title="Refresh metadata from MyAnimeList"
+                    className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi disabled:opacity-40"
+                    title={online ? "Refresh metadata from MyAnimeList" : "Requires connection"}
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -364,7 +353,6 @@ export default function MangaPage({ manga, adult_content_level }) {
                 </a>
               )}
 
-              {/* Genre chips */}
               {genres?.length > 0 && (
                 <div className="mt-5 flex flex-wrap gap-1.5">
                   {genres.map((genre) => (
@@ -378,7 +366,6 @@ export default function MangaPage({ manga, adult_content_level }) {
                 </div>
               )}
 
-              {/* Big progress display */}
               <div className="mt-8 rounded-2xl border border-border bg-ink-1/40 p-5 backdrop-blur">
                 <div className="flex items-baseline justify-between gap-4">
                   <div>
@@ -407,7 +394,6 @@ export default function MangaPage({ manga, adult_content_level }) {
                   />
                 </div>
 
-                {/* Edit total volumes */}
                 {isEditing && (
                   <div className="mt-4 border-t border-border pt-4">
                     <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
@@ -424,7 +410,6 @@ export default function MangaPage({ manga, adult_content_level }) {
                 )}
               </div>
 
-              {/* Actions */}
               <div className="mt-4 flex flex-wrap gap-2">
                 {!isEditing ? (
                   <>
@@ -501,7 +486,6 @@ export default function MangaPage({ manga, adult_content_level }) {
           </div>
         </section>
 
-        {/* Summary — pricing */}
         <section className="mb-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "150ms" }}>
           <SummaryCard
             label="Total paid"
@@ -517,7 +501,7 @@ export default function MangaPage({ manga, adult_content_level }) {
             {!showAddDropdown ? (
               <button
                 onClick={() => setShowAddDropdown(true)}
-                disabled={volumesOwned >= totalVolumes}
+                disabled={volumesOwned >= (volumes?.length ?? 0) || (volumes?.length ?? 0) === 0}
                 className="group relative h-full w-full overflow-hidden rounded-2xl border border-dashed border-border bg-ink-1/40 p-5 text-left backdrop-blur transition hover:border-hanko/40 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
@@ -600,7 +584,6 @@ export default function MangaPage({ manga, adult_content_level }) {
           </div>
         </section>
 
-        {/* Volumes grid */}
         <section className="animate-fade-up" style={{ animationDelay: "300ms" }}>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-2xl font-semibold italic text-washi">
@@ -617,6 +600,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <Volume
                   key={vol.id}
                   id={vol.id}
+                  mal_id={vol.mal_id}
                   volNum={vol.vol_num}
                   owned={vol.owned}
                   paid={vol.price}
@@ -634,7 +618,6 @@ export default function MangaPage({ manga, adult_content_level }) {
         </section>
       </div>
 
-      {/* Poster modal */}
       <Modal popupOpen={posterPopUp} handleClose={() => setPosterPopUp(false)}>
         <img
           src={poster}
@@ -643,7 +626,6 @@ export default function MangaPage({ manga, adult_content_level }) {
         />
       </Modal>
 
-      {/* Delete confirm */}
       <Modal
         popupOpen={confirmDelete}
         handleClose={() => setConfirmDelete(false)}

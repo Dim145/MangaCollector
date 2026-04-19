@@ -1,20 +1,16 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
 import SettingsContext from "@/SettingsContext.js";
-import {
-  addCustomEntryToUserLibrary,
-  addToUserLibrary,
-  getUserLibrary,
-} from "@/utils/user.js";
+import { useLibrary, useAddManga } from "@/hooks/useLibrary.js";
+import { useOnline } from "@/hooks/useOnline.js";
+import { addCustomEntryToUserLibrary } from "@/utils/user.js";
 
 export default function AddPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [library, setLibrary] = useState([]);
   const [searched, setSearched] = useState(false);
 
   const [customEntry, setCustomEntry] = useState(false);
@@ -24,19 +20,14 @@ export default function AddPage() {
 
   const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
+  const online = useOnline();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setLibrary(await getUserLibrary());
-      } catch (err) {
-        console.error(err);
-      }
-    })();
-  }, []);
+  const { data: library } = useLibrary();
+  const addManga = useAddManga();
 
   const searchManga = async () => {
     if (!query.trim()) return;
+    if (!online) return; // button is disabled; noop safeguard
     try {
       setLoading(true);
       setSearched(true);
@@ -53,33 +44,22 @@ export default function AddPage() {
   };
 
   const addToLibrary = async (manga) => {
-    try {
-      setIsAdding(true);
-      const mangaData = {
-        name: manga.title,
-        mal_id: manga.mal_id,
-        volumes: manga.volumes == null ? 0 : manga.volumes,
-        volumes_owned: 0,
-        image_url_jpg:
-          manga.images.jpg.large_image_url || manga.images.jpg.image_url,
-        genres: (manga.genres || [])
-          .concat(manga.explicit_genres || [])
-          .concat(manga.demographics || [])
-          .filter((g) => g.type === "manga")
-          .map((g) => g.name),
-      };
+    const mangaData = {
+      name: manga.title,
+      mal_id: manga.mal_id,
+      volumes: manga.volumes == null ? 0 : manga.volumes,
+      volumes_owned: 0,
+      image_url_jpg:
+        manga.images.jpg.large_image_url || manga.images.jpg.image_url,
+      genres: (manga.genres || [])
+        .concat(manga.explicit_genres || [])
+        .concat(manga.demographics || [])
+        .filter((g) => g.type === "manga")
+        .map((g) => g.name),
+    };
 
-      if (library.some((m) => m.mal_id === mangaData.mal_id)) {
-        return;
-      }
-
-      await addToUserLibrary(mangaData);
-      setLibrary((prev) => [...prev, mangaData]);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsAdding(false);
-    }
+    if (library.some((m) => m.mal_id === mangaData.mal_id)) return;
+    await addManga.mutateAsync(mangaData);
   };
 
   const clearResults = () => {
@@ -90,6 +70,7 @@ export default function AddPage() {
 
   const handleSaveCustomEntry = async () => {
     if (!customEntryTitle.trim()) return;
+    if (!online) return;
 
     const mangaData = {
       name: customEntryTitle,
@@ -103,8 +84,9 @@ export default function AddPage() {
         .filter((g) => g.length > 0),
     };
 
+    // Custom entries need a server-assigned negative mal_id to avoid
+    // collisions — so this path is online-only by design.
     const res = await addCustomEntryToUserLibrary(mangaData);
-
     if (res.success) {
       navigate("/mangapage", {
         state: { manga: res.newEntry, adult_content_level },
@@ -114,7 +96,6 @@ export default function AddPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-      {/* Header */}
       <header className="mb-8 animate-fade-up">
         <button
           onClick={() => navigate("/dashboard")}
@@ -149,7 +130,6 @@ export default function AddPage() {
         </p>
       </header>
 
-      {/* Tabs */}
       <div className="mb-6 inline-flex rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur">
         <button
           onClick={() => setCustomEntry(false)}
@@ -175,6 +155,7 @@ export default function AddPage() {
 
       {customEntry ? (
         <section className="animate-fade-up">
+          {!online && <OnlineOnlyNotice label="Custom entries" />}
           <div className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur md:p-8">
             <p className="mb-6 rounded-lg border border-gold/20 bg-gold/5 p-3 text-xs text-washi-muted">
               <span className="font-semibold text-gold">Note:</span> Custom
@@ -250,7 +231,7 @@ export default function AddPage() {
               </button>
               <button
                 onClick={handleSaveCustomEntry}
-                disabled={!customEntryTitle.trim()}
+                disabled={!customEntryTitle.trim() || !online}
                 className="rounded-full bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi shadow-lg transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create entry
@@ -260,6 +241,7 @@ export default function AddPage() {
         </section>
       ) : (
         <section className="space-y-6 animate-fade-up">
+          {!online && <OnlineOnlyNotice label="MAL search" />}
           <MangaSearchBar
             query={query}
             setQuery={setQuery}
@@ -267,7 +249,7 @@ export default function AddPage() {
             clearResults={clearResults}
             loading={loading}
             hasResults={results.length > 0}
-            placeholder="Search MyAnimeList…"
+            placeholder={online ? "Search MyAnimeList…" : "Offline — search unavailable"}
           />
 
           {loading ? (
@@ -289,7 +271,7 @@ export default function AddPage() {
             <MangaSearchResults
               results={results}
               addToLibrary={addToLibrary}
-              isAdding={isAdding}
+              isAdding={addManga.isPending}
               isInLibrary={(mal_id) => library.some((m) => m.mal_id === mal_id)}
             />
           ) : searched ? (
@@ -316,6 +298,39 @@ export default function AddPage() {
           )}
         </section>
       )}
+    </div>
+  );
+}
+
+function OnlineOnlyNotice({ label }) {
+  return (
+    <div
+      className="mb-4 flex items-start gap-2 rounded-lg border border-hanko/30 bg-hanko/10 p-3 text-xs text-washi"
+      role="alert"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="mt-0.5 h-4 w-4 shrink-0 text-hanko-bright"
+      >
+        <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+        <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+        <line x1="12" y1="20" x2="12.01" y2="20" />
+      </svg>
+      <div>
+        <p className="font-semibold">
+          {label} requires a connection
+        </p>
+        <p className="mt-0.5 text-washi-muted">
+          Reconnect to use this feature — your library is fully editable in the
+          meantime.
+        </p>
+      </div>
     </div>
   );
 }

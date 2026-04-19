@@ -1,56 +1,23 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
 import MangaSearchBar from "./MangaSearchBar";
 import SettingsContext from "@/SettingsContext.js";
-import { getUserLibrary, searchInLib } from "../utils/user";
+import { useLibrary } from "@/hooks/useLibrary.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
-  const [library, setLibrary] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [libraryFiltered, setLibraryFiltered] = useState(false);
   const [filter, setFilter] = useState("all"); // all | complete | inprogress
   const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
 
-  const loadLibrary = async () => {
-    try {
-      setLoading(true);
-      const list = filterAdultGenreIfNeeded(
-        adult_content_level,
-        await getUserLibrary()
-      );
-      setLibrary(list);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadLibrary();
-  }, []);
-
-  const searchManga = async () => {
-    if (!query.trim()) {
-      await loadLibrary();
-      setLibraryFiltered(false);
-      return;
-    }
-    try {
-      setLoading(true);
-      setLibrary(await searchInLib(query));
-      setLibraryFiltered(true);
-    } catch (err) {
-      console.error("Search error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: rawLibrary, isLoading } = useLibrary();
+  const library = useMemo(
+    () => filterAdultGenreIfNeeded(adult_content_level, rawLibrary ?? []),
+    [adult_content_level, rawLibrary]
+  );
 
   const stats = useMemo(() => {
     const series = library.length;
@@ -68,19 +35,22 @@ export default function Dashboard() {
   }, [library]);
 
   const filtered = useMemo(() => {
-    if (filter === "all") return library;
+    const q = query.trim().toLowerCase();
+    let result = library;
+    if (q) {
+      result = result.filter((m) => m.name?.toLowerCase().includes(q));
+    }
     if (filter === "complete") {
-      return library.filter(
+      result = result.filter(
         (m) => (m.volumes ?? 0) > 0 && (m.volumes_owned ?? 0) >= m.volumes
       );
-    }
-    if (filter === "inprogress") {
-      return library.filter(
+    } else if (filter === "inprogress") {
+      result = result.filter(
         (m) => (m.volumes ?? 0) === 0 || (m.volumes_owned ?? 0) < m.volumes
       );
     }
-    return library;
-  }, [library, filter]);
+    return result;
+  }, [library, filter, query]);
 
   return (
     <DefaultBackground>
@@ -119,15 +89,11 @@ export default function Dashboard() {
           <MangaSearchBar
             query={query}
             setQuery={setQuery}
-            searchManga={searchManga}
-            loading={loading}
+            searchManga={() => {}}
+            loading={false}
             placeholder="Search your library…"
-            clearResults={() =>
-              loadLibrary()
-                .then(() => setLibraryFiltered(false))
-                .then(() => setQuery(""))
-            }
-            hasResults={libraryFiltered}
+            clearResults={() => setQuery("")}
+            hasResults={Boolean(query)}
             clearText="Clear"
           />
 
@@ -180,7 +146,7 @@ export default function Dashboard() {
 
         {/* Grid */}
         <section>
-          {loading ? (
+          {isLoading ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {[...Array(12)].map((_, i) => (
                 <div
@@ -190,7 +156,7 @@ export default function Dashboard() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <EmptyState libraryFiltered={libraryFiltered} onAdd={() => navigate("/addmanga")} />
+            <EmptyState hasQuery={Boolean(query)} onAdd={() => navigate("/addmanga")} />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filtered.map((manga, i) => (
@@ -230,21 +196,21 @@ function StatChip({ label, value, accent }) {
   );
 }
 
-function EmptyState({ libraryFiltered, onAdd }) {
+function EmptyState({ hasQuery, onAdd }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-ink-1/30 px-6 py-16 text-center animate-fade-up">
       <div className="hanko-seal mb-4 grid h-16 w-16 place-items-center rounded-md font-display text-xl">
         空
       </div>
       <h2 className="font-display text-2xl italic text-washi">
-        {libraryFiltered ? "No match" : "The shelf is empty"}
+        {hasQuery ? "No match" : "The shelf is empty"}
       </h2>
       <p className="mt-2 max-w-md text-sm text-washi-muted">
-        {libraryFiltered
+        {hasQuery
           ? "We couldn't find a title with that name in your archive."
           : "Start curating your collection — search a title, add a volume, and watch your archive grow."}
       </p>
-      {!libraryFiltered && (
+      {!hasQuery && (
         <button
           onClick={onAdd}
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"

@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -13,39 +14,44 @@ import AddPage from "@/components/AddPage.jsx";
 import ProfilePage from "./components/ProfilePage";
 import SettingsPage from "@/components/SettingsPage.jsx";
 import Wishlist from "./components/Wishlist";
+import OfflineBanner from "@/components/OfflineBanner.jsx";
+import SyncToaster from "@/components/SyncToaster.jsx";
 
 import SettingsContext from "@/SettingsContext.js";
-import { getUserSettings } from "@/utils/user.js";
-import { getAuthProvider } from "@/utils/auth.js";
+import { queryClient } from "@/lib/queryClient.js";
+import { installConnectivityWatcher } from "@/lib/connectivity.js";
+import { installSyncRunner } from "@/lib/sync.js";
+import { useAuthProvider } from "@/hooks/useAuthProvider.js";
+import { useUserSettings } from "@/hooks/useSettings.js";
 
-export default function App() {
+function SettingsProvider({ children }) {
+  const provider = useAuthProvider();
+  const { data: settings } = useUserSettings();
+  const merged = useMemo(
+    () => ({ ...(provider ?? {}), ...(settings ?? {}) }),
+    [provider, settings]
+  );
+  return (
+    <SettingsContext.Provider value={merged}>
+      {children}
+    </SettingsContext.Provider>
+  );
+}
+
+function AppShell() {
   const location = useLocation();
   const { manga, adult_content_level } = location.state || {};
   const [googleUser, setGoogleUser] = useState(null);
-  const [settings, setSettings] = useState({});
-
-  useEffect(() => {
-    (async () => {
-      // Always fetch public provider info — works even when logged out, so the
-      // Login page knows what text/icon to render on the CTA button.
-      const provider = await getAuthProvider();
-      try {
-        const s = await getUserSettings();
-        setSettings({ ...provider, ...s });
-      } catch {
-        // Not authenticated — settings are private; fall back to provider info only.
-        setSettings(provider);
-      }
-    })();
-  }, []);
 
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
 
   return (
-    <SettingsContext.Provider value={settings}>
+    <>
       <Header />
+      <OfflineBanner />
+      <SyncToaster />
       <main className="relative">
         <Routes>
           <Route path="/" element={<About />} />
@@ -87,7 +93,7 @@ export default function App() {
             element={
               <ProtectedRoute setGoogleUser={setGoogleUser}>
                 <DefaultBackground>
-                  <SettingsPage settingsUpdateCallback={(s) => setSettings(s)} />
+                  <SettingsPage />
                 </DefaultBackground>
               </ProtectedRoute>
             }
@@ -104,6 +110,23 @@ export default function App() {
           />
         </Routes>
       </main>
-    </SettingsContext.Provider>
+    </>
+  );
+}
+
+export default function App() {
+  useEffect(() => {
+    // Order matters: the connectivity watcher installs the axios interceptor
+    // that feeds the sync runner's "is-server-reachable" signal.
+    installConnectivityWatcher();
+    installSyncRunner();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SettingsProvider>
+        <AppShell />
+      </SettingsProvider>
+    </QueryClientProvider>
   );
 }

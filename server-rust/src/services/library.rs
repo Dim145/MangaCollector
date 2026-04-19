@@ -50,6 +50,23 @@ pub async fn add_to_user_library(
 
     let txn = db.begin().await.map_err(AppError::from)?;
 
+    // Idempotent upsert: if the user already has this mal_id, return the
+    // existing row rather than erroring with a unique constraint violation.
+    // This matters when the offline outbox replays an add op whose first
+    // attempt already succeeded before losing the network.
+    if let Some(m) = mal_id {
+        if let Some(existing) = LibraryEntity::find()
+            .filter(library::Column::UserId.eq(user_id))
+            .filter(library::Column::MalId.eq(m))
+            .one(&txn)
+            .await
+            .map_err(AppError::from)?
+        {
+            txn.commit().await.map_err(AppError::from)?;
+            return Ok(LibraryEntry::from(existing));
+        }
+    }
+
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -12,83 +12,72 @@ import {
 } from "recharts";
 import DefaultBackground from "./DefaultBackground";
 import SettingsContext from "@/SettingsContext.js";
-import { getAllVolumes } from "../utils/volume";
-import { getUserLibrary } from "../utils/user";
+import { useLibrary } from "@/hooks/useLibrary.js";
+import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { formatCurrency } from "@/utils/price.js";
 
 export default function ProfilePage({ googleUser }) {
-  const [totalSeries, setTotalSeries] = useState(0);
-  const [totalVolumes, setTotalVolumes] = useState(0);
-  const [totalVolumesOwned, setTotalVolumesOwned] = useState(0);
-  const [totalCost, setTotalCost] = useState(0);
-  const [completionRate, setCompletionRate] = useState(0);
-  const [seriesByCost, setSeriesByCost] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { currency: currencySetting } = useContext(SettingsContext);
+  const { data: library, isLoading: loadingLib } = useLibrary();
+  const { data: volumes, isLoading: loadingVol } = useAllVolumes();
+
+  const loading = loadingLib || loadingVol;
+
+  const { totalSeries, totalVolumes, totalVolumesOwned, totalCost, completionRate, seriesByCost } =
+    useMemo(() => {
+      const totalSeries = library.length;
+      const totalVolumes = volumes.length;
+      const titleMap = {};
+      for (const series of library) titleMap[series.mal_id] = series.name;
+
+      let owned = 0;
+      let cost = 0;
+      const costMap = {};
+
+      for (const vol of volumes) {
+        if (vol.owned) {
+          owned += 1;
+          cost += Number(vol.price) || 0;
+          const title = titleMap[vol.mal_id] || "Unknown";
+          if (!costMap[title]) costMap[title] = 0;
+          costMap[title] += Number(vol.price) || 0;
+        }
+      }
+
+      const completion =
+        totalVolumes > 0
+          ? Number(((owned / totalVolumes) * 100).toFixed(1))
+          : 0;
+
+      const sorted = Object.entries(costMap)
+        .map(([title, c]) => ({
+          title: title.split(" ").slice(0, 2).join(" ").slice(0, 12),
+          fullTitle: title,
+          totalCost: Number(c.toFixed(2)),
+        }))
+        .sort((a, b) => b.totalCost - a.totalCost)
+        .slice(0, 5);
+
+      return {
+        totalSeries,
+        totalVolumes,
+        totalVolumesOwned: owned,
+        totalCost: cost,
+        completionRate: completion,
+        seriesByCost: sorted,
+      };
+    }, [library, volumes]);
 
   const completionData = [
     { name: "Owned", value: completionRate },
     { name: "Missing", value: Math.max(0, 100 - completionRate) },
   ];
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [library, volumeData] = await Promise.all([
-          getUserLibrary(),
-          getAllVolumes(),
-        ]);
-
-        setTotalSeries(library.length);
-        setTotalVolumes(volumeData.length);
-
-        let totalOwnedCounter = 0;
-        let totalCostCounter = 0;
-        const costMap = {};
-        const titleMap = {};
-        for (const series of library) titleMap[series.mal_id] = series.name;
-
-        for (const vol of volumeData) {
-          if (vol.owned) {
-            totalOwnedCounter += 1;
-            totalCostCounter += Number(vol.price);
-            const title = titleMap[vol.mal_id] || "Unknown";
-            if (!costMap[title]) costMap[title] = 0;
-            costMap[title] += Number(vol.price);
-          }
-        }
-
-        setTotalVolumesOwned(totalOwnedCounter);
-        setTotalCost(totalCostCounter);
-        setCompletionRate(
-          volumeData.length > 0
-            ? Number(((totalOwnedCounter / volumeData.length) * 100).toFixed(1))
-            : 0
-        );
-
-        const sorted = Object.entries(costMap)
-          .map(([title, cost]) => ({
-            title: title.split(" ").slice(0, 2).join(" ").slice(0, 12),
-            fullTitle: title,
-            totalCost: Number(cost.toFixed(2)),
-          }))
-          .sort((a, b) => b.totalCost - a.totalCost)
-          .slice(0, 5);
-        setSeriesByCost(sorted);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
   const userName = googleUser?.name ?? "Reader";
 
   return (
     <DefaultBackground>
       <div className="mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-        {/* Header */}
         <header className="mb-10 animate-fade-up">
           <div className="flex items-baseline gap-3">
             <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
@@ -107,7 +96,6 @@ export default function ProfilePage({ googleUser }) {
           </p>
         </header>
 
-        {/* Hero stat block */}
         <section className="mb-8 grid gap-4 animate-fade-up sm:grid-cols-2 lg:grid-cols-4">
           <HeroStat
             label="Series"
@@ -138,9 +126,7 @@ export default function ProfilePage({ googleUser }) {
           />
         </section>
 
-        {/* Charts */}
         <section className="mb-8 grid gap-6 animate-fade-up md:grid-cols-2" style={{ animationDelay: "200ms" }}>
-          {/* Donut */}
           <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
               Completion rate
@@ -177,7 +163,6 @@ export default function ProfilePage({ googleUser }) {
             </div>
           </div>
 
-          {/* Bar */}
           <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
               Top spend
@@ -242,7 +227,6 @@ export default function ProfilePage({ googleUser }) {
           </div>
         </section>
 
-        {/* Insight card */}
         <section className="animate-fade-up" style={{ animationDelay: "350ms" }}>
           <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-hanko/10 via-ink-1/50 to-gold/5 p-6 backdrop-blur md:p-8">
             <div className="pointer-events-none absolute -right-10 -top-10 grid h-40 w-40 place-items-center opacity-20">

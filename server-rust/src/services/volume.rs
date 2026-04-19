@@ -8,6 +8,13 @@ use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::volume::{self, ActiveModel, Entity as VolumeEntity, Volume};
 
+/// Return value for `update_by_id` — we keep a lightweight result so the
+/// handler can respond "ok" even when the row no longer exists (idempotent
+/// replay of a queued offline edit).
+pub struct VolumeUpdateResult {
+    pub affected: bool,
+}
+
 pub async fn get_all_for_user(db: &Db, user_id: i32) -> Result<Vec<Volume>, AppError> {
     VolumeEntity::find()
         .filter(volume::Column::UserId.eq(user_id))
@@ -35,17 +42,36 @@ pub async fn update_by_id(
     owned: bool,
     price: Option<Decimal>,
     store: Option<String>,
-) -> Result<Volume, AppError> {
+) -> Result<VolumeUpdateResult, AppError> {
     let now = Utc::now().naive_utc();
-    let model = ActiveModel {
-        id: Set(id),
-        owned: Set(owned),
-        price: Set(price),
-        store: Set(store),
-        modified_on: Set(now),
-        ..Default::default()
-    };
-    model.update(db).await.map_err(AppError::from)
+    // Idempotent update — if the row is gone (e.g. a queued offline edit
+    // replays after the manga was deleted), just return `affected = false`
+    // rather than surfacing a DB error.
+    let res = VolumeEntity::update_many()
+        .filter(volume::Column::Id.eq(id))
+        .col_expr(volume::Column::Owned, owned.into())
+        .col_expr(
+            volume::Column::Price,
+            price.map_or_else(
+                || sea_orm::sea_query::Expr::value(Option::<Decimal>::None),
+                sea_orm::sea_query::Expr::value,
+            ),
+        )
+        .col_expr(
+            volume::Column::Store,
+            store.map_or_else(
+                || sea_orm::sea_query::Expr::value(Option::<String>::None),
+                sea_orm::sea_query::Expr::value,
+            ),
+        )
+        .col_expr(volume::Column::ModifiedOn, now.into())
+        .exec(db)
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(VolumeUpdateResult {
+        affected: res.rows_affected > 0,
+    })
 }
 
 pub async fn add_volume(db: &Db, user_id: i32, mal_id: i32, vol_num: i32) -> Result<Volume, AppError> {
