@@ -308,19 +308,25 @@ export async function syncOutbox({ force = false } = {}) {
     syncQueued = true;
     return;
   }
+
+  // Fast path: if the outbox is empty, skip everything — nothing to flush,
+  // no need to re-fetch (React Query already refreshes independently on
+  // mount / focus). This keeps cold starts from issuing redundant GETs.
+  const pending = await pendingCount();
+  if (pending === 0 && !force) return;
+
   syncing = true;
   try {
     await flushLibrary();
     await flushVolumes();
     await flushSettings();
-    // Refresh caches post-sync so the UI reflects server truth
+    // Only pull fresh server state when we actually pushed something —
+    // otherwise the read hooks already have what they need.
     await Promise.all([
       refetchLibrary().catch(() => {}),
       refetchSettings().catch(() => {}),
     ]);
   } catch (err) {
-    // Network / server error — will retry later. Trigger a probe so the
-    // connectivity watcher flips to "unreachable" fast and the UI updates.
     probeServer().catch(() => {});
     console.warn("[sync] retriable error, will retry later:", err?.message);
   } finally {
@@ -416,22 +422,32 @@ export function installSyncRunner() {
     }
   });
 
-  // Slow safety-net retry for any stuck ops that slipped past the events.
-  setInterval(() => {
-    if (isFullyOnline()) {
-      if (hasPendingLogout()) flushPendingLogout();
-      else syncOutbox();
+  // Slow safety-net for stuck ops: only do real work if there's actually
+  // something pending. A bare interval that fires GETs every minute would
+  // pile up on top of the React Query refetches and delay initial render.
+  setInterval(async () => {
+    if (!isFullyOnline()) return;
+    if (hasPendingLogout()) {
+      flushPendingLogout();
+      return;
     }
+    const n = await pendingCount();
+    if (n > 0) syncOutbox();
   }, 60_000);
 
-  // Initial pass — defer to let the first probe complete.
-  setTimeout(() => {
-    if (hasPendingLogout() && isFullyOnline()) {
-      flushPendingLogout();
-    } else if (isFullyOnline()) {
-      syncOutbox();
-    } else if (navigator.onLine && !getServerReachable()) {
-      probeServer();
+  // Deferred startup check — only schedules work if there IS work. Uses
+  // requestIdleCallback so it never competes with the initial data render.
+  const startup = async () => {
+    if (hasPendingLogout()) {
+      if (isFullyOnline()) flushPendingLogout();
+      return;
     }
-  }, 800);
+    const n = await pendingCount();
+    if (n > 0 && isFullyOnline()) syncOutbox();
+  };
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(startup, { timeout: 2000 });
+  } else {
+    setTimeout(startup, 1000);
+  }
 }

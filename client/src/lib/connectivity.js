@@ -124,7 +124,11 @@ export function installConnectivityWatcher() {
     setReachable(false);
   });
 
-  // Adaptive polling: aggressive when we believe we're down, lazy when up.
+  // Adaptive polling. Aggressive only when we know we're down, so recovery
+  // is fast; while we're up we poll lazily (the ambient axios traffic is
+  // enough to keep the signal fresh). No eager probe on start — initial
+  // page-load requests (e.g. `/auth/user`, `/api/user/settings`) feed the
+  // interceptor and set the state from their real responses.
   let timer = null;
   const schedule = () => {
     if (timer) clearTimeout(timer);
@@ -135,11 +139,8 @@ export function installConnectivityWatcher() {
     }, delay);
   };
 
-  // Re-schedule whenever state changes so the cadence adapts immediately.
   onConnectivityChange(schedule);
   schedule();
 
-  // Initial probe — don't assume we're healthy until we've heard back.
-  if (navigator.onLine) probeServer();
-  else setReachable(false);
+  if (!navigator.onLine) setReachable(false);
 }
