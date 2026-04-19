@@ -24,6 +24,21 @@ RUN touch src/main.rs && cargo build --release
 # ── Stage 2: Runtime (scratch) ────────────────────────────────────────────────
 FROM scratch AS runtime
 
+# Image metadata (OCI). Security labels document the read-only contract so
+# orchestrators, scanners (Trivy, Docker Scout, Snyk) and humans can see how
+# the image is meant to be deployed. Nothing here forces runtime — the flags
+# must still be passed by the launcher (docker run / compose / k8s).
+LABEL org.opencontainers.image.title="MangaCollector Backend" \
+      org.opencontainers.image.description="Rust/Axum API backend. Designed to run read-only — requires /tmp as tmpfs and an optional /data volume for LocalStorage uploads." \
+      org.opencontainers.image.source="https://github.com/dim145/MangaCollector" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="dim145" \
+      security.readonly-rootfs="required" \
+      security.tmpfs="/tmp" \
+      security.caps.drop="ALL" \
+      security.no-new-privileges="required" \
+      security.writable-volumes="/data (optional, for LocalStorage backend)"
+
 COPY --from=builder /build/target/release/manga-collector-server /manga-collector-server
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 

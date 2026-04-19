@@ -42,6 +42,15 @@ services:
       - "traefik.http.services.server.loadbalancer.server.port=3000"
     ports:
       - "3000:3000"
+    # Hardening — binary runs as uid 65532, needs no capabilities and writes
+    # only to /data (mounted volume) + /tmp (tmpfs). Root FS stays read-only.
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
     environment:
       NODE_ENV: "production"
       PORT: 3000
@@ -67,6 +76,22 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.client.rule=PathPrefix(`/`)"
       - "traefik.http.services.client.loadbalancer.server.port=80"
+    # Hardening — nginx pid + temp paths are redirected to /tmp in nginx.conf,
+    # so the root FS can be read-only. Keep NET_BIND_SERVICE so the master
+    # process can still bind port 80 inside the container.
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+      - /var/cache/nginx:rw,noexec,nosuid,size=16m
     environment:
       FRONTEND_URL: http://localhost:12000
     ports:
