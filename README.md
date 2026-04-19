@@ -1,89 +1,251 @@
-# MangaCollector  
+# MangaCollector
 
-**MangaCollector** is a web platform designed for manga enthusiasts to track, manage, and grow their manga collections. Users can catalog owned volumes, log purchase details, and fetch series information directly from the **MyAnimeList (MAL) API** for accurate and up-to-date metadata.  
+> **Archive what you collect — volume by volume.**
 
-The app combines clean UI design, robust backend architecture, and authentication via **Google OAuth 2.0**, making collection management seamless and secure.  
+**MangaCollector** is a full-stack web app and PWA designed for manga collectors who want to track every tankōbon they own, log purchase prices and stores, surface what's missing on their shelves, and discover new series — all behind a Shōjo-Noir aesthetic (ink black, hanko red, washi cream, gold leaf).
 
+It works **offline-first**, is **installable on iOS / Android / Desktop**, and ships with a hardened Rust backend running in read-only containers.
 
-## Features  
-
-- **Google OAuth 2.0 Authentication**  
-  Secure sign-in using Google accounts, ensuring fast and reliable access for users.  
-
-- **Manga Library Management**  
-  Add manga to your personal library, track total volumes, and mark which ones you own.  
-
-- **User analytics**  
-  Analyze how much you have spent, how many volumes you are missing, and more.
-
-- **Volume Tracking**  
-  Each volume entry includes ownership status, price paid, and store of purchase.  
-
-- **MAL API Integration**  
-  Fetches manga metadata (title, volumes, cover art, etc.) directly from **MyAnimeList**, keeping the collection accurate.  
-
-- **Responsive Design**  
-  Fully functional across desktop and mobile for on-the-go collection management.  
-
+---
 
 ## Demo
 
-- **Authentication (Google OAuth)**  
-  ![Auth Screenshot](docs/screenshots/auth.png)  
+| | |
+|---|---|
+| **Landing page** — about, hero, top manga from MAL | ![Landing](docs/screenshots/landing.png) |
+| **Sign-in** — Google or generic OpenID Connect | ![Auth](docs/screenshots/auth.png) |
+| **Library dashboard** — your shelf at a glance | ![Library](docs/screenshots/dashboard.png) |
+| **Series page** — bulk volume editing, cover swap, MAL refresh | ![Series](docs/screenshots/mangaEditor.png) |
+| **Volume editor** — per-volume ownership, price, store | ![Volume](docs/screenshots/volumeEditor.png) |
+| **Profile / Statistics** — completion, spend, top series, activity feed, MAL recommendations | ![Stats](docs/screenshots/userAnalytics.png) |
 
-- **Manga Library View**  
-  ![Library Screenshot](docs/screenshots/dashboard.png)  
+---
 
-- **User Analytics**  
-  ![Analytics Screenshot](docs/screenshots/userAnalytics.png)  
+## Features
 
+### Collection
+- **MAL-powered library** — search MyAnimeList for any series, auto-fill volumes, cover, genres, demographics
+- **Custom entries** — add a series MAL doesn't have yet (assigned a negative `mal_id`)
+- **Per-volume tracking** — ownership flag, price paid, store of purchase, with multi-currency support (USD / EUR)
+- **Bulk volume editing** on the series page
+- **Custom poster upload** — replace the MAL cover with your own (stored in S3 / MinIO or local FS)
+- **Title preference** — Default / English / Japanese / Romaji per user
+- **Adult content filter** — 3 levels (off, blur, show)
 
-- **Manga Editing**  
-  ![Manga Edit Screenshot](docs/screenshots/mangaEditor.png)  
+### Discovery
+- **Barcode scanner** — scan ISBN on a tankōbon, looks up Google Books → matches against MAL → suggests adding the series with the right volume number, **gap-fills missing earlier volumes** if any
+- **MAL recommendations** — aggregates `recommendations` from your top series, ranks by votes
+- **Gap suggestions** — series closest to completion ("only 2 volumes to go")
+- **Activity feed** — additions, removals, completion, milestones (10/25/50/100/250/500/1000/2500/5000 volumes; 5/10/25/50/100/250/500/1000 series)
 
-- **Volume Editing**  
-  ![Volume Edit Screenshot](docs/screenshots/volumeEditor.png)  
+### Offline-first PWA
+- **Installable** on Android (Chrome/Edge bannière), iOS Safari ("Sur l'écran d'accueil"), Desktop (Chrome/Edge install icon) with maskable icon for adaptive Android launchers
+- **Works offline** — Dexie (IndexedDB) caches the entire library + volumes + settings
+- **Optimistic mutations** — changes apply locally instantly; an outbox flushes them to the server when reachable
+- **Smart connectivity** — detects "server unreachable" not just "navigator offline"
+- **Pending logout** — queues logout when offline, fires it as soon as the server comes back
+- **Force resync** — settings entry to wipe local cache and pull fresh from the server
 
-- **Landing Page**  
-  ![Homepage Screenshot](docs/screenshots/landing.png)  
+### Personalisation
+- **3 themes** — dark / light / auto (system) with zero-flash bootstrap
+- **3 languages** — English / French / Spanish (server-stored, localStorage-cached)
+- **Custom avatar** — pick a character portrait from the series you own (live from MAL via Jikan)
 
+### Security & ops
+- Hardened containers: read-only rootfs, dropped Linux capabilities, `no-new-privileges`, non-root user (uid 65532), no package manager left in the runtime image
+- OCI metadata labels documenting the security contract
+- Static binary (musl + statically-linked OpenSSL) — runs from `scratch`
+- HEALTHCHECK self-implemented as a `--health` subcommand (no curl/wget needed in the image)
 
-## Tech Stack  
+---
 
-### Frontend  
-- React (with hooks and component-based architecture)  
-- Tailwind CSS for modern, responsive styling  
-- React Router for client-side navigation  
+## Tech Stack
 
-### Backend  
-- Node.js with Express.js  
-- PostgreSQL for relational data storage  
-- Google OAuth 2.0 for authentication  
-- Axios for external RESTful API requests  
-- dotenv for environment configuration  
+### Frontend
+| Layer | Tooling |
+|---|---|
+| UI | **React 19.2** + **Vite 7.3** |
+| Styling | **Tailwind CSS v4** (CSS-first config), custom OKLCH palette, custom Fraunces + Instrument Sans + JetBrains Mono + Noto Serif JP type stack |
+| Routing | React Router 7 (lazy-loaded routes via `React.lazy`) |
+| Server state | **TanStack Query 5** (offline-first network mode) |
+| Local cache | **Dexie 4** (IndexedDB) + `dexie-react-hooks` |
+| Charts | Recharts 3 |
+| Icons | lucide-react 1 |
+| PWA | `vite-plugin-pwa` + Workbox runtime caching (Google Fonts, MAL CDN, Jikan API, user posters) |
+| Barcode | Native `BarcodeDetector` API + `@zxing/browser` fallback |
+| i18n | Custom `I18nProvider` + `useT` hook, 3 dictionaries |
+| Build / lint | Node 24 (via nvm), ESLint 10, Prettier 3.8 |
 
+### Backend
+| Layer | Tooling |
+|---|---|
+| Language / runtime | **Rust 2024 edition** (rustc ≥ 1.85), Tokio async runtime |
+| Web framework | **Axum 0.8** + tower 0.5 + tower-http 0.6 |
+| ORM | **SeaORM 1.1** wrapping **sqlx 0.8** (PostgreSQL, rustls, with-chrono, with-rust_decimal) |
+| Sessions | tower-sessions 0.14 + tower-sessions-sqlx-store 0.15 (PostgreSQL-backed) |
+| Auth | **openidconnect 4** (Google OAuth 2.0 *or* generic OpenID Connect, configurable via `AUTH_MODE`) |
+| Storage | aws-sdk-s3 1.x (MinIO / S3-compatible) **or** local filesystem fallback |
+| HTTP client | reqwest 0.12 |
+| Errors | thiserror 2 + anyhow 1 |
+| Logging | tracing + tracing-subscriber |
 
-## Deployment  
-- Frontend: Vercel
-- Backend: Render
-- Database: Supabase
+### Infrastructure
+- **PostgreSQL 15** for relational data + session store
+- **MinIO / S3** for cover uploads (optional — falls back to local FS via `STORAGE_DIR`)
+- **Traefik v2** as reverse proxy (dev + prod)
+- **Docker Compose** (dev + prod variants)
 
-## Why I Built This  
+---
 
-As both a developer and a manga collector, I found that managing a collection across spreadsheets or memory quickly became overwhelming, especially with long-running series. **MangaCollector** solves this by centralizing ownership tracking, purchase history, and series info in one place.  
+## Project layout
 
-The project was also an opportunity to deepen my skills in:  
-- Designing **full-stack applications** with authentication and relational databases.  
-- Working with a **third-party API (MAL)** and integrating it smoothly into a user-facing product.  
-- Delivering a polished, recruiter-ready project with attention to both **frontend design** and **backend architecture**.  
+```
+.
+├── client/                # React 19 + Vite PWA
+│   ├── src/
+│   │   ├── components/    # Pages + UI primitives (PageLoader, Modal, …)
+│   │   ├── hooks/         # useLibrary, useVolumes, useSettings, useActivity, …
+│   │   ├── lib/           # db.js (Dexie), sync.js (outbox), connectivity.js, theme.js, barcode.js, …
+│   │   ├── i18n/          # en.js / fr.js / es.js
+│   │   └── styles/        # Tailwind v4 + Shōjo Noir palette
+│   ├── public/            # PWA icons (192, 512, maskable, apple-touch-icon)
+│   ├── nginx.conf         # Hardened nginx config (writes only to /tmp)
+│   └── Dockerfile         # Multi-stage build → nginx alpine + OCI security labels
+│
+├── server/                # Rust + Axum backend
+│   ├── src/
+│   │   ├── handlers/      # HTTP route handlers
+│   │   ├── services/      # Business logic
+│   │   ├── models/        # SeaORM entities
+│   │   ├── routes/        # Router composition
+│   │   └── auth.rs        # OIDC client + AuthenticatedUser extractor
+│   ├── migrations/        # SQL migrations (embedded at compile time via sqlx::migrate!)
+│   ├── Dockerfile         # Multi-stage → scratch runtime + OCI security labels
+│   └── Cargo.toml
+│
+├── docker-compose.yml     # Dev stack (db + traefik + server + client)
+├── docker-compose.prod.yml
+└── docs/screenshots/
+```
 
-## Future Plans  
+---
 
-- Social features (compare collections with friends)  
-- Mobile version via React Native  
-- Price analytics (track spending on manga over time)  
+## Running locally
 
-## Contact  
+### Prerequisites
+- **Docker** (with BuildKit, default since v23) **or**
+- **Node 24** (via [nvm](https://github.com/nvm-sh/nvm) — a `.nvmrc` is provided in `client/`)
+- **Rust 1.85+** (a `rust-toolchain.toml` is provided in `server/`)
+- **PostgreSQL 15** (only if running the server outside Docker)
 
-If you're a recruiter, developer, or fellow collector interested in the project, feel free to connect with me via **LinkedIn** or **email** (details in my GitHub profile).  
+### Full stack (recommended)
+```bash
+docker compose up
+```
+Open http://localhost:12000 (Traefik). The Traefik dashboard is on http://localhost:8080.
 
+### Client only (hot-reload dev)
+```bash
+cd client
+nvm use            # picks up .nvmrc → Node 24
+npm install
+npm run dev        # Vite on :5173 with --host
+```
+
+### Server only (hot-reload dev)
+```bash
+cd server
+cargo run          # Axum on :3000
+# or
+cargo watch -x run # if you have cargo-watch
+```
+
+### Lint / build
+```bash
+cd client && npm run lint && npm run build
+cd server && cargo check && cargo build --release
+```
+
+---
+
+## Configuration
+
+All server config lives in environment variables (see [`server/.env.example`](server/.env.example)).
+
+| Variable | Purpose |
+|---|---|
+| `PORT` | HTTP listen port (default 3000) |
+| `POSTGRES_URL` | DB DSN |
+| `AUTH_MODE` | `google` or `openidconnect` |
+| `AUTH_CLIENT_ID` / `AUTH_CLIENT_SECRET` | OAuth credentials |
+| `AUTH_ISSUER` | OIDC issuer URL (when `AUTH_MODE=openidconnect`) |
+| `AUTH_NAME` / `AUTH_ICON` | Display name + icon shown on the login page |
+| `SESSION_SECRET` | Signing key for session cookies |
+| `FRONTEND_URL` | Used for CORS + OAuth redirect URI |
+| `STORAGE_DIR` | If set, use local filesystem for poster uploads |
+| `S3_*` | If set instead, use S3/MinIO for poster uploads |
+| `APP_UNSECURE_HEALTHCHECK` | Set to `true` to allow non-loopback `/api/health` (e.g. for Uptime Kuma) |
+
+---
+
+## Deployment
+
+The image story is the same in dev and prod — **multi-stage Docker builds + read-only runtime**.
+
+### Backend
+- Built on `rust:alpine` with statically linked OpenSSL → final binary copied into `FROM scratch`
+- ~37 MB final image, no shell, no package manager
+- Runs as non-root, with `cap_drop: ALL` and `read_only: true` in Compose / k8s
+- HEALTHCHECK: the binary itself accepts a `--health` subcommand that loops back to `/api/health` and exits 0/1
+- OCI labels (`security.readonly-rootfs`, `security.tmpfs`, `security.caps.drop`, …) document the runtime contract
+
+### Frontend
+- Built on `node:24-alpine` → static dist served by `nginx:alpine`
+- nginx `pid` + temp paths redirected into `/tmp` so the rootfs can be read-only
+- Capabilities pruned to the minimum nginx needs (`CHOWN`, `SETUID`, `SETGID`, `NET_BIND_SERVICE`)
+- Aggressive caching — hashed `assets/*` get `Cache-Control: public, max-age=31536000, immutable`; `index.html`, `sw.js`, `registerSW.js` get `no-cache`
+
+### Docker Compose runtime hardening (already wired)
+```yaml
+read_only: true
+security_opt:
+  - no-new-privileges:true
+cap_drop:
+  - ALL
+tmpfs:
+  - /tmp:rw,noexec,nosuid,size=16m
+```
+
+### Reverse proxy / TLS
+The supplied `docker-compose.yml` uses Traefik v2 in plain HTTP for local dev. **For production, point Traefik at Let's Encrypt** (or any TLS-terminating reverse proxy) — HTTPS is non-negotiable for:
+- Service worker registration
+- PWA install prompts (`beforeinstallprompt` is gated on secure context)
+- OAuth callback security
+
+---
+
+## Why I built this
+
+I'm a manga collector. Spreadsheets and memory don't scale to long-running series — by volume 30 of *One Piece* you've forgotten what you paid for #14 and which obi was on the limited edition #22.
+
+The project was also a chance to push on:
+- **Offline-first architecture** with optimistic mutations + a coalesced outbox (no log-replay surprises)
+- **Hardened container delivery** — scratch image, dropped capabilities, read-only rootfs, OCI security labels
+- **Distinctive visual identity** — committing to a single bold direction (Shōjo Noir) rather than the default "indigo gradient + Inter" SaaS look
+- **Full-stack Rust backend** — Axum, SeaORM, openidconnect, AWS SDK, all on the latest stable releases
+
+---
+
+## Roadmap
+
+- Cross-device live sync via WebSockets (right now sync is polling on focus + outbox flush)
+- Smart shelf grouping (by demographic, era, publisher)
+- Wishlist with pre-order tracking and price alerts
+- Public, shareable collection profiles (opt-in)
+- Native mobile wrapper via Capacitor (the PWA already covers the core experience)
+
+---
+
+## Contact
+
+Questions, feedback or fellow-collector enthusiasm welcome — reach out on GitHub or LinkedIn (linked from my profile).
