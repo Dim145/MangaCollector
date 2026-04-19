@@ -34,7 +34,7 @@ services:
       - internal
 
   server:
-    build: ./server-rust
+    build: ./server
     image: dim145/mangacollector-back:latest
     labels:
       - "traefik.enable=true"
