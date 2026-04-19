@@ -1,0 +1,1 @@
+ALTER TABLE user_libraries ADD COLUMN IF NOT EXISTS genres VARCHAR;

@@ -1,0 +1,317 @@
+use chrono::Utc;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, EntityTrait, QueryFilter,
+    QueryResult, Set, Statement, TransactionTrait,
+};
+use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
+
+use crate::db::Db;
+use crate::errors::AppError;
+use crate::models::library::{self, ActiveModel, AddCustomRequest, AddLibraryRequest, Entity as LibraryEntity, LibraryEntry};
+use crate::services::{settings, volume};
+use crate::services::mal_api::get_manga_from_mal;
+
+pub async fn get_user_library(db: &Db, user_id: i32) -> Result<Vec<LibraryEntry>, AppError> {
+    let rows = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    Ok(rows.into_iter().map(LibraryEntry::from).collect())
+}
+
+pub async fn get_user_manga(
+    db: &Db,
+    mal_id: i32,
+    user_id: i32,
+) -> Result<Vec<LibraryEntry>, AppError> {
+    let rows = LibraryEntity::find()
+        .filter(library::Column::MalId.eq(mal_id))
+        .filter(library::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    Ok(rows.into_iter().map(LibraryEntry::from).collect())
+}
+
+pub async fn add_to_user_library(
+    db: &Db,
+    user_id: i32,
+    req: AddLibraryRequest,
+) -> Result<LibraryEntry, AppError> {
+    let now = Utc::now().naive_utc();
+    let genres_str = req
+        .genres
+        .as_deref()
+        .map(|g| g.join(","))
+        .unwrap_or_default();
+    let volumes_owned = req.volumes_owned.unwrap_or(0);
+    let volumes = req.volumes;
+    let mal_id = req.mal_id;
+
+    let txn = db.begin().await.map_err(AppError::from)?;
+
+    let model = ActiveModel {
+        created_on: Set(now),
+        modified_on: Set(now),
+        user_id: Set(user_id),
+        mal_id: Set(mal_id),
+        name: Set(req.name),
+        volumes: Set(volumes),
+        volumes_owned: Set(volumes_owned),
+        image_url_jpg: Set(req.image_url_jpg),
+        genres: Set(Some(genres_str)),
+        ..Default::default()
+    };
+
+    let row = model.insert(&txn).await.map_err(AppError::from)?;
+
+    // Create one volume row per volume
+    for vol_num in 1..=volumes {
+        volume::add_volume_tx(&txn, user_id, row.mal_id.unwrap_or(0), vol_num).await?;
+    }
+
+    txn.commit().await.map_err(AppError::from)?;
+
+    Ok(LibraryEntry::from(row))
+}
+
+pub async fn add_custom_entry(
+    db: &Db,
+    user_id: i32,
+    req: AddCustomRequest,
+) -> Result<LibraryEntry, AppError> {
+    // Assign the next negative mal_id (custom entries use mal_id < 0)
+    let stmt = Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "SELECT MIN(mal_id) FROM user_libraries WHERE user_id = $1 AND mal_id < 0",
+        [user_id.into()],
+    );
+    let result: Option<QueryResult> = db.query_one(stmt).await.map_err(AppError::from)?;
+    let min: Option<i32> = result
+        .and_then(|r: QueryResult| r.try_get::<Option<i32>>("", "min").ok())
+        .flatten();
+
+    let new_mal_id = min.unwrap_or(0) - 1;
+
+    add_to_user_library(
+        db,
+        user_id,
+        AddLibraryRequest {
+            mal_id: Some(new_mal_id),
+            name: req.name,
+            volumes: req.volumes,
+            volumes_owned: req.volumes_owned,
+            image_url_jpg: None,
+            genres: req.genres,
+        },
+    )
+    .await
+}
+
+pub async fn delete_manga(db: &Db, mal_id: i32, user_id: i32) -> Result<(), AppError> {
+    let txn = db.begin().await.map_err(AppError::from)?;
+    volume::delete_all_for_user_by_mal_id_tx(&txn, user_id, mal_id).await?;
+    LibraryEntity::delete_many()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .exec(&txn)
+        .await
+        .map_err(AppError::from)?;
+    txn.commit().await.map_err(AppError::from)?;
+    Ok(())
+}
+
+pub async fn get_total_volumes(
+    db: &Db,
+    mal_id: i32,
+    user_id: i32,
+) -> Result<Option<i32>, AppError> {
+    let row = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+    Ok(row.map(|r| r.volumes))
+}
+
+pub async fn update_manga_volumes(
+    db: &Db,
+    mal_id: i32,
+    user_id: i32,
+    new_volumes: i32,
+) -> Result<(), AppError> {
+    let old_total = get_total_volumes(db, mal_id, user_id).await?.unwrap_or(0);
+
+    if old_total == new_volumes {
+        return Ok(());
+    }
+
+    if old_total > new_volumes {
+        // Remove volumes that are now out of range
+        for vol_num in (new_volumes + 1)..=old_total {
+            volume::remove_volume_by_num(db, user_id, mal_id, vol_num).await?;
+        }
+    } else {
+        // Add missing volumes
+        for vol_num in (old_total + 1)..=new_volumes {
+            volume::add_volume(db, user_id, mal_id, vol_num).await?;
+        }
+    }
+
+    let now = Utc::now().naive_utc();
+    // Partial update — use ActiveModel with only changed fields
+    let row = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+
+    if let Some(existing) = row {
+        let mut active: ActiveModel = existing.into();
+        active.volumes = Set(new_volumes);
+        active.modified_on = Set(now);
+        active.update(db).await.map_err(AppError::from)?;
+    }
+
+    Ok(())
+}
+
+pub async fn update_volumes_owned(
+    db: &Db,
+    user_id: i32,
+    mal_id: i32,
+    volumes_owned: i32,
+) -> Result<(), AppError> {
+    let now = Utc::now().naive_utc();
+    let row = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+
+    if let Some(existing) = row {
+        let mut active: ActiveModel = existing.into();
+        active.volumes_owned = Set(volumes_owned);
+        active.modified_on = Set(now);
+        active.update(db).await.map_err(AppError::from)?;
+    }
+
+    Ok(())
+}
+
+pub async fn change_poster(
+    db: &Db,
+    user_id: i32,
+    mal_id: i32,
+    new_poster_path: Option<String>,
+) -> Result<(), AppError> {
+    let now = Utc::now().naive_utc();
+    let row = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+
+    if let Some(existing) = row {
+        let mut active: ActiveModel = existing.into();
+        active.image_url_jpg = Set(new_poster_path);
+        active.modified_on = Set(now);
+        active.update(db).await.map_err(AppError::from)?;
+    }
+
+    Ok(())
+}
+
+pub async fn search(
+    db: &Db,
+    user_id: i32,
+    query: &str,
+) -> Result<Vec<LibraryEntry>, AppError> {
+    let pattern = format!("%{}%", query.to_lowercase());
+    let rows = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(Expr::col(library::Column::Name).ilike(pattern))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    Ok(rows.into_iter().map(LibraryEntry::from).collect())
+}
+
+pub async fn update_infos_from_mal(
+    db: &Db,
+    http_client: &reqwest::Client,
+    user_id: i32,
+    mal_id: i32,
+) -> Result<(Vec<String>, String), AppError> {
+    let mal_data = get_manga_from_mal(http_client, mal_id)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound("MAL info not found".into()))?;
+
+    // Collect genres from genres + demographics + explicit_genres (type == "manga")
+    let genres: Vec<String> = mal_data
+        .genres
+        .iter()
+        .flatten()
+        .chain(mal_data.demographics.iter().flatten())
+        .chain(mal_data.explicit_genres.iter().flatten())
+        .filter(|g| g.genre_type == "manga")
+        .map(|g| g.name.clone())
+        .collect();
+
+    // Determine title based on user's titleType setting
+    let user_settings = settings::get_user_settings(db, user_id).await?;
+    let title_type = user_settings.title_type.as_deref().unwrap_or("Default");
+
+    let resolved_name = mal_data
+        .titles
+        .iter()
+        .flatten()
+        .find(|t| t.title_type == title_type)
+        .map(|t| t.title.clone())
+        .or_else(|| mal_data.title.clone())
+        .unwrap_or_default();
+
+    // Fetch the library rows for this user+manga and update them
+    let rows = LibraryEntity::find()
+        .filter(library::Column::MalId.eq(mal_id))
+        .filter(library::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+
+    for row in rows {
+        // Update volumes if MAL has a different count
+        if let Some(mal_volumes) = mal_data.volumes {
+            if row.volumes != mal_volumes {
+                update_manga_volumes(db, mal_id, user_id, mal_volumes).await?;
+            }
+        }
+
+        let now = Utc::now().naive_utc();
+        // Only overwrite image if no custom poster set
+        let image_update = if row.image_url_jpg.is_none() {
+            mal_data
+                .images
+                .as_ref()
+                .and_then(|i| i.jpg.as_ref())
+                .and_then(|j| j.image_url.clone())
+        } else {
+            row.image_url_jpg.clone()
+        };
+
+        let mut active: ActiveModel = row.into();
+        active.genres = Set(Some(genres.join(",")));
+        active.name = Set(resolved_name.clone());
+        active.image_url_jpg = Set(image_update);
+        active.modified_on = Set(now);
+        active.update(db).await.map_err(AppError::from)?;
+    }
+
+    Ok((genres, resolved_name))
+}
