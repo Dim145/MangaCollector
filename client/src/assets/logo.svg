@@ -1,7 +1,42 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- License: Apache. Made by bytedance: https://github.com/bytedance/IconPark -->
-<svg width="800px" height="800px" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="48" height="48" fill="white" fill-opacity="0.01"/>
-<path d="M4 6H40C40 6 44 8 44 13C44 18 40 20 40 20H4C4 20 8 18 8 13C8 8 4 6 4 6Z" fill="#2F88FF" stroke="#000000" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M44 28H8C8 28 4 30 4 35C4 40 8 42 8 42H44C44 42 40 40 40 35C40 30 44 28 44 28Z" fill="#2F88FF" stroke="#000000" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <title>MangaCollector</title>
+  <defs>
+    <style>
+      .vol-num { font: 700 4.5px 'Fraunces', Georgia, serif; fill: #f4ebde; }
+      .vol-num-dark { font: 700 4.5px 'Fraunces', Georgia, serif; fill: #0a0908; }
+    </style>
+  </defs>
+  <!-- Shelf plank -->
+  <rect x="2" y="42" width="44" height="3" rx="0.6" fill="#c9a961"/>
+  <rect x="2" y="42" width="44" height="1" fill="#0a0908" opacity="0.3"/>
+
+  <!-- Tankōbon spines standing upright, each with a volume number -->
+  <!-- Vol 1: hanko red -->
+  <rect x="4" y="8"  width="6" height="34" rx="0.5" fill="#c13333" stroke="#0a0908" stroke-width="0.8"/>
+  <text x="7" y="14" text-anchor="middle" class="vol-num">1</text>
+  <line x1="4.5" y1="36" x2="9.5" y2="36" stroke="#f4ebde" stroke-width="0.5" opacity="0.7"/>
+
+  <!-- Vol 2: washi cream -->
+  <rect x="11" y="10" width="6" height="32" rx="0.5" fill="#f4ebde" stroke="#0a0908" stroke-width="0.8"/>
+  <text x="14" y="16" text-anchor="middle" class="vol-num-dark">2</text>
+  <line x1="11.5" y1="36" x2="16.5" y2="36" stroke="#c13333" stroke-width="0.6"/>
+
+  <!-- Vol 3: ink with gold title bar (flagship) -->
+  <rect x="18" y="6"  width="6" height="36" rx="0.5" fill="#161012" stroke="#0a0908" stroke-width="0.8"/>
+  <rect x="18.5" y="11.5" width="5" height="5" fill="#c9a961"/>
+  <text x="21" y="15.5" text-anchor="middle" class="vol-num-dark" style="font-size:4px">3</text>
+  <line x1="18.5" y1="33" x2="23.5" y2="33" stroke="#c9a961" stroke-width="0.5" opacity="0.6"/>
+
+  <!-- Vol 4: hanko red -->
+  <rect x="25" y="9"  width="6" height="33" rx="0.5" fill="#c13333" stroke="#0a0908" stroke-width="0.8"/>
+  <text x="28" y="15" text-anchor="middle" class="vol-num">4</text>
+
+  <!-- Vol 5: washi cream -->
+  <rect x="32" y="11" width="6" height="31" rx="0.5" fill="#f4ebde" stroke="#0a0908" stroke-width="0.8"/>
+  <text x="35" y="17" text-anchor="middle" class="vol-num-dark">5</text>
+  <line x1="32.5" y1="36" x2="37.5" y2="36" stroke="#0a0908" stroke-width="0.5" opacity="0.4"/>
+
+  <!-- Vol 6: ink -->
+  <rect x="39" y="13" width="6" height="29" rx="0.5" fill="#161012" stroke="#0a0908" stroke-width="0.8"/>
+  <text x="42" y="19" text-anchor="middle" class="vol-num">6</text>
 </svg>
