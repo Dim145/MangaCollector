@@ -39,6 +39,18 @@ db.version(2).stores({
   isbnCache: "isbn, ts",
 });
 
+// v3 — `mal_id` index on outboxVolumes so deleting a manga can cascade-drop
+// any pending per-volume ops (`enqueueLibraryDelete` queries by mal_id).
+db.version(3).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  isbnCache: "isbn, ts",
+});
+
 export const SETTINGS_KEY = "user";
 
 /** Replace the entire library cache. */

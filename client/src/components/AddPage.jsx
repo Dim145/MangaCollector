@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLiveQuery } from "dexie-react-hooks";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
 import BarcodeScanner from "@/components/BarcodeScanner.jsx";
@@ -10,6 +11,7 @@ import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { addCustomEntryToUserLibrary } from "@/utils/user.js";
+import { db } from "@/lib/db.js";
 import { lookupISBN, normalizeISBN, searchMangaOnMal } from "@/lib/isbn.js";
 
 const TRANSIENT_ERROR_TIMEOUT_MS = 2500;
@@ -232,22 +234,29 @@ export default function AddPage() {
     setScanStatus("");
   }, []);
 
-  const commitCurrentScan = async () => {
+  const commitCurrentScan = async ({ missingVolumes = [] } = {}) => {
     if (!scanResult) return;
     const candidate = scanResult.candidates[scanCandidateIdx];
     const volume = Number(scanResult.volume) || 1;
+    const volumeNumbers = [
+      ...missingVolumes.filter((n) => n !== volume),
+      volume,
+    ];
+
     setCommitting(true);
     try {
-      const res = await commitScan({ manga: candidate, volumeNumber: volume });
+      const res = await commitScan({ manga: candidate, volumeNumbers });
       setRecentScans((prev) =>
         [
           {
             id: `${candidate.mal_id}-${volume}-${Date.now()}`,
             title: candidate.title,
             volume,
+            gapFilled: missingVolumes.length,
             cover:
               candidate.images?.jpg?.image_url ??
               candidate.images?.jpg?.small_image_url,
+            newlyOwned: res.newlyOwned,
             alreadyOwned: res.alreadyOwned,
             added: res.added,
           },
@@ -667,6 +676,30 @@ function ScanMatchCard({
 }) {
   const candidate = result.candidates[candidateIdx];
   const inLibrary = library.some((m) => m.mal_id === candidate.mal_id);
+  const scannedVol = Number(result.volume) || 1;
+
+  // Compute missing preceding volumes (1..scannedVol-1 that the user doesn't
+  // own yet). Reactive via useLiveQuery so cycling through MAL candidates
+  // refreshes the gap based on the newly selected series' history.
+  const missing = useLiveQuery(
+    async () => {
+      if (!candidate?.mal_id) return [];
+      const owned = new Set(
+        (
+          await db.volumes.where("mal_id").equals(candidate.mal_id).toArray()
+        )
+          .filter((v) => v.owned)
+          .map((v) => v.vol_num)
+      );
+      const gap = [];
+      for (let i = 1; i < scannedVol; i++) {
+        if (!owned.has(i)) gap.push(i);
+      }
+      return gap;
+    },
+    [candidate?.mal_id, scannedVol],
+    []
+  );
 
   return (
     <>
@@ -753,33 +786,121 @@ function ScanMatchCard({
         )}
       </div>
 
-      <div className="flex gap-2 border-t border-border bg-ink-0/40 p-4">
-        <button
-          onClick={onCancel}
-          disabled={committing}
-          className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={onConfirm}
-          disabled={committing || !Number(result.volume)}
-          className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
-        >
-          {committing ? (
-            <span className="inline-flex items-center gap-2">
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
-              Adding…
-            </span>
-          ) : inLibrary ? (
-            "Mark volume as owned"
-          ) : (
-            "Add to library"
-          )}
-        </button>
+      {/* Gap-fill proposal */}
+      {missing.length > 0 && (
+        <div className="border-t border-gold/20 bg-gold/5 p-4">
+          <div className="flex items-start gap-2">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="mt-0.5 h-4 w-4 shrink-0 text-gold"
+            >
+              <path d="M12 9v4" />
+              <path d="M12 17h.01" />
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-sm font-semibold text-washi">
+                {missing.length === 1
+                  ? `Volume ${missing[0]} is missing before this one`
+                  : `${missing.length} volumes are missing before this one`}
+              </p>
+              <p className="mt-0.5 font-mono text-[11px] text-washi-muted">
+                {summarizeRange(missing)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`grid gap-2 border-t border-border bg-ink-0/40 p-4 ${missing.length > 0 ? "grid-cols-1" : "grid-cols-2"}`}
+      >
+        {missing.length > 0 ? (
+          <>
+            <button
+              onClick={() => onConfirm({ missingVolumes: missing })}
+              disabled={committing || !Number(result.volume)}
+              className="w-full rounded-lg bg-hanko px-4 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+            >
+              {committing ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
+                  Adding {missing.length + 1} volumes…
+                </span>
+              ) : (
+                `Add vol ${scannedVol} + ${missing.length} missing`
+              )}
+            </button>
+            <button
+              onClick={() => onConfirm({ missingVolumes: [] })}
+              disabled={committing || !Number(result.volume)}
+              className="w-full rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-semibold text-washi-muted transition hover:border-hanko/40 hover:text-washi disabled:opacity-50"
+            >
+              Only add vol {scannedVol}
+            </button>
+            <button
+              onClick={onCancel}
+              disabled={committing}
+              className="w-full rounded-lg border border-transparent px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-washi-dim transition hover:text-washi disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={onCancel}
+              disabled={committing}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => onConfirm({ missingVolumes: [] })}
+              disabled={committing || !Number(result.volume)}
+              className="rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+            >
+              {committing ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
+                  Adding…
+                </span>
+              ) : inLibrary ? (
+                "Mark volume as owned"
+              ) : (
+                "Add to library"
+              )}
+            </button>
+          </>
+        )}
       </div>
     </>
   );
+}
+
+/** Turn [1,2,3,5,6,8] into "1-3, 5-6, 8". */
+function summarizeRange(nums) {
+  if (!nums.length) return "";
+  const sorted = [...nums].sort((a, b) => a - b);
+  const ranges = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (let i = 1; i <= sorted.length; i++) {
+    const n = sorted[i];
+    if (n === prev + 1) {
+      prev = n;
+      continue;
+    }
+    ranges.push(start === prev ? `${start}` : `${start}–${prev}`);
+    start = n;
+    prev = n;
+  }
+  return ranges.join(", ");
 }
 
 function NotFoundCard({ notFound, onRescan, onManual, onClose }) {

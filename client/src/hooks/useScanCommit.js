@@ -8,33 +8,39 @@ import { updateVolumeOwned } from "@/utils/library.js";
 import { queryClient } from "@/lib/queryClient.js";
 
 /**
- * Commit a scanned volume: add the manga to the library if missing, then
- * mark the specific volume as owned.
+ * Commit one or more scanned volumes for a series in a single flow:
  *
- * This path is online-only because:
- *   - volumes are created server-side at library-add time (their ids are
- *     server-assigned), and we need those ids to PATCH a specific one
- *   - Google Books / MAL lookups happen online anyway
+ *   - add the series to the library if missing
+ *   - bump the server-side total-volumes count if the highest target
+ *     exceeds it (otherwise the volume row won't exist yet)
+ *   - mark each target volume as owned
+ *   - refresh the mirror cache and the library.volumes_owned counter
  *
- * The AddPage guards the "Scan" button behind `useOnline` so users get a
- * clear message instead of a silent failure.
+ * `volumeNumbers` is an array — single-scan passes `[N]`, gap-fill passes
+ * `[missingA, missingB, ..., scannedN]`.
+ *
+ * Online-only (volume ids are server-generated; Google Books needs the net
+ * anyway).
  */
 export function useScanCommit() {
   const { data: library } = useLibrary();
 
   return useCallback(
-    async ({ manga, volumeNumber }) => {
-      if (!volumeNumber || volumeNumber < 1) {
-        throw new Error("Missing volume number");
+    async ({ manga, volumeNumbers }) => {
+      if (!Array.isArray(volumeNumbers) || volumeNumbers.length === 0) {
+        throw new Error("No volume numbers to commit");
       }
+      const sorted = [...volumeNumbers].sort((a, b) => a - b);
+      const maxVolume = sorted[sorted.length - 1];
+      if (maxVolume < 1) throw new Error("Invalid volume number");
 
       const mangaData = {
         name: manga.title,
         mal_id: manga.mal_id,
         volumes:
           manga.volumes == null
-            ? Math.max(volumeNumber, 1)
-            : manga.volumes,
+            ? Math.max(maxVolume, 1)
+            : Math.max(manga.volumes, maxVolume),
         volumes_owned: 0,
         image_url_jpg:
           manga.images?.jpg?.large_image_url ||
@@ -47,62 +53,55 @@ export function useScanCommit() {
           .map((g) => g.name),
       };
 
-      const alreadyInLibrary = library.some(
-        (m) => m.mal_id === mangaData.mal_id
-      );
+      const existing = library.find((m) => m.mal_id === mangaData.mal_id);
+      const alreadyInLibrary = Boolean(existing);
 
-      // 1. Add the series if it's new
+      // 1. Add series if new
       if (!alreadyInLibrary) {
         await addToUserLibrary(mangaData);
-      } else if ((library.find((m) => m.mal_id === mangaData.mal_id)
-        ?.volumes ?? 0) < volumeNumber) {
-        // Existing series but our total is less than the volume we just
-        // scanned → bump the total so the volume record gets created.
+      } else if ((existing.volumes ?? 0) < maxVolume) {
+        // Bump total so the target volume row exists server-side
         await axios.patch(`/api/user/library/${mangaData.mal_id}`, {
-          volumes: volumeNumber,
+          volumes: maxVolume,
         });
       }
 
-      // 2. Fetch the freshly created / existing volumes
-      const volumes = await getAllVolumesByID(mangaData.mal_id);
+      // 2. Fetch volumes (IDs assigned server-side)
+      let volumes = await getAllVolumesByID(mangaData.mal_id);
       await cacheVolumesForManga(mangaData.mal_id, volumes);
 
-      const target = volumes.find((v) => v.vol_num === volumeNumber);
-      if (!target) {
-        throw new Error(
-          `Volume ${volumeNumber} not found on server after add`
-        );
+      // 3. Mark each target vol as owned — skip any that were already owned
+      const newlyOwned = [];
+      const alreadyOwned = [];
+      for (const num of sorted) {
+        const target = volumes.find((v) => v.vol_num === num);
+        if (!target) {
+          throw new Error(`Volume ${num} not found on server after add`);
+        }
+        if (target.owned) {
+          alreadyOwned.push(num);
+          continue;
+        }
+        await updateVolumeByID(target.id, true, 0, target.store ?? "");
+        newlyOwned.push(num);
       }
 
-      if (target.owned) {
-        // Already owned — nothing else to do.
-        queryClient.invalidateQueries({ queryKey: ["library"] });
-        queryClient.invalidateQueries({ queryKey: ["volumes", mangaData.mal_id] });
-        return {
-          added: !alreadyInLibrary,
-          alreadyOwned: true,
-          manga: mangaData,
-          volumeNumber,
-        };
-      }
-
-      // 3. Mark it owned (price 0, no store — user can edit later)
-      await updateVolumeByID(target.id, true, 0, target.store ?? "");
-
-      // 4. Update the library's volumes_owned counter from the server truth
-      const refreshed = await getAllVolumesByID(mangaData.mal_id);
-      await cacheVolumesForManga(mangaData.mal_id, refreshed);
-      const ownedCount = refreshed.filter((v) => v.owned).length;
+      // 4. Refresh + update the library counter
+      volumes = await getAllVolumesByID(mangaData.mal_id);
+      await cacheVolumesForManga(mangaData.mal_id, volumes);
+      const ownedCount = volumes.filter((v) => v.owned).length;
       await updateVolumeOwned(mangaData.mal_id, ownedCount);
 
       queryClient.invalidateQueries({ queryKey: ["library"] });
       queryClient.invalidateQueries({ queryKey: ["volumes", mangaData.mal_id] });
+      queryClient.invalidateQueries({ queryKey: ["volumes-all"] });
 
       return {
         added: !alreadyInLibrary,
-        alreadyOwned: false,
+        newlyOwned,
+        alreadyOwned,
         manga: mangaData,
-        volumeNumber,
+        volumeNumbers: sorted,
       };
     },
     [library]
