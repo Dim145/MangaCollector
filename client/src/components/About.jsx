@@ -1,241 +1,343 @@
+import { useContext, useEffect, useState } from "react";
 import Punpun from "../assets/punpun.jpg";
 import Berserk from "../assets/berserk.jpg";
 import Beastars from "../assets/beastars.jpg";
 import TokyoGhoul from "../assets/tokyoghoul.webp";
 import Vinland from "../assets/vinland.jpg";
 import FirePunch from "../assets/firepunch.jpg";
-import {useContext, useEffect, useState} from "react";
 import SettingsContext from "@/SettingsContext.js";
 
+const MOCKED = [
+  { id: 1, title: "Fire Punch", volumes: 8, img: FirePunch },
+  { id: 2, title: "Goodnight Punpun", volumes: 13, img: Punpun },
+  { id: 3, title: "Tokyo Ghoul", volumes: 14, img: TokyoGhoul },
+  { id: 4, title: "Berserk", volumes: 41, img: Berserk },
+  { id: 5, title: "Vinland Saga", volumes: 27, img: Vinland },
+  { id: 6, title: "Beastars", volumes: 22, img: Beastars },
+];
+
 export default function About() {
-  const [topMangas, setTopMangas] = useState([]);
-
-  const mockedManga = [
-    {
-      id: 1,
-      title: "Fire Punch",
-      volumes: 8,
-      img: FirePunch,
-    },
-    {
-      id: 2,
-      title: "Goodnight Punpun",
-      volumes: 13,
-      img: Punpun,
-    },
-    {
-      id: 3,
-      title: "Tokyo Ghoul",
-      volumes: 14,
-      img: TokyoGhoul,
-    },
-    {
-      id: 4,
-      title: "Berserk",
-      volumes: 41,
-      img: Berserk,
-    },
-    {
-      id: 5,
-      title: "Vinland Saga",
-      volumes: 27,
-      img: Vinland,
-    },
-    {
-      id: 6,
-      title: "Beastars",
-      volumes: 22,
-      img: Beastars,
-    },
-  ];
-
-  useEffect(() => {
-    const getTopMangas = async () => {
-      const response = await fetch(
-        `https://api.jikan.moe/v4/top/manga?type=manga&limit=6`,
-      );
-
-      if (!response.ok) {
-        throw new Error(`Error fetching top mangas: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      const top = (data.data || []).map(m => ({
-        id: m.mal_id,
-        title: m.title_english,
-        volumes: m.volumes || "N/A",
-        img: m.images?.jpg?.large_image_url,
-      }));
-
-      setTopMangas(top);
-    }
-
-    getTopMangas().catch(error => {
-      console.error(error);
-      setTopMangas(mockedManga);
-    });
-  }, []);
-
+  const [topMangas, setTopMangas] = useState(MOCKED);
   const { authName } = useContext(SettingsContext);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await fetch(
+          `https://api.jikan.moe/v4/top/manga?type=manga&limit=8`
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        const top = (data.data || []).slice(0, 8).map((m) => ({
+          id: m.mal_id,
+          title: m.title_english || m.title,
+          volumes: m.volumes || "—",
+          img: m.images?.jpg?.large_image_url,
+        }));
+        if (top.length) setTopMangas(top);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
   return (
-    <div className="bg-gradient-to-b from-black via-gray-900 to-black min-h-screen text-white">
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        {/* subtle glow */}
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.08),_transparent_60%)]" />
-        <div className="max-w-6xl mx-auto px-6 py-20 md:py-28">
-          <div className="text-center space-y-6">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-              Track every volume. Own your collection.
-            </span>
-            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">
-              Your Manga Collection,
-              <span className="bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                {" "}
-                Perfectly Organized
+    <div className="relative isolate overflow-hidden grain min-h-[calc(100svh-4rem)]">
+      {/* Ambient */}
+      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+        <div
+          className="absolute -top-1/2 left-1/2 h-[60rem] w-[60rem] -translate-x-1/2 rounded-full opacity-40 blur-3xl"
+          style={{
+            background:
+              "radial-gradient(circle, oklch(0.6 0.22 25 / 0.25), transparent 60%)",
+          }}
+        />
+      </div>
+
+      {/* ─────────── Hero ─────────── */}
+      <section className="relative px-4 sm:px-6">
+        <div className="mx-auto max-w-6xl pt-12 md:pt-20">
+          <div className="mx-auto max-w-3xl text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-ink-1/60 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-washi-muted backdrop-blur">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-hanko opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-hanko" />
               </span>
+              v1.0 · Archive your collection
+            </span>
+
+            <h1 className="mt-6 font-display text-5xl font-light leading-[0.95] tracking-tight text-washi md:text-7xl lg:text-8xl animate-fade-up">
+              Every <em className="italic font-semibold text-hanko-gradient not-italic md:italic">volume</em>,
+              <br />
+              beautifully{" "}
+              <span className="inline-block text-ink-gradient">archived.</span>
             </h1>
-            <p className="text-base md:text-lg text-gray-300/80 max-w-3xl mx-auto">
-              Search series via the MyAnimeList API, add them to your library,
-              and log each volume’s ownership, and price. Store them securely
-              with {authName} OAuth 2.0.
+
+            <p
+              className="mx-auto mt-6 max-w-xl text-base text-washi-muted md:text-lg animate-fade-up"
+              style={{ animationDelay: "100ms" }}
+            >
+              MangaCollector is a quiet, devoted space to catalogue, track and
+              cherish the series that shape you — volume by volume, shelf by
+              shelf.
             </p>
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <a
-                href="/dashboard"
-                className="rounded-2xl px-6 py-3 font-semibold bg-gradient-to-r from-gray-100 to-gray-300 text-black hover:scale-105 transition"
-              >
-                Open Dashboard
-              </a>
+
+            <div
+              className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row animate-fade-up"
+              style={{ animationDelay: "200ms" }}
+            >
               <a
                 href="/log-in"
-                className="rounded-2xl px-6 py-3 font-semibold border border-white/15 bg-white/5 text-white hover:bg-white/10 transition"
+                className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-hanko px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-washi shadow-xl glow-red transition hover:scale-[1.02] hover:bg-hanko-bright active:scale-95 sm:w-auto"
               >
-                Sign up with {authName}
+                Get started
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                >
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
               </a>
+              <a
+                href="/dashboard"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-ink-1/60 px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-washi-muted backdrop-blur transition hover:border-border/80 hover:text-washi sm:w-auto"
+              >
+                Open dashboard
+              </a>
+            </div>
+          </div>
+
+          {/* Hero image — collage of covers */}
+          <div
+            className="relative mx-auto mt-16 max-w-5xl animate-fade-up"
+            style={{ animationDelay: "300ms" }}
+          >
+            <div className="relative">
+              <div className="pointer-events-none absolute -inset-20 -z-10 opacity-40 blur-3xl">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      "radial-gradient(ellipse at 30% 50%, oklch(0.6 0.22 25 / 0.3), transparent 60%), radial-gradient(ellipse at 70% 50%, oklch(0.82 0.13 78 / 0.15), transparent 60%)",
+                  }}
+                />
+              </div>
+
+              {/* Carousel of 8 covers */}
+              <div className="grid grid-cols-4 gap-3 md:grid-cols-8">
+                {topMangas.slice(0, 8).map((m, i) => (
+                  <div
+                    key={m.id}
+                    className={`relative aspect-[2/3] overflow-hidden rounded-lg border border-border shadow-2xl transition-transform duration-500 hover:scale-105 hover:-translate-y-2 ${
+                      i % 2 === 0 ? "md:translate-y-2" : "md:-translate-y-2"
+                    }`}
+                    style={{
+                      animation: `fade-up 0.8s ${i * 80}ms both cubic-bezier(0.16, 1, 0.3, 1)`,
+                    }}
+                  >
+                    {m.img && (
+                      <img
+                        src={m.img}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-ink-0 via-transparent to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 p-1.5">
+                      <p className="line-clamp-1 font-display text-[10px] font-semibold text-washi drop-shadow">
+                        {m.title}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Logos / Social proof */}
-      <section className="max-w-6xl mx-auto px-6 py-8">
-        <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-md p-6">
-          <p className="text-center text-xs tracking-wide text-gray-400 mb-4">
-            Powered by
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 items-center">
-            <LogoPill>MyAnimeList API</LogoPill>
-            <LogoPill>PostgreSQL</LogoPill>
-            <LogoPill>Express</LogoPill>
-            <LogoPill>React + Tailwind</LogoPill>
+      {/* ─────────── Philosophy / Stats ─────────── */}
+      <section className="relative px-4 py-16 sm:px-6 md:py-24">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-8 md:grid-cols-2 md:gap-16">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+                PHILOSOPHY · 想い
+              </p>
+              <h2 className="mt-3 font-display text-3xl font-light italic leading-tight text-washi md:text-5xl">
+                A library worth
+                <br />
+                <span className="text-hanko-gradient font-semibold not-italic">
+                  returning to.
+                </span>
+              </h2>
+            </div>
+            <div className="space-y-5 text-base text-washi-muted md:text-lg">
+              <p>
+                We believe collecting manga is an act of devotion. Each volume is
+                a fragment of a world you've walked through — its weight, its
+                spine, its smell of ink and paper, all of it matters.
+              </p>
+              <p className="border-l-2 border-hanko/50 pl-4 font-display italic text-washi">
+                "Track what you own. Remember what you've paid. Celebrate what
+                you've completed."
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="max-w-6xl mx-auto px-6 py-16 md:py-24">
-        <div className="grid md:grid-cols-2 gap-10 items-center">
-          <div className="space-y-4">
-            <h2 className="text-3xl md:text-4xl font-bold">
-              Everything you need to manage a growing shelf
+      {/* ─────────── Features ─────────── */}
+      <section className="relative px-4 py-16 sm:px-6 md:py-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-10">
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
+              FEATURES · 機能
+            </span>
+            <h2 className="mt-2 font-display text-3xl font-semibold italic text-washi md:text-4xl">
+              Crafted for collectors.
             </h2>
-            <p className="text-gray-300/80">
-              MangaCollector streamlines collection tracking so you can spend
-              more time reading.
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <FeatureCard
+              number="01"
+              title="Volume tracking"
+              description="Toggle ownership, record prices, log store locations. Nothing slips through."
+            />
+            <FeatureCard
+              number="02"
+              title="MAL powered search"
+              description="Instant metadata and cover art sourced from MyAnimeList. No manual entry unless you want it."
+              accent
+            />
+            <FeatureCard
+              number="03"
+              title="Analytics"
+              description="See completion rates, top-spent series, and how your collection grows over time."
+            />
+            <FeatureCard
+              number="04"
+              title="Custom entries"
+              description="Doujinshi, rare prints, and obscure finds all welcomed. Add what MAL doesn't know."
+            />
+            <FeatureCard
+              number="05"
+              title="Adult filters"
+              description="Fine-grained control over mature content — blur, hide, or show as you prefer."
+            />
+            <FeatureCard
+              number="06"
+              title="Secure sessions"
+              description="OAuth 2.0 via your provider of choice. No passwords to manage, no data sold."
+              accent
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────── Testimonials ─────────── */}
+      <section className="relative px-4 py-16 sm:px-6 md:py-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-10 text-center">
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
+              VOICES · 声
+            </span>
+            <h2 className="mt-2 font-display text-3xl font-semibold italic text-washi md:text-4xl">
+              From fellow readers.
+            </h2>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <Testimonial
+              quote="I finally stopped losing track of which volumes I own."
+              name="Kenji T."
+              role="Collector · 300+ volumes"
+            />
+            <Testimonial
+              quote="Search is instant, metadata is accurate. Feels like my second shelf."
+              name="Aiko R."
+              role="Seinen enthusiast"
+            />
+            <Testimonial
+              quote={`The ${authName || "OAuth"} login just works. No friction at all.`}
+              name="Marco D."
+              role="Full-stack dev & reader"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────── CTA ─────────── */}
+      <section className="relative px-4 py-16 sm:px-6 md:py-24">
+        <div className="mx-auto max-w-4xl">
+          <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-ink-1 via-hanko/10 to-gold/5 p-8 text-center md:p-16">
+            {/* Ornamental Japanese character */}
+            <span
+              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-display italic font-light text-hanko/5 text-[20rem] leading-none select-none"
+              aria-hidden="true"
+            >
+              始
+            </span>
+            <div className="relative">
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+                BEGIN
+              </p>
+              <h2 className="mt-3 font-display text-3xl font-light italic leading-tight text-washi md:text-5xl">
+                Your archive <span className="font-semibold not-italic text-hanko-gradient">awaits.</span>
+              </h2>
+              <p className="mx-auto mt-4 max-w-md text-sm text-washi-muted md:text-base">
+                Sign in, search a title, and start the quiet joy of cataloguing.
+              </p>
+              <div className="mt-8">
+                <a
+                  href="/log-in"
+                  className="group inline-flex items-center gap-2 rounded-full bg-washi px-8 py-4 text-sm font-semibold uppercase tracking-wider text-ink-0 shadow-xl transition hover:scale-[1.02] active:scale-95"
+                >
+                  Start collecting
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                  >
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────── Footer ─────────── */}
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
+          <div className="flex items-center gap-2">
+            <span className="hanko-seal grid h-7 w-7 place-items-center rounded-md font-display text-[9px] font-bold">
+              MC
+            </span>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+              © {new Date().getFullYear()} MangaCollector
             </p>
-            <ul className="space-y-3">
-              <FeatureItem title="Lightning-fast search">
-                Query the MAL API for accurate titles, cover art, and volume
-                counts.
-              </FeatureItem>
-              <FeatureItem title="Volume-level tracking">
-                Toggle ownership, record prices, and note purchase locations.
-              </FeatureItem>
-              <FeatureItem title="Secure sessions">
-                {authName} OAuth 2.0 with cookie-based sessions keeps access simple
-                and safe.
-              </FeatureItem>
-            </ul>
           </div>
-          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-6 md:p-8 shadow-2xl">
-            <MockedDashboard mockedManga={topMangas} />
-          </div>
-        </div>
-      </section>
-
-      {/* Metrics */}
-      <section className="max-w-6xl mx-auto px-6 pb-12">
-        <div className="grid gap-4">
-          <StatCard value="65K+" label="Series added" />
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="max-w-6xl mx-auto px-6 py-16">
-        <div className="grid md:grid-cols-3 gap-6">
-          <Testimonial
-            quote="I finally stopped losing track of which volumes I own."
-            name="Kenji T."
-            role="Collector of 300+ vols"
-          />
-          <Testimonial
-            quote="Search is instant and accurate. Pulling from MAL makes it trustworthy."
-            name="Aiko R."
-            role="Seinen enthusiast"
-          />
-          <Testimonial
-            quote={`The ${authName} login + sessions just work. No friction.`}
-            name="Marco D."
-            role="Full-stack dev & reader"
-          />
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="max-w-5xl mx-auto px-6 pb-24">
-        <div className="rounded-3xl border border-white/10 bg-gradient-to-r from-white/10 to-white/5 p-8 md:p-12 text-center">
-          <h3 className="text-2xl md:text-3xl font-bold mb-3">
-            Start organizing your shelf today
-          </h3>
-          <p className="text-gray-300/80 mb-6">
-            Sign in with {authName}, search your favorites, and start logging
-            volumes in minutes.
-          </p>
-          <div className="flex justify-center gap-3">
-            <a
-              href="/log-in"
-              className="rounded-2xl px-6 py-3 font-semibold bg-gradient-to-r from-gray-100 to-gray-300 text-black hover:scale-105 transition"
-            >
-              Get Started
-            </a>
-            {/* <a
-              href="/dashboard"
-              className="rounded-2xl px-6 py-3 font-semibold border border-white/15 bg-white/5 text-white hover:bg-white/10 transition"
-            >
-              View Demo
-            </a> */}
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-white/10">
-        <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-gray-400">
-            © {new Date().getFullYear()} MangaCollector. All rights reserved.
-          </p>
-          <nav className="flex items-center gap-5 text-sm text-gray-300">
-            {/* <a className="hover:text-white" href="/privacy">
-              Privacy
-            </a>
-            <a className="hover:text-white" href="/terms">
-              Terms
-            </a> */}
-            <a className="hover:text-white" href="/dashboard">
+          <nav className="flex items-center gap-5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+            <a className="hover:text-washi" href="/dashboard">
               Dashboard
+            </a>
+            <a className="hover:text-washi" href="/log-in">
+              Sign in
             </a>
           </nav>
         </div>
@@ -244,93 +346,58 @@ export default function About() {
   );
 }
 
-/* ---------- Small subcomponents ---------- */
-
-function LogoPill({ children }) {
+function FeatureCard({ number, title, description, accent }) {
   return (
-    <div className="flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
-      {children}
-    </div>
-  );
-}
-
-function FeatureItem({ title, children }) {
-  return (
-    <li className="flex items-start gap-3">
-      <span className="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/20">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-3.5 w-3.5 text-emerald-400"
-          viewBox="0 0 20 20"
-          fill="currentColor"
+    <div
+      className={`group relative overflow-hidden rounded-2xl border p-6 transition hover:-translate-y-0.5 ${
+        accent
+          ? "border-hanko/30 bg-gradient-to-br from-hanko/10 to-transparent hover:border-hanko/50"
+          : "border-border bg-ink-1/50 hover:border-border/80"
+      }`}
+    >
+      <div className="flex items-baseline justify-between">
+        <span
+          className={`font-mono text-xs font-semibold ${
+            accent ? "text-hanko-bright" : "text-washi-dim"
+          }`}
         >
-          <path d="M16.707 5.293a1 1 0 0 1 0 1.414l-7.25 7.25a1 1 0 0 1-1.414 0L3.293 9.207a1 1 0 1 1 1.414-1.414l3.043 3.043 6.543-6.543a1 1 0 0 1 1.414 0z" />
-        </svg>
-      </span>
-      <div>
-        <p className="font-semibold">{title}</p>
-        <p className="text-sm text-gray-300/80">{children}</p>
+          {number}
+        </span>
+        <span className="h-px flex-1 ml-4 bg-gradient-to-r from-border to-transparent" />
       </div>
-    </li>
-  );
-}
-
-function StatCard({ value, label }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
-      <div className="text-3xl font-extrabold">{value}</div>
-      <div className="text-xs tracking-wide text-gray-400 mt-1">{label}</div>
+      <h3 className="mt-3 font-display text-xl font-semibold text-washi">
+        {title}
+      </h3>
+      <p className="mt-2 text-sm leading-relaxed text-washi-muted">
+        {description}
+      </p>
     </div>
   );
 }
 
 function Testimonial({ quote, name, role }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-      <p className="text-gray-200">“{quote}”</p>
-      <div className="mt-4 text-sm">
-        <p className="font-semibold">{name}</p>
-        <p className="text-gray-400">{role}</p>
-      </div>
-    </div>
-  );
-}
-
-function MockedDashboard({ mockedManga }) {
-  return (
-    <div className="space-y-6 p-4 max-w-6xl mx-auto">
-      {/* Header Skeleton */}
-      <div className="h-fit w-fit rounded-2xl bg-gradient-to-r from-gray-800/80 to-gray-900/80 text-center mx-auto p-6 shadow-lg border border-gray-700 backdrop-blur-sm">
-        <h2 className="text-2xl font-extrabold text-white mb-2 bg-clip-text bg-gradient-to-r from-white to-gray-400">
-          Your Library
-        </h2>
-        <p className="text-gray-400 text-sm">
-          Browse and manage all the manga in your collection
-        </p>
-      </div>
-
-      {/* Manga Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mockedManga.map((manga) => (
-          <div
-            key={manga.id}
-            className="rounded-xl overflow-hidden border border-white/10 bg-white/5 shadow-lg hover:shadow-xl transition-shadow duration-300"
-          >
-            <div className="h-48 w-full bg-gray-700 overflow-hidden">
-              <img
-                src={manga.img}
-                alt={manga.title}
-                className="h-full w-full object-cover transform hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-            <div className="p-4 space-y-2 bg-gray-900 h-full">
-              <h3 className="text-lg font-semibold text-white">
-                {manga.title}
-              </h3>
-              <p className="text-sm text-gray-400">Volumes: {manga.volumes}</p>
-            </div>
-          </div>
-        ))}
+    <div className="group relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 transition hover:-translate-y-0.5">
+      <svg
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        className="h-6 w-6 text-hanko/30"
+      >
+        <path d="M10 11H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v9c0 2.8-2.2 5-5 5v-2c1.7 0 3-1.3 3-3zM18 11h-4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v9c0 2.8-2.2 5-5 5v-2c1.7 0 3-1.3 3-3z" />
+      </svg>
+      <p className="mt-3 font-display text-base italic leading-relaxed text-washi">
+        {quote}
+      </p>
+      <div className="mt-4 flex items-center gap-3">
+        <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-gold to-gold-muted font-display text-xs font-bold text-ink-0">
+          {name[0]}
+        </div>
+        <div>
+          <p className="font-display text-sm font-semibold text-washi">{name}</p>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+            {role}
+          </p>
+        </div>
       </div>
     </div>
   );

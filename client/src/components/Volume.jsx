@@ -1,25 +1,27 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { updateVolumeByID } from "../utils/volume";
+import { formatCurrency } from "@/utils/price.js";
 
-export default function Volume({ id, owned, volNum, paid, store, onUpdate, currencySetting }) {
+export default function Volume({
+  id,
+  owned,
+  volNum,
+  paid,
+  store,
+  onUpdate,
+  currencySetting,
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [ownedStatus, setOwnedStatus] = useState(owned);
-  const [price, setPrice] = useState(paid);
-  const [purchaseLocation, setPurchaseLocation] = useState(store);
+  const [price, setPrice] = useState(Number(paid) || 0);
+  const [purchaseLocation, setPurchaseLocation] = useState(store ?? "");
   const [isLoading, setIsLoading] = useState(false);
 
-  async function updateVolume() {
+  async function persist(nextOwned, nextPrice, nextStore, ownedChanged) {
     try {
       setIsLoading(true);
-      await updateVolumeByID(id, ownedStatus, price, purchaseLocation);
-      if (onUpdate) {
-        onUpdate({
-          id,
-          owned: ownedStatus,
-          paid: price,
-          store: purchaseLocation,
-        });
-      }
+      await updateVolumeByID(id, nextOwned, Number(nextPrice) || 0, nextStore);
+      onUpdate?.({ ownedChanged });
     } catch (error) {
       console.error(error);
     } finally {
@@ -27,142 +29,212 @@ export default function Volume({ id, owned, volNum, paid, store, onUpdate, curre
     }
   }
 
-  const handleSave = () => {
+  const toggleOwned = async () => {
+    if (isEditing) return;
+    const next = !ownedStatus;
+    setOwnedStatus(next);
+    await persist(next, price, purchaseLocation, true);
+  };
+
+  const handleSave = async () => {
     setIsEditing(false);
-    updateVolume();
+    const ownedChanged = ownedStatus !== owned;
+    await persist(ownedStatus, price, purchaseLocation, ownedChanged);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    // Reset to original values
     setOwnedStatus(owned);
-    setPrice(paid);
-    setPurchaseLocation(store);
+    setPrice(Number(paid) || 0);
+    setPurchaseLocation(store ?? "");
   };
 
   useEffect(() => {
-    // Update local state when props change
     setOwnedStatus(owned);
-    setPrice(paid);
-    setPurchaseLocation(store);
+    setPrice(Number(paid) || 0);
+    setPurchaseLocation(store ?? "");
   }, [owned, paid, store]);
 
   return (
-    <div className="bg-black/40 hover:bg-black/50 backdrop-blur-sm border border-white/20 hover:border-white/30 rounded-lg p-4 flex flex-col gap-4 shadow-lg hover:shadow-xl transition-all duration-200 group">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-white group-hover:text-gray-100 transition-colors">
-          Volume {volNum}
-        </h2>
+    <div
+      className={`group relative overflow-hidden rounded-xl border transition-all duration-300 ${
+        ownedStatus
+          ? "border-hanko/40 bg-hanko/5 hover:border-hanko/60"
+          : "border-border bg-ink-1/40 hover:border-border/80"
+      }`}
+    >
+      {/* Volume number & ownership */}
+      <div className="flex items-center gap-3 p-4">
+        <button
+          onClick={toggleOwned}
+          disabled={isEditing || isLoading}
+          aria-label={ownedStatus ? "Mark as not owned" : "Mark as owned"}
+          className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${
+            ownedStatus
+              ? "border-hanko bg-hanko text-washi shadow-md glow-red"
+              : "border-border bg-ink-2 text-washi-dim hover:border-hanko/40 hover:text-washi"
+          }`}
+        >
+          {isLoading ? (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : (
+            <>
+              <span className="text-[10px] font-semibold uppercase tracking-wider">
+                Vol
+              </span>
+              <span className="absolute -bottom-0.5 right-0.5 text-[9px]">
+                {volNum}
+              </span>
+            </>
+          )}
+        </button>
 
-        {isEditing ? (
-          <div className="flex gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-display text-base font-semibold leading-none text-washi">
+            Volume {volNum}
+          </p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span
+              className={`text-[10px] font-semibold uppercase tracking-wider ${
+                ownedStatus ? "text-gold" : "text-washi-dim"
+              }`}
+            >
+              {ownedStatus ? "In Collection" : "Missing"}
+            </span>
+            {ownedStatus && price > 0 && (
+              <span className="font-mono text-xs text-washi-muted">
+                {formatCurrency(price, currencySetting)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {!isEditing ? (
+          <button
+            onClick={() => setIsEditing(true)}
+            aria-label="Edit volume"
+            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-washi-dim transition hover:bg-white/5 hover:text-washi"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
+          </button>
+        ) : null}
+      </div>
+
+      {/* Inline edit form */}
+      {isEditing && (
+        <div className="space-y-3 border-t border-border bg-ink-0/40 p-4 animate-fade-up">
+          <div>
+            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+              Status
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { v: true, label: "Owned" },
+                { v: false, label: "Missing" },
+              ].map((opt) => (
+                <button
+                  key={String(opt.v)}
+                  onClick={() => setOwnedStatus(opt.v)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition ${
+                    ownedStatus === opt.v
+                      ? opt.v
+                        ? "border-hanko bg-hanko text-washi"
+                        : "border-border bg-ink-2 text-washi"
+                      : "border-border bg-transparent text-washi-dim hover:text-washi"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor={`price-${id}`}
+              className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+            >
+              Price ({currencySetting?.symbol || "$"})
+            </label>
+            <input
+              id={`price-${id}`}
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              onFocus={(e) => {
+                if (Number(e.target.value) === 0) e.target.select();
+              }}
+              placeholder="0"
+              step="0.01"
+              min="0"
+              className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor={`store-${id}`}
+              className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+            >
+              Store / Location
+            </label>
+            <input
+              id={`store-${id}`}
+              type="text"
+              maxLength={30}
+              value={purchaseLocation ?? ""}
+              onChange={(e) => setPurchaseLocation(e.target.value)}
+              placeholder="Amazon, local shop…"
+              className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+            />
+          </div>
+
+          <div className="flex gap-2 pt-2">
             <button
               onClick={handleSave}
               disabled={isLoading}
-              className={`
-                px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200
-                bg-white text-black hover:bg-gray-200 active:bg-gray-300
-                hover:scale-105 active:scale-95 shadow-md hover:shadow-lg
-                disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-                ${isLoading ? "animate-pulse" : ""}
-              `}
+              className="flex-1 rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
             >
-              {isLoading ? "Saving..." : "Save"}
+              {isLoading ? "Saving…" : "Save"}
             </button>
             <button
               onClick={handleCancel}
               disabled={isLoading}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi hover:border-border/80"
             >
               Cancel
             </button>
           </div>
-        ) : (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-200 shadow-md hover:shadow-lg"
+        </div>
+      )}
+
+      {/* Store chip (non-editing) */}
+      {!isEditing && ownedStatus && purchaseLocation && (
+        <div className="flex items-center gap-1.5 border-t border-border/50 px-4 py-2 text-[11px] text-washi-muted">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-3 w-3 text-washi-dim"
           >
-            Edit
-          </button>
-        )}
-      </div>
-
-      {/* Form Fields */}
-      <div className="space-y-3">
-        {/* Owned Selector */}
-        <div>
-          <label className="block text-sm text-gray-300 mb-1.5 font-medium">
-            Owned Status
-          </label>
-          <select
-            value={ownedStatus ? "yes" : "no"}
-            disabled={!isEditing}
-            onChange={(e) => setOwnedStatus(e.target.value === "yes")}
-            className={`
-              w-full px-3 py-2 rounded-lg border transition-all duration-200
-              focus:outline-none focus:ring-2 focus:ring-white/20
-              ${
-                isEditing
-                  ? "bg-black/50 border-white/30 text-white hover:bg-black/60 focus:bg-black/70"
-                  : "bg-black/20 border-white/10 text-gray-400 cursor-not-allowed"
-              }
-            `}
-          >
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+          </svg>
+          <span className="truncate">{purchaseLocation}</span>
         </div>
-
-        {/* Price Input */}
-        <div>
-          <label className="block text-sm text-gray-300 mb-1.5 font-medium">
-            Price ({currencySetting?.symbol || '$'})
-          </label>
-          <input
-            type="number"
-            value={price}
-            disabled={!isEditing}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="0.00"
-            step="0.01"
-            min="0"
-            className={`
-              w-full px-3 py-2 rounded-lg border transition-all duration-200
-              focus:outline-none focus:ring-2 focus:ring-white/20
-              ${
-                isEditing
-                  ? "bg-black/50 border-white/30 text-white placeholder-gray-400 hover:bg-black/60 focus:bg-black/70"
-                  : "bg-black/20 border-white/10 text-gray-400 cursor-not-allowed"
-              }
-            `}
-          />
-        </div>
-
-        {/* Store Input */}
-        <div>
-          <label className="block text-sm text-gray-300 mb-1.5 font-medium">
-            Store/Location
-          </label>
-          <input
-            type="text"
-            maxLength={30}
-            value={purchaseLocation}
-            disabled={!isEditing}
-            onChange={(e) => setPurchaseLocation(e.target.value)}
-            placeholder="Amazon, Bookstore, etc."
-            className={`
-              w-full px-3 py-2 rounded-lg border transition-all duration-200
-              focus:outline-none focus:ring-2 focus:ring-white/20
-              ${
-                isEditing
-                  ? "bg-black/50 border-white/30 text-white placeholder-gray-400 hover:bg-black/60 focus:bg-black/70"
-                  : "bg-black/20 border-white/10 text-gray-400 cursor-not-allowed"
-              }
-            `}
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

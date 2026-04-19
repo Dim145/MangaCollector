@@ -23,3 +23,14 @@ export const logout = async () => {
 export const initiateOAuth = () => {
   window.location.href = `${axios.defaults.baseURL}/auth/oauth2`;
 };
+
+// Public info about the configured OAuth provider (no auth required)
+export const getAuthProvider = async () => {
+  try {
+    const response = await axios.get("/auth/provider");
+    return response.data;
+  } catch (error) {
+    console.error("Failed to fetch auth provider:", error);
+    return { authName: "", authIcon: "" };
+  }
+};

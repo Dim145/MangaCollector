@@ -1,107 +1,155 @@
-import React, {Fragment, useContext} from "react";
+import { useContext, useState } from "react";
 import SettingsContext from "@/SettingsContext.js";
-import {hasToBlurImage} from "@/utils/library.js";
+import { hasToBlurImage } from "@/utils/library.js";
 import Modal from "@/components/utils/Modal.jsx";
 
 export default function MangaSearchResults({
   results,
   addToLibrary,
   isAdding,
-  isInLibrary
+  isInLibrary,
 }) {
-  const [imgUrl, setImgUrl] = React.useState(undefined);
+  const [imgUrl, setImgUrl] = useState(undefined);
+  const { adult_content_level } = useContext(SettingsContext);
 
-  const {adult_content_level} = useContext(SettingsContext);
+  if (!results?.length) return null;
 
-  if (results.length === 0) {
-    return null;
-  }
+  return (
+    <>
+      <div className="overflow-hidden rounded-2xl border border-border bg-ink-1/80 backdrop-blur-xl shadow-2xl animate-fade-up">
+        <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
+            {results.length} matches · 結果
+          </span>
+          <span className="rounded-full bg-hanko/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-hanko-bright">
+            MyAnimeList
+          </span>
+        </div>
 
-  return <Fragment>
-    <div
-      className="mt-4 w-full overflow-y-auto bg-black/80 hover:bg-black/90 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl transition-all duration-300"
-      style={{ maxHeight: "calc(100lvh - 250px)" }}
-    >
-      {results.map((manga) => {
-        const blurImage = hasToBlurImage({genres: manga.genres.map(g => g.name)}, adult_content_level);
-
-        return <div
-          key={manga.mal_id}
-          className="flex items-center gap-3 p-3 hover:bg-white/5 transition-all duration-200 group border-b border-white/5 last:border-b-0"
+        <ul
+          className="max-h-[60vh] overflow-y-auto divide-y divide-border"
+          role="listbox"
         >
-          {/* Manga Cover Image */}
-          <div className="relative overflow-hidden rounded-md">
-            <img
-              src={manga.images.jpg.image_url}
-              alt={manga.title}
-              className={`h-24 w-auto rounded-md shadow-lg group-hover:scale-105 transition-transform duration-300 ${blurImage ? "blur-sm" : "cursor-pointer"}`}
-            />
-            <div
-              className={`absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-md ${!blurImage ? "cursor-pointer" : ""}`}
-              onClick={() => !blurImage && setImgUrl(manga.images.jpg.large_image_url)}
-            />
-          </div>
+          {results.map((manga) => {
+            const blurImage = hasToBlurImage(
+              { genres: manga.genres.map((g) => g.name) },
+              adult_content_level
+            );
+            const inLib = isInLibrary(manga.mal_id);
 
-          {/* Manga Information */}
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-white group-hover:text-gray-100 transition-colors truncate">
-              {manga.title}
-            </p>
-            <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
-              Volumes: {manga.volumes ?? "?"}
-            </p>
-          </div>
+            return (
+              <li
+                key={manga.mal_id}
+                className="group flex items-center gap-3 px-3 py-3 transition-colors hover:bg-white/[0.03] sm:gap-4 sm:px-4"
+              >
+                {/* Cover */}
+                <button
+                  onClick={() =>
+                    !blurImage &&
+                    setImgUrl(manga.images.jpg.large_image_url)
+                  }
+                  disabled={blurImage}
+                  aria-label={`View ${manga.title} cover`}
+                  className="relative flex-shrink-0 overflow-hidden rounded-md border border-border shadow-md"
+                >
+                  <img
+                    src={manga.images.jpg.image_url}
+                    alt=""
+                    loading="lazy"
+                    className={`h-20 w-14 object-cover transition-transform duration-300 group-hover:scale-110 sm:h-24 sm:w-16 ${
+                      blurImage ? "blur-md" : ""
+                    }`}
+                  />
+                </button>
 
-          {/* Add Button */}
-          {isInLibrary(manga.mal_id) ? <Fragment>
-            <span className="text-green-500 px-4 py-2">
-              <svg xmlns="http://www.w3.org/2000/svg"
-                   fill="none"
-                   viewBox="0 0 24 24"
-                   strokeWidth={1.5}
-                   stroke="currentColor"
-                   className="size-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
-            </span>
-          </Fragment> : <button
-            onClick={() => addToLibrary(manga)}
-            className={`
-              px-4 py-2 bg-white text-black text-xs font-semibold rounded-lg
-              hover:bg-gray-200 hover:scale-105 active:scale-95
-              transform transition-all duration-200 shadow-lg hover:shadow-xl
-              disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-              ${isAdding ? "animate-pulse" : ""}
-            `}
-            disabled={isAdding}
-          >
-            {isAdding ? "Adding..." : "Add"}
-          </button>}
-        </div>
-      })}
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                  <p className="font-display text-sm font-semibold text-washi line-clamp-2 sm:text-base">
+                    {manga.title}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                    {manga.volumes ? (
+                      <span>{manga.volumes} vols</span>
+                    ) : (
+                      <span>? vols</span>
+                    )}
+                    {manga.status && (
+                      <>
+                        <span className="h-0.5 w-0.5 rounded-full bg-washi-dim" />
+                        <span>{manga.status}</span>
+                      </>
+                    )}
+                    {manga.score && (
+                      <>
+                        <span className="h-0.5 w-0.5 rounded-full bg-washi-dim" />
+                        <span className="text-gold">★ {manga.score}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
 
-      {/* Scroll Indicator */}
-      {results.length > 5 && (
-        <div className="sticky bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-black/80 to-transparent pointer-events-none flex items-center justify-center">
-          <div className="w-8 h-0.5 bg-white/30 rounded-full" />
-        </div>
-      )}
-    </div>
+                {/* Action */}
+                <div className="flex-shrink-0">
+                  {inLib ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gold"
+                      title="Already in library"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-3 w-3"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Owned
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => addToLibrary(manga)}
+                      disabled={isAdding}
+                      className="inline-flex items-center gap-1 rounded-full bg-hanko px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50"
+                    >
+                      {isAdding ? (
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
+                      ) : (
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3 w-3"
+                        >
+                          <path d="M12 5v14M5 12h14" />
+                        </svg>
+                      )}
+                      Add
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
 
-    <Modal
-      popupOpen={imgUrl}
-      handleClose={() => setImgUrl(undefined)}
-      additionalClasses="m-2"
-    >
-      <img
-        src={`${imgUrl}`}
-        alt="poster"
-        style={{
-          maxHeight: 'calc(100vh - 150px)',
-          height: '100vh'
-        }}
-        className="max-w-full object-contain rounded-lg shadow-lg"
-      />
-    </Modal>
-  </Fragment>;
+      <Modal
+        popupOpen={Boolean(imgUrl)}
+        handleClose={() => setImgUrl(undefined)}
+        additionalClasses=""
+      >
+        <img
+          src={imgUrl}
+          alt="poster"
+          className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
+        />
+      </Modal>
+    </>
+  );
 }

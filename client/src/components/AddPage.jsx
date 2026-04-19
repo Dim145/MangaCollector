@@ -1,9 +1,13 @@
+import { useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
-import React, {Fragment, useContext, useEffect, useState} from "react";
-import {addCustomEntryToUserLibrary, addToUserLibrary, getUserLibrary} from "@/utils/user.js";
-import {useNavigate} from "react-router-dom";
 import SettingsContext from "@/SettingsContext.js";
+import {
+  addCustomEntryToUserLibrary,
+  addToUserLibrary,
+  getUserLibrary,
+} from "@/utils/user.js";
 
 export default function AddPage() {
   const [query, setQuery] = useState("");
@@ -11,35 +15,33 @@ export default function AddPage() {
   const [loading, setLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [library, setLibrary] = useState([]);
+  const [searched, setSearched] = useState(false);
 
-  // state for custom entries
   const [customEntry, setCustomEntry] = useState(false);
   const [customEntryTitle, setCustomEntryTitle] = useState("");
   const [customEntryGenres, setCustomEntryGenres] = useState("");
   const [customEntryVolumes, setCustomEntryVolumes] = useState(0);
 
-  const {adult_content_level} = useContext(SettingsContext);
+  const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
 
   useEffect(() => {
-    async function loadLibrary() {
+    (async () => {
       try {
-        const userLibrary = await getUserLibrary();
-        setLibrary(userLibrary);
+        setLibrary(await getUserLibrary());
       } catch (err) {
         console.error(err);
       }
-    }
-
-    loadLibrary();
+    })();
   }, []);
 
   const searchManga = async () => {
     if (!query.trim()) return;
     try {
       setLoading(true);
+      setSearched(true);
       const res = await fetch(
-        `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(query)}&limit=10`,
+        `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(query)}&limit=10`
       );
       const data = await res.json();
       setResults(data.data || []);
@@ -68,7 +70,6 @@ export default function AddPage() {
       };
 
       if (library.some((m) => m.mal_id === mangaData.mal_id)) {
-        console.log("Already in library");
         return;
       }
 
@@ -84,9 +85,12 @@ export default function AddPage() {
   const clearResults = () => {
     setResults([]);
     setQuery("");
+    setSearched(false);
   };
 
   const handleSaveCustomEntry = async () => {
+    if (!customEntryTitle.trim()) return;
+
     const mangaData = {
       name: customEntryTitle,
       mal_id: null,
@@ -97,104 +101,221 @@ export default function AddPage() {
         .split(",")
         .map((g) => g.trim())
         .filter((g) => g.length > 0),
-    }
+    };
 
     const res = await addCustomEntryToUserLibrary(mangaData);
 
-    if(res.success)
-    {
-      navigate("/mangapage", { state: { manga: res.newEntry, adult_content_level } })
+    if (res.success) {
+      navigate("/mangapage", {
+        state: { manga: res.newEntry, adult_content_level },
+      });
     }
-  }
+  };
 
-  return <div className="relative text-white overflow-hidden p-8 max-w-6xl mx-auto space-y-12">
-    <div className="w-full space-y-4">
-      <MangaSearchBar
-        query={query}
-        setQuery={(val) => {
-          setQuery(val);
-          setCustomEntryTitle(val);
-          setCustomEntryTitle(val);
-          setCustomEntry(false);
-        }}
-        searchManga={searchManga}
-        clearResults={clearResults}
-        loading={loading}
-        hasResults={results.length > 0}
-        additionalButtons={<button
-          onClick={() => setCustomEntry(!customEntry)}
-          title="Add Custom Entry"
-          className={`
-              flex-1 sm:flex-none px-5 py-3 rounded-2xl font-semibold text-white
-              bg-blue-600 hover:bg-blue-700 active:bg-gray-300
-              hover:scale-105 active:scale-95 transform transition-all duration-200
-              shadow-lg hover:shadow-xl
-              disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-            `}
+  return (
+    <div className="mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+      {/* Header */}
+      <header className="mb-8 animate-fade-up">
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-3.5 w-3.5"
+          >
+            <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
-        </button>}
-      />
+          Back
+        </button>
 
-      {/* Dropdown Results or custom entry */}
-      {customEntry ? <Fragment>
-        <h2 className="text-2xl font-bold mb-2 text-white">Add Custom Entry</h2>
-        <p className="text-2xs mb-4 text-gray-300/75">
-          Custom entries allow you to add manga that may not be listed on MyAnimeList or to track physical manga that you own.
-        </p>
-
-        <div className="max-w-3xl mx-auto p-6 bg-opacity-80 mt-10 rounded-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 shadow-lg backdrop-blur-sm hover:scale-[1.02] transform transition text-white">
-          Title:
-          <input
-            type="text"
-            className="w-full p-2 rounded-md mb-4"
-            value={customEntryTitle}
-            onChange={(e) => setCustomEntryTitle(e.target.value)}
-            placeholder="Enter manga title"
-          />
-
-         Genres (comma separated):
-          <input
-            type="text"
-            className="w-full p-2 rounded-md mb-4"
-            placeholder="e.g., Action, Adventure, Fantasy"
-            value={customEntryGenres}
-            onChange={(e) => setCustomEntryGenres(e.target.value)}
-          />
-
-          Number of Volumes:
-          <input
-            type="number"
-            className="w-full p-2 rounded-md mb-4"
-            value={customEntryVolumes}
-            onChange={(e) => setCustomEntryVolumes(Number(e.target.value))}
-            min={0}
-          />
-
-          <div className="text-right gap-4 mt-6">
-            <button
-              onClick={handleSaveCustomEntry}
-              className={`
-                px-6 py-3 rounded-2xl font-semibold text-white
-                bg-green-600 hover:bg-green-700 active:bg-green-800
-                hover:scale-105 active:scale-95 transform transition-all duration-200
-                shadow-lg hover:shadow-xl
-              `}
-            >
-              Save Custom Entry
-            </button>
-          </div>
+        <div className="flex items-baseline gap-3">
+          <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
+            ADD · 追加
+          </span>
+          <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
         </div>
-      </Fragment> : results.length > 0 && (
-        <MangaSearchResults
-          results={results}
-          addToLibrary={addToLibrary}
-          isAdding={isAdding}
-          isInLibrary={(mal_id) => library.some((m) => m.mal_id === mal_id)}
-        />
+        <h1 className="mt-2 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">
+          Add to your <span className="text-hanko-gradient font-semibold not-italic">archive</span>
+        </h1>
+        <p className="mt-3 max-w-2xl text-sm text-washi-muted">
+          Search MyAnimeList to import a series with full metadata, or create a
+          custom entry for niche titles and physical editions.
+        </p>
+      </header>
+
+      {/* Tabs */}
+      <div className="mb-6 inline-flex rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur">
+        <button
+          onClick={() => setCustomEntry(false)}
+          className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition ${
+            !customEntry
+              ? "bg-hanko text-washi shadow-md"
+              : "text-washi-muted hover:text-washi"
+          }`}
+        >
+          MAL Search
+        </button>
+        <button
+          onClick={() => setCustomEntry(true)}
+          className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition ${
+            customEntry
+              ? "bg-hanko text-washi shadow-md"
+              : "text-washi-muted hover:text-washi"
+          }`}
+        >
+          Custom Entry
+        </button>
+      </div>
+
+      {customEntry ? (
+        <section className="animate-fade-up">
+          <div className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur md:p-8">
+            <p className="mb-6 rounded-lg border border-gold/20 bg-gold/5 p-3 text-xs text-washi-muted">
+              <span className="font-semibold text-gold">Note:</span> Custom
+              entries work great for titles not listed on MyAnimeList, doujinshi,
+              or physical-only releases.
+            </p>
+
+            <div className="space-y-5">
+              <div>
+                <label
+                  htmlFor="title"
+                  className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
+                >
+                  Title
+                </label>
+                <input
+                  id="title"
+                  type="text"
+                  value={customEntryTitle}
+                  onChange={(e) => setCustomEntryTitle(e.target.value)}
+                  placeholder="e.g. Underground Illustrations"
+                  className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="genres"
+                  className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
+                >
+                  Genres
+                </label>
+                <input
+                  id="genres"
+                  type="text"
+                  value={customEntryGenres}
+                  onChange={(e) => setCustomEntryGenres(e.target.value)}
+                  placeholder="Comma-separated, e.g. Action, Fantasy, Seinen"
+                  className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="volumes"
+                  className="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
+                >
+                  Number of volumes
+                </label>
+                <input
+                  id="volumes"
+                  type="number"
+                  value={customEntryVolumes}
+                  onChange={(e) => setCustomEntryVolumes(Number(e.target.value))}
+                  min={0}
+                  placeholder="0"
+                  className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                onClick={() => {
+                  setCustomEntry(false);
+                  setCustomEntryTitle("");
+                  setCustomEntryGenres("");
+                  setCustomEntryVolumes(0);
+                }}
+                className="rounded-full border border-border bg-transparent px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveCustomEntry}
+                disabled={!customEntryTitle.trim()}
+                className="rounded-full bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi shadow-lg transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Create entry
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="space-y-6 animate-fade-up">
+          <MangaSearchBar
+            query={query}
+            setQuery={setQuery}
+            searchManga={searchManga}
+            clearResults={clearResults}
+            loading={loading}
+            hasResults={results.length > 0}
+            placeholder="Search MyAnimeList…"
+          />
+
+          {loading ? (
+            <div className="space-y-2">
+              {[...Array(4)].map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-4 rounded-xl border border-border p-3"
+                >
+                  <div className="h-24 w-16 animate-shimmer rounded-md" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-3/4 animate-shimmer rounded" />
+                    <div className="h-3 w-1/2 animate-shimmer rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : results.length > 0 ? (
+            <MangaSearchResults
+              results={results}
+              addToLibrary={addToLibrary}
+              isAdding={isAdding}
+              isInLibrary={(mal_id) => library.some((m) => m.mal_id === mal_id)}
+            />
+          ) : searched ? (
+            <div className="rounded-2xl border border-dashed border-border bg-ink-1/30 p-8 text-center">
+              <p className="font-display text-lg italic text-washi-muted">
+                No results for "{query}"
+              </p>
+              <p className="mt-2 text-xs text-washi-dim">
+                Try another keyword, or switch to "Custom Entry" above.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border bg-ink-1/30 p-8 text-center">
+              <div className="hanko-seal mx-auto mb-3 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
+                捜
+              </div>
+              <p className="font-display text-lg italic text-washi">
+                Begin with a title.
+              </p>
+              <p className="mt-1 text-xs text-washi-muted">
+                Every great archive starts with a single volume.
+              </p>
+            </div>
+          )}
+        </section>
       )}
     </div>
-  </div>;
+  );
 }

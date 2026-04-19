@@ -111,3 +111,13 @@ pub async fn get_auth_user(
 ) -> Result<Json<serde_json::Value>, AppError> {
     Ok(Json(serde_json::to_value(&user).unwrap()))
 }
+
+/// GET /auth/provider — public info about the configured OAuth provider
+pub async fn get_auth_provider(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    Json(json!({
+        "authName": state.config.auth_name,
+        "authIcon": state.config.auth_icon,
+    }))
+}

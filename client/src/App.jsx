@@ -1,19 +1,22 @@
-// App.jsx
-import { Routes, Route, useLocation } from "react-router-dom";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { Route, Routes, useLocation } from "react-router-dom";
+
+import Header from "./components/Header";
+import ProtectedRoute from "./components/ProtectedRoute";
+import DefaultBackground from "@/components/DefaultBackground.jsx";
+
+import About from "./components/About";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
-import ProtectedRoute from "./components/ProtectedRoute";
-import Header from "./components/Header";
-import About from "./components/About";
-import ProfilePage from "./components/ProfilePage";
 import MangaPage from "./components/MangaPage";
-import Wishlist from "./components/Wishlist";
-import {useEffect, useLayoutEffect, useState} from "react";
-import SettingsPage from "@/components/SettingsPage.jsx";
-import DefaultBackground from "@/components/DefaultBackground.jsx";
-import {getUserSettings} from "@/utils/user.js";
-import SettingsContext from "@/SettingsContext.js";
 import AddPage from "@/components/AddPage.jsx";
+import ProfilePage from "./components/ProfilePage";
+import SettingsPage from "@/components/SettingsPage.jsx";
+import Wishlist from "./components/Wishlist";
+
+import SettingsContext from "@/SettingsContext.js";
+import { getUserSettings } from "@/utils/user.js";
+import { getAuthProvider } from "@/utils/auth.js";
 
 export default function App() {
   const location = useLocation();
@@ -22,18 +25,28 @@ export default function App() {
   const [settings, setSettings] = useState({});
 
   useEffect(() => {
-    getUserSettings().then(s => setSettings(s));
+    (async () => {
+      // Always fetch public provider info — works even when logged out, so the
+      // Login page knows what text/icon to render on the CTA button.
+      const provider = await getAuthProvider();
+      try {
+        const s = await getUserSettings();
+        setSettings({ ...provider, ...s });
+      } catch {
+        // Not authenticated — settings are private; fall back to provider info only.
+        setSettings(provider);
+      }
+    })();
   }, []);
 
   useLayoutEffect(() => {
-    // Scroll to the top of the page when the route changes
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
 
   return (
-    <>
+    <SettingsContext.Provider value={settings}>
       <Header />
-      <SettingsContext.Provider value={settings}>
+      <main className="relative">
         <Routes>
           <Route path="/" element={<About />} />
           <Route path="/log-in" element={<Login />} />
@@ -69,18 +82,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/settings"
             element={
               <ProtectedRoute setGoogleUser={setGoogleUser}>
                 <DefaultBackground>
-                  <SettingsPage settingsUpdateCallback={s => setSettings(s)} />
+                  <SettingsPage settingsUpdateCallback={(s) => setSettings(s)} />
                 </DefaultBackground>
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/addmanga"
             element={
@@ -92,7 +103,7 @@ export default function App() {
             }
           />
         </Routes>
-      </SettingsContext.Provider>
-    </>
+      </main>
+    </SettingsContext.Provider>
   );
 }

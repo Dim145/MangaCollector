@@ -9,4 +9,5 @@ pub fn auth_router() -> Router<AppState> {
         .route("/oauth2/callback", get(auth_handler::oauth_callback))
         .route("/oauth2/logout", post(auth_handler::logout))
         .route("/user", get(auth_handler::get_auth_user))
+        .route("/provider", get(auth_handler::get_auth_provider))
 }

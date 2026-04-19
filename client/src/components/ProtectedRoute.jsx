@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
-import { checkAuthStatus } from "../utils/auth";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { checkAuthStatus } from "../utils/auth";
 import DefaultBackground from "./DefaultBackground";
+
 export default function ProtectedRoute({ children, setGoogleUser }) {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const verifyAuth = async () => {
+    (async () => {
       const user = await checkAuthStatus();
       if (user) {
         setIsAuthenticated(true);
@@ -16,16 +17,22 @@ export default function ProtectedRoute({ children, setGoogleUser }) {
         setIsAuthenticated(false);
         navigate("/log-in");
       }
-    };
-
-    verifyAuth();
-  }, []);
+    })();
+  }, [navigate, setGoogleUser]);
 
   if (isAuthenticated === null) {
     return (
       <DefaultBackground>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
+          <div className="relative">
+            <div className="absolute inset-0 animate-ping rounded-full bg-hanko/30" />
+            <span className="hanko-seal relative grid h-14 w-14 place-items-center rounded-lg font-display text-base font-bold">
+              MC
+            </span>
+          </div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim animate-pulse">
+            Loading archive…
+          </p>
         </div>
       </DefaultBackground>
     );
