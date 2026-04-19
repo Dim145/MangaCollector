@@ -3,15 +3,13 @@ import { createPortal } from "react-dom";
 import { startScan } from "@/lib/barcode.js";
 
 /**
- * Full-screen camera scanner.
+ * Full-screen camera scanner. Fires `onDetect(rawISBN)` once the parent
+ * then takes over the UI (by unmounting the scanner and showing a loading
+ * view, result modal, etc.).
  *
  * Rendered via a React portal into `document.body` so it escapes any
- * `isolate` or transform on ancestors (DefaultBackground creates its own
- * stacking context, which would otherwise trap this overlay beneath the
- * sticky Header and ProfileButton).
- *
- * Also pushes a synthetic history entry so the browser back button closes
- * the scanner instead of navigating away from /addmanga.
+ * `isolate` or transform on ancestors that would otherwise trap it
+ * under the sticky Header.
  */
 export default function BarcodeScanner({
   onDetect,
@@ -22,18 +20,22 @@ export default function BarcodeScanner({
   const videoRef = useRef(null);
   const stopFnRef = useRef(null);
   const onCloseRef = useRef(onClose);
+  const onDetectRef = useRef(onDetect);
+  const firedRef = useRef(false);
   const [error, setError] = useState(null);
   const [state, setState] = useState("requesting");
 
-  // Always have the latest onClose reference available to stable listeners
-  // (useEffect runs once with [] deps).
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+  useEffect(() => {
+    onDetectRef.current = onDetect;
+  }, [onDetect]);
 
   useEffect(() => {
     let stream = null;
     let disposed = false;
+    firedRef.current = false;
 
     (async () => {
       try {
@@ -58,7 +60,11 @@ export default function BarcodeScanner({
         setState("running");
 
         stopFnRef.current = await startScan(video, (raw) => {
-          if (!disposed) onDetect(raw);
+          if (disposed) return;
+          // Fire at most once — parent unmounts us on detection.
+          if (firedRef.current) return;
+          firedRef.current = true;
+          onDetectRef.current?.(raw);
         });
       } catch (err) {
         if (
@@ -77,15 +83,6 @@ export default function BarcodeScanner({
       }
     })();
 
-    // Lock background scroll while scanner is open
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    // History trap: pushState so the browser back button = close scanner
-    window.history.pushState({ __mc_scanner: true }, "");
-    const onPop = () => onCloseRef.current?.();
-    window.addEventListener("popstate", onPop);
-
     const onKey = (e) => {
       if (e.key === "Escape") onCloseRef.current?.();
     };
@@ -93,10 +90,7 @@ export default function BarcodeScanner({
 
     return () => {
       disposed = true;
-      document.body.style.overflow = prevOverflow;
       window.removeEventListener("keyup", onKey);
-      window.removeEventListener("popstate", onPop);
-
       (async () => {
         try {
           if (stopFnRef.current) await stopFnRef.current();
@@ -105,13 +99,6 @@ export default function BarcodeScanner({
         }
         if (stream) stream.getTracks().forEach((t) => t.stop());
       })();
-
-      // If our synthetic state is still on top (user closed via X / commit,
-      // not via browser back), pop it to keep history clean. The popstate
-      // listener is already removed, so no re-entry.
-      if (window.history.state?.__mc_scanner) {
-        window.history.back();
-      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -124,7 +111,6 @@ export default function BarcodeScanner({
       className="fixed inset-0 isolate bg-ink-0"
       style={{ zIndex: 2147483640 }}
     >
-      {/* Video — purely decorative, never receives pointer events */}
       <video
         ref={videoRef}
         playsInline
@@ -134,7 +120,6 @@ export default function BarcodeScanner({
         style={{ zIndex: 0 }}
       />
 
-      {/* Darkened overlay + viewfinder — transparent to pointer events */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{ zIndex: 1 }}
@@ -142,8 +127,7 @@ export default function BarcodeScanner({
         <ViewfinderOverlay />
       </div>
 
-      {/* Close button — top-left, far from any app chrome.
-          Direct child of the root so nothing nests it into a stacking trap. */}
+      {/* Close button — top-left */}
       <button
         type="button"
         onClick={() => onCloseRef.current?.()}
@@ -181,8 +165,8 @@ export default function BarcodeScanner({
       >
         <span className="relative flex h-2 w-2">
           <span
-            className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
-              state === "running" ? "bg-hanko" : "bg-washi-dim"
+            className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+              state === "running" ? "animate-ping bg-hanko" : "bg-washi-dim"
             }`}
           />
           <span
@@ -199,7 +183,7 @@ export default function BarcodeScanner({
         </span>
       </div>
 
-      {/* Bottom status / hint bar */}
+      {/* Bottom hint bar */}
       <div
         className="absolute inset-x-0 bottom-0 px-4 pb-3"
         style={{
@@ -259,8 +243,6 @@ export default function BarcodeScanner({
     </div>
   );
 
-  // Portal out of the React tree so DefaultBackground's `isolate` can't trap
-  // the overlay in a stacking context below the sticky Header.
   if (typeof document === "undefined") return null;
   return createPortal(scanner, document.body);
 }

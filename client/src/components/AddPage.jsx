@@ -1,8 +1,9 @@
-import { useCallback, useContext, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
 import BarcodeScanner from "@/components/BarcodeScanner.jsx";
+import ScanLoadingView from "@/components/ScanLoadingView.jsx";
 import Modal from "@/components/utils/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
@@ -11,7 +12,7 @@ import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { addCustomEntryToUserLibrary } from "@/utils/user.js";
 import { lookupISBN, normalizeISBN, searchMangaOnMal } from "@/lib/isbn.js";
 
-const SCAN_DEDUPE_WINDOW_MS = 2500;
+const TRANSIENT_ERROR_TIMEOUT_MS = 2500;
 
 export default function AddPage() {
   const [query, setQuery] = useState("");
@@ -24,15 +25,24 @@ export default function AddPage() {
   const [customEntryGenres, setCustomEntryGenres] = useState("");
   const [customEntryVolumes, setCustomEntryVolumes] = useState(0);
 
+  // ─── Scanner state machine ──────────────────────────────────────────
+  // Phases that pause the camera detection:
+  //   'looking-up'    → Google Books / MAL in flight
+  //   'positive'      → match found; showing confirmation card
+  //   'not-found'     → Google Books has no result for this ISBN
+  //   'transient'     → network / 5xx error, auto-resumes
+  // 'scanning' = active detection.
+  // Rate-limit errors (429) close the scanner and open a separate modal.
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanPhase, setScanPhase] = useState("scanning");
   const [scanStatus, setScanStatus] = useState("");
-  const [scanResult, setScanResult] = useState(null); // {isbn, book, candidates, volume}
+  const [scanResult, setScanResult] = useState(null);
   const [scanCandidateIdx, setScanCandidateIdx] = useState(0);
+  const [scanNotFound, setScanNotFound] = useState(null); // { isbn, bookTitle? }
+  const [scanTransientError, setScanTransientError] = useState(null);
+  const [rateLimited, setRateLimited] = useState(null); // { message }
   const [committing, setCommitting] = useState(false);
   const [recentScans, setRecentScans] = useState([]);
-  const [scanError, setScanError] = useState(null);
-
-  const lastDecodedRef = useRef({ isbn: null, ts: 0 });
 
   const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
@@ -101,89 +111,126 @@ export default function AddPage() {
     }
   };
 
-  // ─── Barcode scanning ─────────────────────────────────────────────────
+  // ─── Barcode scanning state machine ───────────────────────────────────
+
+  const resumeScanning = () => {
+    setScanPhase("scanning");
+    setScanStatus("");
+    setScanResult(null);
+    setScanCandidateIdx(0);
+    setScanNotFound(null);
+    setScanTransientError(null);
+  };
 
   const closeScanner = () => {
     setScannerOpen(false);
+    setScanPhase("scanning");
     setScanStatus("");
     setScanResult(null);
     setScanCandidateIdx(0);
-    setScanError(null);
-    lastDecodedRef.current = { isbn: null, ts: 0 };
+    setScanNotFound(null);
+    setScanTransientError(null);
   };
 
-  const dismissResult = () => {
-    setScanResult(null);
-    setScanCandidateIdx(0);
-    setScanError(null);
-    setScanStatus("");
-  };
+  // Transient errors auto-resume after a short delay
+  useEffect(() => {
+    if (scanPhase !== "transient") return;
+    const t = setTimeout(resumeScanning, TRANSIENT_ERROR_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [scanPhase]);
 
-  const onBarcodeDetected = useCallback(
-    async (raw) => {
-      const isbn = normalizeISBN(raw);
-      if (!isbn) return; // not a valid EAN-13 / ISBN-10 — ignore
+  // Browser back button = close scanner, tied to the overall `scannerOpen`
+  // rather than the BarcodeScanner mount (which comes and goes between
+  // phases). One synthetic history entry per open session.
+  useEffect(() => {
+    if (!scannerOpen) return;
+    window.history.pushState({ __mc_scanner: true }, "");
+    const onPop = () => closeScanner();
+    window.addEventListener("popstate", onPop);
 
-      // Debounce: same barcode within the window → ignore
-      const now = Date.now();
-      if (
-        lastDecodedRef.current.isbn === isbn &&
-        now - lastDecodedRef.current.ts < SCAN_DEDUPE_WINDOW_MS
-      ) {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      document.body.style.overflow = prevOverflow;
+      if (window.history.state?.__mc_scanner) {
+        window.history.back();
+      }
+    };
+  }, [scannerOpen]);
+
+  const onBarcodeDetected = useCallback(async (raw) => {
+    const isbn = normalizeISBN(raw);
+    if (!isbn) return; // invalid EAN — keep scanning
+
+    try {
+      navigator.vibrate?.(30);
+    } catch {
+      /* ignore */
+    }
+
+    // Enter "looking up" — pauses the detection loop
+    setScanPhase("looking-up");
+    setScanStatus(`ISBN ${isbn} — looking up…`);
+
+    let book;
+    try {
+      book = await lookupISBN(isbn);
+    } catch (err) {
+      if (err?.code === "RATE_LIMITED") {
+        // Scanner closes; dedicated modal explains + points to Settings
+        setRateLimited({
+          message:
+            err.message ??
+            "Google Books rate-limit reached. Set an API key to continue.",
+        });
+        setScannerOpen(false);
         return;
       }
-      // Also: if we're already showing a result card, don't auto-swap
-      if (scanResult) return;
+      // Any other 5xx / network hiccup → transient, auto-resume
+      setScanTransientError(err?.message ?? "Lookup failed — will retry.");
+      setScanPhase("transient");
+      return;
+    }
 
-      lastDecodedRef.current = { isbn, ts: now };
+    if (!book) {
+      setScanNotFound({ isbn });
+      setScanPhase("not-found");
+      return;
+    }
 
-      // Soft haptic feedback where available
-      try {
-        navigator.vibrate?.(30);
-      } catch {
-        /* ignore */
-      }
+    // Try to pair the title with a MAL entry
+    setScanStatus(
+      `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`
+    );
 
-      setScanStatus(`ISBN ${isbn} — looking up…`);
-      setScanError(null);
-      try {
-        const book = await lookupISBN(isbn);
-        if (!book) {
-          setScanError(
-            `No match for ISBN ${isbn}. You can search by title or add a custom entry.`
-          );
-          setScanStatus("");
-          return;
-        }
+    let candidates = [];
+    try {
+      candidates = await searchMangaOnMal(book.title, 5);
+    } catch (err) {
+      // MAL hiccup = transient, will retry the whole scan
+      setScanTransientError(err?.message ?? "MAL lookup failed — will retry.");
+      setScanPhase("transient");
+      return;
+    }
 
-        setScanStatus(
-          `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`
-        );
-        const candidates = await searchMangaOnMal(book.title, 5);
-        if (!candidates.length) {
-          setScanError(
-            `"${book.title}" isn't on MyAnimeList. Try a custom entry.`
-          );
-          setScanStatus("");
-          return;
-        }
+    if (!candidates.length) {
+      setScanNotFound({ isbn, bookTitle: book.title });
+      setScanPhase("not-found");
+      return;
+    }
 
-        setScanResult({
-          isbn,
-          book,
-          candidates,
-          volume: book.volume ?? 1,
-        });
-        setScanCandidateIdx(0);
-        setScanStatus("");
-      } catch (err) {
-        console.error(err);
-        setScanError(err?.message ?? "Lookup failed");
-        setScanStatus("");
-      }
-    },
-    [scanResult]
-  );
+    setScanResult({
+      isbn,
+      book,
+      candidates,
+      volume: book.volume ?? 1,
+    });
+    setScanCandidateIdx(0);
+    setScanPhase("positive");
+    setScanStatus("");
+  }, []);
 
   const commitCurrentScan = async () => {
     if (!scanResult) return;
@@ -192,30 +239,39 @@ export default function AddPage() {
     setCommitting(true);
     try {
       const res = await commitScan({ manga: candidate, volumeNumber: volume });
-      setRecentScans((prev) => [
-        {
-          id: `${candidate.mal_id}-${volume}-${Date.now()}`,
-          title: candidate.title,
-          volume,
-          cover:
-            candidate.images?.jpg?.image_url ??
-            candidate.images?.jpg?.small_image_url,
-          alreadyOwned: res.alreadyOwned,
-          added: res.added,
-        },
-        ...prev,
-      ].slice(0, 8));
+      setRecentScans((prev) =>
+        [
+          {
+            id: `${candidate.mal_id}-${volume}-${Date.now()}`,
+            title: candidate.title,
+            volume,
+            cover:
+              candidate.images?.jpg?.image_url ??
+              candidate.images?.jpg?.small_image_url,
+            alreadyOwned: res.alreadyOwned,
+            added: res.added,
+          },
+          ...prev,
+        ].slice(0, 8)
+      );
       try {
         navigator.vibrate?.([30, 40, 30]);
       } catch {
         /* ignore */
       }
-      dismissResult();
+      resumeScanning();
     } catch (err) {
-      setScanError(err?.message ?? "Failed to add");
+      setScanTransientError(err?.message ?? "Failed to add — will retry.");
+      setScanPhase("transient");
     } finally {
       setCommitting(false);
     }
+  };
+
+  const switchToManual = (prefillTitle) => {
+    closeScanner();
+    setCustomEntry(true);
+    if (prefillTitle) setCustomEntryTitle(prefillTitle);
   };
 
   return (
@@ -447,28 +503,35 @@ export default function AddPage() {
         </section>
       )}
 
-      {/* ─── Scanner modal (full-screen) ─── */}
-      {scannerOpen && (
+      {/* ─── Scanner (active detection only) ─── */}
+      {scannerOpen && scanPhase === "scanning" && (
         <BarcodeScanner
           onDetect={onBarcodeDetected}
           onClose={closeScanner}
-          statusMessage={scanStatus || "Point the camera at the barcode"}
+          statusMessage="Point the camera at the barcode"
           recentCount={recentScans.length}
         />
       )}
 
-      {/* ─── Scan result card (confirmation) ─── */}
+      {/* ─── Loading view (replaces scanner while Google Books / MAL resolves) ─── */}
+      {scannerOpen &&
+        (scanPhase === "looking-up" || scanPhase === "transient") && (
+          <ScanLoadingView
+            statusMessage={scanStatus}
+            errorMessage={
+              scanPhase === "transient" ? scanTransientError : null
+            }
+            onClose={closeScanner}
+          />
+        )}
+
+      {/* ─── Positive match — confirmation card ─── */}
       <Modal
-        popupOpen={Boolean(scannerOpen && (scanResult || scanError))}
-        handleClose={committing ? undefined : dismissResult}
+        popupOpen={Boolean(scannerOpen && scanPhase === "positive" && scanResult)}
+        handleClose={committing ? undefined : resumeScanning}
       >
         <div className="max-w-md overflow-hidden rounded-2xl border border-border bg-ink-1 shadow-2xl">
-          {scanError ? (
-            <ScanErrorCard
-              message={scanError}
-              onDismiss={dismissResult}
-            />
-          ) : scanResult ? (
+          {scanResult && (
             <ScanMatchCard
               result={scanResult}
               candidateIdx={scanCandidateIdx}
@@ -479,47 +542,73 @@ export default function AddPage() {
               library={library}
               committing={committing}
               onConfirm={commitCurrentScan}
-              onCancel={dismissResult}
+              onCancel={resumeScanning}
             />
-          ) : null}
+          )}
         </div>
       </Modal>
 
-      {/* ─── Recently scanned stack (under scanner) ─── */}
-      {scannerOpen && recentScans.length > 0 && !scanResult && !scanError && (
-        <div className="pointer-events-none fixed left-1/2 top-1/2 z-[125] w-[92%] max-w-xs -translate-x-1/2 -translate-y-1/2">
-          <div className="rounded-2xl border border-border bg-ink-0/80 p-3 backdrop-blur-xl shadow-2xl animate-fade-up">
-            <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-gold">
-              Last added
-            </p>
-            <ul className="max-h-56 space-y-2 overflow-y-auto">
-              {recentScans.map((s) => (
-                <li
-                  key={s.id}
-                  className="flex items-center gap-2"
-                >
-                  {s.cover && (
-                    <img
-                      src={s.cover}
-                      alt=""
-                      className="h-10 w-7 shrink-0 rounded border border-border object-cover"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-xs font-semibold text-washi">
-                      {s.title}
-                    </p>
-                    <p className="font-mono text-[9px] uppercase tracking-wider text-washi-dim">
-                      vol {s.volume}
-                      {s.alreadyOwned && " · already owned"}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+      {/* ─── Not found — 3 options ─── */}
+      <Modal
+        popupOpen={Boolean(
+          scannerOpen && scanPhase === "not-found" && scanNotFound
+        )}
+        handleClose={resumeScanning}
+      >
+        <div className="max-w-md overflow-hidden rounded-2xl border border-border bg-ink-1 p-6 shadow-2xl">
+          {scanNotFound && (
+            <NotFoundCard
+              notFound={scanNotFound}
+              onRescan={resumeScanning}
+              onManual={() =>
+                switchToManual(scanNotFound.bookTitle ?? "")
+              }
+              onClose={closeScanner}
+            />
+          )}
+        </div>
+      </Modal>
+
+      {/* ─── Rate limit modal (outside scanner) ─── */}
+      <Modal
+        popupOpen={Boolean(rateLimited)}
+        handleClose={() => setRateLimited(null)}
+      >
+        <div className="max-w-md rounded-2xl border border-border bg-ink-1 p-6 shadow-2xl">
+          <div className="hanko-seal mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
+            限
+          </div>
+          <h3 className="text-center font-display text-xl font-semibold text-washi">
+            Google Books rate-limited
+          </h3>
+          <p className="mt-3 text-sm text-washi-muted">
+            {rateLimited?.message}
+          </p>
+          <p className="mt-3 rounded-lg border border-gold/20 bg-gold/5 p-3 text-xs text-washi-muted">
+            <span className="font-semibold text-gold">Fix:</span> add a Google
+            Books API key in Settings → Barcode scanner. The key is free, lifts
+            the per-IP quota, and can be restricted to your domain.
+          </p>
+          <div className="mt-5 flex gap-2">
+            <button
+              onClick={() => setRateLimited(null)}
+              className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi"
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                setRateLimited(null);
+                navigate("/settings");
+              }}
+              className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright"
+            >
+              Open Settings
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
+
     </div>
   );
 }
@@ -693,22 +782,52 @@ function ScanMatchCard({
   );
 }
 
-function ScanErrorCard({ message, onDismiss }) {
+function NotFoundCard({ notFound, onRescan, onManual, onClose }) {
   return (
-    <div className="p-5 text-center">
-      <div className="hanko-seal mx-auto mb-3 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
+    <div className="text-center">
+      <div className="hanko-seal mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
         ?
       </div>
-      <h3 className="font-display text-lg font-semibold text-washi">
+      <h3 className="font-display text-xl font-semibold text-washi">
         No match found
       </h3>
-      <p className="mt-2 text-xs text-washi-muted">{message}</p>
-      <button
-        onClick={onDismiss}
-        className="mt-5 w-full rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi"
-      >
-        Try another barcode
-      </button>
+      <p className="mt-2 text-sm text-washi-muted">
+        ISBN{" "}
+        <span className="font-mono text-washi">{notFound.isbn}</span>
+        {notFound.bookTitle ? (
+          <>
+            {" "}resolved to{" "}
+            <span className="italic text-washi">"{notFound.bookTitle}"</span>,
+            but no matching series on MyAnimeList.
+          </>
+        ) : (
+          " — not in Google Books either."
+        )}
+      </p>
+
+      <div className="mt-5 grid gap-2">
+        <button
+          type="button"
+          onClick={onRescan}
+          className="rounded-lg bg-hanko px-4 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95"
+        >
+          Scan another barcode
+        </button>
+        <button
+          type="button"
+          onClick={onManual}
+          className="rounded-lg border border-border bg-ink-0/40 px-4 py-2.5 text-sm font-semibold text-washi-muted transition hover:border-hanko/40 hover:text-washi"
+        >
+          Enter manually
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg border border-transparent px-4 py-2 text-xs font-semibold uppercase tracking-wider text-washi-dim transition hover:text-washi"
+        >
+          Close scanner
+        </button>
+      </div>
     </div>
   );
 }
