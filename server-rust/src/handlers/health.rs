@@ -32,8 +32,9 @@ pub async fn health(
         return Err(AppError::NotFound("404 page not found".into()));
     }
 
-    let db_status = sqlx::query("SELECT 1")
-        .execute(&state.pool)
+    let db_status = state
+        .db
+        .ping()
         .await
         .map(|_| "OK".to_string())
         .unwrap_or_else(|_| "ERROR".to_string());

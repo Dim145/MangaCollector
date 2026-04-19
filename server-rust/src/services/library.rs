@@ -1,7 +1,6 @@
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, EntityTrait, QueryFilter,
-    QueryResult, Set, Statement, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 
@@ -82,14 +81,15 @@ pub async fn add_custom_entry(
     req: AddCustomRequest,
 ) -> Result<LibraryEntry, AppError> {
     // Assign the next negative mal_id (custom entries use mal_id < 0)
-    let stmt = Statement::from_sql_and_values(
-        DatabaseBackend::Postgres,
-        "SELECT MIN(mal_id) FROM user_libraries WHERE user_id = $1 AND mal_id < 0",
-        [user_id.into()],
-    );
-    let result: Option<QueryResult> = db.query_one(stmt).await.map_err(AppError::from)?;
-    let min: Option<i32> = result
-        .and_then(|r: QueryResult| r.try_get::<Option<i32>>("", "min").ok())
+    let min: Option<i32> = LibraryEntity::find()
+        .select_only()
+        .column_as(Expr::col(library::Column::MalId).min(), "min")
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.lt(0))
+        .into_tuple::<Option<i32>>()
+        .one(db)
+        .await
+        .map_err(AppError::from)?
         .flatten();
 
     let new_mal_id = min.unwrap_or(0) - 1;
