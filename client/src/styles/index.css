@@ -76,9 +76,12 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--hanko);
 
-  /* Body ambient gradients — extracted so light mode can tone them down */
+  /* Body ambient gradients — three washes that colour the corners of the
+     viewport. Dark mode keeps them muted; light mode uses them to avoid the
+     sterile-white-paper look (see the :root[data-theme="light"] override). */
   --bg-glow-red: oklch(0.6 0.22 25 / 0.15);
   --bg-glow-gold: oklch(0.82 0.13 78 / 0.06);
+  --bg-glow-sakura: oklch(0.82 0.07 12 / 0.04);
   /* Scene glows for DefaultBackground (blurred orbs + vignette) */
   --scene-red: oklch(0.6 0.22 25 / 0.35);
   --scene-gold: oklch(0.82 0.13 78 / 0.25);
@@ -128,13 +131,16 @@
   --input: oklch(0.17 0.015 40 / 0.05);
   --ring: var(--hanko);
 
-  /* Ambient — barely-there pastel glows */
-  --bg-glow-red: oklch(0.5 0.22 25 / 0.06);
-  --bg-glow-gold: oklch(0.52 0.14 78 / 0.07);
-  /* Scene glows for DefaultBackground — softened for white page */
-  --scene-red: oklch(0.5 0.22 25 / 0.1);
-  --scene-gold: oklch(0.52 0.14 78 / 0.08);
-  --scene-sakura: oklch(0.56 0.15 20 / 0.12);
+  /* Ambient — watercolour washes, as if pigment bled into washi paper.
+     Low alpha of saturated hues so the page still reads as white where
+     text sits, but corners carry warmth that matches the dark mode soul. */
+  --bg-glow-red: oklch(0.72 0.18 22 / 0.22);     /* top: coral hanko ink */
+  --bg-glow-gold: oklch(0.84 0.14 80 / 0.25);    /* bottom-right: gold leaf */
+  --bg-glow-sakura: oklch(0.84 0.1 12 / 0.18);   /* left: petal blush */
+  /* Scene glows for DefaultBackground — warmer, paper-wash intensity */
+  --scene-red: oklch(0.7 0.2 22 / 0.2);
+  --scene-gold: oklch(0.82 0.14 80 / 0.22);
+  --scene-sakura: oklch(0.82 0.12 14 / 0.22);
   /* Vignette uses page colour so it blends invisibly on white */
   --scene-vignette: oklch(1 0 0 / 0);
   --scroll-track: var(--ink-1);
@@ -236,8 +242,9 @@
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11", "cv02";
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, var(--bg-glow-red), transparent 60%),
-      radial-gradient(ellipse 60% 40% at 100% 100%, var(--bg-glow-gold), transparent 60%);
+      radial-gradient(ellipse 85% 50% at 50% -10%, var(--bg-glow-red), transparent 60%),
+      radial-gradient(ellipse 60% 45% at 100% 100%, var(--bg-glow-gold), transparent 60%),
+      radial-gradient(ellipse 55% 40% at 0% 25%, var(--bg-glow-sakura), transparent 70%);
     background-attachment: fixed;
     min-height: 100vh;
   }
