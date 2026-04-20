@@ -139,6 +139,7 @@ export default {
     deleteAria: "Eliminar caja",
     editAria: "Editar caja",
     editingLabel: "EDITANDO · 編集",
+    notACoffret: "¿No es una caja? Volver al tomo simple",
   },
   add: {
     title: "Añadir a tu",

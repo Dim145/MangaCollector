@@ -140,6 +140,7 @@ export default {
     deleteAria: "Supprimer le coffret",
     editAria: "Modifier le coffret",
     editingLabel: "MODIFICATION · 編集",
+    notACoffret: "Pas un coffret ? Revenir au tome classique",
   },
   add: {
     title: "Ajouter à votre",

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Modal from "./utils/Modal.jsx";
 import { useCreateCoffret } from "@/hooks/useCoffrets.js";
 import { useT } from "@/i18n/index.jsx";
@@ -23,6 +23,8 @@ export default function AddCoffretModal({
   mal_id,
   totalVolumes,
   currencySetting,
+  prefill = null,
+  onSwitchToVolume = null,
 }) {
   const t = useT();
   const [volStart, setVolStart] = useState(1);
@@ -34,6 +36,21 @@ export default function AddCoffretModal({
   const [nameTouched, setNameTouched] = useState(false);
 
   const createCoffret = useCreateCoffret(mal_id);
+
+  // Re-seed fields every time the modal opens. AddCoffretModal stays
+  // mounted across open toggles, so `useState` initialisers alone can't
+  // pick up fresh prefill values from a new scan.
+  useEffect(() => {
+    if (!open) return;
+    setVolStart(prefill?.volStart ?? 1);
+    setVolEnd(prefill?.volEnd ?? Math.min(5, totalVolumes || 5));
+    setPrice(prefill?.price != null ? String(prefill.price) : "");
+    setStore("");
+    setCollector(false);
+    setName(prefill?.name ?? "");
+    setNameTouched(!!prefill?.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const autoName = useMemo(() => {
     const s = Math.max(1, Number(volStart) || 1);
@@ -267,27 +284,59 @@ export default function AddCoffretModal({
           </button>
         </div>
 
-        <div className="relative flex gap-2 border-t border-border/60 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={createCoffret.isPending}
-            className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi hover:border-border/80"
-          >
-            {t("common.cancel")}
-          </button>
-          {/* Primary CTA — hanko red, consistent with every other "save" in the app */}
-          <button
-            type="submit"
-            disabled={
-              createCoffret.isPending || rangeInvalid || volumesCount === 0
-            }
-            className="relative flex-1 overflow-hidden rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi shadow-md transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
-          >
-            {createCoffret.isPending
-              ? t("common.saving")
-              : t("coffret.createCta", { n: volumesCount })}
-          </button>
+        <div className="relative border-t border-border/60 px-6 pt-3 pb-4">
+          {/* Tertiary "escape hatch" — offered only when the caller supplied
+              a fallback (typically the barcode scan flow that may have
+              misdetected a single volume as a coffret). Dotted underline,
+              washi-dim, centered above the primary row so it looks like an
+              intentional off-ramp rather than a CTA. */}
+          {onSwitchToVolume && (
+            <div className="mb-3 flex justify-center">
+              <button
+                type="button"
+                onClick={onSwitchToVolume}
+                disabled={createCoffret.isPending}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim underline decoration-dotted underline-offset-4 transition hover:text-washi hover:decoration-solid disabled:opacity-50"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-3 w-3"
+                  aria-hidden="true"
+                >
+                  <path d="M9 14l-4-4 4-4" />
+                  <path d="M5 10h11a4 4 0 0 1 4 4v2" />
+                </svg>
+                {t("coffret.notACoffret")}
+              </button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={createCoffret.isPending}
+              className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi hover:border-border/80"
+            >
+              {t("common.cancel")}
+            </button>
+            {/* Primary CTA — hanko red, consistent with every other "save" in the app */}
+            <button
+              type="submit"
+              disabled={
+                createCoffret.isPending || rangeInvalid || volumesCount === 0
+              }
+              className="relative flex-1 overflow-hidden rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi shadow-md transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+            >
+              {createCoffret.isPending
+                ? t("common.saving")
+                : t("coffret.createCta", { n: volumesCount })}
+            </button>
+          </div>
         </div>
       </form>
     </Modal>

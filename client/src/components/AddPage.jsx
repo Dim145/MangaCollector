@@ -6,13 +6,19 @@ import MangaSearchResults from "@/components/MangaSearchResults.jsx";
 import BarcodeScanner from "@/components/BarcodeScanner.jsx";
 import ScanLoadingView from "@/components/ScanLoadingView.jsx";
 import Modal from "@/components/utils/Modal.jsx";
+import AddCoffretModal from "@/components/AddCoffretModal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { addCustomEntryToUserLibrary } from "@/utils/user.js";
 import { db } from "@/lib/db.js";
-import { lookupISBN, normalizeISBN, searchMangaOnMal } from "@/lib/isbn.js";
+import {
+  detectCoffret,
+  lookupISBN,
+  normalizeISBN,
+  searchMangaOnMal,
+} from "@/lib/isbn.js";
 import { useT } from "@/i18n/index.jsx";
 
 const TRANSIENT_ERROR_TIMEOUT_MS = 2500;
@@ -44,6 +50,10 @@ export default function AddPage() {
   const [scanNotFound, setScanNotFound] = useState(null); // { isbn, bookTitle? }
   const [scanTransientError, setScanTransientError] = useState(null);
   const [rateLimited, setRateLimited] = useState(null); // { message }
+  // Coffret detected on scan — routes to AddCoffretModal pre-filled instead
+  // of the standard single-volume confirmation card. A "Not a coffret?"
+  // button inside the modal flips back to the regular volume flow.
+  const [scanCoffret, setScanCoffret] = useState(null);
   const [committing, setCommitting] = useState(false);
   const [recentScans, setRecentScans] = useState([]);
 
@@ -230,6 +240,31 @@ export default function AddPage() {
     if (!candidates.length) {
       setScanNotFound({ isbn, bookTitle: book.title });
       setScanPhase("not-found");
+      return;
+    }
+
+    // Coffret detection — routed before the regular single-volume flow.
+    // Google Books has no structured box-set flag; we lean on title text.
+    const coffretHint = detectCoffret(book);
+    if (coffretHint.isCoffret) {
+      const candidate = candidates[0];
+      // Close the scanner overlay — the coffret modal takes over the screen.
+      setScannerOpen(false);
+      const prefilledPrice = pickDefaultPrice(book, currencyCodeRef.current);
+      setScanCoffret({
+        isbn,
+        book,
+        candidates,
+        candidate,
+        mal_id: candidate.mal_id,
+        totalVolumes: candidate.volumes ?? 0,
+        prefill: {
+          name: coffretHint.name,
+          volStart: coffretHint.volStart,
+          volEnd: coffretHint.volEnd,
+          price: prefilledPrice > 0 ? prefilledPrice : null,
+        },
+      });
       return;
     }
 
@@ -651,6 +686,34 @@ export default function AddPage() {
           </div>
         </div>
       </Modal>
+
+      {/* ─── Coffret modal opened by the scanner when a box-set is detected ── */}
+      <AddCoffretModal
+        open={Boolean(scanCoffret)}
+        onClose={() => setScanCoffret(null)}
+        mal_id={scanCoffret?.mal_id}
+        totalVolumes={scanCoffret?.totalVolumes}
+        currencySetting={currencySetting}
+        prefill={scanCoffret?.prefill}
+        onSwitchToVolume={() => {
+          // False positive on coffret detection — fall back to the regular
+          // single-volume confirmation card inside the scanner overlay.
+          const fallback = scanCoffret;
+          if (!fallback) return;
+          setScanCoffret(null);
+          setScanResult({
+            isbn: fallback.isbn,
+            book: fallback.book,
+            candidates: fallback.candidates,
+            volume: fallback.book?.volume ?? 1,
+            price: pickDefaultPrice(fallback.book, currencyCodeRef.current),
+          });
+          setScanCandidateIdx(0);
+          setScanPhase("positive");
+          setScanStatus("");
+          setScannerOpen(true);
+        }}
+      />
     </div>
   );
 }

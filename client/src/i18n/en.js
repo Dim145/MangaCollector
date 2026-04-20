@@ -138,6 +138,7 @@ export default {
     deleteAria: "Delete box set",
     editAria: "Edit box set",
     editingLabel: "EDITING · 編集",
+    notACoffret: "Not a box set? Back to single volume",
   },
   add: {
     title: "Add to your",
