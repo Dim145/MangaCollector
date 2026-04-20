@@ -179,7 +179,9 @@ export default function Header() {
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-ink-0 via-ink-0/80 to-transparent" />
           <div
             className="relative mx-3 mb-3 flex items-center justify-around gap-1 rounded-2xl border border-border bg-ink-1/90 p-1.5 backdrop-blur-xl shadow-2xl"
-            style={{ paddingBottom: `calc(0.375rem + env(safe-area-inset-bottom))` }}
+            style={{
+              paddingBottom: `calc(0.375rem + env(safe-area-inset-bottom))`,
+            }}
           >
             {NAV_ITEMS.map((item) => (
               <NavLink

@@ -1,4 +1,11 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -31,10 +38,7 @@ import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { installConnectivityWatcher } from "@/lib/connectivity.js";
 import { installSyncRunner } from "@/lib/sync.js";
-import {
-  applyThemePreference,
-  rememberThemePreference,
-} from "@/lib/theme.js";
+import { applyThemePreference, rememberThemePreference } from "@/lib/theme.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import axios from "@/utils/axios.js";
@@ -76,7 +80,7 @@ function SettingsProvider({ children }) {
   const { data: settings } = useUserSettings();
   const merged = useMemo(
     () => ({ ...(provider ?? {}), ...(settings ?? {}) }),
-    [provider, settings]
+    [provider, settings],
   );
 
   // Theme — apply to DOM + cache locally so cold-start picks the right
@@ -133,62 +137,65 @@ function AppShell() {
       <SyncToaster />
       <main className="relative">
         <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/" element={<About />} />
-          <Route path="/log-in" element={<Login />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute setGoogleUser={setGoogleUser}>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/wishlist"
-            element={
-              <ProtectedRoute setGoogleUser={setGoogleUser}>
-                <Wishlist />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute setGoogleUser={setGoogleUser}>
-                <ProfilePage googleUser={googleUser} />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/mangapage"
-            element={
-              <ProtectedRoute setGoogleUser={setGoogleUser}>
-                <MangaPage manga={manga} adult_content_level={adult_content_level} />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute setGoogleUser={setGoogleUser}>
-                <DefaultBackground>
-                  <SettingsPage />
-                </DefaultBackground>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/addmanga"
-            element={
-              <ProtectedRoute setGoogleUser={setGoogleUser}>
-                <DefaultBackground>
-                  <AddPage />
-                </DefaultBackground>
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+          <Routes>
+            <Route path="/" element={<About />} />
+            <Route path="/log-in" element={<Login />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/wishlist"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <Wishlist />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <ProfilePage googleUser={googleUser} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mangapage"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <MangaPage
+                    manga={manga}
+                    adult_content_level={adult_content_level}
+                  />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <DefaultBackground>
+                    <SettingsPage />
+                  </DefaultBackground>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/addmanga"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <DefaultBackground>
+                    <AddPage />
+                  </DefaultBackground>
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
         </Suspense>
       </main>
     </>

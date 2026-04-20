@@ -152,7 +152,7 @@ export async function clearAllUserData() {
         await db.activity.clear();
         await db.malRecommendations.clear();
         await db.mangaCharacters.clear();
-      }
+      },
     );
   } catch (err) {
     console.warn("[db] clearAllUserData failed:", err?.message);

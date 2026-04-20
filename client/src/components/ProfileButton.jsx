@@ -13,7 +13,7 @@ export default function ProfileButton() {
   const navigate = useNavigate();
   const t = useT();
   const { data: settings } = useUserSettings();
-  const avatarUrl = !avatarFailed ? settings?.avatarUrl ?? null : null;
+  const avatarUrl = !avatarFailed ? (settings?.avatarUrl ?? null) : null;
 
   useEffect(() => {
     const verifyAuth = async () => {

@@ -98,9 +98,7 @@ function Bars({ count = 5, maxHeight = 180 }) {
 /** Thin horizontal bar for progress-like UI. */
 function Bar({ className = "" }) {
   return (
-    <Skeleton
-      className={`block h-1.5 w-full rounded-full ${className}`}
-    />
+    <Skeleton className={`block h-1.5 w-full rounded-full ${className}`} />
   );
 }
 

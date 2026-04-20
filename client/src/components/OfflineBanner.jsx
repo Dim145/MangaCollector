@@ -8,8 +8,7 @@ import { useT } from "@/i18n/index.jsx";
 
 function useConnectivityDetail() {
   const [state, setState] = useState(() => ({
-    browserOnline:
-      typeof navigator !== "undefined" ? navigator.onLine : true,
+    browserOnline: typeof navigator !== "undefined" ? navigator.onLine : true,
     serverReachable: getServerReachable(),
   }));
 
@@ -99,7 +98,7 @@ export default function OfflineBanner() {
                       pending === 1
                         ? "offline.changesQueuedOne"
                         : "offline.changesQueuedMany",
-                      { n: pending }
+                      { n: pending },
                     )}
                   </span>
                 ) : (
@@ -115,7 +114,7 @@ export default function OfflineBanner() {
                       pending === 1
                         ? "offline.changesQueuedOne"
                         : "offline.changesQueuedMany",
-                      { n: pending }
+                      { n: pending },
                     )}
                   </span>
                 ) : (

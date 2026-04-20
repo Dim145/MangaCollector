@@ -214,7 +214,7 @@ export default function AddPage() {
 
     // Try to pair the title with a MAL entry
     setScanStatus(
-      `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`
+      `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`,
     );
 
     let candidates;
@@ -280,7 +280,7 @@ export default function AddPage() {
             added: res.added,
           },
           ...prev,
-        ].slice(0, 8)
+        ].slice(0, 8),
       );
       try {
         navigator.vibrate?.([30, 40, 30]);
@@ -453,7 +453,9 @@ export default function AddPage() {
                 <input
                   type="number"
                   value={customEntryVolumes}
-                  onChange={(e) => setCustomEntryVolumes(Number(e.target.value))}
+                  onChange={(e) =>
+                    setCustomEntryVolumes(Number(e.target.value))
+                  }
                   min={0}
                   placeholder="0"
                   className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
@@ -493,9 +495,7 @@ export default function AddPage() {
             loading={loading}
             hasResults={results.length > 0}
             placeholder={
-              online
-                ? t("add.searchPlaceholder")
-                : t("add.offlinePlaceholder")
+              online ? t("add.searchPlaceholder") : t("add.offlinePlaceholder")
             }
           />
 
@@ -561,16 +561,16 @@ export default function AddPage() {
         (scanPhase === "looking-up" || scanPhase === "transient") && (
           <ScanLoadingView
             statusMessage={scanStatus}
-            errorMessage={
-              scanPhase === "transient" ? scanTransientError : null
-            }
+            errorMessage={scanPhase === "transient" ? scanTransientError : null}
             onClose={closeScanner}
           />
         )}
 
       {/* ─── Positive match — confirmation card ─── */}
       <Modal
-        popupOpen={Boolean(scannerOpen && scanPhase === "positive" && scanResult)}
+        popupOpen={Boolean(
+          scannerOpen && scanPhase === "positive" && scanResult,
+        )}
         handleClose={committing ? undefined : resumeScanning}
       >
         <div className="max-w-md overflow-hidden rounded-2xl border border-border bg-ink-1 shadow-2xl">
@@ -598,7 +598,7 @@ export default function AddPage() {
       {/* ─── Not found — 3 options ─── */}
       <Modal
         popupOpen={Boolean(
-          scannerOpen && scanPhase === "not-found" && scanNotFound
+          scannerOpen && scanPhase === "not-found" && scanNotFound,
         )}
         handleClose={resumeScanning}
       >
@@ -607,9 +607,7 @@ export default function AddPage() {
             <NotFoundCard
               notFound={scanNotFound}
               onRescan={resumeScanning}
-              onManual={() =>
-                switchToManual(scanNotFound.bookTitle ?? "")
-              }
+              onManual={() => switchToManual(scanNotFound.bookTitle ?? "")}
               onClose={closeScanner}
             />
           )}
@@ -653,7 +651,6 @@ export default function AddPage() {
           </div>
         </div>
       </Modal>
-
     </div>
   );
 }
@@ -724,11 +721,9 @@ function ScanMatchCard({
     async () => {
       if (!candidate?.mal_id) return [];
       const owned = new Set(
-        (
-          await db.volumes.where("mal_id").equals(candidate.mal_id).toArray()
-        )
+        (await db.volumes.where("mal_id").equals(candidate.mal_id).toArray())
           .filter((v) => v.owned)
-          .map((v) => v.vol_num)
+          .map((v) => v.vol_num),
       );
       const gap = [];
       for (let i = 1; i < scannedVol; i++) {
@@ -737,7 +732,7 @@ function ScanMatchCard({
       return gap;
     },
     [candidate?.mal_id, scannedVol],
-    []
+    [],
   );
 
   return (
@@ -776,8 +771,12 @@ function ScanMatchCard({
             <span>
               {t("searchResults.vols", { n: candidate.volumes ?? "?" })}
             </span>
-            {candidate.score && <span className="text-gold">★ {candidate.score}</span>}
-            {inLibrary && <span className="text-gold">{t("scan.inLibrary")}</span>}
+            {candidate.score && (
+              <span className="text-gold">★ {candidate.score}</span>
+            )}
+            {inLibrary && (
+              <span className="text-gold">{t("scan.inLibrary")}</span>
+            )}
           </div>
 
           {result.candidates.length > 1 && (
@@ -802,7 +801,9 @@ function ScanMatchCard({
         </label>
         <div className="mt-1.5 flex items-center gap-2">
           <button
-            onClick={() => setVolume(Math.max(1, Number(result.volume || 1) - 1))}
+            onClick={() =>
+              setVolume(Math.max(1, Number(result.volume || 1) - 1))
+            }
             className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-ink-0/40 text-washi transition hover:border-hanko/40"
             aria-label="-"
           >

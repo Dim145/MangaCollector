@@ -113,8 +113,7 @@ export default {
       "Scannez un code-barres, cherchez sur MyAnimeList, ou créez une entrée personnalisée.",
     scanFast: "Le plus rapide",
     scanCta: "Scanner le code-barres du tome",
-    scanHint:
-      "Pointez la caméra sur le code ISBN au dos de l'ouvrage.",
+    scanHint: "Pointez la caméra sur le code ISBN au dos de l'ouvrage.",
     scanOffline: "Reconnectez-vous pour utiliser le scanner.",
     tabMalSearch: "Recherche MAL",
     tabCustomEntry: "Entrée personnalisée",
@@ -123,7 +122,8 @@ export default {
     titleField: "Titre",
     titlePlaceholder: "ex. Underground Illustrations",
     genresField: "Genres",
-    genresPlaceholder: "Séparés par des virgules, ex. Action, Fantastique, Seinen",
+    genresPlaceholder:
+      "Séparés par des virgules, ex. Action, Fantastique, Seinen",
     volumesField: "Nombre de tomes",
     createEntry: "Créer l'entrée",
     searchPlaceholder: "Rechercher sur MyAnimeList…",
@@ -162,8 +162,7 @@ export default {
     ean13Hint: "EAN-13 · ISBN-13 — tenez stable, ~15 cm",
     scannedCount: "{n} scannés",
     lookingUp: "ISBN {isbn} — recherche…",
-    foundMatching:
-      "Trouvé « {title} »{vol} — correspondance MAL…",
+    foundMatching: "Trouvé « {title} »{vol} — correspondance MAL…",
     volumeSuffix: " · Tome {n}",
     lookingUpTitle: "Recherche de l'ISBN…",
     genericWait: "Un instant.",
@@ -173,8 +172,7 @@ export default {
     noMatchTitle: "Aucun résultat",
     noMatchBodyWithTitle:
       "L'ISBN {isbn} correspond à « {title} », mais aucune série équivalente sur MyAnimeList.",
-    noMatchBodyNoTitle:
-      "ISBN {isbn} — absent de Google Books aussi.",
+    noMatchBodyNoTitle: "ISBN {isbn} — absent de Google Books aussi.",
     noMatchGoogleBooks:
       "Pas de correspondance pour l'ISBN {isbn}. Vous pouvez rechercher par titre ou créer une entrée personnalisée.",
     noMatchMal:
@@ -193,8 +191,7 @@ export default {
       "Nous n'avons pas pu détecter le numéro de tome — merci de vérifier.",
     priceLabel: "Prix ({symbol}) — uniquement ce tome",
     googleBooksPrice: "Google Books : {amount} {currency}",
-    googleBooksPriceDiffCurrency:
-      " — devise différente, non pré-remplie",
+    googleBooksPriceDiffCurrency: " — devise différente, non pré-remplie",
     googleBooksListPrice: " (prix conseillé)",
     missingVolumesOne: "Le tome {n} manque avant celui-ci",
     missingVolumesMany: "{n} tomes manquent avant celui-ci",
@@ -241,8 +238,7 @@ export default {
       "Plus de la moitié du chemin — vos étagères se remplissent magnifiquement.",
     insightBeginning:
       "Toute collection commence par un seul tome. Vous construisez quelque chose de précieux.",
-    comingSoon:
-      "Fil d'activité et recommandations personnalisées à venir.",
+    comingSoon: "Fil d'activité et recommandations personnalisées à venir.",
     tooltipSpent: "Dépensé",
   },
   settings: {
@@ -265,8 +261,7 @@ export default {
     adultBody:
       "Comportement d'affichage des titres matures dans votre archive.",
     adultBlur: "Flouter",
-    adultBlurDesc:
-      "Les jaquettes sont floutées, les tomes restent visibles",
+    adultBlurDesc: "Les jaquettes sont floutées, les tomes restent visibles",
     adultHide: "Masquer",
     adultHideDesc: "Les titres adultes sont totalement masqués",
     adultShow: "Afficher",
@@ -278,8 +273,7 @@ export default {
     currencyUSD: "Dollar américain",
     currencyEUR: "Euro",
     titleLanguage: "Langue du titre",
-    titleBody:
-      "Quel titre est préféré quand MAL fournit des alternatives.",
+    titleBody: "Quel titre est préféré quand MAL fournit des alternatives.",
     titleDefault: "Par défaut (MAL)",
     titleEnglish: "Anglais",
     titleJapanese: "Japonais",
@@ -299,21 +293,16 @@ export default {
     dataBody:
       "Archive hors ligne mise en cache sur cet appareil. Récupérez l'état frais du serveur pour repartir propre.",
     restoreFromServer: "Restaurer depuis le serveur",
-    restoreDesc:
-      "Remplace l'archive locale par le dernier état serveur.",
-    pendingDiscardOne:
-      " {n} modification en attente sera perdue.",
-    pendingDiscardMany:
-      " {n} modifications en attente seront perdues.",
+    restoreDesc: "Remplace l'archive locale par le dernier état serveur.",
+    pendingDiscardOne: " {n} modification en attente sera perdue.",
+    pendingDiscardMany: " {n} modifications en attente seront perdues.",
     restore: "Restaurer",
     restoreConnectionHint: "Nécessite une connexion",
     restoreModalTitle: "Restaurer depuis le serveur ?",
     restoreModalBody:
       "Votre archive locale — bibliothèque, tomes, paramètres — sera remplacée par une copie fraîche du serveur.",
-    pendingWarningOne:
-      "{n} modification en attente sera perdue",
-    pendingWarningMany:
-      "{n} modifications en attente seront perdues",
+    pendingWarningOne: "{n} modification en attente sera perdue",
+    pendingWarningMany: "{n} modifications en attente seront perdues",
     pendingWarningDetail:
       "Les modifications en file d'attente offline non encore synchronisées seront définitivement perdues.",
     restoreDone: "Archive restaurée avec succès.",
@@ -333,8 +322,7 @@ export default {
     benefit1: "Suivi tome par tome avec prix et sources",
     benefit2: "Couvertures et métadonnées propulsées par MyAnimeList",
     benefit3: "Privé, à vous — sessions chiffrées uniquement",
-    terms:
-      "En vous connectant, vous acceptez nos {terms} & {privacy}",
+    terms: "En vous connectant, vous acceptez nos {terms} & {privacy}",
     termsLabel: "CGU",
     privacyLabel: "Politique de confidentialité",
     brandLabel: "MangaCollector · 収集家",
@@ -386,8 +374,7 @@ export default {
       "La recherche est instantanée, les métadonnées précises. Comme une deuxième étagère.",
     t2Name: "Aiko R.",
     t2Role: "Passionnée de seinen",
-    t3Quote:
-      "L'authentification {provider} fonctionne nickel. Zéro friction.",
+    t3Quote: "L'authentification {provider} fonctionne nickel. Zéro friction.",
     t3Name: "Marco D.",
     t3Role: "Développeur full-stack & lecteur",
     begin: "COMMENCER",
@@ -402,8 +389,7 @@ export default {
     labelJp: "LISTE DE SOUHAITS · 欲しい",
     comingSoon: "Bientôt",
     comingSoonAccent: "disponible.",
-    body:
-      "Nous concevons un espace dédié pour suivre les tomes que vous rêvez de posséder — précommandes, retirages et graals, tout au même endroit.",
+    body: "Nous concevons un espace dédié pour suivre les tomes que vous rêvez de posséder — précommandes, retirages et graals, tout au même endroit.",
     backLib: "Retour à la bibliothèque",
   },
   offline: {
@@ -491,8 +477,7 @@ export default {
     emptyNoLibraryHint:
       "Ajoutez une série à votre bibliothèque et ses personnages apparaîtront ici.",
     emptyRateLimit: "MyAnimeList nous limite",
-    emptyRateLimitHint:
-      "Revenez dans une minute, la galerie se chargera.",
+    emptyRateLimitHint: "Revenez dans une minute, la galerie se chargera.",
     emptyNoMain: "Aucun personnage principal trouvé",
     emptyNoMainHint:
       "Désactivez le filtre pour voir aussi les personnages secondaires.",
@@ -507,7 +492,8 @@ export default {
     iosStep1Prefix: "Dans Safari, touchez le bouton Partager",
     iosShareButton: "Partager",
     iosStep2: "Faites défiler et touchez « Sur l'écran d'accueil ».",
-    iosStep3: "Touchez « Ajouter » — l'icône rejoint votre écran d'accueil et s'ouvre comme une vraie app.",
+    iosStep3:
+      "Touchez « Ajouter » — l'icône rejoint votre écran d'accueil et s'ouvre comme une vraie app.",
     iosClose: "C'est fait",
   },
 };

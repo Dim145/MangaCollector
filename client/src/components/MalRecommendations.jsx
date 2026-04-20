@@ -4,7 +4,7 @@ import { useMalRecommendations } from "@/hooks/useMalRecommendations.js";
 import { useT } from "@/i18n/index.jsx";
 // Only mounts when a tile is clicked — deferred out of the profile chunk.
 const MalRecommendationModal = lazy(
-  () => import("./MalRecommendationModal.jsx")
+  () => import("./MalRecommendationModal.jsx"),
 );
 
 /**
@@ -16,7 +16,12 @@ const MalRecommendationModal = lazy(
 export default function MalRecommendations() {
   const t = useT();
   const [selected, setSelected] = useState(null);
-  const { data: recs, isLoading, hasSources, error } = useMalRecommendations({
+  const {
+    data: recs,
+    isLoading,
+    hasSources,
+    error,
+  } = useMalRecommendations({
     sourceLimit: 10,
     limit: 8,
   });

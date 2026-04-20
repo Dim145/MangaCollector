@@ -54,7 +54,7 @@ function writeCachedUser(user) {
   try {
     localStorage.setItem(
       AUTH_CACHE_KEY,
-      JSON.stringify({ user, ts: Date.now() })
+      JSON.stringify({ user, ts: Date.now() }),
     );
   } catch {
     /* quota, Safari private mode — silent */

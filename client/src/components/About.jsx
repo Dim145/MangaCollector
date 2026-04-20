@@ -26,7 +26,7 @@ export default function About() {
     (async () => {
       try {
         const response = await fetch(
-          `https://api.jikan.moe/v4/top/manga?type=manga&limit=8`
+          `https://api.jikan.moe/v4/top/manga?type=manga&limit=8`,
         );
         if (!response.ok) return;
         const data = await response.json();
@@ -46,7 +46,10 @@ export default function About() {
   return (
     <div className="relative isolate overflow-hidden grain min-h-[calc(100svh-4rem)]">
       {/* Ambient */}
-      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        aria-hidden="true"
+      >
         <div
           className="absolute -top-1/2 left-1/2 h-[60rem] w-[60rem] -translate-x-1/2 rounded-full opacity-40 blur-3xl"
           style={{
@@ -397,7 +400,9 @@ function Testimonial({ quote, name, role }) {
           {name[0]}
         </div>
         <div>
-          <p className="font-display text-sm font-semibold text-washi">{name}</p>
+          <p className="font-display text-sm font-semibold text-washi">
+            {name}
+          </p>
           <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
             {role}
           </p>

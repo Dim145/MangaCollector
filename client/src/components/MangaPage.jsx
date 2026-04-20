@@ -40,10 +40,9 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [selectedImage, setSelectedImage] = useState(undefined);
   const [selectedImagePreview, setSelectedImagePreview] = useState(null);
 
-  const {
-    data: volumes,
-    isInitialLoad: volumesLoading,
-  } = useVolumesForManga(manga.mal_id);
+  const { data: volumes, isInitialLoad: volumesLoading } = useVolumesForManga(
+    manga.mal_id,
+  );
   const updateManga = useUpdateManga();
   const deleteManga = useDeleteManga();
   const updateVolumesOwned = useUpdateVolumesOwned();
@@ -74,7 +73,10 @@ export default function MangaPage({ manga, adult_content_level }) {
   const handleSave = async () => {
     try {
       const newTotal = parseInt(totalVolumes) || 0;
-      await updateManga.mutateAsync({ mal_id: manga.mal_id, volumes: newTotal });
+      await updateManga.mutateAsync({
+        mal_id: manga.mal_id,
+        volumes: newTotal,
+      });
 
       // Poster upload is online-only (file payloads can't be queued)
       if (selectedImage && online) {
@@ -118,8 +120,8 @@ export default function MangaPage({ manga, adult_content_level }) {
               owned: true,
               price: numericPrice,
               store: addStore,
-            })
-          )
+            }),
+          ),
         );
         await updateVolumesOwned.mutateAsync({
           mal_id: manga.mal_id,
@@ -279,26 +281,28 @@ export default function MangaPage({ manga, adult_content_level }) {
                       {t("manga.uploadOffline")}
                     </div>
                   )}
-                  {!`${poster}`.startsWith("http") && !selectedImagePreview && online && (
-                    <button
-                      onClick={removeImage}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-hanko/30 bg-hanko/10 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/20"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-3.5 w-3.5"
+                  {!`${poster}`.startsWith("http") &&
+                    !selectedImagePreview &&
+                    online && (
+                      <button
+                        onClick={removeImage}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-hanko/30 bg-hanko/10 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/20"
                       >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                      {t("manga.removeCover")}
-                    </button>
-                  )}
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3.5 w-3.5"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                        {t("manga.removeCover")}
+                      </button>
+                    )}
                 </div>
               )}
             </div>
@@ -314,7 +318,11 @@ export default function MangaPage({ manga, adult_content_level }) {
                     disabled={refreshing || !online}
                     aria-label={t("manga.refreshMalTitle")}
                     className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi disabled:opacity-40"
-                    title={online ? t("manga.refreshMalTitle") : t("manga.refreshOffline")}
+                    title={
+                      online
+                        ? t("manga.refreshMalTitle")
+                        : t("manga.refreshOffline")
+                    }
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -385,9 +393,12 @@ export default function MangaPage({ manga, adult_content_level }) {
                         <Skeleton.Stat width="6ch" />
                       ) : (
                         <>
-                          <span className="text-hanko-gradient">{volumesOwned}</span>
+                          <span className="text-hanko-gradient">
+                            {volumesOwned}
+                          </span>
                           <span className="text-washi-dim">
-                            {" "}/ {totalVolumes || "?"}
+                            {" "}
+                            / {totalVolumes || "?"}
                           </span>
                         </>
                       )}
@@ -508,7 +519,10 @@ export default function MangaPage({ manga, adult_content_level }) {
           </div>
         </section>
 
-        <section className="mb-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "150ms" }}>
+        <section
+          className="mb-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-fade-up"
+          style={{ animationDelay: "150ms" }}
+        >
           <SummaryCard
             label={t("manga.totalPaid")}
             value={formatCurrency(totalPrice, currencySetting)}
@@ -518,7 +532,9 @@ export default function MangaPage({ manga, adult_content_level }) {
           />
           <SummaryCard
             label={t("manga.averagePerVolume")}
-            value={volumesOwned > 0 ? formatCurrency(avgPrice, currencySetting) : "—"}
+            value={
+              volumesOwned > 0 ? formatCurrency(avgPrice, currencySetting) : "—"
+            }
             hint={t("manga.acrossOwned")}
             loading={volumesLoading}
             skeletonWidth="4ch"
@@ -527,7 +543,10 @@ export default function MangaPage({ manga, adult_content_level }) {
             {!showAddDropdown ? (
               <button
                 onClick={() => setShowAddDropdown(true)}
-                disabled={volumesOwned >= (volumes?.length ?? 0) || (volumes?.length ?? 0) === 0}
+                disabled={
+                  volumesOwned >= (volumes?.length ?? 0) ||
+                  (volumes?.length ?? 0) === 0
+                }
                 className="group relative h-full w-full overflow-hidden rounded-2xl border border-dashed border-border bg-ink-1/40 p-5 text-left backdrop-blur transition hover:border-hanko/40 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
@@ -561,7 +580,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <div className="mt-3 space-y-3">
                   <div>
                     <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                      {t("manga.avgPrice", { symbol: currencySetting?.symbol || "$" })}
+                      {t("manga.avgPrice", {
+                        symbol: currencySetting?.symbol || "$",
+                      })}
                     </label>
                     <input
                       type="number"
@@ -610,7 +631,10 @@ export default function MangaPage({ manga, adult_content_level }) {
           </div>
         </section>
 
-        <section className="animate-fade-up" style={{ animationDelay: "300ms" }}>
+        <section
+          className="animate-fade-up"
+          style={{ animationDelay: "300ms" }}
+        >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-2xl font-semibold italic text-washi">
               {t("manga.volumesTitle")}
@@ -714,11 +738,7 @@ function SummaryCard({ label, value, hint, loading, skeletonWidth }) {
       </p>
       {hint && (
         <p className="mt-1 text-xs text-washi-muted">
-          {loading ? (
-            <Skeleton className="h-3 w-32 align-middle" />
-          ) : (
-            hint
-          )}
+          {loading ? <Skeleton className="h-3 w-32 align-middle" /> : hint}
         </p>
       )}
     </div>

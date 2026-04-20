@@ -13,26 +13,26 @@
   --radius: 0.75rem;
 
   /* Surfaces */
-  --ink-0: oklch(0.08 0.005 30);            /* pure ink */
-  --ink-1: oklch(0.11 0.008 30);            /* canvas */
-  --ink-2: oklch(0.15 0.01 28);             /* raised */
-  --ink-3: oklch(0.21 0.012 28);            /* overlay */
+  --ink-0: oklch(0.08 0.005 30); /* pure ink */
+  --ink-1: oklch(0.11 0.008 30); /* canvas */
+  --ink-2: oklch(0.15 0.01 28); /* raised */
+  --ink-3: oklch(0.21 0.012 28); /* overlay */
 
   /* Text */
-  --washi: oklch(0.96 0.012 85);            /* cream */
+  --washi: oklch(0.96 0.012 85); /* cream */
   --washi-muted: oklch(0.78 0.015 70);
   --washi-dim: oklch(0.58 0.015 60);
 
   /* Signature */
-  --hanko: oklch(0.6 0.22 25);              /* stamp red */
+  --hanko: oklch(0.6 0.22 25); /* stamp red */
   --hanko-bright: oklch(0.68 0.24 25);
   --hanko-deep: oklch(0.48 0.2 25);
   --hanko-glow: oklch(0.6 0.22 25 / 0.35);
 
   /* Accent */
-  --gold: oklch(0.82 0.13 78);              /* gold leaf */
+  --gold: oklch(0.82 0.13 78); /* gold leaf */
   --gold-muted: oklch(0.7 0.1 72);
-  --sakura: oklch(0.82 0.07 12);            /* pale rose */
+  --sakura: oklch(0.82 0.07 12); /* pale rose */
 
   /* Semantic */
   --success: oklch(0.72 0.16 150);
@@ -100,15 +100,15 @@
 
 :root[data-theme="light"] {
   /* Surfaces — genuinely white page, cards step up in tint for contrast */
-  --ink-0: oklch(1 0 0);                     /* pure white page */
-  --ink-1: oklch(0.965 0.004 82);            /* card — subtle warmth */
-  --ink-2: oklch(0.925 0.007 80);            /* raised */
-  --ink-3: oklch(0.85 0.01 78);              /* heavy overlay */
+  --ink-0: oklch(1 0 0); /* pure white page */
+  --ink-1: oklch(0.965 0.004 82); /* card — subtle warmth */
+  --ink-2: oklch(0.925 0.007 80); /* raised */
+  --ink-3: oklch(0.85 0.01 78); /* heavy overlay */
 
   /* Text — deep sumi ink, WCAG-AA at every level on white */
-  --washi: oklch(0.17 0.015 40);             /* body — ~14:1 */
-  --washi-muted: oklch(0.36 0.02 40);        /* secondary — ~7:1 */
-  --washi-dim: oklch(0.46 0.02 45);          /* captions — ~4.6:1 */
+  --washi: oklch(0.17 0.015 40); /* body — ~14:1 */
+  --washi-muted: oklch(0.36 0.02 40); /* secondary — ~7:1 */
+  --washi-dim: oklch(0.46 0.02 45); /* captions — ~4.6:1 */
 
   /* Signature — deeper red so it reads against pure white */
   --hanko: oklch(0.5 0.22 25);
@@ -134,9 +134,9 @@
   /* Ambient — watercolour washes, as if pigment bled into washi paper.
      Low alpha of saturated hues so the page still reads as white where
      text sits, but corners carry warmth that matches the dark mode soul. */
-  --bg-glow-red: oklch(0.72 0.18 22 / 0.22);     /* top: coral hanko ink */
-  --bg-glow-gold: oklch(0.84 0.14 80 / 0.25);    /* bottom-right: gold leaf */
-  --bg-glow-sakura: oklch(0.84 0.1 12 / 0.18);   /* left: petal blush */
+  --bg-glow-red: oklch(0.72 0.18 22 / 0.22); /* top: coral hanko ink */
+  --bg-glow-gold: oklch(0.84 0.14 80 / 0.25); /* bottom-right: gold leaf */
+  --bg-glow-sakura: oklch(0.84 0.1 12 / 0.18); /* left: petal blush */
   /* Scene glows for DefaultBackground — warmer, paper-wash intensity */
   --scene-red: oklch(0.7 0.2 22 / 0.2);
   --scene-gold: oklch(0.82 0.14 80 / 0.22);
@@ -242,14 +242,29 @@
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11", "cv02";
     background-image:
-      radial-gradient(ellipse 85% 50% at 50% -10%, var(--bg-glow-red), transparent 60%),
-      radial-gradient(ellipse 60% 45% at 100% 100%, var(--bg-glow-gold), transparent 60%),
-      radial-gradient(ellipse 55% 40% at 0% 25%, var(--bg-glow-sakura), transparent 70%);
+      radial-gradient(
+        ellipse 85% 50% at 50% -10%,
+        var(--bg-glow-red),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 60% 45% at 100% 100%,
+        var(--bg-glow-gold),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 55% 40% at 0% 25%,
+        var(--bg-glow-sakura),
+        transparent 70%
+      );
     background-attachment: fixed;
     min-height: 100vh;
   }
 
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: var(--font-display);
     font-optical-sizing: auto;
     letter-spacing: -0.02em;
@@ -344,14 +359,24 @@
 
   /* Text gradients */
   .text-ink-gradient {
-    background: linear-gradient(135deg, var(--washi) 0%, var(--washi-muted) 60%, var(--gold-muted) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--washi) 0%,
+      var(--washi-muted) 60%,
+      var(--gold-muted) 100%
+    );
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
 
   .text-hanko-gradient {
-    background: linear-gradient(135deg, var(--hanko-bright) 0%, var(--hanko) 60%, var(--sakura) 100%);
+    background: linear-gradient(
+      135deg,
+      var(--hanko-bright) 0%,
+      var(--hanko) 60%,
+      var(--sakura) 100%
+    );
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -427,7 +452,9 @@
 
   /* Pretty ring on focus */
   .ring-hanko {
-    box-shadow: 0 0 0 2px var(--ink-0), 0 0 0 4px var(--hanko);
+    box-shadow:
+      0 0 0 2px var(--ink-0),
+      0 0 0 4px var(--hanko);
   }
 }
 
@@ -436,39 +463,79 @@
    ───────────────────────────────────────────── */
 
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slide-down {
-  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px -4px var(--hanko-glow); }
-  50% { box-shadow: 0 0 40px -4px var(--hanko-glow); }
+  0%,
+  100% {
+    box-shadow: 0 0 20px -4px var(--hanko-glow);
+  }
+  50% {
+    box-shadow: 0 0 40px -4px var(--hanko-glow);
+  }
 }
 
 @keyframes float-up {
-  0% { transform: translateY(0); opacity: 0.3; }
-  100% { transform: translateY(-60px); opacity: 0; }
+  0% {
+    transform: translateY(0);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(-60px);
+    opacity: 0;
+  }
 }
 
 @keyframes stamp {
-  0% { transform: scale(1.3) rotate(-12deg); opacity: 0; }
-  60% { transform: scale(0.9) rotate(-2deg); opacity: 1; }
-  100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+  0% {
+    transform: scale(1.3) rotate(-12deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.9) rotate(-2deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-2deg);
+    opacity: 1;
+  }
 }
 
 .animate-fade-up {
@@ -481,7 +548,12 @@
   animation: slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .animate-shimmer {
-  background: linear-gradient(90deg, var(--ink-1) 0%, var(--ink-2) 50%, var(--ink-1) 100%);
+  background: linear-gradient(
+    90deg,
+    var(--ink-1) 0%,
+    var(--ink-2) 50%,
+    var(--ink-1) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.8s infinite linear;
 }
@@ -567,7 +639,9 @@
 
 /* Motion preferences */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

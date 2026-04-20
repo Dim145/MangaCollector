@@ -43,7 +43,7 @@ function resolve(bundle, path) {
 function interpolate(str, params) {
   if (!params) return str;
   return String(str).replace(/\{(\w+)\}/g, (_, k) =>
-    params[k] != null ? String(params[k]) : `{${k}}`
+    params[k] != null ? String(params[k]) : `{${k}}`,
   );
 }
 

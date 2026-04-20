@@ -33,7 +33,7 @@ function setReachable(next) {
   if (serverReachable === next) return;
   serverReachable = next;
   window.dispatchEvent(
-    new CustomEvent(CONNECTIVITY_EVENT, { detail: { serverReachable } })
+    new CustomEvent(CONNECTIVITY_EVENT, { detail: { serverReachable } }),
   );
 }
 
@@ -111,7 +111,7 @@ export function installConnectivityWatcher() {
         setReachable(true);
       }
       return Promise.reject(err);
-    }
+    },
   );
 
   // Browser-level events reflect the link itself

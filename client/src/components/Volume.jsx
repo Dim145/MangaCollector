@@ -72,7 +72,9 @@ export default function Volume({
         <button
           onClick={toggleOwned}
           disabled={isEditing || isLoading}
-          aria-label={ownedStatus ? t("volume.markNotOwned") : t("volume.markOwned")}
+          aria-label={
+            ownedStatus ? t("volume.markNotOwned") : t("volume.markOwned")
+          }
           className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${
             ownedStatus
               ? "border-hanko bg-hanko text-washi shadow-md glow-red"
@@ -167,7 +169,9 @@ export default function Volume({
               htmlFor={`price-${id}`}
               className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
             >
-              {t("volume.priceLabel", { symbol: currencySetting?.symbol || "$" })}
+              {t("volume.priceLabel", {
+                symbol: currencySetting?.symbol || "$",
+              })}
             </label>
             <input
               id={`price-${id}`}

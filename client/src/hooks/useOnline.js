@@ -15,7 +15,7 @@ import {
  */
 export function useOnline() {
   const [online, setOnline] = useState(
-    typeof navigator !== "undefined" ? isFullyOnline() : true
+    typeof navigator !== "undefined" ? isFullyOnline() : true,
   );
 
   useEffect(() => {

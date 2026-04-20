@@ -63,7 +63,7 @@ export default function MalRecommendationModal({
       try {
         const res = await fetch(
           `https://api.jikan.moe/v4/manga/${rec.mal_id}`,
-          { headers: { Accept: "application/json" } }
+          { headers: { Accept: "application/json" } },
         );
         if (!res.ok) throw new Error(`Jikan ${res.status}`);
         const data = await res.json();
@@ -94,11 +94,7 @@ export default function MalRecommendationModal({
       const mangaData = {
         mal_id: rec.mal_id,
         title: info.title ?? rec.title,
-        volumes: Math.max(
-          info.volumes ?? 0,
-          ownedCount,
-          1
-        ),
+        volumes: Math.max(info.volumes ?? 0, ownedCount, 1),
         images: info.images ?? {
           jpg: { image_url: rec.image_url, large_image_url: rec.image_url },
         },
@@ -127,7 +123,7 @@ export default function MalRecommendationModal({
         // Add + mark 1..ownedCount as owned, each at the same price
         const volumeNumbers = Array.from(
           { length: ownedCount },
-          (_, i) => i + 1
+          (_, i) => i + 1,
         );
         await commitScan({
           manga: mangaData,
@@ -286,7 +282,7 @@ export default function MalRecommendationModal({
               type="button"
               onClick={() =>
                 setOwnedCount((v) =>
-                  maxVolumes ? Math.min(maxVolumes, v + 1) : v + 1
+                  maxVolumes ? Math.min(maxVolumes, v + 1) : v + 1,
                 )
               }
               className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-ink-0/40 text-washi transition hover:border-hanko/40"

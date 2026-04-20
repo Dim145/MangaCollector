@@ -92,7 +92,7 @@ export async function enqueueLibraryDelete(mal_id) {
         op: "delete",
         ts: Date.now(),
       });
-    }
+    },
   );
   notifyPendingChanged();
   triggerSync();
@@ -386,7 +386,7 @@ export async function forceResyncFromServer() {
       if (settingsRes.data) {
         await db.settings.put({ key: "user", ...settingsRes.data });
       }
-    }
+    },
   );
 
   queryClient.invalidateQueries();

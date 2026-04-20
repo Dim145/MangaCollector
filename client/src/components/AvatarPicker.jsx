@@ -12,8 +12,9 @@ import { useT } from "@/i18n/index.jsx";
  */
 export default function AvatarPicker({ open, onClose }) {
   const t = useT();
-  const { groups, isLoading, isFetching, hasSources, error } =
-    useAvatarChoices({ sourceLimit: 10 });
+  const { groups, isLoading, isFetching, hasSources, error } = useAvatarChoices(
+    { sourceLimit: 10 },
+  );
   const { data: settings } = useUserSettings();
   const updateSettings = useUpdateSettings();
   const [mainOnly, setMainOnly] = useState(false);
@@ -164,7 +165,9 @@ function GroupSection({ group, currentAvatar, onSelect }) {
               key={c.mal_id}
               onClick={() => onSelect(c.imageUrl)}
               className={`group relative flex flex-col items-center gap-1.5 rounded-xl p-2 transition-transform hover:scale-[1.03] active:scale-95 ${
-                isSelected ? "ring-2 ring-hanko ring-offset-2 ring-offset-ink-1" : ""
+                isSelected
+                  ? "ring-2 ring-hanko ring-offset-2 ring-offset-ink-1"
+                  : ""
               }`}
               title={c.name}
               aria-label={`${c.name} — ${c.role}`}

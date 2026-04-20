@@ -146,11 +146,7 @@ export default function Login() {
               </svg>
             ) : (
               authIcon && (
-                <img
-                  src={authIcon}
-                  alt=""
-                  className="relative h-5 w-5"
-                />
+                <img src={authIcon} alt="" className="relative h-5 w-5" />
               )
             )}
             <span className="relative">

@@ -35,7 +35,7 @@ export default function MangaSearchResults({
           {results.map((manga) => {
             const blurImage = hasToBlurImage(
               { genres: manga.genres.map((g) => g.name) },
-              adult_content_level
+              adult_content_level,
             );
             const inLib = isInLibrary(manga.mal_id);
 
@@ -47,8 +47,7 @@ export default function MangaSearchResults({
                 {/* Cover */}
                 <button
                   onClick={() =>
-                    !blurImage &&
-                    setImgUrl(manga.images.jpg.large_image_url)
+                    !blurImage && setImgUrl(manga.images.jpg.large_image_url)
                   }
                   disabled={blurImage}
                   aria-label={manga.title}
@@ -70,7 +69,9 @@ export default function MangaSearchResults({
                     {manga.title}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                    <span>{t("searchResults.vols", { n: manga.volumes ?? "?" })}</span>
+                    <span>
+                      {t("searchResults.vols", { n: manga.volumes ?? "?" })}
+                    </span>
                     {manga.status && (
                       <>
                         <span className="h-0.5 w-0.5 rounded-full bg-washi-dim" />

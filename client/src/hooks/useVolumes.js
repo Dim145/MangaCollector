@@ -1,11 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
-import {
-  cacheAllVolumes,
-  cacheVolumesForManga,
-  db,
-} from "@/lib/db.js";
+import { cacheAllVolumes, cacheVolumesForManga, db } from "@/lib/db.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { enqueueVolumeUpdate } from "@/lib/sync.js";
 

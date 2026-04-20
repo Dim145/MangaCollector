@@ -118,7 +118,7 @@ async function throttle() {
   if (now < cooldownUntil) {
     const remainS = Math.ceil((cooldownUntil - now) / 1000);
     const err = new Error(
-      `Google Books rate limit — retrying in ${remainS}s. Add an API key in Settings to avoid this.`
+      `Google Books rate limit — retrying in ${remainS}s. Add an API key in Settings to avoid this.`,
     );
     err.code = "RATE_LIMITED";
     throw err;
@@ -166,7 +166,7 @@ export async function lookupISBN(rawIsbn) {
   if (res.status === 429) {
     triggerCooldown();
     const err = new Error(
-      "Google Books rate limit reached. Add an API key in Settings, or wait a bit before scanning more."
+      "Google Books rate limit reached. Add an API key in Settings, or wait a bit before scanning more.",
     );
     err.code = "RATE_LIMITED";
     throw err;
@@ -234,7 +234,7 @@ export async function searchMangaOnMal(title, limit = 5) {
   if (!title?.trim()) return [];
   const res = await fetch(
     `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(title)}&limit=${limit}`,
-    { headers: { Accept: "application/json" } }
+    { headers: { Accept: "application/json" } },
   );
   if (!res.ok) return [];
   const data = await res.json();
