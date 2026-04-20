@@ -14,12 +14,17 @@ import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
 import ActivityFeed from "./ActivityFeed.jsx";
 import MalRecommendations from "./MalRecommendations.jsx";
+import SpendingChart from "./analytics/SpendingChart.jsx";
+import CompositionPies from "./analytics/CompositionPies.jsx";
+import InsightCards from "./analytics/InsightCards.jsx";
+import ActionableLists from "./analytics/ActionableLists.jsx";
 // Modal — only needed on click, deferred so it doesn't bloat the profile chunk.
 const AvatarPicker = lazy(() => import("./AvatarPicker.jsx"));
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
+import { useProfileAnalytics } from "@/hooks/useProfileAnalytics.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -33,6 +38,11 @@ export default function ProfilePage({ googleUser }) {
   const t = useT();
 
   const loading = loadingLib || loadingVol;
+
+  // One-shot analytics bundle — everything derives from library + volumes
+  // already in memory, so no extra network round-trip. Components below
+  // receive their own slice via props.
+  const analytics = useProfileAnalytics();
 
   const {
     totalSeries,
@@ -342,16 +352,59 @@ export default function ProfilePage({ googleUser }) {
           </div>
         </section>
 
+        {/* ─── Analytics deep-dive ─────────────────────────────── */}
         <section
           className="mt-8 animate-fade-up"
+          style={{ animationDelay: "400ms" }}
+        >
+          <SpendingChart data={analytics.monthly.spending} loading={loading} />
+        </section>
+
+        <section
+          className="mt-6 animate-fade-up"
           style={{ animationDelay: "450ms" }}
+        >
+          <CompositionPies
+            stores={analytics.composition.stores}
+            genres={analytics.composition.genres}
+            loading={loading}
+          />
+        </section>
+
+        <section
+          className="mt-6 animate-fade-up"
+          style={{ animationDelay: "500ms" }}
+        >
+          <InsightCards
+            collector={analytics.collector}
+            coffret={analytics.coffret}
+            milestones={analytics.milestones}
+            loading={loading}
+          />
+        </section>
+
+        <section
+          className="mt-6 animate-fade-up"
+          style={{ animationDelay: "550ms" }}
+        >
+          <ActionableLists
+            middleGaps={analytics.middleGaps}
+            stale={analytics.stale}
+            loading={loading}
+            library={library}
+          />
+        </section>
+
+        <section
+          className="mt-8 animate-fade-up"
+          style={{ animationDelay: "600ms" }}
         >
           <ActivityFeed limit={20} />
         </section>
 
         <section
           className="mt-8 animate-fade-up"
-          style={{ animationDelay: "550ms" }}
+          style={{ animationDelay: "650ms" }}
         >
           <MalRecommendations />
         </section>
