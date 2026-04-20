@@ -9,6 +9,7 @@ import Modal from "@/components/utils/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import {
   useDeleteManga,
+  useLibrary,
   useUpdateManga,
   useUpdateVolumesOwned,
 } from "@/hooks/useLibrary.js";
@@ -32,6 +33,8 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [refreshing, setRefreshing] = useState(false);
 
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
+  // Seed from the frozen prop on first render; subsequent resyncs use the
+  // live library row (see effect below).
   const [poster, setPoster] = useState(manga.image_url_jpg);
   const [genres, setGenres] = useState(manga.genres ?? []);
   const [name, setName] = useState(manga.name || t("manga.unknownTitle"));
@@ -47,6 +50,13 @@ export default function MangaPage({ manga, adult_content_level }) {
     manga.mal_id,
   );
   const { data: coffrets } = useCoffretsForManga(manga.mal_id);
+  // `manga` comes frozen from React Router's location.state, so its volume
+  // count never updates after navigation. Grab the live row from the Dexie-
+  // backed library so edits (and background syncs) are reflected here.
+  const { data: library } = useLibrary();
+  const liveVolumeCount =
+    library?.find((m) => m.mal_id === manga.mal_id)?.volumes ??
+    (manga.volumes ?? 0);
   const updateManga = useUpdateManga();
   const deleteManga = useDeleteManga();
   const updateVolumesOwned = useUpdateVolumesOwned();
@@ -112,10 +122,13 @@ export default function MangaPage({ manga, adult_content_level }) {
     };
   }, [volumes]);
 
-  // Keep total volumes input in sync when live data arrives
+  // Keep total volumes input in sync when live data arrives. We watch the
+  // LIVE library row rather than the stale `manga` prop — otherwise saving
+  // a new total would flip the input back to the old value the moment we
+  // exit edit mode (the effect would re-fire with the frozen prop value).
   useEffect(() => {
-    if (!isEditing) setTotalVolumes(manga.volumes ?? 0);
-  }, [manga.volumes, isEditing]);
+    if (!isEditing) setTotalVolumes(liveVolumeCount);
+  }, [liveVolumeCount, isEditing]);
 
   const handleSave = async () => {
     try {
@@ -223,9 +236,9 @@ export default function MangaPage({ manga, adult_content_level }) {
   };
 
   const completion = useMemo(() => {
-    const total = totalVolumes || manga.volumes || 0;
+    const total = totalVolumes || liveVolumeCount || 0;
     return total > 0 ? Math.round((volumesOwned / total) * 100) : 0;
-  }, [volumesOwned, totalVolumes, manga.volumes]);
+  }, [volumesOwned, totalVolumes, liveVolumeCount]);
 
   const isBlurred = hasToBlurImage(manga, adult_content_level);
   const displayPoster = selectedImagePreview || poster;

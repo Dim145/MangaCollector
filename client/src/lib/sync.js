@@ -205,11 +205,21 @@ async function flushLibrary() {
         await axios.delete(`/api/user/library/${op.mal_id}`);
       } else if (op.op === "upsert") {
         await axios.post(`/api/user/library`, op.payload);
+        // Server auto-creates N volume rows on insert — pull them into Dexie
+        // so the MangaPage grid paints them without a manual refresh.
+        await refetchVolumes(op.mal_id).catch(() => {});
       } else if (op.op === "owned") {
         const n = op.payload.volumes_owned;
         await axios.patch(`/api/user/library/${op.mal_id}/${n}`);
       } else if (op.op === "patch") {
         await axios.patch(`/api/user/library/${op.mal_id}`, op.payload);
+        // Volume count changes (re)create or drop rows in user_volumes on the
+        // server — without a refetch, the new rows are invisible until the
+        // next manual refresh. Pull the fresh list into Dexie so the UI
+        // reflects the new count immediately.
+        if (op.payload?.volumes != null) {
+          await refetchVolumes(op.mal_id).catch(() => {});
+        }
       }
       await db.outboxLibrary.delete(op.mal_id);
       notifyPendingChanged();

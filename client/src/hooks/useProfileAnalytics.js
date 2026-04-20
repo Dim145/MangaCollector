@@ -123,14 +123,22 @@ export function useProfileAnalytics() {
     );
 
     // ─── genre breakdown (by OWNED volumes) ──────────────────────
+    // `series.genres` is a string[] from the backend (`LibraryEntry`), but
+    // some legacy rows or custom entries may still carry a comma-separated
+    // string. Support both shapes defensively.
     const genreMap = new Map();
     for (const v of owned) {
       const series = byMalId.get(v.mal_id);
-      const raw = typeof series?.genres === "string" ? series.genres : "";
-      const genres = raw
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const raw = series?.genres;
+      let genres = [];
+      if (Array.isArray(raw)) {
+        genres = raw.map((g) => String(g).trim()).filter(Boolean);
+      } else if (typeof raw === "string" && raw) {
+        genres = raw
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
       const unique = [...new Set(genres)];
       for (const g of unique) {
         genreMap.set(g, (genreMap.get(g) ?? 0) + 1);
