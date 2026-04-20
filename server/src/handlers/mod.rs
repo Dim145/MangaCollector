@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod auth;
+pub mod coffret;
 pub mod health;
 pub mod library;
 pub mod settings;

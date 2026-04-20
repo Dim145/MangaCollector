@@ -3,6 +3,15 @@ import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
+/**
+ * Volume card.
+ *
+ * When `locked=true` (the volume belongs to a coffret), every write-path is
+ * disabled: no ownership toggle, no inline edit form, the pencil is hidden.
+ * The coffret header above is the single source of truth for that volume's
+ * owned / price / store / collector state — editing them inline would create
+ * a split-brain with the coffret totals.
+ */
 export default function Volume({
   id,
   mal_id,
@@ -11,6 +20,7 @@ export default function Volume({
   paid,
   store,
   collector,
+  locked = false,
   onUpdate,
   currencySetting,
 }) {
@@ -38,7 +48,7 @@ export default function Volume({
   }
 
   const toggleOwned = async () => {
-    if (isEditing) return;
+    if (isEditing || locked) return;
     const next = !ownedStatus;
     setOwnedStatus(next);
     await persist(next, price, purchaseLocation, collectorStatus, true);
@@ -65,6 +75,12 @@ export default function Volume({
     setCollectorStatus(Boolean(collector));
   }, [owned, paid, store, collector]);
 
+  // If a volume becomes locked while the edit form is open (e.g. the user
+  // adds it to a coffret from elsewhere), collapse the form automatically.
+  useEffect(() => {
+    if (locked && isEditing) setIsEditing(false);
+  }, [locked, isEditing]);
+
   // Card shell — collector adds a gold ring + subtle gold glow, stacking on
   // top of whatever the ownership state dictates.
   const borderClasses = collectorStatus
@@ -85,11 +101,7 @@ export default function Volume({
     <div
       className={`group relative rounded-xl border transition-all duration-300 ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
     >
-      {/* Hanko gold seal — pinned like a wax seal at the card's top-right
-          corner, peeking past the border so it reads as a "stamp affixed to
-          the document" rather than a floating UI chip. Stays clear of the
-          pencil on the right of the flex row (the pencil lives inside the
-          card's p-4; the seal overflows the border). */}
+      {/* Collector hanko seal — pinned like a wax seal at the card's top-right corner */}
       {collectorStatus && (
         <span
           aria-hidden="true"
@@ -106,11 +118,16 @@ export default function Volume({
       <div className="flex items-center gap-3 p-4">
         <button
           onClick={toggleOwned}
-          disabled={isEditing || isLoading}
+          disabled={isEditing || isLoading || locked}
           aria-label={
-            ownedStatus ? t("volume.markNotOwned") : t("volume.markOwned")
+            locked
+              ? t("volume.lockedAria")
+              : ownedStatus
+                ? t("volume.markNotOwned")
+                : t("volume.markOwned")
           }
-          className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${badgeClasses}`}
+          title={locked ? t("volume.lockedTitle") : undefined}
+          className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${badgeClasses} ${locked ? "cursor-not-allowed" : ""}`}
         >
           {isLoading ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -156,10 +173,46 @@ export default function Volume({
                 {formatCurrency(price, currencySetting)}
               </span>
             )}
+            {locked && (
+              <span className="group/lock relative inline-flex items-center">
+                <span
+                  tabIndex={0}
+                  role="img"
+                  aria-label={t("volume.lockedAria")}
+                  aria-describedby={`lock-tip-${id}`}
+                  className="inline-flex cursor-help items-center text-washi-dim transition-colors hover:text-washi focus-visible:text-washi focus:outline-none"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-3 w-3"
+                    aria-hidden="true"
+                  >
+                    <rect x="4" y="11" width="16" height="10" rx="2" />
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                  </svg>
+                </span>
+                {/* Fade-in tooltip — appears above the padlock on hover or
+                    keyboard focus. Kept pointer-events-none so it never eats
+                    clicks on what's below. */}
+                <span
+                  id={`lock-tip-${id}`}
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-max max-w-[15rem] -translate-x-1/2 rounded-md border border-border bg-ink-2/95 px-2.5 py-1.5 text-[11px] leading-snug text-washi opacity-0 shadow-xl backdrop-blur-sm transition-opacity duration-200 after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-[5px] after:border-transparent after:border-t-ink-2 group-hover/lock:opacity-100 group-focus-within/lock:opacity-100"
+                >
+                  {t("volume.lockedTitle")}
+                </span>
+              </span>
+            )}
           </div>
         </div>
 
-        {!isEditing ? (
+        {/* Edit pencil — hidden when the volume is managed by a coffret */}
+        {!locked && !isEditing ? (
           <button
             onClick={() => setIsEditing(true)}
             aria-label={t("common.edit")}
@@ -180,7 +233,7 @@ export default function Volume({
         ) : null}
       </div>
 
-      {isEditing && (
+      {isEditing && !locked && (
         <div className="space-y-3 border-t border-border bg-ink-0/40 p-4 animate-fade-up">
           <div>
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">

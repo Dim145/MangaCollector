@@ -17,6 +17,8 @@ pub struct Model {
     pub store: Option<String>,
     #[sea_orm(default)]
     pub collector: bool,
+    #[sea_orm(default)]
+    pub coffret_id: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
