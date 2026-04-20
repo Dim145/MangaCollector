@@ -45,6 +45,7 @@ pub async fn update_by_id(
     owned: bool,
     price: Option<Decimal>,
     store: Option<String>,
+    collector: bool,
 ) -> Result<VolumeUpdateResult, AppError> {
     let now = Utc::now();
 
@@ -72,6 +73,7 @@ pub async fn update_by_id(
                 sea_orm::sea_query::Expr::value,
             ),
         )
+        .col_expr(volume::Column::Collector, collector.into())
         .col_expr(volume::Column::ModifiedOn, now.into())
         .exec(db)
         .await

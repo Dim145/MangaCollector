@@ -105,6 +105,11 @@ export default {
     storePlaceholder: "Amazon, librairie locale…",
     markOwned: "Marquer comme possédé",
     markNotOwned: "Marquer comme non possédé",
+    editionLabel: "Édition",
+    collectorOption: "Édition collector",
+    collectorHint: "Édition limitée / numérotée / spéciale.",
+    collectorBadge: "Collector",
+    collectorTitle: "Édition collector — 限定",
   },
   add: {
     title: "Ajouter à votre",

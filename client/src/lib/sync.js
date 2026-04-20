@@ -153,6 +153,7 @@ export async function enqueueVolumeUpdate(volume) {
         owned: volume.owned,
         price: Number(volume.price) || 0,
         store: volume.store ?? "",
+        collector: Boolean(volume.collector),
       },
       ts: Date.now(),
     });
@@ -239,6 +240,7 @@ async function flushVolumes() {
         owned: op.payload.owned,
         price: op.payload.price,
         store: op.payload.store,
+        collector: Boolean(op.payload.collector),
       });
       await db.outboxVolumes.delete(op.id);
       notifyPendingChanged();

@@ -672,6 +672,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                   owned={vol.owned}
                   paid={vol.price}
                   store={vol.store}
+                  collector={vol.collector}
                   onUpdate={volumeUpdateCallback}
                   currencySetting={currencySetting}
                 />

@@ -103,6 +103,11 @@ export default {
     storePlaceholder: "Amazon, local shop…",
     markOwned: "Mark as owned",
     markNotOwned: "Mark as not owned",
+    editionLabel: "Edition",
+    collectorOption: "Collector edition",
+    collectorHint: "Limited / numbered / special release.",
+    collectorBadge: "Collector",
+    collectorTitle: "Collector edition — 限定",
   },
   add: {
     title: "Add to your",

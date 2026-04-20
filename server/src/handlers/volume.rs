@@ -35,7 +35,15 @@ pub async fn update_volume(
     AuthenticatedUser(_user): AuthenticatedUser,
     Json(body): Json<UpdateVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    volume::update_by_id(&state.db, body.id, body.owned, body.price, body.store).await?;
+    volume::update_by_id(
+        &state.db,
+        body.id,
+        body.owned,
+        body.price,
+        body.store,
+        body.collector,
+    )
+    .await?;
     Ok(Json(json!({
         "success": true,
         "message": "Volume updated successfully"
