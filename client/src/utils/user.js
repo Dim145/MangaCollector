@@ -50,11 +50,13 @@ async function uploadPoster(mangaId, image) {
 }
 
 async function removePoster(mangaId) {
-  return (await axios.delete(`/api/user/storage/poster/${mangaId}`)).data?.malPoster;
+  return (await axios.delete(`/api/user/storage/poster/${mangaId}`)).data
+    ?.malPoster;
 }
 
 async function searchInLib(query) {
-  return (await axios.get(`/api/user/library/search`, { params: { q: query } })).data;
+  return (await axios.get(`/api/user/library/search`, { params: { q: query } }))
+    .data;
 }
 
 async function addCustomEntryToUserLibrary(mangaData) {

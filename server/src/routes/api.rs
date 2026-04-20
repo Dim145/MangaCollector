@@ -3,7 +3,7 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{activity, health, library, settings, storage, volume};
+use crate::handlers::{activity, coffret, health, library, settings, storage, volume};
 use crate::state::AppState;
 
 pub fn api_router() -> Router<AppState> {
@@ -36,6 +36,17 @@ fn user_router() -> Router<AppState> {
         .route("/volume", get(volume::get_all_volumes))
         .route("/volume/{mal_id}", get(volume::get_volumes_by_id))
         .route("/volume", patch(volume::update_volume))
+        // Coffret routes — list/create scoped to a manga, delete by coffret id
+        .route(
+            "/library/{mal_id}/coffrets",
+            get(coffret::list_for_manga),
+        )
+        .route(
+            "/library/{mal_id}/coffrets",
+            post(coffret::create),
+        )
+        .route("/coffrets/{id}", patch(coffret::update))
+        .route("/coffrets/{id}", delete(coffret::delete))
         // Storage routes
         .route("/storage/poster/{mal_id}", get(storage::get_poster))
         .route("/storage/poster/{mal_id}", post(storage::upload_poster))

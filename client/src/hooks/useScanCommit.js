@@ -96,8 +96,7 @@ export function useScanCommit() {
           alreadyOwned.push(num);
           continue;
         }
-        const volPrice =
-          priceMode === "all" || num === scanned ? priceNum : 0;
+        const volPrice = priceMode === "all" || num === scanned ? priceNum : 0;
         await updateVolumeByID(target.id, true, volPrice, target.store ?? "");
         newlyOwned.push(num);
       }
@@ -109,7 +108,9 @@ export function useScanCommit() {
       await updateVolumeOwned(mangaData.mal_id, ownedCount);
 
       queryClient.invalidateQueries({ queryKey: ["library"] });
-      queryClient.invalidateQueries({ queryKey: ["volumes", mangaData.mal_id] });
+      queryClient.invalidateQueries({
+        queryKey: ["volumes", mangaData.mal_id],
+      });
       queryClient.invalidateQueries({ queryKey: ["volumes-all"] });
 
       return {
@@ -120,6 +121,6 @@ export function useScanCommit() {
         volumeNumbers: sorted,
       };
     },
-    [library]
+    [library],
   );
 }

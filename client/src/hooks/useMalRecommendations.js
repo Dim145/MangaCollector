@@ -48,7 +48,7 @@ async function writeCached(mal_id, recommendations) {
 async function fetchRecs(mal_id) {
   const res = await fetch(
     `https://api.jikan.moe/v4/manga/${mal_id}/recommendations`,
-    { headers: { Accept: "application/json" } }
+    { headers: { Accept: "application/json" } },
   );
   if (!res.ok) throw new Error(`Jikan ${res.status}`);
   const data = await res.json();

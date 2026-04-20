@@ -50,8 +50,7 @@ export default {
     addManga: "Add manga",
     emptyTitle: "The shelf is empty",
     noMatchTitle: "No match",
-    noMatchBody:
-      "We couldn't find a title with that name in your archive.",
+    noMatchBody: "We couldn't find a title with that name in your archive.",
     emptyBody:
       "Start curating your collection — search a title, add a volume, and watch your archive grow.",
     addFirst: "Add your first series",
@@ -82,8 +81,7 @@ export default {
       "No volumes yet. Set the total above and they'll appear here.",
     saveChanges: "Save changes",
     removeTitle: "Remove from your library?",
-    removeBody:
-      "\"{name}\" and its volume records will be permanently deleted.",
+    removeBody: '"{name}" and its volume records will be permanently deleted.',
     keepIt: "Keep it",
     uploadCover: "Upload cover",
     selected: "Selected: {name}",
@@ -105,6 +103,42 @@ export default {
     storePlaceholder: "Amazon, local shop…",
     markOwned: "Mark as owned",
     markNotOwned: "Mark as not owned",
+    editionLabel: "Edition",
+    collectorOption: "Collector edition",
+    collectorHint: "Limited / numbered / special release.",
+    collectorBadge: "Collector",
+    collectorTitle: "Collector edition — 限定",
+    lockedAria: "Managed by its box set",
+    lockedTitle: "Managed by its box set — edit the coffret header to change.",
+  },
+  coffret: {
+    label: "BOX SET · 盒",
+    addCta: "Add box set",
+    offlineHint: "Requires a connection",
+    modalTitle: "Record a",
+    modalTitleAccent: "Box Set",
+    modalByline:
+      "Groups a contiguous range of volumes as a single purchase — the price gets split evenly across each volume, and the whole range is marked as owned in one shot.",
+    rangeLabel: "Volume range",
+    rangeInvalid: "End volume must be >= start volume.",
+    nameLabel: "Name",
+    autoNameOne: "Box Set Vol {n}",
+    autoNameRange: "Box Set Vol {start}–{end}",
+    priceLabel: "Total price ({symbol})",
+    pricePerVol: "{amount} {symbol} per volume",
+    storeLabel: "Store",
+    storePlaceholder: "Amazon, bookstore…",
+    collectorToggle: "Collector edition",
+    collectorHint: "Mark every volume in the set as limited / numbered.",
+    volumesCount: "{n} volumes",
+    createCta: "Create · {n} vols",
+    volsLabel: "Vols",
+    nVols: "{n} vols",
+    confirmDelete: "Delete this box set?",
+    deleteAria: "Delete box set",
+    editAria: "Edit box set",
+    editingLabel: "EDITING · 編集",
+    notACoffret: "Not a box set? Back to single volume",
   },
   add: {
     title: "Add to your",
@@ -112,8 +146,7 @@ export default {
     subtitle: "Scan a barcode, search MyAnimeList, or create a custom entry.",
     scanFast: "Fastest way",
     scanCta: "Scan a volume's barcode",
-    scanHint:
-      "Point your camera at the ISBN barcode on the back cover.",
+    scanHint: "Point your camera at the ISBN barcode on the back cover.",
     scanOffline: "Reconnect to use the scanner.",
     tabMalSearch: "MAL Search",
     tabCustomEntry: "Custom Entry",
@@ -127,9 +160,8 @@ export default {
     createEntry: "Create entry",
     searchPlaceholder: "Search MyAnimeList…",
     offlinePlaceholder: "Offline — search unavailable",
-    noResults: "No results for \"{query}\"",
-    noResultsHint:
-      "Try another keyword, or switch to \"Custom Entry\" above.",
+    noResults: 'No results for "{query}"',
+    noResultsHint: 'Try another keyword, or switch to "Custom Entry" above.',
     beginPrompt: "Begin with a title.",
     beginHint: "Every great archive starts with a single volume.",
     requiresConnection: "{label} requires a connection",
@@ -161,8 +193,7 @@ export default {
     ean13Hint: "EAN-13 · ISBN-13 — hold still, ~15 cm away",
     scannedCount: "{n} scanned",
     lookingUp: "ISBN {isbn} — looking up…",
-    foundMatching:
-      "Found \"{title}\"{vol} — matching on MAL…",
+    foundMatching: 'Found "{title}"{vol} — matching on MAL…',
     volumeSuffix: " · Vol {n}",
     lookingUpTitle: "Looking up ISBN…",
     genericWait: "A single moment.",
@@ -171,13 +202,11 @@ export default {
     somethingWrong: "Something went wrong",
     noMatchTitle: "No match found",
     noMatchBodyWithTitle:
-      "ISBN {isbn} resolved to \"{title}\", but no matching series on MyAnimeList.",
-    noMatchBodyNoTitle:
-      "ISBN {isbn} — not in Google Books either.",
+      'ISBN {isbn} resolved to "{title}", but no matching series on MyAnimeList.',
+    noMatchBodyNoTitle: "ISBN {isbn} — not in Google Books either.",
     noMatchGoogleBooks:
       "No match for ISBN {isbn}. You can search by title or add a custom entry.",
-    noMatchMal:
-      "\"{title}\" isn't on MyAnimeList. Try a custom entry.",
+    noMatchMal: '"{title}" isn\'t on MyAnimeList. Try a custom entry.',
     scanAnother: "Scan another barcode",
     enterManually: "Enter manually",
     closeScanner: "Close scanner",
@@ -192,8 +221,7 @@ export default {
       "We couldn't auto-detect the volume number — please verify.",
     priceLabel: "Price ({symbol}) — only this volume",
     googleBooksPrice: "Google Books: {amount} {currency}",
-    googleBooksPriceDiffCurrency:
-      " — different currency, not pre-filled",
+    googleBooksPriceDiffCurrency: " — different currency, not pre-filled",
     googleBooksListPrice: " (list price)",
     missingVolumesOne: "Volume {n} is missing before this one",
     missingVolumesMany: "{n} volumes are missing before this one",
@@ -204,7 +232,7 @@ export default {
     addToLibrary: "Add to library",
     addingSingle: "Adding…",
     isbnPrefix: "ISBN {isbn}",
-    googleBooksRaw: "Google Books: \"{title}\"",
+    googleBooksRaw: 'Google Books: "{title}"',
     rateLimitGeneric:
       "Google Books rate-limit reached. Set an API key in Settings or wait a bit before scanning more.",
   },
@@ -226,11 +254,9 @@ export default {
     completeShort: "complete",
     topSpend: "Top spend",
     mostValued: "Most valued series",
-    startAdding:
-      "Start adding owned volumes with a price to see trends.",
+    startAdding: "Start adding owned volumes with a price to see trends.",
     insightLabel: "Insight",
-    insightEmpty:
-      "Start collecting to see your journey unfold.",
+    insightEmpty: "Start collecting to see your journey unfold.",
     insightComplete:
       "A completionist's dream — every series in perfect harmony.",
     insightAlmost:
@@ -239,8 +265,7 @@ export default {
       "Over halfway there — your shelves are filling up beautifully.",
     insightBeginning:
       "Every collection starts with a single volume. You're building something special.",
-    comingSoon:
-      "Activity feed & personalized recommendations coming soon.",
+    comingSoon: "Activity feed & personalized recommendations coming soon.",
     tooltipSpent: "Spent",
   },
   settings: {
@@ -268,14 +293,12 @@ export default {
     adultShow: "Show",
     adultShowDesc: "Display everything as-is",
     currency: "Currency",
-    currencyBody:
-      "How prices are displayed across volumes and summaries.",
+    currencyBody: "How prices are displayed across volumes and summaries.",
     currencyPreview: "Preview",
     currencyUSD: "US Dollar",
     currencyEUR: "Euro",
     titleLanguage: "Title language",
-    titleBody:
-      "Which title is preferred when MAL provides alternatives.",
+    titleBody: "Which title is preferred when MAL provides alternatives.",
     titleDefault: "Default (MAL)",
     titleEnglish: "English",
     titleJapanese: "Japanese",
@@ -295,21 +318,16 @@ export default {
     dataBody:
       "Offline archive cached on this device. Pull fresh state from the server when you want to start clean.",
     restoreFromServer: "Restore from server",
-    restoreDesc:
-      "Replace the local archive with the latest server state.",
-    pendingDiscardOne:
-      " {n} pending change will be discarded.",
-    pendingDiscardMany:
-      " {n} pending changes will be discarded.",
+    restoreDesc: "Replace the local archive with the latest server state.",
+    pendingDiscardOne: " {n} pending change will be discarded.",
+    pendingDiscardMany: " {n} pending changes will be discarded.",
     restore: "Restore",
     restoreConnectionHint: "Requires a connection",
     restoreModalTitle: "Restore from server?",
     restoreModalBody:
       "Your local archive — library, volumes, settings — will be replaced with a fresh copy from the server.",
-    pendingWarningOne:
-      "{n} pending change will be discarded",
-    pendingWarningMany:
-      "{n} pending changes will be discarded",
+    pendingWarningOne: "{n} pending change will be discarded",
+    pendingWarningMany: "{n} pending changes will be discarded",
     pendingWarningDetail:
       "Edits queued offline that haven't synced yet will be permanently lost.",
     restoreDone: "Archive restored successfully.",
@@ -328,8 +346,7 @@ export default {
     benefit1: "Volume-level tracking with prices & sources",
     benefit2: "MyAnimeList-powered covers and metadata",
     benefit3: "Private, yours — encrypted sessions only",
-    terms:
-      "By signing in, you agree to our {terms} & {privacy}",
+    terms: "By signing in, you agree to our {terms} & {privacy}",
     termsLabel: "Terms",
     privacyLabel: "Privacy Policy",
     brandLabel: "MangaCollector · 収集家",
@@ -381,15 +398,13 @@ export default {
       "Search is instant, metadata is accurate. Feels like my second shelf.",
     t2Name: "Aiko R.",
     t2Role: "Seinen enthusiast",
-    t3Quote:
-      "The {provider} login just works. No friction at all.",
+    t3Quote: "The {provider} login just works. No friction at all.",
     t3Name: "Marco D.",
     t3Role: "Full-stack dev & reader",
     begin: "BEGIN",
     ctaHeading1: "Your archive",
     ctaHeading2: "awaits.",
-    ctaBody:
-      "Sign in, search a title, and start the quiet joy of cataloguing.",
+    ctaBody: "Sign in, search a title, and start the quiet joy of cataloguing.",
     startCollecting: "Start collecting",
     footerYear: "© {year} MangaCollector",
   },
@@ -397,8 +412,7 @@ export default {
     labelJp: "WISHLIST · 欲しい",
     comingSoon: "Coming",
     comingSoonAccent: "soon.",
-    body:
-      "We're designing a dedicated space to track the volumes you dream of owning — pre-orders, re-prints and holy grails all in one place.",
+    body: "We're designing a dedicated space to track the volumes you dream of owning — pre-orders, re-prints and holy grails all in one place.",
     backLib: "Back to library",
   },
   offline: {
@@ -434,8 +448,7 @@ export default {
     label: "RECENT · 最近",
     title: "Activity",
     empty: "Nothing logged yet.",
-    emptyHint:
-      "Adds, removals and volume edits will show up here.",
+    emptyHint: "Adds, removals and volume edits will show up here.",
     seriesAdded: "Added {title} to your library",
     seriesRemoved: "Removed {title}",
     seriesCompleted: "Completed {title} — {n} volumes",
@@ -463,8 +476,7 @@ export default {
     ownedLabel: "How many volumes do you already own?",
     ownedHintZero:
       "Add the series with no owned volumes — you can mark them later.",
-    ownedHintFilled:
-      "Volumes 1 to {n} will be marked as owned (out of {max}).",
+    ownedHintFilled: "Volumes 1 to {n} will be marked as owned (out of {max}).",
     priceLabel: "Price per volume ({symbol})",
     priceHint:
       "The same price will be applied to all {n} owned volumes. Adjust later from the series page.",
@@ -486,14 +498,12 @@ export default {
     emptyNoLibraryHint:
       "Add a series to your library and their characters will appear here.",
     emptyRateLimit: "MyAnimeList is throttling us",
-    emptyRateLimitHint:
-      "Come back in a minute and the gallery will populate.",
+    emptyRateLimitHint: "Come back in a minute and the gallery will populate.",
     emptyNoMain: "No main characters found",
     emptyNoMainHint:
       "Toggle the filter off to browse supporting characters as well.",
     emptyGeneric: "No portraits available",
-    emptyGenericHint:
-      "MyAnimeList has no character entries for these series.",
+    emptyGenericHint: "MyAnimeList has no character entries for these series.",
   },
   install: {
     cta: "Install app",
@@ -501,8 +511,71 @@ export default {
     iosTitle: "Install on your iPhone",
     iosStep1Prefix: "In Safari, tap the Share button",
     iosShareButton: "Share",
-    iosStep2: "Scroll and tap \"Add to Home Screen\".",
-    iosStep3: "Tap \"Add\" — the icon lands on your home screen and opens like a native app.",
+    iosStep2: 'Scroll and tap "Add to Home Screen".',
+    iosStep3:
+      'Tap "Add" — the icon lands on your home screen and opens like a native app.',
     iosClose: "Got it",
+  },
+  analytics: {
+    spending: {
+      label: "SPENDING · 月次",
+      title: "Monthly cadence",
+      last12: "last 12 months",
+      total: "Total",
+      avgActive: "Avg active month",
+      empty: "No dated volume yet — add a price to start tracking.",
+      tooltipLabel: "Spent",
+      tooltipCount: "{n} vols",
+    },
+    genres: {
+      label: "GENRES · ジャンル",
+      title: "What you read",
+      empty: "Add a series to light up the shelf.",
+    },
+    stores: {
+      label: "STORES · 店",
+      title: "Where you buy",
+      empty: "Fill in a store on any volume to see the map.",
+    },
+    collector: {
+      label: "COLLECTOR · 限定",
+      title: "Limited editions",
+      volumes: "vols",
+      ratio: "{pct}% of your collection",
+      premiumLabel: "Premium vs. standard",
+      premiumHint: "Average extra paid per collector volume.",
+      empty: "Flag a volume as collector to see the premium.",
+    },
+    coffret: {
+      label: "BOX SETS · 盒",
+      title: "Bundled savings",
+      empty: "Register a box set and we'll compute what you saved.",
+      savingsHint: "Estimated vs. individual-volume pricing.",
+      coffretsCount: "box set |||| box sets",
+      volumesIn: "volumes inside",
+      perVol: "≈ {amount} / vol",
+    },
+    milestone: {
+      label: "MILESTONE · 到達",
+      title: "Next milestone",
+      toGo: "to go",
+      hint: "You'll hit the {n}-volume milestone.",
+      maxed: "You've unlocked every milestone — legendary shelf.",
+    },
+    gaps: {
+      label: "FILL THE GAPS · 穴",
+      title: "Missing pieces",
+      byline: "Volumes sitting between ones you already own — easy finishes.",
+      empty: "No mid-series gaps. Your shelves read in order.",
+      missingOne: "missing vol {n}",
+      missingMany: "missing {n} vols · {list}",
+    },
+    stale: {
+      label: "DORMANT · 休眠",
+      title: "Waiting on you",
+      byline: "Series you haven't added to in six months or more.",
+      empty: "Every series got love lately. Nothing dormant.",
+      idle: "idle {n} months · {owned}/{total}",
+    },
   },
 };

@@ -46,7 +46,7 @@ async function writeCached(mal_id, seriesName, characters) {
 async function fetchCharacters(mal_id) {
   const res = await fetch(
     `https://api.jikan.moe/v4/manga/${mal_id}/characters`,
-    { headers: { Accept: "application/json" } }
+    { headers: { Accept: "application/json" } },
   );
   if (!res.ok) throw new Error(`Jikan ${res.status}`);
   const data = await res.json();
@@ -62,11 +62,14 @@ async function fetchCharacters(mal_id) {
         row.character?.images?.jpg?.image_url ??
         row.character?.images?.webp?.image_url,
     }))
-    .filter((c) => c.mal_id && c.imageUrl && !c.imageUrl.endsWith("questionmark_23.gif"))
+    .filter(
+      (c) =>
+        c.mal_id && c.imageUrl && !c.imageUrl.endsWith("questionmark_23.gif"),
+    )
     .sort(
       (a, b) =>
         (roleWeight[a.role] ?? 2) - (roleWeight[b.role] ?? 2) ||
-        a.name.localeCompare(b.name)
+        a.name.localeCompare(b.name),
     )
     .slice(0, MAX_CHARACTERS_PER_SERIES);
 }

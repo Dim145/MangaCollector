@@ -23,10 +23,7 @@ export default function ScanLoadingView({
       style={{ zIndex: 2147483640 }}
     >
       {/* Atmospheric glow */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        aria-hidden="true"
-      >
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         <div
           className="absolute left-1/2 top-1/3 h-[40rem] w-[40rem] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-30 blur-3xl"
           style={{
@@ -73,11 +70,7 @@ export default function ScanLoadingView({
             className={`hanko-seal relative grid h-20 w-20 place-items-center rounded-lg font-display text-3xl font-bold ${
               isError ? "" : "animate-pulse-glow"
             }`}
-            style={
-              isError
-                ? { background: "oklch(0.68 0.24 25)" }
-                : undefined
-            }
+            style={isError ? { background: "oklch(0.68 0.24 25)" } : undefined}
           >
             {isError ? "!" : "検"}
           </span>
@@ -92,9 +85,7 @@ export default function ScanLoadingView({
             {isError ? t("scan.somethingWrong") : t("scan.lookingUpTitle")}
           </p>
           <p
-            className={`text-sm ${
-              isError ? "text-washi" : "text-washi-muted"
-            }`}
+            className={`text-sm ${isError ? "text-washi" : "text-washi-muted"}`}
           >
             {errorMessage || statusMessage || t("scan.genericWait")}
           </p>

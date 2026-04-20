@@ -2,15 +2,19 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
+import CoffretGroup from "./CoffretGroup";
+import AddCoffretModal from "./AddCoffretModal";
 import Skeleton from "./ui/Skeleton.jsx";
 import Modal from "@/components/utils/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import {
   useDeleteManga,
+  useLibrary,
   useUpdateManga,
   useUpdateVolumesOwned,
 } from "@/hooks/useLibrary.js";
 import { useVolumesForManga, useUpdateVolume } from "@/hooks/useVolumes.js";
+import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
@@ -29,6 +33,8 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [refreshing, setRefreshing] = useState(false);
 
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
+  // Seed from the frozen prop on first render; subsequent resyncs use the
+  // live library row (see effect below).
   const [poster, setPoster] = useState(manga.image_url_jpg);
   const [genres, setGenres] = useState(manga.genres ?? []);
   const [name, setName] = useState(manga.name || t("manga.unknownTitle"));
@@ -40,14 +46,64 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [selectedImage, setSelectedImage] = useState(undefined);
   const [selectedImagePreview, setSelectedImagePreview] = useState(null);
 
-  const {
-    data: volumes,
-    isInitialLoad: volumesLoading,
-  } = useVolumesForManga(manga.mal_id);
+  const { data: volumes, isInitialLoad: volumesLoading } = useVolumesForManga(
+    manga.mal_id,
+  );
+  const { data: coffrets } = useCoffretsForManga(manga.mal_id);
+  // `manga` comes frozen from React Router's location.state, so its volume
+  // count never updates after navigation. Grab the live row from the Dexie-
+  // backed library so edits (and background syncs) are reflected here.
+  const { data: library } = useLibrary();
+  const liveVolumeCount =
+    library?.find((m) => m.mal_id === manga.mal_id)?.volumes ??
+    (manga.volumes ?? 0);
   const updateManga = useUpdateManga();
   const deleteManga = useDeleteManga();
   const updateVolumesOwned = useUpdateVolumesOwned();
   const updateVolume = useUpdateVolume();
+  const [coffretModalOpen, setCoffretModalOpen] = useState(false);
+
+  // Build an ordered sequence that preserves volume order: walk volumes
+  // sorted by vol_num, emit each loose volume in-line and insert the
+  // coffret block at the position of its first volume. Consecutive loose
+  // volumes batch into a single grid.
+  //
+  //   [v1, v2, v3, v4]  where v2+v3 belong to coffret A
+  //   →  loose-grid(v1) · coffret(A: v2, v3) · loose-grid(v4)
+  const volumeSequence = useMemo(() => {
+    const out = [];
+    const coffretsById = new Map((coffrets ?? []).map((c) => [c.id, c]));
+    const sorted = [...(volumes ?? [])].sort((a, b) => a.vol_num - b.vol_num);
+
+    let looseBatch = [];
+    const flush = () => {
+      if (looseBatch.length > 0) {
+        out.push({ type: "loose", vols: looseBatch });
+        looseBatch = [];
+      }
+    };
+
+    const rendered = new Set();
+    for (const v of sorted) {
+      if (v.coffret_id != null && coffretsById.has(v.coffret_id)) {
+        if (!rendered.has(v.coffret_id)) {
+          flush();
+          const members = sorted.filter((x) => x.coffret_id === v.coffret_id);
+          out.push({
+            type: "coffret",
+            coffret: coffretsById.get(v.coffret_id),
+            members,
+          });
+          rendered.add(v.coffret_id);
+        }
+        // else: volume is inside an already-rendered coffret block, skip
+      } else {
+        looseBatch.push(v);
+      }
+    }
+    flush();
+    return out;
+  }, [volumes, coffrets]);
 
   // Derive owned counts & pricing from the live volumes table
   const { volumesOwned, totalPrice, avgPrice } = useMemo(() => {
@@ -66,15 +122,21 @@ export default function MangaPage({ manga, adult_content_level }) {
     };
   }, [volumes]);
 
-  // Keep total volumes input in sync when live data arrives
+  // Keep total volumes input in sync when live data arrives. We watch the
+  // LIVE library row rather than the stale `manga` prop — otherwise saving
+  // a new total would flip the input back to the old value the moment we
+  // exit edit mode (the effect would re-fire with the frozen prop value).
   useEffect(() => {
-    if (!isEditing) setTotalVolumes(manga.volumes ?? 0);
-  }, [manga.volumes, isEditing]);
+    if (!isEditing) setTotalVolumes(liveVolumeCount);
+  }, [liveVolumeCount, isEditing]);
 
   const handleSave = async () => {
     try {
       const newTotal = parseInt(totalVolumes) || 0;
-      await updateManga.mutateAsync({ mal_id: manga.mal_id, volumes: newTotal });
+      await updateManga.mutateAsync({
+        mal_id: manga.mal_id,
+        volumes: newTotal,
+      });
 
       // Poster upload is online-only (file payloads can't be queued)
       if (selectedImage && online) {
@@ -118,8 +180,8 @@ export default function MangaPage({ manga, adult_content_level }) {
               owned: true,
               price: numericPrice,
               store: addStore,
-            })
-          )
+            }),
+          ),
         );
         await updateVolumesOwned.mutateAsync({
           mal_id: manga.mal_id,
@@ -174,9 +236,9 @@ export default function MangaPage({ manga, adult_content_level }) {
   };
 
   const completion = useMemo(() => {
-    const total = totalVolumes || manga.volumes || 0;
+    const total = totalVolumes || liveVolumeCount || 0;
     return total > 0 ? Math.round((volumesOwned / total) * 100) : 0;
-  }, [volumesOwned, totalVolumes, manga.volumes]);
+  }, [volumesOwned, totalVolumes, liveVolumeCount]);
 
   const isBlurred = hasToBlurImage(manga, adult_content_level);
   const displayPoster = selectedImagePreview || poster;
@@ -279,26 +341,28 @@ export default function MangaPage({ manga, adult_content_level }) {
                       {t("manga.uploadOffline")}
                     </div>
                   )}
-                  {!`${poster}`.startsWith("http") && !selectedImagePreview && online && (
-                    <button
-                      onClick={removeImage}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-hanko/30 bg-hanko/10 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/20"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-3.5 w-3.5"
+                  {!`${poster}`.startsWith("http") &&
+                    !selectedImagePreview &&
+                    online && (
+                      <button
+                        onClick={removeImage}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-hanko/30 bg-hanko/10 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/20"
                       >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                      {t("manga.removeCover")}
-                    </button>
-                  )}
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3.5 w-3.5"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                        {t("manga.removeCover")}
+                      </button>
+                    )}
                 </div>
               )}
             </div>
@@ -314,7 +378,11 @@ export default function MangaPage({ manga, adult_content_level }) {
                     disabled={refreshing || !online}
                     aria-label={t("manga.refreshMalTitle")}
                     className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi disabled:opacity-40"
-                    title={online ? t("manga.refreshMalTitle") : t("manga.refreshOffline")}
+                    title={
+                      online
+                        ? t("manga.refreshMalTitle")
+                        : t("manga.refreshOffline")
+                    }
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -385,9 +453,12 @@ export default function MangaPage({ manga, adult_content_level }) {
                         <Skeleton.Stat width="6ch" />
                       ) : (
                         <>
-                          <span className="text-hanko-gradient">{volumesOwned}</span>
+                          <span className="text-hanko-gradient">
+                            {volumesOwned}
+                          </span>
                           <span className="text-washi-dim">
-                            {" "}/ {totalVolumes || "?"}
+                            {" "}
+                            / {totalVolumes || "?"}
                           </span>
                         </>
                       )}
@@ -508,7 +579,10 @@ export default function MangaPage({ manga, adult_content_level }) {
           </div>
         </section>
 
-        <section className="mb-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "150ms" }}>
+        <section
+          className="mb-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-fade-up"
+          style={{ animationDelay: "150ms" }}
+        >
           <SummaryCard
             label={t("manga.totalPaid")}
             value={formatCurrency(totalPrice, currencySetting)}
@@ -518,7 +592,9 @@ export default function MangaPage({ manga, adult_content_level }) {
           />
           <SummaryCard
             label={t("manga.averagePerVolume")}
-            value={volumesOwned > 0 ? formatCurrency(avgPrice, currencySetting) : "—"}
+            value={
+              volumesOwned > 0 ? formatCurrency(avgPrice, currencySetting) : "—"
+            }
             hint={t("manga.acrossOwned")}
             loading={volumesLoading}
             skeletonWidth="4ch"
@@ -527,7 +603,10 @@ export default function MangaPage({ manga, adult_content_level }) {
             {!showAddDropdown ? (
               <button
                 onClick={() => setShowAddDropdown(true)}
-                disabled={volumesOwned >= (volumes?.length ?? 0) || (volumes?.length ?? 0) === 0}
+                disabled={
+                  volumesOwned >= (volumes?.length ?? 0) ||
+                  (volumes?.length ?? 0) === 0
+                }
                 className="group relative h-full w-full overflow-hidden rounded-2xl border border-dashed border-border bg-ink-1/40 p-5 text-left backdrop-blur transition hover:border-hanko/40 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
@@ -561,7 +640,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <div className="mt-3 space-y-3">
                   <div>
                     <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                      {t("manga.avgPrice", { symbol: currencySetting?.symbol || "$" })}
+                      {t("manga.avgPrice", {
+                        symbol: currencySetting?.symbol || "$",
+                      })}
                     </label>
                     <input
                       type="number"
@@ -610,14 +691,38 @@ export default function MangaPage({ manga, adult_content_level }) {
           </div>
         </section>
 
-        <section className="animate-fade-up" style={{ animationDelay: "300ms" }}>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-2xl font-semibold italic text-washi">
-              {t("manga.volumesTitle")}
-            </h2>
-            <span className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              {t("manga.volumesCount", { n: volumes?.length ?? 0 })}
-            </span>
+        <section
+          className="animate-fade-up"
+          style={{ animationDelay: "300ms" }}
+        >
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-baseline gap-3">
+              <h2 className="font-display text-2xl font-semibold italic text-washi">
+                {t("manga.volumesTitle")}
+              </h2>
+              <span className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                {t("manga.volumesCount", { n: volumes?.length ?? 0 })}
+              </span>
+            </div>
+            {/* Coffret CTA — washi/cream palette so it reads as "box / paper
+                slipcase", distinct from the gold reserved for collector. */}
+            {manga.mal_id >= 0 && (volumes?.length ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setCoffretModalOpen(true)}
+                disabled={!online}
+                title={!online ? t("coffret.offlineHint") : undefined}
+                className="inline-flex items-center gap-1.5 rounded-full border border-washi/30 bg-washi/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-washi/60 hover:bg-washi/10 hover:text-washi active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span
+                  aria-hidden="true"
+                  className="font-display text-[13px] leading-none text-washi"
+                >
+                  盒
+                </span>
+                {t("coffret.addCta")}
+              </button>
+            )}
           </div>
 
           {volumesLoading ? (
@@ -638,20 +743,52 @@ export default function MangaPage({ manga, adult_content_level }) {
               ))}
             </div>
           ) : volumes?.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {volumes.map((vol) => (
-                <Volume
-                  key={vol.id}
-                  id={vol.id}
-                  mal_id={vol.mal_id}
-                  volNum={vol.vol_num}
-                  owned={vol.owned}
-                  paid={vol.price}
-                  store={vol.store}
-                  onUpdate={volumeUpdateCallback}
-                  currencySetting={currencySetting}
-                />
-              ))}
+            <div className="space-y-4">
+              {volumeSequence.map((seg, idx) =>
+                seg.type === "coffret" ? (
+                  <CoffretGroup
+                    key={`c-${seg.coffret.id}`}
+                    coffret={seg.coffret}
+                    currencySetting={currencySetting}
+                  >
+                    {seg.members.map((vol) => (
+                      <Volume
+                        key={vol.id}
+                        id={vol.id}
+                        mal_id={vol.mal_id}
+                        volNum={vol.vol_num}
+                        owned={vol.owned}
+                        paid={vol.price}
+                        store={vol.store}
+                        collector={vol.collector}
+                        locked
+                        onUpdate={volumeUpdateCallback}
+                        currencySetting={currencySetting}
+                      />
+                    ))}
+                  </CoffretGroup>
+                ) : (
+                  <div
+                    key={`g-${idx}`}
+                    className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                  >
+                    {seg.vols.map((vol) => (
+                      <Volume
+                        key={vol.id}
+                        id={vol.id}
+                        mal_id={vol.mal_id}
+                        volNum={vol.vol_num}
+                        owned={vol.owned}
+                        paid={vol.price}
+                        store={vol.store}
+                        collector={vol.collector}
+                        onUpdate={volumeUpdateCallback}
+                        currencySetting={currencySetting}
+                      />
+                    ))}
+                  </div>
+                ),
+              )}
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-border bg-ink-1/30 p-8 text-center text-sm text-washi-muted">
@@ -660,6 +797,14 @@ export default function MangaPage({ manga, adult_content_level }) {
           )}
         </section>
       </div>
+
+      <AddCoffretModal
+        open={coffretModalOpen}
+        onClose={() => setCoffretModalOpen(false)}
+        mal_id={manga.mal_id}
+        totalVolumes={totalVolumes}
+        currencySetting={currencySetting}
+      />
 
       <Modal popupOpen={posterPopUp} handleClose={() => setPosterPopUp(false)}>
         <img
@@ -714,11 +859,7 @@ function SummaryCard({ label, value, hint, loading, skeletonWidth }) {
       </p>
       {hint && (
         <p className="mt-1 text-xs text-washi-muted">
-          {loading ? (
-            <Skeleton className="h-3 w-32 align-middle" />
-          ) : (
-            hint
-          )}
+          {loading ? <Skeleton className="h-3 w-32 align-middle" /> : hint}
         </p>
       )}
     </div>

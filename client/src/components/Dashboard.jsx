@@ -20,7 +20,7 @@ export default function Dashboard() {
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const library = useMemo(
     () => filterAdultGenreIfNeeded(adult_content_level, rawLibrary ?? []),
-    [adult_content_level, rawLibrary]
+    [adult_content_level, rawLibrary],
   );
 
   const stats = useMemo(() => {
@@ -46,11 +46,11 @@ export default function Dashboard() {
     }
     if (filter === "complete") {
       result = result.filter(
-        (m) => (m.volumes ?? 0) > 0 && (m.volumes_owned ?? 0) >= m.volumes
+        (m) => (m.volumes ?? 0) > 0 && (m.volumes_owned ?? 0) >= m.volumes,
       );
     } else if (filter === "inprogress") {
       result = result.filter(
-        (m) => (m.volumes ?? 0) === 0 || (m.volumes_owned ?? 0) < m.volumes
+        (m) => (m.volumes ?? 0) === 0 || (m.volumes_owned ?? 0) < m.volumes,
       );
     }
     return result;
@@ -179,7 +179,10 @@ export default function Dashboard() {
               ))}
             </div>
           ) : isEmpty || filtered.length === 0 ? (
-            <EmptyState hasQuery={Boolean(query)} onAdd={() => navigate("/addmanga")} />
+            <EmptyState
+              hasQuery={Boolean(query)}
+              onAdd={() => navigate("/addmanga")}
+            />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filtered.map((manga, i) => (
@@ -188,7 +191,10 @@ export default function Dashboard() {
                   style={{ animationDelay: `${Math.min(i * 40, 500)}ms` }}
                   className="animate-fade-up"
                 >
-                  <Manga manga={manga} adult_content_level={adult_content_level} />
+                  <Manga
+                    manga={manga}
+                    adult_content_level={adult_content_level}
+                  />
                 </div>
               ))}
             </div>

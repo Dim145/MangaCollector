@@ -13,7 +13,8 @@
 const FORMATS = ["ean_13", "ean_8", "upc_a"];
 
 async function buildNativeDetector() {
-  if (typeof window === "undefined" || !("BarcodeDetector" in window)) return null;
+  if (typeof window === "undefined" || !("BarcodeDetector" in window))
+    return null;
   try {
     const supported = await BarcodeDetector.getSupportedFormats();
     const usable = FORMATS.filter((f) => supported.includes(f));

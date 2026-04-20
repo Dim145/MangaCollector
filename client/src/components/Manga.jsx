@@ -14,7 +14,9 @@ export default function Manga({ manga, adult_content_level }) {
 
   return (
     <button
-      onClick={() => navigate("/mangapage", { state: { manga, adult_content_level } })}
+      onClick={() =>
+        navigate("/mangapage", { state: { manga, adult_content_level } })
+      }
       className="group relative flex flex-col text-left tap-none focus-visible:outline-none"
     >
       {/* Cover — tall aspect like a real manga volume */}

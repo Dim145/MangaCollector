@@ -34,7 +34,10 @@ export default function GapSuggestions() {
   if (!suggestions.length) return null;
 
   return (
-    <section className="mb-8 animate-fade-up" style={{ animationDelay: "50ms" }}>
+    <section
+      className="mb-8 animate-fade-up"
+      style={{ animationDelay: "50ms" }}
+    >
       <div className="mb-3 flex items-baseline gap-3">
         <span className="font-mono text-xs uppercase tracking-[0.3em] text-gold">
           {t("gap.label")}
@@ -89,9 +92,7 @@ function GapCard({ manga, missing, gap, t, onOpen, blurred }) {
           {manga.name}
         </p>
         <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-gold">
-          {gap === 1
-            ? t("gap.missingOne")
-            : t("gap.missingMany", { n: gap })}
+          {gap === 1 ? t("gap.missingOne") : t("gap.missingMany", { n: gap })}
         </p>
         <p className="mt-0.5 font-mono text-[10px] text-washi-dim truncate">
           {summarizeRange(missing)}

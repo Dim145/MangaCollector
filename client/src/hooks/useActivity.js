@@ -13,7 +13,7 @@ import { db } from "@/lib/db.js";
 export function useActivity(limit = 30) {
   const data = useLiveQuery(
     () => db.activity.orderBy("created_on").reverse().limit(limit).toArray(),
-    [limit]
+    [limit],
   );
 
   const query = useQuery({

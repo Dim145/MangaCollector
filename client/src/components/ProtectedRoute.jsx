@@ -19,9 +19,7 @@ export default function ProtectedRoute({ children, setGoogleUser }) {
   const t = useT();
   const [status, setStatus] = useState(() => {
     const cached = getCachedUser();
-    return cached
-      ? { kind: "cached", user: cached }
-      : { kind: "checking" };
+    return cached ? { kind: "cached", user: cached } : { kind: "checking" };
   });
   const navigate = useNavigate();
 
@@ -99,9 +97,7 @@ export default function ProtectedRoute({ children, setGoogleUser }) {
           <h1 className="font-display text-2xl font-light italic text-washi md:text-3xl">
             {t("auth.verifyingSession")}
           </h1>
-          <p className="text-sm text-washi-muted">
-            {t("auth.verifyingBody")}
-          </p>
+          <p className="text-sm text-washi-muted">{t("auth.verifyingBody")}</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-2 rounded-full border border-border bg-ink-1/60 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi"

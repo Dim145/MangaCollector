@@ -155,7 +155,7 @@ export default function SettingsPage() {
       setRestoreError(
         err?.response?.data?.error ??
           err?.message ??
-          "Restore failed — please try again."
+          "Restore failed — please try again.",
       );
     } finally {
       setRestoring(false);
@@ -230,9 +230,7 @@ export default function SettingsPage() {
                   <div className="min-w-0 flex-1">
                     <p
                       className={`font-display text-sm font-semibold ${
-                        theme === opt.value
-                          ? "text-hanko-bright"
-                          : "text-washi"
+                        theme === opt.value ? "text-hanko-bright" : "text-washi"
                       }`}
                     >
                       {opt.label}
@@ -389,7 +387,10 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up" style={{ animationDelay: "100ms" }}>
+        <section
+          className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+          style={{ animationDelay: "100ms" }}
+        >
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <h2 className="font-display text-lg font-semibold text-washi">
@@ -454,7 +455,10 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up" style={{ animationDelay: "200ms" }}>
+        <section
+          className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+          style={{ animationDelay: "200ms" }}
+        >
           <div className="mb-4">
             <h2 className="font-display text-lg font-semibold text-washi">
               {t("settings.titleLanguage")}
@@ -675,7 +679,7 @@ export default function SettingsPage() {
                       pending === 1
                         ? "settings.pendingDiscardOne"
                         : "settings.pendingDiscardMany",
-                      { n: pending }
+                      { n: pending },
                     )}
                 </p>
               </div>
@@ -709,9 +713,7 @@ export default function SettingsPage() {
       {/* ─── Confirmation modal ─── */}
       <Modal
         popupOpen={confirmRestore}
-        handleClose={
-          restoring ? undefined : () => setConfirmRestore(false)
-        }
+        handleClose={restoring ? undefined : () => setConfirmRestore(false)}
       >
         <div className="max-w-md rounded-2xl border border-border bg-ink-1 p-6 shadow-2xl">
           <div className="hanko-seal mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
@@ -732,7 +734,7 @@ export default function SettingsPage() {
                   pending === 1
                     ? "settings.pendingWarningOne"
                     : "settings.pendingWarningMany",
-                  { n: pending }
+                  { n: pending },
                 )}
               </p>
               <p className="mt-1 text-washi-muted">
@@ -804,10 +806,7 @@ function SettingsSkeleton() {
               }`}
             >
               {Array.from({ length: cols }).map((_, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl border border-border p-3"
-                >
+                <div key={i} className="rounded-xl border border-border p-3">
                   <Skeleton className="h-4 w-20" />
                   <Skeleton className="mt-2 h-3 w-32" />
                 </div>
@@ -847,7 +846,8 @@ function ThemeSwatch({ value }) {
     value === "dark"
       ? "oklch(0.96 0.012 85 / 0.1)"
       : "oklch(0.2 0.012 40 / 0.14)";
-  const text = value === "dark" ? "oklch(0.96 0.012 85)" : "oklch(0.2 0.012 40)";
+  const text =
+    value === "dark" ? "oklch(0.96 0.012 85)" : "oklch(0.2 0.012 40)";
 
   return (
     <span

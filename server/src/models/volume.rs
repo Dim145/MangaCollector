@@ -15,6 +15,10 @@ pub struct Model {
     pub owned: bool,
     pub price: Option<Decimal>,
     pub store: Option<String>,
+    #[sea_orm(default)]
+    pub collector: bool,
+    #[sea_orm(default)]
+    pub coffret_id: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -31,4 +35,6 @@ pub struct UpdateVolumeRequest {
     pub owned: bool,
     pub price: Option<Decimal>,
     pub store: Option<String>,
+    #[serde(default)]
+    pub collector: bool,
 }

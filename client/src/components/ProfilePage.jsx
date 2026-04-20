@@ -14,12 +14,17 @@ import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
 import ActivityFeed from "./ActivityFeed.jsx";
 import MalRecommendations from "./MalRecommendations.jsx";
+import SpendingChart from "./analytics/SpendingChart.jsx";
+import CompositionPies from "./analytics/CompositionPies.jsx";
+import InsightCards from "./analytics/InsightCards.jsx";
+import ActionableLists from "./analytics/ActionableLists.jsx";
 // Modal — only needed on click, deferred so it doesn't bloat the profile chunk.
 const AvatarPicker = lazy(() => import("./AvatarPicker.jsx"));
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
+import { useProfileAnalytics } from "@/hooks/useProfileAnalytics.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -34,50 +39,59 @@ export default function ProfilePage({ googleUser }) {
 
   const loading = loadingLib || loadingVol;
 
-  const { totalSeries, totalVolumes, totalVolumesOwned, totalCost, completionRate, seriesByCost } =
-    useMemo(() => {
-      const totalSeries = library.length;
-      const totalVolumes = volumes.length;
-      const titleMap = {};
-      for (const series of library) titleMap[series.mal_id] = series.name;
+  // One-shot analytics bundle — everything derives from library + volumes
+  // already in memory, so no extra network round-trip. Components below
+  // receive their own slice via props.
+  const analytics = useProfileAnalytics();
 
-      let owned = 0;
-      let cost = 0;
-      const costMap = {};
+  const {
+    totalSeries,
+    totalVolumes,
+    totalVolumesOwned,
+    totalCost,
+    completionRate,
+    seriesByCost,
+  } = useMemo(() => {
+    const totalSeries = library.length;
+    const totalVolumes = volumes.length;
+    const titleMap = {};
+    for (const series of library) titleMap[series.mal_id] = series.name;
 
-      for (const vol of volumes) {
-        if (vol.owned) {
-          owned += 1;
-          cost += Number(vol.price) || 0;
-          const title = titleMap[vol.mal_id] || "Unknown";
-          if (!costMap[title]) costMap[title] = 0;
-          costMap[title] += Number(vol.price) || 0;
-        }
+    let owned = 0;
+    let cost = 0;
+    const costMap = {};
+
+    for (const vol of volumes) {
+      if (vol.owned) {
+        owned += 1;
+        cost += Number(vol.price) || 0;
+        const title = titleMap[vol.mal_id] || "Unknown";
+        if (!costMap[title]) costMap[title] = 0;
+        costMap[title] += Number(vol.price) || 0;
       }
+    }
 
-      const completion =
-        totalVolumes > 0
-          ? Number(((owned / totalVolumes) * 100).toFixed(1))
-          : 0;
+    const completion =
+      totalVolumes > 0 ? Number(((owned / totalVolumes) * 100).toFixed(1)) : 0;
 
-      const sorted = Object.entries(costMap)
-        .map(([title, c]) => ({
-          title: title.split(" ").slice(0, 2).join(" ").slice(0, 12),
-          fullTitle: title,
-          totalCost: Number(c.toFixed(2)),
-        }))
-        .sort((a, b) => b.totalCost - a.totalCost)
-        .slice(0, 5);
+    const sorted = Object.entries(costMap)
+      .map(([title, c]) => ({
+        title: title.split(" ").slice(0, 2).join(" ").slice(0, 12),
+        fullTitle: title,
+        totalCost: Number(c.toFixed(2)),
+      }))
+      .sort((a, b) => b.totalCost - a.totalCost)
+      .slice(0, 5);
 
-      return {
-        totalSeries,
-        totalVolumes,
-        totalVolumesOwned: owned,
-        totalCost: cost,
-        completionRate: completion,
-        seriesByCost: sorted,
-      };
-    }, [library, volumes]);
+    return {
+      totalSeries,
+      totalVolumes,
+      totalVolumesOwned: owned,
+      totalCost: cost,
+      completionRate: completion,
+      seriesByCost: sorted,
+    };
+  }, [library, volumes]);
 
   const completionData = [
     { name: "Owned", value: completionRate },
@@ -86,7 +100,7 @@ export default function ProfilePage({ googleUser }) {
 
   const userName = googleUser?.name ?? t("profile.reader");
   const initial = userName?.[0]?.toUpperCase() ?? "U";
-  const avatarUrl = !avatarFailed ? settings?.avatarUrl ?? null : null;
+  const avatarUrl = !avatarFailed ? (settings?.avatarUrl ?? null) : null;
 
   return (
     <DefaultBackground>
@@ -105,7 +119,9 @@ export default function ProfilePage({ googleUser }) {
               onClick={() => setPickerOpen(true)}
               aria-label={t("avatar.changeAria")}
               className={`group relative h-20 w-20 shrink-0 overflow-hidden rounded-full ring-1 ring-border transition-all hover:ring-hanko hover:shadow-[0_0_32px_rgba(220,38,38,0.35)] md:h-24 md:w-24 ${
-                avatarUrl ? "bg-ink-2" : "bg-gradient-to-br from-gold to-gold-muted"
+                avatarUrl
+                  ? "bg-ink-2"
+                  : "bg-gradient-to-br from-gold to-gold-muted"
               }`}
             >
               {avatarUrl ? (
@@ -189,7 +205,10 @@ export default function ProfilePage({ googleUser }) {
           />
         </section>
 
-        <section className="mb-8 grid gap-6 animate-fade-up md:grid-cols-2" style={{ animationDelay: "200ms" }}>
+        <section
+          className="mb-8 grid gap-6 animate-fade-up md:grid-cols-2"
+          style={{ animationDelay: "200ms" }}
+        >
           <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
               {t("profile.completionRateLabel")}
@@ -306,7 +325,10 @@ export default function ProfilePage({ googleUser }) {
           </div>
         </section>
 
-        <section className="animate-fade-up" style={{ animationDelay: "350ms" }}>
+        <section
+          className="animate-fade-up"
+          style={{ animationDelay: "350ms" }}
+        >
           <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-hanko/10 via-ink-1/50 to-gold/5 p-6 backdrop-blur md:p-8">
             <div className="pointer-events-none absolute -right-10 -top-10 grid h-40 w-40 place-items-center opacity-20">
               <span className="font-display text-[10rem] italic leading-none text-hanko">
@@ -330,16 +352,59 @@ export default function ProfilePage({ googleUser }) {
           </div>
         </section>
 
+        {/* ─── Analytics deep-dive ─────────────────────────────── */}
         <section
           className="mt-8 animate-fade-up"
+          style={{ animationDelay: "400ms" }}
+        >
+          <SpendingChart data={analytics.monthly.spending} loading={loading} />
+        </section>
+
+        <section
+          className="mt-6 animate-fade-up"
           style={{ animationDelay: "450ms" }}
+        >
+          <CompositionPies
+            stores={analytics.composition.stores}
+            genres={analytics.composition.genres}
+            loading={loading}
+          />
+        </section>
+
+        <section
+          className="mt-6 animate-fade-up"
+          style={{ animationDelay: "500ms" }}
+        >
+          <InsightCards
+            collector={analytics.collector}
+            coffret={analytics.coffret}
+            milestones={analytics.milestones}
+            loading={loading}
+          />
+        </section>
+
+        <section
+          className="mt-6 animate-fade-up"
+          style={{ animationDelay: "550ms" }}
+        >
+          <ActionableLists
+            middleGaps={analytics.middleGaps}
+            stale={analytics.stale}
+            loading={loading}
+            library={library}
+          />
+        </section>
+
+        <section
+          className="mt-8 animate-fade-up"
+          style={{ animationDelay: "600ms" }}
         >
           <ActivityFeed limit={20} />
         </section>
 
         <section
           className="mt-8 animate-fade-up"
-          style={{ animationDelay: "550ms" }}
+          style={{ animationDelay: "650ms" }}
         >
           <MalRecommendations />
         </section>
@@ -376,9 +441,7 @@ function HeroStat({ label, value, sub, hint, accent, loading }) {
           </>
         )}
       </p>
-      {hint && (
-        <p className="mt-1 text-[11px] text-washi-muted">{hint}</p>
-      )}
+      {hint && <p className="mt-1 text-[11px] text-washi-muted">{hint}</p>}
       <div className="pointer-events-none absolute -bottom-6 -right-6 h-16 w-16 rounded-full bg-hanko/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
     </div>
   );

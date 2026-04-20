@@ -118,7 +118,7 @@ async function throttle() {
   if (now < cooldownUntil) {
     const remainS = Math.ceil((cooldownUntil - now) / 1000);
     const err = new Error(
-      `Google Books rate limit — retrying in ${remainS}s. Add an API key in Settings to avoid this.`
+      `Google Books rate limit — retrying in ${remainS}s. Add an API key in Settings to avoid this.`,
     );
     err.code = "RATE_LIMITED";
     throw err;
@@ -166,7 +166,7 @@ export async function lookupISBN(rawIsbn) {
   if (res.status === 429) {
     triggerCooldown();
     const err = new Error(
-      "Google Books rate limit reached. Add an API key in Settings, or wait a bit before scanning more."
+      "Google Books rate limit reached. Add an API key in Settings, or wait a bit before scanning more.",
     );
     err.code = "RATE_LIMITED";
     throw err;
@@ -211,6 +211,7 @@ export async function lookupISBN(rawIsbn) {
     volume,
     authors: info.authors ?? [],
     publisher: info.publisher,
+    pageCount: typeof info.pageCount === "number" ? info.pageCount : null,
     thumbnail:
       info.imageLinks?.extraLarge ??
       info.imageLinks?.large ??
@@ -226,6 +227,48 @@ export async function lookupISBN(rawIsbn) {
   return result;
 }
 
+// Words that unambiguously mark a multi-volume pack on the product title.
+// "Coffret" in FR, "box set" in EN, "intégrale" for complete editions, etc.
+// Google Books never returns a structured `isCoffret` flag, so we fall back
+// to title-text signals + volume-range extraction.
+const COFFRET_KEYWORDS =
+  /\b(box[\s-]?set|boxset|coffret|int[eé]grale|slipcase|complete\s+(?:series|set|collection))\b/i;
+
+// "Vol. 1-13", "Tomes 1 à 5", "Volumes 1 to 3", "#1-3"
+const COFFRET_RANGE =
+  /(?:vol(?:umes?|s)?\.?|tomes?|books?|#)\s*(\d+)\s*(?:[-–—]|\s+(?:à|to)\s+)\s*(\d+)/i;
+
+/**
+ * Heuristic "is this a coffret / box-set ?" classifier over a Google Books
+ * lookup result. Returns `{ isCoffret, volStart?, volEnd?, name? }`.
+ *
+ * Purely text-based — Google Books has no structured signal for box sets,
+ * so we rely on keyword matching + volume-range extraction from the title.
+ * The caller should surface a "this isn't actually a coffret" escape hatch
+ * since false positives are possible (e.g. a single deluxe volume named
+ * "Deluxe Edition, Volume 1").
+ */
+export function detectCoffret(book) {
+  if (!book) return { isCoffret: false };
+  const title = book.rawTitle ?? book.title ?? "";
+  if (!title) return { isCoffret: false };
+
+  const hasKeyword = COFFRET_KEYWORDS.test(title);
+  const rangeMatch = title.match(COFFRET_RANGE);
+  if (!hasKeyword && !rangeMatch) return { isCoffret: false };
+
+  let volStart, volEnd;
+  if (rangeMatch) {
+    const a = parseInt(rangeMatch[1], 10);
+    const b = parseInt(rangeMatch[2], 10);
+    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b >= a) {
+      volStart = a;
+      volEnd = b;
+    }
+  }
+  return { isCoffret: true, volStart, volEnd, name: title };
+}
+
 /**
  * Search Jikan (MAL) for the best series matches given a title.
  * Returns up to `limit` manga candidates.
@@ -234,7 +277,7 @@ export async function searchMangaOnMal(title, limit = 5) {
   if (!title?.trim()) return [];
   const res = await fetch(
     `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(title)}&limit=${limit}`,
-    { headers: { Accept: "application/json" } }
+    { headers: { Accept: "application/json" } },
   );
   if (!res.ok) return [];
   const data = await res.json();

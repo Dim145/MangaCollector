@@ -105,6 +105,42 @@ export default {
     storePlaceholder: "Amazon, librairie locale…",
     markOwned: "Marquer comme possédé",
     markNotOwned: "Marquer comme non possédé",
+    editionLabel: "Édition",
+    collectorOption: "Édition collector",
+    collectorHint: "Édition limitée / numérotée / spéciale.",
+    collectorBadge: "Collector",
+    collectorTitle: "Édition collector — 限定",
+    lockedAria: "Géré par le coffret",
+    lockedTitle: "Géré par son coffret — modifiez l'en-tête du coffret pour changer.",
+  },
+  coffret: {
+    label: "COFFRET · 盒",
+    addCta: "Ajouter un coffret",
+    offlineHint: "Nécessite une connexion",
+    modalTitle: "Enregistrer un",
+    modalTitleAccent: "Coffret",
+    modalByline:
+      "Regroupe une plage de tomes contigus comme un seul achat — le prix est réparti équitablement entre chaque tome, et toute la plage est marquée comme possédée d'un coup.",
+    rangeLabel: "Plage de tomes",
+    rangeInvalid: "Le tome de fin doit être ≥ au tome de début.",
+    nameLabel: "Nom",
+    autoNameOne: "Coffret Vol. {n}",
+    autoNameRange: "Coffret Vol. {start}–{end}",
+    priceLabel: "Prix total ({symbol})",
+    pricePerVol: "{amount} {symbol} / tome",
+    storeLabel: "Magasin",
+    storePlaceholder: "Amazon, libraire…",
+    collectorToggle: "Édition collector",
+    collectorHint: "Marquer chaque tome du coffret comme limité / numéroté.",
+    volumesCount: "{n} tomes",
+    createCta: "Créer · {n} tomes",
+    volsLabel: "Tomes",
+    nVols: "{n} tomes",
+    confirmDelete: "Supprimer ce coffret ?",
+    deleteAria: "Supprimer le coffret",
+    editAria: "Modifier le coffret",
+    editingLabel: "MODIFICATION · 編集",
+    notACoffret: "Pas un coffret ? Revenir au tome classique",
   },
   add: {
     title: "Ajouter à votre",
@@ -113,8 +149,7 @@ export default {
       "Scannez un code-barres, cherchez sur MyAnimeList, ou créez une entrée personnalisée.",
     scanFast: "Le plus rapide",
     scanCta: "Scanner le code-barres du tome",
-    scanHint:
-      "Pointez la caméra sur le code ISBN au dos de l'ouvrage.",
+    scanHint: "Pointez la caméra sur le code ISBN au dos de l'ouvrage.",
     scanOffline: "Reconnectez-vous pour utiliser le scanner.",
     tabMalSearch: "Recherche MAL",
     tabCustomEntry: "Entrée personnalisée",
@@ -123,7 +158,8 @@ export default {
     titleField: "Titre",
     titlePlaceholder: "ex. Underground Illustrations",
     genresField: "Genres",
-    genresPlaceholder: "Séparés par des virgules, ex. Action, Fantastique, Seinen",
+    genresPlaceholder:
+      "Séparés par des virgules, ex. Action, Fantastique, Seinen",
     volumesField: "Nombre de tomes",
     createEntry: "Créer l'entrée",
     searchPlaceholder: "Rechercher sur MyAnimeList…",
@@ -162,8 +198,7 @@ export default {
     ean13Hint: "EAN-13 · ISBN-13 — tenez stable, ~15 cm",
     scannedCount: "{n} scannés",
     lookingUp: "ISBN {isbn} — recherche…",
-    foundMatching:
-      "Trouvé « {title} »{vol} — correspondance MAL…",
+    foundMatching: "Trouvé « {title} »{vol} — correspondance MAL…",
     volumeSuffix: " · Tome {n}",
     lookingUpTitle: "Recherche de l'ISBN…",
     genericWait: "Un instant.",
@@ -173,8 +208,7 @@ export default {
     noMatchTitle: "Aucun résultat",
     noMatchBodyWithTitle:
       "L'ISBN {isbn} correspond à « {title} », mais aucune série équivalente sur MyAnimeList.",
-    noMatchBodyNoTitle:
-      "ISBN {isbn} — absent de Google Books aussi.",
+    noMatchBodyNoTitle: "ISBN {isbn} — absent de Google Books aussi.",
     noMatchGoogleBooks:
       "Pas de correspondance pour l'ISBN {isbn}. Vous pouvez rechercher par titre ou créer une entrée personnalisée.",
     noMatchMal:
@@ -193,8 +227,7 @@ export default {
       "Nous n'avons pas pu détecter le numéro de tome — merci de vérifier.",
     priceLabel: "Prix ({symbol}) — uniquement ce tome",
     googleBooksPrice: "Google Books : {amount} {currency}",
-    googleBooksPriceDiffCurrency:
-      " — devise différente, non pré-remplie",
+    googleBooksPriceDiffCurrency: " — devise différente, non pré-remplie",
     googleBooksListPrice: " (prix conseillé)",
     missingVolumesOne: "Le tome {n} manque avant celui-ci",
     missingVolumesMany: "{n} tomes manquent avant celui-ci",
@@ -241,8 +274,7 @@ export default {
       "Plus de la moitié du chemin — vos étagères se remplissent magnifiquement.",
     insightBeginning:
       "Toute collection commence par un seul tome. Vous construisez quelque chose de précieux.",
-    comingSoon:
-      "Fil d'activité et recommandations personnalisées à venir.",
+    comingSoon: "Fil d'activité et recommandations personnalisées à venir.",
     tooltipSpent: "Dépensé",
   },
   settings: {
@@ -265,8 +297,7 @@ export default {
     adultBody:
       "Comportement d'affichage des titres matures dans votre archive.",
     adultBlur: "Flouter",
-    adultBlurDesc:
-      "Les jaquettes sont floutées, les tomes restent visibles",
+    adultBlurDesc: "Les jaquettes sont floutées, les tomes restent visibles",
     adultHide: "Masquer",
     adultHideDesc: "Les titres adultes sont totalement masqués",
     adultShow: "Afficher",
@@ -278,8 +309,7 @@ export default {
     currencyUSD: "Dollar américain",
     currencyEUR: "Euro",
     titleLanguage: "Langue du titre",
-    titleBody:
-      "Quel titre est préféré quand MAL fournit des alternatives.",
+    titleBody: "Quel titre est préféré quand MAL fournit des alternatives.",
     titleDefault: "Par défaut (MAL)",
     titleEnglish: "Anglais",
     titleJapanese: "Japonais",
@@ -299,21 +329,16 @@ export default {
     dataBody:
       "Archive hors ligne mise en cache sur cet appareil. Récupérez l'état frais du serveur pour repartir propre.",
     restoreFromServer: "Restaurer depuis le serveur",
-    restoreDesc:
-      "Remplace l'archive locale par le dernier état serveur.",
-    pendingDiscardOne:
-      " {n} modification en attente sera perdue.",
-    pendingDiscardMany:
-      " {n} modifications en attente seront perdues.",
+    restoreDesc: "Remplace l'archive locale par le dernier état serveur.",
+    pendingDiscardOne: " {n} modification en attente sera perdue.",
+    pendingDiscardMany: " {n} modifications en attente seront perdues.",
     restore: "Restaurer",
     restoreConnectionHint: "Nécessite une connexion",
     restoreModalTitle: "Restaurer depuis le serveur ?",
     restoreModalBody:
       "Votre archive locale — bibliothèque, tomes, paramètres — sera remplacée par une copie fraîche du serveur.",
-    pendingWarningOne:
-      "{n} modification en attente sera perdue",
-    pendingWarningMany:
-      "{n} modifications en attente seront perdues",
+    pendingWarningOne: "{n} modification en attente sera perdue",
+    pendingWarningMany: "{n} modifications en attente seront perdues",
     pendingWarningDetail:
       "Les modifications en file d'attente offline non encore synchronisées seront définitivement perdues.",
     restoreDone: "Archive restaurée avec succès.",
@@ -333,8 +358,7 @@ export default {
     benefit1: "Suivi tome par tome avec prix et sources",
     benefit2: "Couvertures et métadonnées propulsées par MyAnimeList",
     benefit3: "Privé, à vous — sessions chiffrées uniquement",
-    terms:
-      "En vous connectant, vous acceptez nos {terms} & {privacy}",
+    terms: "En vous connectant, vous acceptez nos {terms} & {privacy}",
     termsLabel: "CGU",
     privacyLabel: "Politique de confidentialité",
     brandLabel: "MangaCollector · 収集家",
@@ -386,8 +410,7 @@ export default {
       "La recherche est instantanée, les métadonnées précises. Comme une deuxième étagère.",
     t2Name: "Aiko R.",
     t2Role: "Passionnée de seinen",
-    t3Quote:
-      "L'authentification {provider} fonctionne nickel. Zéro friction.",
+    t3Quote: "L'authentification {provider} fonctionne nickel. Zéro friction.",
     t3Name: "Marco D.",
     t3Role: "Développeur full-stack & lecteur",
     begin: "COMMENCER",
@@ -402,8 +425,7 @@ export default {
     labelJp: "LISTE DE SOUHAITS · 欲しい",
     comingSoon: "Bientôt",
     comingSoonAccent: "disponible.",
-    body:
-      "Nous concevons un espace dédié pour suivre les tomes que vous rêvez de posséder — précommandes, retirages et graals, tout au même endroit.",
+    body: "Nous concevons un espace dédié pour suivre les tomes que vous rêvez de posséder — précommandes, retirages et graals, tout au même endroit.",
     backLib: "Retour à la bibliothèque",
   },
   offline: {
@@ -491,8 +513,7 @@ export default {
     emptyNoLibraryHint:
       "Ajoutez une série à votre bibliothèque et ses personnages apparaîtront ici.",
     emptyRateLimit: "MyAnimeList nous limite",
-    emptyRateLimitHint:
-      "Revenez dans une minute, la galerie se chargera.",
+    emptyRateLimitHint: "Revenez dans une minute, la galerie se chargera.",
     emptyNoMain: "Aucun personnage principal trouvé",
     emptyNoMainHint:
       "Désactivez le filtre pour voir aussi les personnages secondaires.",
@@ -507,7 +528,70 @@ export default {
     iosStep1Prefix: "Dans Safari, touchez le bouton Partager",
     iosShareButton: "Partager",
     iosStep2: "Faites défiler et touchez « Sur l'écran d'accueil ».",
-    iosStep3: "Touchez « Ajouter » — l'icône rejoint votre écran d'accueil et s'ouvre comme une vraie app.",
+    iosStep3:
+      "Touchez « Ajouter » — l'icône rejoint votre écran d'accueil et s'ouvre comme une vraie app.",
     iosClose: "C'est fait",
+  },
+  analytics: {
+    spending: {
+      label: "DÉPENSES · 月次",
+      title: "Rythme mensuel",
+      last12: "12 derniers mois",
+      total: "Total",
+      avgActive: "Moy. mois actif",
+      empty: "Aucun tome daté — ajoute un prix pour commencer le suivi.",
+      tooltipLabel: "Dépensé",
+      tooltipCount: "{n} tomes",
+    },
+    genres: {
+      label: "GENRES · ジャンル",
+      title: "Ce que tu lis",
+      empty: "Ajoute une série pour éclairer l'étagère.",
+    },
+    stores: {
+      label: "MAGASINS · 店",
+      title: "Où tu achètes",
+      empty: "Renseigne un magasin sur un tome pour voir la carte.",
+    },
+    collector: {
+      label: "COLLECTOR · 限定",
+      title: "Éditions limitées",
+      volumes: "tomes",
+      ratio: "{pct}% de ta collection",
+      premiumLabel: "Surcoût vs. standard",
+      premiumHint: "Supplément moyen payé par tome collector.",
+      empty: "Marque un tome collector pour voir le surcoût.",
+    },
+    coffret: {
+      label: "COFFRETS · 盒",
+      title: "Économies coffret",
+      empty: "Enregistre un coffret, on calcule ce que tu as économisé.",
+      savingsHint: "Estimation vs. achat tome-à-tome.",
+      coffretsCount: "coffret |||| coffrets",
+      volumesIn: "tomes inclus",
+      perVol: "≈ {amount} / tome",
+    },
+    milestone: {
+      label: "PALIER · 到達",
+      title: "Prochain jalon",
+      toGo: "à atteindre",
+      hint: "Tu franchiras le palier des {n} tomes.",
+      maxed: "Tous les paliers franchis — étagère légendaire.",
+    },
+    gaps: {
+      label: "TROUS À COMBLER · 穴",
+      title: "Tomes manquants au milieu",
+      byline: "Tomes manquants entre deux tomes possédés — faciles à finir.",
+      empty: "Aucun trou au milieu. Tes étagères se lisent d'un coup.",
+      missingOne: "tome {n} manquant",
+      missingMany: "{n} tomes manquants · {list}",
+    },
+    stale: {
+      label: "DORMANTES · 休眠",
+      title: "En attente",
+      byline: "Séries sans nouveau tome depuis 6 mois ou plus.",
+      empty: "Toutes les séries ont été nourries récemment.",
+      idle: "inactive {n} mois · {owned}/{total}",
+    },
   },
 };

@@ -1,0 +1,2 @@
+ALTER TABLE user_volumes
+    ADD COLUMN IF NOT EXISTS collector BOOLEAN NOT NULL DEFAULT false;

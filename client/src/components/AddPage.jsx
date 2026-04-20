@@ -6,13 +6,19 @@ import MangaSearchResults from "@/components/MangaSearchResults.jsx";
 import BarcodeScanner from "@/components/BarcodeScanner.jsx";
 import ScanLoadingView from "@/components/ScanLoadingView.jsx";
 import Modal from "@/components/utils/Modal.jsx";
+import AddCoffretModal from "@/components/AddCoffretModal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { addCustomEntryToUserLibrary } from "@/utils/user.js";
 import { db } from "@/lib/db.js";
-import { lookupISBN, normalizeISBN, searchMangaOnMal } from "@/lib/isbn.js";
+import {
+  detectCoffret,
+  lookupISBN,
+  normalizeISBN,
+  searchMangaOnMal,
+} from "@/lib/isbn.js";
 import { useT } from "@/i18n/index.jsx";
 
 const TRANSIENT_ERROR_TIMEOUT_MS = 2500;
@@ -44,6 +50,10 @@ export default function AddPage() {
   const [scanNotFound, setScanNotFound] = useState(null); // { isbn, bookTitle? }
   const [scanTransientError, setScanTransientError] = useState(null);
   const [rateLimited, setRateLimited] = useState(null); // { message }
+  // Coffret detected on scan — routes to AddCoffretModal pre-filled instead
+  // of the standard single-volume confirmation card. A "Not a coffret?"
+  // button inside the modal flips back to the regular volume flow.
+  const [scanCoffret, setScanCoffret] = useState(null);
   const [committing, setCommitting] = useState(false);
   const [recentScans, setRecentScans] = useState([]);
 
@@ -214,7 +224,7 @@ export default function AddPage() {
 
     // Try to pair the title with a MAL entry
     setScanStatus(
-      `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`
+      `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`,
     );
 
     let candidates;
@@ -230,6 +240,31 @@ export default function AddPage() {
     if (!candidates.length) {
       setScanNotFound({ isbn, bookTitle: book.title });
       setScanPhase("not-found");
+      return;
+    }
+
+    // Coffret detection — routed before the regular single-volume flow.
+    // Google Books has no structured box-set flag; we lean on title text.
+    const coffretHint = detectCoffret(book);
+    if (coffretHint.isCoffret) {
+      const candidate = candidates[0];
+      // Close the scanner overlay — the coffret modal takes over the screen.
+      setScannerOpen(false);
+      const prefilledPrice = pickDefaultPrice(book, currencyCodeRef.current);
+      setScanCoffret({
+        isbn,
+        book,
+        candidates,
+        candidate,
+        mal_id: candidate.mal_id,
+        totalVolumes: candidate.volumes ?? 0,
+        prefill: {
+          name: coffretHint.name,
+          volStart: coffretHint.volStart,
+          volEnd: coffretHint.volEnd,
+          price: prefilledPrice > 0 ? prefilledPrice : null,
+        },
+      });
       return;
     }
 
@@ -280,7 +315,7 @@ export default function AddPage() {
             added: res.added,
           },
           ...prev,
-        ].slice(0, 8)
+        ].slice(0, 8),
       );
       try {
         navigator.vibrate?.([30, 40, 30]);
@@ -453,7 +488,9 @@ export default function AddPage() {
                 <input
                   type="number"
                   value={customEntryVolumes}
-                  onChange={(e) => setCustomEntryVolumes(Number(e.target.value))}
+                  onChange={(e) =>
+                    setCustomEntryVolumes(Number(e.target.value))
+                  }
                   min={0}
                   placeholder="0"
                   className="w-full rounded-lg border border-border bg-ink-0/60 px-4 py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
@@ -493,9 +530,7 @@ export default function AddPage() {
             loading={loading}
             hasResults={results.length > 0}
             placeholder={
-              online
-                ? t("add.searchPlaceholder")
-                : t("add.offlinePlaceholder")
+              online ? t("add.searchPlaceholder") : t("add.offlinePlaceholder")
             }
           />
 
@@ -561,16 +596,16 @@ export default function AddPage() {
         (scanPhase === "looking-up" || scanPhase === "transient") && (
           <ScanLoadingView
             statusMessage={scanStatus}
-            errorMessage={
-              scanPhase === "transient" ? scanTransientError : null
-            }
+            errorMessage={scanPhase === "transient" ? scanTransientError : null}
             onClose={closeScanner}
           />
         )}
 
       {/* ─── Positive match — confirmation card ─── */}
       <Modal
-        popupOpen={Boolean(scannerOpen && scanPhase === "positive" && scanResult)}
+        popupOpen={Boolean(
+          scannerOpen && scanPhase === "positive" && scanResult,
+        )}
         handleClose={committing ? undefined : resumeScanning}
       >
         <div className="max-w-md overflow-hidden rounded-2xl border border-border bg-ink-1 shadow-2xl">
@@ -598,7 +633,7 @@ export default function AddPage() {
       {/* ─── Not found — 3 options ─── */}
       <Modal
         popupOpen={Boolean(
-          scannerOpen && scanPhase === "not-found" && scanNotFound
+          scannerOpen && scanPhase === "not-found" && scanNotFound,
         )}
         handleClose={resumeScanning}
       >
@@ -607,9 +642,7 @@ export default function AddPage() {
             <NotFoundCard
               notFound={scanNotFound}
               onRescan={resumeScanning}
-              onManual={() =>
-                switchToManual(scanNotFound.bookTitle ?? "")
-              }
+              onManual={() => switchToManual(scanNotFound.bookTitle ?? "")}
               onClose={closeScanner}
             />
           )}
@@ -654,6 +687,33 @@ export default function AddPage() {
         </div>
       </Modal>
 
+      {/* ─── Coffret modal opened by the scanner when a box-set is detected ── */}
+      <AddCoffretModal
+        open={Boolean(scanCoffret)}
+        onClose={() => setScanCoffret(null)}
+        mal_id={scanCoffret?.mal_id}
+        totalVolumes={scanCoffret?.totalVolumes}
+        currencySetting={currencySetting}
+        prefill={scanCoffret?.prefill}
+        onSwitchToVolume={() => {
+          // False positive on coffret detection — fall back to the regular
+          // single-volume confirmation card inside the scanner overlay.
+          const fallback = scanCoffret;
+          if (!fallback) return;
+          setScanCoffret(null);
+          setScanResult({
+            isbn: fallback.isbn,
+            book: fallback.book,
+            candidates: fallback.candidates,
+            volume: fallback.book?.volume ?? 1,
+            price: pickDefaultPrice(fallback.book, currencyCodeRef.current),
+          });
+          setScanCandidateIdx(0);
+          setScanPhase("positive");
+          setScanStatus("");
+          setScannerOpen(true);
+        }}
+      />
     </div>
   );
 }
@@ -724,11 +784,9 @@ function ScanMatchCard({
     async () => {
       if (!candidate?.mal_id) return [];
       const owned = new Set(
-        (
-          await db.volumes.where("mal_id").equals(candidate.mal_id).toArray()
-        )
+        (await db.volumes.where("mal_id").equals(candidate.mal_id).toArray())
           .filter((v) => v.owned)
-          .map((v) => v.vol_num)
+          .map((v) => v.vol_num),
       );
       const gap = [];
       for (let i = 1; i < scannedVol; i++) {
@@ -737,7 +795,7 @@ function ScanMatchCard({
       return gap;
     },
     [candidate?.mal_id, scannedVol],
-    []
+    [],
   );
 
   return (
@@ -776,8 +834,12 @@ function ScanMatchCard({
             <span>
               {t("searchResults.vols", { n: candidate.volumes ?? "?" })}
             </span>
-            {candidate.score && <span className="text-gold">★ {candidate.score}</span>}
-            {inLibrary && <span className="text-gold">{t("scan.inLibrary")}</span>}
+            {candidate.score && (
+              <span className="text-gold">★ {candidate.score}</span>
+            )}
+            {inLibrary && (
+              <span className="text-gold">{t("scan.inLibrary")}</span>
+            )}
           </div>
 
           {result.candidates.length > 1 && (
@@ -802,7 +864,9 @@ function ScanMatchCard({
         </label>
         <div className="mt-1.5 flex items-center gap-2">
           <button
-            onClick={() => setVolume(Math.max(1, Number(result.volume || 1) - 1))}
+            onClick={() =>
+              setVolume(Math.max(1, Number(result.volume || 1) - 1))
+            }
             className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-ink-0/40 text-washi transition hover:border-hanko/40"
             aria-label="-"
           >

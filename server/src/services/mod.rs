@@ -1,4 +1,5 @@
 pub mod activity;
+pub mod coffret;
 pub mod library;
 pub mod mal_api;
 pub mod settings;

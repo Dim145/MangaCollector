@@ -106,13 +106,19 @@ function DotsEllipsis() {
       </span>
       <span
         className="inline-block"
-        style={{ animation: "dots-roll 1.4s infinite", animationDelay: "160ms" }}
+        style={{
+          animation: "dots-roll 1.4s infinite",
+          animationDelay: "160ms",
+        }}
       >
         .
       </span>
       <span
         className="inline-block"
-        style={{ animation: "dots-roll 1.4s infinite", animationDelay: "320ms" }}
+        style={{
+          animation: "dots-roll 1.4s infinite",
+          animationDelay: "320ms",
+        }}
       >
         .
       </span>
