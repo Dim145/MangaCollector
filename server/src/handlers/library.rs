@@ -52,8 +52,14 @@ pub async fn update_from_mal(
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let (new_genres, new_name) =
-        library::update_infos_from_mal(&state.db, &state.http_client, user.id, mal_id).await?;
+    let (new_genres, new_name) = library::update_infos_from_mal(
+        &state.db,
+        &state.http_client,
+        state.cache.as_deref(),
+        user.id,
+        mal_id,
+    )
+    .await?;
 
     Ok(Json(json!({
         "success": true,
@@ -72,7 +78,14 @@ pub async fn add_to_library(
     if body.mal_id.unwrap_or(0) <= 0 {
         return Err(AppError::BadRequest("Invalid MAL ID".into()));
     }
-    library::add_to_user_library(&state.db, user.id, body).await?;
+    library::add_to_user_library(
+        &state.db,
+        &state.http_client,
+        state.cache.as_deref(),
+        user.id,
+        body,
+    )
+    .await?;
     Ok(Json(json!({
         "success": true,
         "message": "Added manga to library successfully"
@@ -85,7 +98,14 @@ pub async fn add_custom_entry(
     AuthenticatedUser(user): AuthenticatedUser,
     Json(body): Json<AddCustomRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let entry = library::add_custom_entry(&state.db, user.id, body).await?;
+    let entry = library::add_custom_entry(
+        &state.db,
+        &state.http_client,
+        state.cache.as_deref(),
+        user.id,
+        body,
+    )
+    .await?;
     Ok(Json(json!({
         "success": true,
         "message": "Added custom entry to library successfully",
