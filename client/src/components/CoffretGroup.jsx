@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useDeleteCoffret, useUpdateCoffret } from "@/hooks/useCoffrets.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -299,10 +300,8 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
               >
                 {t("coffret.storeLabel")}
               </label>
-              <input
+              <StoreAutocomplete
                 id={`coffret-store-${coffret.id}`}
-                type="text"
-                maxLength={30}
                 placeholder={t("coffret.storePlaceholder")}
                 value={store}
                 onChange={(e) => setStore(e.target.value)}

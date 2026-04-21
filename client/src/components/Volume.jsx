@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -348,10 +349,8 @@ export default function Volume({
             >
               {t("volume.storeLabel")}
             </label>
-            <input
+            <StoreAutocomplete
               id={`store-${id}`}
-              type="text"
-              maxLength={30}
               value={purchaseLocation ?? ""}
               onChange={(e) => setPurchaseLocation(e.target.value)}
               placeholder={t("volume.storePlaceholder")}

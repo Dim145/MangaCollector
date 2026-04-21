@@ -103,19 +103,24 @@ export default function SpendingChart({ data, loading }) {
               />
               <Tooltip
                 cursor={{ fill: "var(--ink-2)", fillOpacity: 0.5 }}
-                contentStyle={{
-                  background: "var(--ink-1)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "0.5rem",
-                  fontSize: 12,
-                  color: "var(--washi)",
-                }}
-                formatter={(value, _name, entry) => {
-                  const count = entry?.payload?.count ?? 0;
-                  return [
-                    `${formatCurrency(value, currencySetting)} · ${t("analytics.spending.tooltipCount", { n: count })}`,
-                    t("analytics.spending.tooltipLabel"),
-                  ];
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const row = payload[0].payload ?? {};
+                  const amount = row.amount ?? 0;
+                  const count = row.count ?? 0;
+                  return (
+                    <div className="rounded-lg border border-border bg-ink-1/98 px-3 py-2 shadow-xl backdrop-blur">
+                      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim">
+                        {label}
+                      </p>
+                      <p className="mt-1 font-display text-sm font-semibold tabular-nums text-washi">
+                        {formatCurrency(amount, currencySetting)}
+                      </p>
+                      <p className="font-mono text-[10px] text-washi-muted">
+                        {t("analytics.spending.tooltipCount", { n: count })}
+                      </p>
+                    </div>
+                  );
                 }}
               />
               <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
