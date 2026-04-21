@@ -2,7 +2,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { cacheAllVolumes, cacheVolumesForManga, db } from "@/lib/db.js";
-import { queryClient } from "@/lib/queryClient.js";
 import { enqueueVolumeUpdate } from "@/lib/sync.js";
 
 /** Live volumes for one manga, sorted by vol_num. */
@@ -69,9 +68,16 @@ export function useUpdateVolume() {
       await enqueueVolumeUpdate(volume);
       return volume;
     },
-    onSuccess: (volume) => {
-      queryClient.invalidateQueries({ queryKey: ["volumes", volume.mal_id] });
-      queryClient.invalidateQueries({ queryKey: ["volumes-all"] });
-    },
+    // No `queryClient.invalidateQueries` here on purpose. The optimistic
+    // Dexie write inside `enqueueVolumeUpdate` is what drives the UI — every
+    // consumer reads volumes via `useLiveQuery`, which reacts to the Dexie
+    // change instantly.
+    //
+    // Invalidating the React Query cache here would race the outbox flush:
+    // the refetch would hit the server BEFORE the PATCH had been applied,
+    // get stale data, and `cacheVolumesForManga` (delete-then-bulkPut) would
+    // overwrite our optimistic update. The user would see the old value
+    // until the next refresh, editing another volume, or the next hook
+    // mount — exactly the reported bug.
   });
 }

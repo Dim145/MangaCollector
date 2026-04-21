@@ -2,7 +2,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { cacheLibrary, db } from "@/lib/db.js";
-import { queryClient } from "@/lib/queryClient.js";
 import {
   enqueueLibraryDelete,
   enqueueLibraryUpdateVolumes,
@@ -67,14 +66,21 @@ export function useSearchLibrary(query) {
  * Optimistic add-to-library. Writes locally & queues for sync.
  * Returns the same mutation API as useMutation so callers can await.
  */
+// Note on the missing `onSuccess: invalidateQueries(["library"])`: the
+// optimistic Dexie write inside each `enqueueLibrary*` helper is what drives
+// the UI (every consumer reads via `useLiveQuery`). Triggering a React Query
+// refetch right after the mutation would race the outbox flush — the refetch
+// would GET /api/user/library BEFORE the server has applied the PATCH, come
+// back with stale data, and `cacheLibrary` (clear + bulkPut) would wipe the
+// optimistic change. The user would see their edit reverted until the next
+// navigation cycle. The sync runner handles eventual consistency: after
+// `flushLibrary()` succeeds, `syncOutbox` calls `refetchLibrary()` which
+// pulls the authoritative server state into Dexie.
 export function useAddManga() {
   return useMutation({
     mutationFn: async (manga) => {
       await enqueueLibraryUpsert(manga);
       return manga;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["library"] });
     },
   });
 }
@@ -85,9 +91,6 @@ export function useDeleteManga() {
       await enqueueLibraryDelete(mal_id);
       return mal_id;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["library"] });
-    },
   });
 }
 
@@ -97,9 +100,6 @@ export function useUpdateManga() {
       await enqueueLibraryUpdateVolumes(mal_id, volumes);
       return { mal_id, volumes };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["library"] });
-    },
   });
 }
 
@@ -108,9 +108,6 @@ export function useUpdateVolumesOwned() {
     mutationFn: async ({ mal_id, nbOwned }) => {
       await enqueueLibraryVolumesOwned(mal_id, nbOwned);
       return { mal_id, nbOwned };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["library"] });
     },
   });
 }

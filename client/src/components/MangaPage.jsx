@@ -19,6 +19,8 @@ import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
 import { refreshFromMangadex } from "@/utils/user.js";
+import { queryClient } from "@/lib/queryClient.js";
+import { db } from "@/lib/db.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -135,6 +137,26 @@ export default function MangaPage({ manga, adult_content_level }) {
     if (!isEditing) setTotalVolumes(liveVolumeCount);
   }, [liveVolumeCount, isEditing]);
 
+  // Same reasoning for name / genres / poster: location.state.manga is a
+  // frozen snapshot from the moment the user navigated here. Without live
+  // sync, a refresh-from-MAL/MangaDex that rewrites these fields on the
+  // server is invisible after a page reload. Re-seed from the Dexie row
+  // whenever it changes — but never mid-edit, since the edit form writes
+  // to these setters too (`setPoster` on upload/remove).
+  useEffect(() => {
+    if (liveLibraryRow?.name && !isEditing) setName(liveLibraryRow.name);
+  }, [liveLibraryRow?.name, isEditing]);
+
+  useEffect(() => {
+    if (liveLibraryRow?.genres && !isEditing) setGenres(liveLibraryRow.genres);
+  }, [liveLibraryRow?.genres, isEditing]);
+
+  useEffect(() => {
+    if (liveLibraryRow?.image_url_jpg != null && !isEditing) {
+      setPoster(liveLibraryRow.image_url_jpg);
+    }
+  }, [liveLibraryRow?.image_url_jpg, isEditing]);
+
   const handleSave = async () => {
     try {
       const newTotal = parseInt(totalVolumes) || 0;
@@ -166,10 +188,25 @@ export default function MangaPage({ manga, adult_content_level }) {
     }
   };
 
-  const volumeUpdateCallback = async () => {
+  // Called by Volume after a persist() succeeds. We only need to sync the
+  // library's `volumes_owned` counter when the ownership actually changed
+  // (price/store/collector edits don't affect the count).
+  //
+  // CRITICAL: re-read the count from Dexie at call time. Relying on the
+  // memoised `volumesOwned` from the current render would capture a stale
+  // closure — by the time the callback fires, `persist()` has already put
+  // the new volume row into Dexie but React hasn't necessarily re-rendered
+  // yet, so the closure would still send the previous count to the server.
+  const volumeUpdateCallback = async ({ ownedChanged } = {}) => {
+    if (!ownedChanged) return;
+    const rows = await db.volumes
+      .where("mal_id")
+      .equals(manga.mal_id)
+      .toArray();
+    const nbOwned = rows.filter((v) => v.owned).length;
     await updateVolumesOwned.mutateAsync({
       mal_id: manga.mal_id,
-      nbOwned: volumesOwned,
+      nbOwned,
     });
   };
 
@@ -209,6 +246,10 @@ export default function MangaPage({ manga, adult_content_level }) {
       const { new_genres, new_name } = await updateLibFromMal(manga.mal_id);
       if (new_genres) setGenres(new_genres);
       if (new_name) setName(new_name);
+      // Server updated the DB; invalidate library so Dexie re-caches from
+      // the fresh server state. Without this, a reload would re-seed from
+      // the stale location.state snapshot.
+      queryClient.invalidateQueries({ queryKey: ["library"] });
     } catch (e) {
       console.error(e);
     } finally {
@@ -225,6 +266,7 @@ export default function MangaPage({ manga, adult_content_level }) {
       if (new_genres) setGenres(new_genres);
       if (new_name) setName(new_name);
       if (new_image_url_jpg) setPoster(new_image_url_jpg);
+      queryClient.invalidateQueries({ queryKey: ["library"] });
     } catch (e) {
       console.error(e);
     } finally {
