@@ -4,6 +4,7 @@ networks:
 
 volumes:
   db_data:
+  redis_data:
 
 services:
   db:
@@ -16,6 +17,33 @@ services:
       - db_data:/var/lib/postgresql/data
     networks:
       - internal
+
+  redis:
+    image: redis:8.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - SETUID
+      - SETGID
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   traefik:
     image: traefik:v2
@@ -52,6 +80,8 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
     environment:
+      REDIS_URL: redis://redis:6379/1
+      CACHE_PREFIX: mangacollect/
       NODE_ENV: "production"
       PORT: 3000
       AUTH_MODE: openidconnect
@@ -68,6 +98,9 @@ services:
     networks:
       - internal
       - default
+    depends_on:
+      redis:
+        condition: service_healthy
 
   client:
     build: ./client
