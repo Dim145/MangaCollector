@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { hasToBlurImage } from "@/utils/library.js";
 import { useT } from "@/i18n/index.jsx";
 
-export default function Manga({ manga, adult_content_level }) {
+export default function Manga({ manga, adult_content_level, allCollector }) {
   const navigate = useNavigate();
   const t = useT();
 
@@ -20,7 +20,15 @@ export default function Manga({ manga, adult_content_level }) {
       className="group relative flex flex-col text-left tap-none focus-visible:outline-none"
     >
       {/* Cover — tall aspect like a real manga volume */}
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-border bg-ink-2 shadow-lg transition-all duration-500 group-hover:shadow-2xl group-hover:border-hanko/50 group-hover:-translate-y-1">
+      <div
+        className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-border bg-ink-2 shadow-lg transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-1 ${
+          allCollector
+            ? "group-hover:border-gold/60"
+            : complete
+              ? "group-hover:border-jade/60"
+              : "group-hover:border-hanko/50"
+        }`}
+      >
         {manga.image_url_jpg ? (
           <img
             src={manga.image_url_jpg}
@@ -44,9 +52,23 @@ export default function Manga({ manga, adult_content_level }) {
         {/* Bottom gradient overlay */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-ink-0 via-ink-0/60 to-transparent" />
 
+        {/* Collector seal (top-left) — every owned volume is collector */}
+        {allCollector && (
+          <div
+            className="absolute top-2 left-2 z-10 grid h-4 w-4 place-items-center rounded-sm bg-gold/85 text-ink-0 shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 transition group-hover:opacity-100"
+            style={{ transform: "rotate(-6deg)" }}
+            title={t("manga.allCollector")}
+            aria-label={t("manga.allCollector")}
+          >
+            <span className="font-display text-[8px] font-bold leading-none">
+              限
+            </span>
+          </div>
+        )}
+
         {/* Status badge (top-right) */}
         {complete && (
-          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-gold/95 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-0 shadow-md">
+          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-jade/95 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-0 shadow-md">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -83,7 +105,7 @@ export default function Manga({ manga, adult_content_level }) {
               <div
                 className={`h-full transition-all duration-500 ${
                   complete
-                    ? "bg-gradient-to-r from-gold to-gold-muted"
+                    ? "bg-gradient-to-r from-jade to-jade-muted"
                     : "bg-gradient-to-r from-hanko to-hanko-bright"
                 }`}
                 style={{ width: `${completion}%` }}

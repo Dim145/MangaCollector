@@ -58,6 +58,7 @@ export default {
   manga: {
     volumesShort: "tomos",
     complete: "Completo",
+    allCollector: "Todos los tomos son coleccionista",
     unknownTitle: "Título desconocido",
     seriesLabel: "Serie · 作品",
     collection: "Colección",

@@ -107,19 +107,22 @@ export default function MangaPage({ manga, adult_content_level }) {
   }, [volumes, coffrets]);
 
   // Derive owned counts & pricing from the live volumes table
-  const { volumesOwned, totalPrice, avgPrice } = useMemo(() => {
+  const { volumesOwned, totalPrice, avgPrice, allCollector } = useMemo(() => {
     let counter = 0;
     let sum = 0;
+    let anyNonCollector = false;
     for (const v of volumes) {
       if (v.owned) {
         counter += 1;
         sum += Number(v.price) || 0;
+        if (!v.collector) anyNonCollector = true;
       }
     }
     return {
       volumesOwned: counter,
       totalPrice: sum,
       avgPrice: counter > 0 ? sum / counter : 0,
+      allCollector: counter > 0 && !anyNonCollector,
     };
   }, [volumes]);
 
@@ -284,7 +287,15 @@ export default function MangaPage({ manga, adult_content_level }) {
 
           <div className="grid gap-6 md:grid-cols-[minmax(0,280px)_1fr] md:gap-10">
             <div className="mx-auto w-full max-w-[220px] md:mx-0 md:max-w-none">
-              <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border shadow-2xl glow-red">
+              <div
+                className={`relative aspect-[2/3] overflow-hidden rounded-2xl border border-border shadow-2xl glow-red transition-colors ${
+                  allCollector
+                    ? "hover:border-gold/60"
+                    : completion === 100
+                      ? "hover:border-jade/60"
+                      : "hover:border-hanko/50"
+                }`}
+              >
                 {displayPoster ? (
                   <img
                     src={displayPoster}

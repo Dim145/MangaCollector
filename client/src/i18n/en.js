@@ -58,6 +58,7 @@ export default {
   manga: {
     volumesShort: "vols",
     complete: "Complete",
+    allCollector: "All volumes are collector",
     unknownTitle: "Unknown Title",
     seriesLabel: "Series · 作品",
     collection: "Collection",

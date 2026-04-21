@@ -59,6 +59,7 @@ export default {
   manga: {
     volumesShort: "tomes",
     complete: "Complet",
+    allCollector: "Tous les tomes sont collector",
     unknownTitle: "Titre inconnu",
     seriesLabel: "Série · 作品",
     collection: "Collection",
