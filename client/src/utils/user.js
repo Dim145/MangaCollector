@@ -63,6 +63,16 @@ async function addCustomEntryToUserLibrary(mangaData) {
   return (await axios.post(`/api/user/library/custom`, mangaData)).data;
 }
 
+async function addFromMangadexToUserLibrary(mangaData) {
+  return (await axios.post(`/api/user/library/mangadex`, mangaData)).data;
+}
+
+async function refreshFromMangadex(mal_id) {
+  return (
+    await axios.get(`/api/user/library/${mal_id}/refresh-from-mangadex`)
+  ).data;
+}
+
 export {
   addToUserLibrary,
   getUserLibrary,
@@ -76,4 +86,6 @@ export {
   removePoster,
   searchInLib,
   addCustomEntryToUserLibrary,
+  addFromMangadexToUserLibrary,
+  refreshFromMangadex,
 };

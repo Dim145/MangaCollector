@@ -7,17 +7,21 @@ import BarcodeScanner from "@/components/BarcodeScanner.jsx";
 import ScanLoadingView from "@/components/ScanLoadingView.jsx";
 import Modal from "@/components/utils/Modal.jsx";
 import AddCoffretModal from "@/components/AddCoffretModal.jsx";
+import MangadexPrefillModal from "@/components/MangadexPrefillModal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useScanCommit } from "@/hooks/useScanCommit.js";
-import { addCustomEntryToUserLibrary } from "@/utils/user.js";
+import {
+  addCustomEntryToUserLibrary,
+  addFromMangadexToUserLibrary,
+} from "@/utils/user.js";
 import { db } from "@/lib/db.js";
 import {
   detectCoffret,
   lookupISBN,
   normalizeISBN,
-  searchMangaOnMal,
+  searchExternal,
 } from "@/lib/isbn.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -33,6 +37,10 @@ export default function AddPage() {
   const [customEntryTitle, setCustomEntryTitle] = useState("");
   const [customEntryGenres, setCustomEntryGenres] = useState("");
   const [customEntryVolumes, setCustomEntryVolumes] = useState(0);
+
+  // MangaDex-only results open this modal so the user fills in the volume
+  // count (MangaDex rarely publishes one).
+  const [mangadexPrefill, setMangadexPrefill] = useState(null);
 
   // ─── Scanner state machine ──────────────────────────────────────────
   // Phases that pause the camera detection:
@@ -79,7 +87,7 @@ export default function AddPage() {
     try {
       setLoading(true);
       setSearched(true);
-      const data = await searchMangaOnMal(query, 10);
+      const data = await searchExternal(query);
       setResults(data);
     } catch (err) {
       console.error("Search error:", err);
@@ -88,22 +96,63 @@ export default function AddPage() {
     }
   };
 
-  const addToLibrary = async (manga) => {
+  // Entries already in the user's library — checked by either id so MAL
+  // results and MangaDex results both get the "owned" badge when applicable.
+  const isInLibrary = (result) => {
+    if (
+      result.mal_id != null &&
+      library?.some((m) => m.mal_id === result.mal_id)
+    ) {
+      return true;
+    }
+    if (
+      result.mangadex_id &&
+      library?.some((m) => m.mangadex_id === result.mangadex_id)
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const addToLibrary = async (result) => {
+    if (isInLibrary(result)) return;
+
+    // MangaDex-only → no reliable volume count, open prefill modal
+    if (result.source === "mangadex") {
+      setMangadexPrefill(result);
+      return;
+    }
+
+    // MAL-sourced (source = "mal" or "both") — data already carries a
+    // volume count and (optionally) a MangaDex id we carry through for
+    // future refresh-from-mangadex.
     const mangaData = {
-      name: manga.title,
-      mal_id: manga.mal_id,
-      volumes: manga.volumes == null ? 0 : manga.volumes,
+      name: result.name,
+      mal_id: result.mal_id,
+      volumes: result.volumes ?? 0,
       volumes_owned: 0,
-      image_url_jpg:
-        manga.images.jpg.large_image_url || manga.images.jpg.image_url,
-      genres: (manga.genres || [])
-        .concat(manga.explicit_genres || [])
-        .concat(manga.demographics || [])
-        .filter((g) => g.type === "manga")
-        .map((g) => g.name),
+      image_url_jpg: result.image_url ?? null,
+      genres: result.genres ?? [],
+      mangadex_id: result.mangadex_id ?? null,
     };
-    if (library.some((m) => m.mal_id === mangaData.mal_id)) return;
     await addManga.mutateAsync(mangaData);
+  };
+
+  const confirmMangadexAdd = async (payload) => {
+    const res = await addFromMangadexToUserLibrary(payload);
+    if (res?.success) {
+      setMangadexPrefill(null);
+      navigate("/mangapage", {
+        state: {
+          manga: res.newEntry ?? {
+            ...payload,
+            mal_id: null,
+            mangadex_id: payload.mangadex_id,
+          },
+          adult_content_level,
+        },
+      });
+    }
   };
 
   const clearResults = () => {
@@ -229,10 +278,12 @@ export default function AddPage() {
 
     let candidates;
     try {
-      candidates = await searchMangaOnMal(book.title, 5);
+      candidates = await searchExternal(book.title);
     } catch (err) {
-      // MAL hiccup = transient, will retry the whole scan
-      setScanTransientError(err?.message ?? "MAL lookup failed — will retry.");
+      // External lookup hiccup = transient, will retry the whole scan
+      setScanTransientError(
+        err?.message ?? "External lookup failed — will retry.",
+      );
       setScanPhase("transient");
       return;
     }
@@ -245,9 +296,12 @@ export default function AddPage() {
 
     // Coffret detection — routed before the regular single-volume flow.
     // Google Books has no structured box-set flag; we lean on title text.
+    // Coffrets rely on a server-side MAL id (the commit flow posts to
+    // /library/{mal_id}/coffrets), so we only handle candidates that carry
+    // one. MangaDex-only matches fall through to the single-volume flow.
     const coffretHint = detectCoffret(book);
-    if (coffretHint.isCoffret) {
-      const candidate = candidates[0];
+    const coffretCandidate = candidates.find((c) => c.mal_id != null);
+    if (coffretHint.isCoffret && coffretCandidate) {
       // Close the scanner overlay — the coffret modal takes over the screen.
       setScannerOpen(false);
       const prefilledPrice = pickDefaultPrice(book, currencyCodeRef.current);
@@ -255,9 +309,9 @@ export default function AddPage() {
         isbn,
         book,
         candidates,
-        candidate,
-        mal_id: candidate.mal_id,
-        totalVolumes: candidate.volumes ?? 0,
+        candidate: coffretCandidate,
+        mal_id: coffretCandidate.mal_id,
+        totalVolumes: coffretCandidate.volumes ?? 0,
         prefill: {
           name: coffretHint.name,
           volStart: coffretHint.volStart,
@@ -303,11 +357,12 @@ export default function AddPage() {
       setRecentScans((prev) =>
         [
           {
-            id: `${candidate.mal_id}-${volume}-${Date.now()}`,
-            title: candidate.title,
+            id: `${candidate.mal_id ?? candidate.mangadex_id}-${volume}-${Date.now()}`,
+            title: candidate.name ?? candidate.title,
             volume,
             gapFilled: missingVolumes.length,
             cover:
+              candidate.image_url ??
               candidate.images?.jpg?.image_url ??
               candidate.images?.jpg?.small_image_url,
             newlyOwned: res.newlyOwned,
@@ -554,7 +609,7 @@ export default function AddPage() {
               results={results}
               addToLibrary={addToLibrary}
               isAdding={addManga.isPending}
-              isInLibrary={(mal_id) => library.some((m) => m.mal_id === mal_id)}
+              isInLibrary={isInLibrary}
             />
           ) : searched ? (
             <div className="rounded-2xl border border-dashed border-border bg-ink-1/30 p-8 text-center">
@@ -714,6 +769,13 @@ export default function AddPage() {
           setScannerOpen(true);
         }}
       />
+
+      {/* ─── MangaDex prefill modal — asks for volume count ─── */}
+      <MangadexPrefillModal
+        result={mangadexPrefill}
+        onClose={() => setMangadexPrefill(null)}
+        onConfirm={confirmMangadexAdd}
+      />
     </div>
   );
 }
@@ -810,9 +872,9 @@ function ScanMatchCard({
       </div>
 
       <div className="flex gap-3 p-4">
-        {candidate.images?.jpg?.image_url && (
+        {(candidate.image_url || candidate.images?.jpg?.image_url) && (
           <img
-            src={candidate.images.jpg.image_url}
+            src={candidate.image_url ?? candidate.images?.jpg?.image_url}
             alt=""
             className="h-32 w-24 shrink-0 rounded-md border border-border object-cover shadow-lg"
           />
@@ -822,14 +884,8 @@ function ScanMatchCard({
             {t("scan.match")}
           </p>
           <h3 className="mt-1 font-display text-lg font-semibold leading-tight text-washi">
-            {candidate.title}
+            {candidate.name ?? candidate.title}
           </h3>
-          {candidate.title_english &&
-            candidate.title_english !== candidate.title && (
-              <p className="text-xs italic text-washi-muted">
-                {candidate.title_english}
-              </p>
-            )}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
             <span>
               {t("searchResults.vols", { n: candidate.volumes ?? "?" })}

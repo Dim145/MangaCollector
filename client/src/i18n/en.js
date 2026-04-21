@@ -89,8 +89,10 @@ export default {
     uploadOffline: "Cover upload requires connection",
     removeCover: "Remove uploaded cover",
     refreshMalTitle: "Refresh metadata from MyAnimeList",
+    refreshMangadexTitle: "Refresh metadata from MangaDex",
     refreshOffline: "Requires connection",
     malLink: "MAL #{id}",
+    mangadexLink: "MangaDex",
   },
   volume: {
     volume: "Volume {n}",
@@ -176,6 +178,15 @@ export default {
     owned: "Owned",
     vols: "{n} vols",
     adding: "Adding…",
+    sourceBothTitle: "Available on both MyAnimeList and MangaDex",
+  },
+  mangadexPrefill: {
+    title: "Add from MangaDex",
+    subtitle:
+      "MangaDex rarely publishes the total volume count — fill it in before adding.",
+    volumesLabel: "Total volumes",
+    volumesHint: "You can change it later from the series page.",
+    confirm: "Add",
   },
   scan: {
     opening: "Opening…",

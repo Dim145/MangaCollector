@@ -1,4 +1,5 @@
 import { db } from "./db.js";
+import axios from "@/utils/axios.js";
 
 /*
  * ISBN → manga resolution via Google Books.
@@ -270,16 +271,22 @@ export function detectCoffret(book) {
 }
 
 /**
- * Search Jikan (MAL) for the best series matches given a title.
- * Returns up to `limit` manga candidates.
+ * Search across MAL + MangaDex through our server's unified endpoint.
+ * Returns a merged list where items carry a `source` marker ("mal", "mangadex"
+ * or "both") and, when applicable, both `mal_id` and `mangadex_id`.
+ *
+ * Server applies the merge rule: MAL data wins for metadata, MangaDex wins
+ * for the cover. See `server/src/services/external.rs`.
  */
-export async function searchMangaOnMal(title, limit = 5) {
+export async function searchExternal(title) {
   if (!title?.trim()) return [];
-  const res = await fetch(
-    `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(title)}&limit=${limit}`,
-    { headers: { Accept: "application/json" } },
-  );
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.data ?? [];
+  try {
+    const { data } = await axios.get("/api/external/search", {
+      params: { q: title },
+    });
+    return data?.results ?? [];
+  } catch (err) {
+    console.error("external search failed", err);
+    return [];
+  }
 }

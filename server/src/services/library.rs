@@ -7,7 +7,10 @@ use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity::event_types;
-use crate::models::library::{self, ActiveModel, AddCustomRequest, AddLibraryRequest, Entity as LibraryEntity, LibraryEntry};
+use crate::models::library::{
+    self, ActiveModel, AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest,
+    Entity as LibraryEntity, LibraryEntry,
+};
 use crate::services::cache::CacheStore;
 use crate::services::{activity, mangadex_api, settings, volume};
 use crate::services::mal_api::get_manga_from_mal;
@@ -146,6 +149,7 @@ pub async fn add_to_user_library(
         volumes_owned: Set(volumes_owned),
         image_url_jpg: Set(image_url_final),
         genres: Set(Some(genres_str)),
+        mangadex_id: Set(req.mangadex_id.clone()),
         ..Default::default()
     };
 
@@ -174,6 +178,107 @@ pub async fn add_to_user_library(
     activity::check_series_milestone(db, user_id).await;
 
     Ok(LibraryEntry::from(row))
+}
+
+/// Add a library entry sourced from MangaDex. No MAL id exists, so we mint a
+/// new negative mal_id (same scheme as pure-custom entries) and tag the row
+/// with `mangadex_id` so "refresh from MangaDex" can operate on it later.
+pub async fn add_from_mangadex(
+    db: &Db,
+    http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    user_id: i32,
+    req: AddFromMangadexRequest,
+) -> Result<LibraryEntry, AppError> {
+    // Idempotent: if the user already has this mangadex_id, return the row
+    // rather than creating a duplicate with a new negative mal_id.
+    if let Some(existing) = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MangadexId.eq(req.mangadex_id.clone()))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+    {
+        return Ok(LibraryEntry::from(existing));
+    }
+
+    // Mint the next negative mal_id (same scheme as add_custom_entry).
+    let min: Option<i32> = LibraryEntity::find()
+        .select_only()
+        .column_as(Expr::col(library::Column::MalId).min(), "min")
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.lt(0))
+        .into_tuple::<Option<i32>>()
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .flatten();
+
+    let new_mal_id = min.unwrap_or(0) - 1;
+
+    add_to_user_library(
+        db,
+        http_client,
+        cache,
+        user_id,
+        AddLibraryRequest {
+            mal_id: Some(new_mal_id),
+            name: req.name,
+            volumes: req.volumes,
+            volumes_owned: req.volumes_owned,
+            image_url_jpg: req.image_url_jpg,
+            genres: req.genres,
+            mangadex_id: Some(req.mangadex_id),
+        },
+    )
+    .await
+}
+
+/// Re-sync a library entry's name, genres and cover from MangaDex. Only
+/// applies to rows that carry a `mangadex_id` (either pure-MangaDex entries
+/// or MAL entries that were cross-linked at add time).
+pub async fn refresh_from_mangadex(
+    db: &Db,
+    http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    user_id: i32,
+    mal_id: i32,
+) -> Result<(Vec<String>, String, Option<String>), AppError> {
+    let row = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::NotFound("Library entry not found".into()))?;
+
+    let mangadex_id = row
+        .mangadex_id
+        .clone()
+        .ok_or_else(|| AppError::BadRequest("No MangaDex link on this entry".into()))?;
+
+    let md_data = crate::services::mangadex_api::get_by_id(http_client, cache, &mangadex_id)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound("MangaDex info not found".into()))?;
+
+    let now = Utc::now();
+    let genres_str = md_data.genres.join(",");
+
+    // Preserve user-uploaded custom posters (paths not starting with `http`).
+    let image_update = match row.image_url_jpg.as_deref() {
+        Some(u) if !u.starts_with("http") => row.image_url_jpg.clone(),
+        _ => md_data.image_url.clone(),
+    };
+
+    let mut active: ActiveModel = row.into();
+    active.genres = Set(Some(genres_str));
+    active.name = Set(md_data.name.clone());
+    active.image_url_jpg = Set(image_update.clone());
+    active.modified_on = Set(now);
+    active.update(db).await.map_err(AppError::from)?;
+
+    Ok((md_data.genres, md_data.name, image_update))
 }
 
 pub async fn add_custom_entry(
@@ -209,6 +314,7 @@ pub async fn add_custom_entry(
             volumes_owned: req.volumes_owned,
             image_url_jpg: None,
             genres: req.genres,
+            mangadex_id: None,
         },
     )
     .await

@@ -47,6 +47,9 @@ pub struct MalMangaData {
 /// MAL metadata rarely changes — a 24h TTL is a good balance between
 /// freshness (new volumes announced) and cache efficiency.
 const MAL_DETAILS_TTL: Duration = Duration::from_secs(24 * 3600);
+/// Search results — 15 minutes. Matches the MangaDex side so merged-search
+/// entries refresh together.
+const MAL_SEARCH_TTL: Duration = Duration::from_secs(15 * 60);
 
 pub async fn get_manga_from_mal(
     client: &reqwest::Client,
@@ -88,4 +91,110 @@ pub async fn get_manga_from_mal(
     }
 
     Ok(data)
+}
+
+/// Shape returned by `search_by_title` — subset of `MalMangaData` shaped for
+/// the unified search UI. MangaDex has an equivalent `MangadexResult`; both
+/// are merged by `services::external`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MalSearchResult {
+    pub mal_id: i32,
+    pub name: String,
+    pub image_url: Option<String>,
+    pub volumes: Option<i32>,
+    pub genres: Vec<String>,
+    pub score: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct MalSearchRaw {
+    mal_id: i32,
+    title: Option<String>,
+    titles: Option<Vec<MalTitle>>,
+    images: Option<MalImages>,
+    volumes: Option<i32>,
+    score: Option<f64>,
+    genres: Option<Vec<MalGenre>>,
+    explicit_genres: Option<Vec<MalGenre>>,
+    demographics: Option<Vec<MalGenre>>,
+}
+
+/// Search Jikan by free-text title. Returns up to 10 results, cached 15 min.
+pub async fn search_by_title(
+    client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    query: &str,
+) -> anyhow::Result<Vec<MalSearchResult>> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let cache_key = format!("mal:search:{}", trimmed.to_lowercase());
+    if let Some(cache) = cache {
+        if let Some(cached) = cache.get::<Vec<MalSearchResult>>(&cache_key).await {
+            return Ok(cached);
+        }
+    }
+
+    let response = client
+        .get("https://api.jikan.moe/v4/manga")
+        .query(&[("q", trimmed), ("limit", "10")])
+        .send()
+        .await
+        .context("Failed to reach MAL API")?;
+
+    if !response.status().is_success() {
+        return Ok(Vec::new());
+    }
+
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .context("Failed to parse MAL search response")?;
+    let raw: Vec<MalSearchRaw> =
+        serde_json::from_value(body["data"].clone()).unwrap_or_default();
+
+    let results: Vec<MalSearchResult> = raw
+        .into_iter()
+        .map(|r| {
+            let name = r
+                .titles
+                .as_ref()
+                .and_then(|ts| ts.iter().find(|t| t.title_type == "Default"))
+                .map(|t| t.title.clone())
+                .or_else(|| r.title.clone())
+                .unwrap_or_default();
+
+            let image_url = r
+                .images
+                .as_ref()
+                .and_then(|i| i.jpg.as_ref())
+                .and_then(|j| j.large_image_url.clone().or(j.image_url.clone()));
+
+            let genres: Vec<String> = r
+                .genres
+                .iter()
+                .flatten()
+                .chain(r.explicit_genres.iter().flatten())
+                .chain(r.demographics.iter().flatten())
+                .filter(|g| g.genre_type == "manga")
+                .map(|g| g.name.clone())
+                .collect();
+
+            MalSearchResult {
+                mal_id: r.mal_id,
+                name,
+                image_url,
+                volumes: r.volumes,
+                genres,
+                score: r.score,
+            }
+        })
+        .collect();
+
+    if let Some(cache) = cache {
+        cache.set(&cache_key, &results, MAL_SEARCH_TTL).await;
+    }
+    Ok(results)
 }

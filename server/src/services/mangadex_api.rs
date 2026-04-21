@@ -1,7 +1,8 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use anyhow::Context;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::services::cache::CacheStore;
 
@@ -10,6 +11,11 @@ const MANGADEX_HIT_TTL: Duration = Duration::from_secs(7 * 24 * 3600);
 /// Negative hits (series absent) get a shorter TTL: new manga might be added
 /// to MangaDex later, so we re-check every 24h.
 const MANGADEX_MISS_TTL: Duration = Duration::from_secs(24 * 3600);
+/// Search results — slightly volatile (new titles arrive), keep them for a
+/// quarter-hour. Covers the typical "search, refine, re-search" session.
+const MANGADEX_SEARCH_TTL: Duration = Duration::from_secs(15 * 60);
+/// Standard User-Agent — MangaDex rejects requests without one (HTTP 400).
+const USER_AGENT: &str = concat!("MangaCollector/", env!("CARGO_PKG_VERSION"));
 
 /// MangaDex search response (only the fields we care about).
 #[derive(Deserialize)]
@@ -28,6 +34,22 @@ struct MdManga {
 #[derive(Deserialize, Default)]
 struct MdMangaAttrs {
     #[serde(default)]
+    title: BTreeMap<String, String>,
+    #[serde(default, rename = "altTitles")]
+    alt_titles: Vec<BTreeMap<String, String>>,
+    #[serde(default)]
+    year: Option<i32>,
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default, rename = "lastVolume")]
+    last_volume: Option<String>,
+    #[serde(default, rename = "contentRating")]
+    content_rating: Option<String>,
+    #[serde(default, rename = "originalLanguage")]
+    original_language: Option<String>,
+    #[serde(default)]
+    tags: Vec<MdTag>,
+    #[serde(default)]
     links: Option<MdLinks>,
 }
 
@@ -36,6 +58,19 @@ struct MdLinks {
     /// MAL ID as a string (e.g. "1234") — MangaDex stores it stringly.
     #[serde(default)]
     mal: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct MdTag {
+    attributes: MdTagAttrs,
+}
+
+#[derive(Deserialize)]
+struct MdTagAttrs {
+    #[serde(default)]
+    name: BTreeMap<String, String>,
+    #[serde(default)]
+    group: String,
 }
 
 #[derive(Deserialize)]
@@ -52,16 +87,27 @@ struct MdCoverAttrs {
     file_name: Option<String>,
 }
 
+/// Shape returned to callers (and to the merged-search service).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MangadexResult {
+    pub mangadex_id: String,
+    pub mal_id: Option<i32>,
+    pub name: String,
+    pub image_url: Option<String>,
+    /// Empty when MangaDex doesn't publish a fixed volume count (common).
+    pub volumes: Option<i32>,
+    /// Genres + themes combined — excludes "format" and "content" groups so
+    /// we don't pollute the user's genre list with stuff like "Full Color".
+    pub genres: Vec<String>,
+    pub year: Option<i32>,
+    pub status: Option<String>,
+    pub content_rating: Option<String>,
+}
+
 /// Search MangaDex by title hint, then cross-reference the MAL id via
 /// `attributes.links.mal` to make sure we match the right series. Returns a
 /// direct uploads.mangadex.org URL for the preferred cover, or `None` if the
 /// series isn't on MangaDex or the lookup fails.
-///
-/// Rate-limit friendly: MangaDex allows ~5 req/s globally per IP, we issue
-/// 1 request per adult-tagged add.
-///
-/// Best-effort: any error (network, 404, parsing) resolves to `Ok(None)` so
-/// the caller can fall back to the MAL cover silently.
 pub async fn find_cover_url_by_mal_id(
     client: &reqwest::Client,
     cache: Option<&CacheStore>,
@@ -73,93 +119,20 @@ pub async fn find_cover_url_by_mal_id(
     }
 
     let cache_key = format!("mangadex:cover:{}", mal_id);
-
-    // Cache hit: both "found" and "known-absent" are cached (as JSON value
-    // and JSON `null` respectively), so we only hit MangaDex on true misses.
     if let Some(cache) = cache {
         if let Some(cached) = cache.get::<Option<String>>(&cache_key).await {
             return Ok(cached);
         }
     }
 
-    // MangaDex returns nothing by default for `erotica` / `pornographic` unless
-    // we opt in via contentRating[]. Since the whole point is the uncensored
-    // cover for adult series, we explicitly request all 4 ratings.
-    let query = [
-        ("title", title_hint),
-        ("limit", "10"),
-        ("includes[]", "cover_art"),
-        ("contentRating[]", "safe"),
-        ("contentRating[]", "suggestive"),
-        ("contentRating[]", "erotica"),
-        ("contentRating[]", "pornographic"),
-        ("order[relevance]", "desc"),
-    ];
-
-    // MangaDex enforces a User-Agent policy: requests from the default
-    // reqwest UA are rejected with HTTP 400. Setting a meaningful UA with
-    // the app name + version fixes it and also helps them identify traffic.
-    let response = client
-        .get("https://api.mangadex.org/manga")
-        .header(
-            "User-Agent",
-            concat!("MangaCollector/", env!("CARGO_PKG_VERSION")),
-        )
-        .query(&query)
-        .send()
-        .await
-        .context("Failed to reach MangaDex API")?;
-
-    let status = response.status();
-    if !status.is_success() {
-        // Surface the error body for diagnostics — MangaDex returns a JSON
-        // `errors` array explaining what was wrong. We don't cache because
-        // 4xx/5xx are often transient (rate-limit, outage).
-        let body = response.text().await.unwrap_or_default();
-        tracing::warn!(mal_id, %status, body, "mangadex: non-2xx response");
-        return Ok(None);
-    }
-
-    let parsed: MdMangaList = response
-        .json()
-        .await
-        .context("Failed to parse MangaDex response")?;
-
+    let results = fetch_mangadex_search(client, title_hint).await?;
     let mal_str = mal_id.to_string();
-    let mut found: Option<String> = None;
 
-    for entry in parsed.data {
-        let matches_mal = entry
-            .attributes
-            .links
-            .as_ref()
-            .and_then(|l| l.mal.as_deref())
-            .map(|v| v == mal_str)
-            .unwrap_or(false);
+    let found = results
+        .into_iter()
+        .find(|m| m.mal_id == Some(mal_id) || links_mal_matches(m, &mal_str))
+        .and_then(|m| m.image_url);
 
-        if !matches_mal {
-            continue;
-        }
-
-        // Pull filename from the included `cover_art` relationship.
-        let cover_file = entry
-            .relationships
-            .iter()
-            .find(|r| r.rel_type == "cover_art")
-            .and_then(|r| r.attributes.as_ref())
-            .and_then(|a| a.file_name.as_deref());
-
-        if let Some(file) = cover_file {
-            found = Some(format!(
-                "https://uploads.mangadex.org/covers/{}/{}",
-                entry.id, file
-            ));
-            break;
-        }
-    }
-
-    // Cache the result (positive OR negative) so repeat adds of the same
-    // adult series don't re-hit MangaDex for 7 days / 24h respectively.
     if let Some(cache) = cache {
         let ttl = if found.is_some() {
             MANGADEX_HIT_TTL
@@ -170,4 +143,205 @@ pub async fn find_cover_url_by_mal_id(
     }
 
     Ok(found)
+}
+
+// Helper only used above to keep the post-search cross-ref readable.
+fn links_mal_matches(m: &MangadexResult, mal_str: &str) -> bool {
+    m.mal_id.map(|id| id.to_string()) == Some(mal_str.to_string())
+}
+
+/// Search MangaDex by free-text title. Returns a handful of rich results
+/// suitable for display in the unified search UI. Cached for 15 min.
+pub async fn search_by_title(
+    client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    query: &str,
+) -> anyhow::Result<Vec<MangadexResult>> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let cache_key = format!("mangadex:search:{}", trimmed.to_lowercase());
+    if let Some(cache) = cache {
+        if let Some(cached) = cache.get::<Vec<MangadexResult>>(&cache_key).await {
+            return Ok(cached);
+        }
+    }
+
+    let results = fetch_mangadex_search(client, trimmed).await?;
+    if let Some(cache) = cache {
+        cache.set(&cache_key, &results, MANGADEX_SEARCH_TTL).await;
+    }
+    Ok(results)
+}
+
+/// Fetch a single MangaDex manga by its UUID. Used for the
+/// "refresh from MangaDex" flow when the entry carries a mangadex_id.
+pub async fn get_by_id(
+    client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    mangadex_id: &str,
+) -> anyhow::Result<Option<MangadexResult>> {
+    let cache_key = format!("mangadex:byid:{}", mangadex_id);
+    if let Some(cache) = cache {
+        if let Some(cached) = cache.get::<Option<MangadexResult>>(&cache_key).await {
+            return Ok(cached);
+        }
+    }
+
+    let url = format!("https://api.mangadex.org/manga/{}", mangadex_id);
+    let response = client
+        .get(&url)
+        .header("User-Agent", USER_AGENT)
+        .query(&[("includes[]", "cover_art")])
+        .send()
+        .await
+        .context("Failed to reach MangaDex API")?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        tracing::warn!(mangadex_id, %status, body, "mangadex: non-2xx response on byId");
+        return Ok(None);
+    }
+
+    #[derive(Deserialize)]
+    struct OneManga {
+        data: MdManga,
+    }
+    let parsed: OneManga = response
+        .json()
+        .await
+        .context("Failed to parse MangaDex byId response")?;
+
+    let result = Some(into_result(parsed.data));
+
+    if let Some(cache) = cache {
+        cache.set(&cache_key, &result, MANGADEX_HIT_TTL).await;
+    }
+    Ok(result)
+}
+
+/// Shared HTTP path — builds the query, enforces the User-Agent, handles
+/// the reply → Vec<MangadexResult> conversion. Kept private so each public
+/// entry-point owns its own caching logic.
+async fn fetch_mangadex_search(
+    client: &reqwest::Client,
+    title: &str,
+) -> anyhow::Result<Vec<MangadexResult>> {
+    // Explicit content-rating list: without this MangaDex hides erotica and
+    // pornographic results. We include them all so adult covers work.
+    let query = [
+        ("title", title),
+        ("limit", "10"),
+        ("includes[]", "cover_art"),
+        ("contentRating[]", "safe"),
+        ("contentRating[]", "suggestive"),
+        ("contentRating[]", "erotica"),
+        ("contentRating[]", "pornographic"),
+        ("order[relevance]", "desc"),
+    ];
+
+    let response = client
+        .get("https://api.mangadex.org/manga")
+        .header("User-Agent", USER_AGENT)
+        .query(&query)
+        .send()
+        .await
+        .context("Failed to reach MangaDex API")?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        tracing::warn!(%status, body, "mangadex: non-2xx response on search");
+        return Ok(Vec::new());
+    }
+
+    let parsed: MdMangaList = response
+        .json()
+        .await
+        .context("Failed to parse MangaDex search response")?;
+
+    Ok(parsed.data.into_iter().map(into_result).collect())
+}
+
+/// Convert the raw MangaDex payload into the shape callers consume.
+fn into_result(entry: MdManga) -> MangadexResult {
+    let attrs = entry.attributes;
+
+    // Pick the best display title: prefer English → Romaji Japanese →
+    // original-lang → first alt title → UUID fallback. Matches the user's
+    // expectation when the search surfaces the manga.
+    let name = attrs
+        .title
+        .get("en")
+        .or_else(|| attrs.title.get("ja-ro"))
+        .or_else(|| attrs.title.values().next())
+        .cloned()
+        .or_else(|| {
+            attrs
+                .alt_titles
+                .iter()
+                .find_map(|m| m.get("en").or_else(|| m.get("ja-ro")).cloned())
+        })
+        .unwrap_or_else(|| entry.id.clone());
+
+    // Filter tags: keep genre + theme, skip format/content (e.g. "Full Color",
+    // "Long Strip" aren't useful as genres).
+    let mut genres: Vec<String> = attrs
+        .tags
+        .iter()
+        .filter(|t| matches!(t.attributes.group.as_str(), "genre" | "theme"))
+        .filter_map(|t| {
+            t.attributes
+                .name
+                .get("en")
+                .or_else(|| t.attributes.name.values().next())
+                .cloned()
+        })
+        .collect();
+
+    // MangaDex doesn't publish a "Hentai" tag — they signal explicit content
+    // via `contentRating: "pornographic"` instead. Inject the tag so the rest
+    // of the app (adult-content filter, cover-upgrade heuristic, blur logic)
+    // keeps working without needing to know about contentRating.
+    if attrs.content_rating.as_deref() == Some("pornographic")
+        && !genres.iter().any(|g| g.eq_ignore_ascii_case("hentai"))
+    {
+        genres.push("Hentai".to_string());
+    }
+
+    let mal_id = attrs
+        .links
+        .as_ref()
+        .and_then(|l| l.mal.as_deref())
+        .and_then(|s| s.parse::<i32>().ok());
+
+    let image_url = entry
+        .relationships
+        .iter()
+        .find(|r| r.rel_type == "cover_art")
+        .and_then(|r| r.attributes.as_ref())
+        .and_then(|a| a.file_name.as_deref())
+        .map(|file| format!("https://uploads.mangadex.org/covers/{}/{}", entry.id, file));
+
+    // `lastVolume` is usually "" or a number-ish string. Parse loosely; None
+    // when MangaDex doesn't track it (common on ongoing series).
+    let volumes = attrs
+        .last_volume
+        .as_deref()
+        .and_then(|v| v.trim().parse::<i32>().ok());
+
+    MangadexResult {
+        mangadex_id: entry.id,
+        mal_id,
+        name,
+        image_url,
+        volumes,
+        genres,
+        year: attrs.year,
+        status: attrs.status,
+        content_rating: attrs.content_rating,
+    }
 }

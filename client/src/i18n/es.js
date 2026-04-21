@@ -90,8 +90,10 @@ export default {
     uploadOffline: "La subida requiere conexión",
     removeCover: "Quitar portada subida",
     refreshMalTitle: "Actualizar metadatos desde MyAnimeList",
+    refreshMangadexTitle: "Actualizar metadatos desde MangaDex",
     refreshOffline: "Requiere conexión",
     malLink: "MAL #{id}",
+    mangadexLink: "MangaDex",
   },
   volume: {
     volume: "Tomo {n}",
@@ -179,6 +181,15 @@ export default {
     owned: "Poseído",
     vols: "{n} tomos",
     adding: "Añadiendo…",
+    sourceBothTitle: "Disponible en MyAnimeList y MangaDex",
+  },
+  mangadexPrefill: {
+    title: "Añadir desde MangaDex",
+    subtitle:
+      "MangaDex rara vez publica el número total de tomos — introdúcelo antes de añadir.",
+    volumesLabel: "Tomos totales",
+    volumesHint: "Puedes cambiarlo luego desde la ficha de la serie.",
+    confirm: "Añadir",
   },
   scan: {
     opening: "Abriendo…",

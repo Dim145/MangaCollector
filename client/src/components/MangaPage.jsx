@@ -18,6 +18,7 @@ import { useVolumesForManga, useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
+import { refreshFromMangadex } from "@/utils/user.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -55,9 +56,9 @@ export default function MangaPage({ manga, adult_content_level }) {
   // count never updates after navigation. Grab the live row from the Dexie-
   // backed library so edits (and background syncs) are reflected here.
   const { data: library } = useLibrary();
-  const liveVolumeCount =
-    library?.find((m) => m.mal_id === manga.mal_id)?.volumes ??
-    (manga.volumes ?? 0);
+  const liveLibraryRow = library?.find((m) => m.mal_id === manga.mal_id);
+  const liveVolumeCount = liveLibraryRow?.volumes ?? (manga.volumes ?? 0);
+  const liveMangadexId = liveLibraryRow?.mangadex_id ?? manga.mangadex_id ?? null;
   const updateManga = useUpdateManga();
   const deleteManga = useDeleteManga();
   const updateVolumesOwned = useUpdateVolumesOwned();
@@ -208,6 +209,22 @@ export default function MangaPage({ manga, adult_content_level }) {
       const { new_genres, new_name } = await updateLibFromMal(manga.mal_id);
       if (new_genres) setGenres(new_genres);
       if (new_name) setName(new_name);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const updateFromMangadex = async () => {
+    if (!online) return;
+    setRefreshing(true);
+    try {
+      const { new_genres, new_name, new_image_url_jpg } =
+        await refreshFromMangadex(manga.mal_id);
+      if (new_genres) setGenres(new_genres);
+      if (new_name) setName(new_name);
+      if (new_image_url_jpg) setPoster(new_image_url_jpg);
     } catch (e) {
       console.error(e);
     } finally {
@@ -413,33 +430,85 @@ export default function MangaPage({ manga, adult_content_level }) {
                     MAL
                   </button>
                 )}
+                {liveMangadexId && (
+                  <button
+                    onClick={updateFromMangadex}
+                    disabled={refreshing || !online}
+                    aria-label={t("manga.refreshMangadexTitle")}
+                    className={`${manga.mal_id > 0 ? "" : "ml-auto"} inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-gold/40 hover:text-gold disabled:opacity-40`}
+                    title={
+                      online
+                        ? t("manga.refreshMangadexTitle")
+                        : t("manga.refreshOffline")
+                    }
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`}
+                    >
+                      <path d="M3 2v6h6" />
+                      <path d="M21 12A9 9 0 0 0 6 5.3L3 8" />
+                      <path d="M21 22v-6h-6" />
+                      <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7" />
+                    </svg>
+                    MD
+                  </button>
+                )}
               </div>
 
               <h1 className="mt-2 font-display text-3xl font-semibold leading-tight tracking-tight text-washi md:text-5xl">
                 {name}
               </h1>
 
-              {manga.mal_id > 0 && (
-                <a
-                  href={`https://myanimelist.net/manga/${manga.mal_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim hover:text-washi"
-                >
-                  {t("manga.malLink", { id: manga.mal_id })}
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-2.5 w-2.5"
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                {manga.mal_id > 0 && (
+                  <a
+                    href={`https://myanimelist.net/manga/${manga.mal_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim hover:text-washi"
                   >
-                    <path d="M7 17 17 7M7 7h10v10" />
-                  </svg>
-                </a>
-              )}
+                    {t("manga.malLink", { id: manga.mal_id })}
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-2.5 w-2.5"
+                    >
+                      <path d="M7 17 17 7M7 7h10v10" />
+                    </svg>
+                  </a>
+                )}
+                {liveMangadexId && (
+                  <a
+                    href={`https://mangadex.org/title/${liveMangadexId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim hover:text-gold"
+                  >
+                    {t("manga.mangadexLink")}
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-2.5 w-2.5"
+                    >
+                      <path d="M7 17 17 7M7 7h10v10" />
+                    </svg>
+                  </a>
+                )}
+              </div>
 
               {genres?.length > 0 && (
                 <div className="mt-5 flex flex-wrap gap-1.5">
