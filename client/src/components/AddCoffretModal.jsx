@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "./utils/Modal.jsx";
+import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useCreateCoffret } from "@/hooks/useCoffrets.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -222,10 +223,8 @@ export default function AddCoffretModal({
               >
                 {t("coffret.storeLabel")}
               </label>
-              <input
+              <StoreAutocomplete
                 id="coffret-store"
-                type="text"
-                maxLength={30}
                 placeholder={t("coffret.storePlaceholder")}
                 value={store}
                 onChange={(e) => setStore(e.target.value)}

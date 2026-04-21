@@ -5,6 +5,7 @@ import Volume from "./Volume";
 import CoffretGroup from "./CoffretGroup";
 import AddCoffretModal from "./AddCoffretModal";
 import Skeleton from "./ui/Skeleton.jsx";
+import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import Modal from "@/components/utils/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import {
@@ -658,8 +659,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                     <label className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
                       {t("manga.storeLabel")}
                     </label>
-                    <input
-                      type="text"
+                    <StoreAutocomplete
                       value={addStore}
                       onChange={(e) => setAddStore(e.target.value)}
                       placeholder={t("manga.storePlaceholder")}
