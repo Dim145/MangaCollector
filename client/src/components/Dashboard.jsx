@@ -111,7 +111,7 @@ export default function Dashboard() {
             <StatChip
               label={t("dashboard.complete")}
               value={stats.complete}
-              accent="jade"
+              accent="moegi"
               loading={isInitialLoad}
             />
             <StatChip
@@ -233,8 +233,8 @@ function StatChip({ label, value, accent, loading, width }) {
       ? "text-hanko-bright"
       : accent === "gold"
         ? "text-gold"
-        : accent === "jade"
-          ? "text-jade"
+        : accent === "moegi"
+          ? "text-moegi"
           : "text-washi";
   return (
     <div className="group relative overflow-hidden rounded-xl border border-border bg-ink-1/50 p-4 backdrop-blur transition hover:border-hanko/30">

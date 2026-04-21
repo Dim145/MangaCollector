@@ -25,7 +25,7 @@ export default function Manga({ manga, adult_content_level, allCollector }) {
           allCollector
             ? "group-hover:border-gold/60"
             : complete
-              ? "group-hover:border-jade/60"
+              ? "group-hover:border-moegi/60"
               : "group-hover:border-hanko/50"
         }`}
       >
@@ -68,7 +68,7 @@ export default function Manga({ manga, adult_content_level, allCollector }) {
 
         {/* Status badge (top-right) */}
         {complete && (
-          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-jade/95 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-0 shadow-md">
+          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-gradient-to-br from-moegi to-moegi-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-0 shadow-md">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -105,7 +105,7 @@ export default function Manga({ manga, adult_content_level, allCollector }) {
               <div
                 className={`h-full transition-all duration-500 ${
                   complete
-                    ? "bg-gradient-to-r from-jade to-jade-muted"
+                    ? "bg-gradient-to-r from-moegi to-moegi-muted"
                     : "bg-gradient-to-r from-hanko to-hanko-bright"
                 }`}
                 style={{ width: `${completion}%` }}

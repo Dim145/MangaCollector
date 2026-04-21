@@ -292,7 +292,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                   allCollector
                     ? "hover:border-gold/60"
                     : completion === 100
-                      ? "hover:border-jade/60"
+                      ? "hover:border-moegi/60"
                       : "hover:border-hanko/50"
                 }`}
               >
@@ -480,7 +480,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                     <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
                       {t("manga.progress")}
                     </p>
-                    <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-jade">
+                    <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-moegi">
                       {volumesLoading ? (
                         <Skeleton.Stat width="4ch" />
                       ) : (
@@ -493,7 +493,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-washi/15">
                   {!volumesLoading && (
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-hanko via-hanko-bright to-jade transition-all duration-700"
+                      className="h-full rounded-full bg-gradient-to-r from-hanko via-hanko-bright to-moegi transition-all duration-700"
                       style={{ width: `${completion}%` }}
                     />
                   )}
