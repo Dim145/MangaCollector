@@ -24,6 +24,7 @@ use tower_sessions_sqlx_store::PostgresStore;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use crate::config::StorageConfig;
+use crate::services::cache::CacheStore;
 use crate::state::AppState;
 use crate::storage::{LocalStorage, S3Storage, StorageBackend};
 
@@ -64,6 +65,37 @@ async fn main() -> anyhow::Result<()> {
     // HTTP client for outbound requests (MAL API, OIDC)
     let http_client = reqwest::Client::new();
 
+    // Redis cache (optional). Connection failure is logged but doesn't abort
+    // startup — services degrade to direct-API mode when the cache is absent.
+    let cache: Option<Arc<CacheStore>> = match config.redis_url.as_deref() {
+        Some(url) => match CacheStore::connect(url, config.cache_prefix.clone()) {
+            Ok(store) => match store.ping().await {
+                Ok(()) => {
+                    tracing::info!(
+                        prefix = %config.cache_prefix,
+                        "Cache enabled (Redis reachable)"
+                    );
+                    Some(Arc::new(store))
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Cache disabled: Redis PING failed. Will degrade to direct API calls."
+                    );
+                    None
+                }
+            },
+            Err(e) => {
+                tracing::warn!(error = %e, "Cache disabled: invalid REDIS_URL");
+                None
+            }
+        },
+        None => {
+            tracing::info!("Cache disabled: REDIS_URL not set");
+            None
+        }
+    };
+
     // Session store backed by PostgreSQL (uses raw sqlx pool)
     let session_store = PostgresStore::new(pool.clone());
     session_store.migrate().await?;
@@ -82,6 +114,7 @@ async fn main() -> anyhow::Result<()> {
         storage,
         oidc_client: Arc::new(oidc_client),
         http_client,
+        cache,
         start_time: Instant::now(),
     };
 

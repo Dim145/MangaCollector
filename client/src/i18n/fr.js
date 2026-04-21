@@ -59,6 +59,7 @@ export default {
   manga: {
     volumesShort: "tomes",
     complete: "Complet",
+    allCollector: "Tous les tomes sont collector",
     unknownTitle: "Titre inconnu",
     seriesLabel: "Série · 作品",
     collection: "Collection",
@@ -90,8 +91,10 @@ export default {
     uploadOffline: "Le téléversement nécessite une connexion",
     removeCover: "Retirer la couverture téléversée",
     refreshMalTitle: "Actualiser les métadonnées depuis MyAnimeList",
+    refreshMangadexTitle: "Actualiser les métadonnées depuis MangaDex",
     refreshOffline: "Nécessite une connexion",
     malLink: "MAL #{id}",
+    mangadexLink: "MangaDex",
   },
   volume: {
     volume: "Tome {n}",
@@ -180,6 +183,15 @@ export default {
     owned: "Possédé",
     vols: "{n} tomes",
     adding: "Ajout…",
+    sourceBothTitle: "Présent sur MyAnimeList et MangaDex",
+  },
+  mangadexPrefill: {
+    title: "Ajouter depuis MangaDex",
+    subtitle:
+      "MangaDex n'indique pas toujours le nombre total de tomes — renseigne-le avant d'ajouter la série.",
+    volumesLabel: "Nombre total de tomes",
+    volumesHint: "Tu pourras le modifier plus tard depuis la fiche série.",
+    confirm: "Ajouter",
   },
   scan: {
     opening: "Ouverture…",
@@ -364,7 +376,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.1.1 · Archivez votre collection",
+    version: "v2.2.0 · Archivez votre collection",
     heroStart: "Chaque",
     heroAccent: "tome",
     heroEnd1: ",",

@@ -36,6 +36,12 @@ pub struct Config {
     pub postgres_url: String,
     pub storage: StorageConfig,
     pub app_unsecure_healthcheck: bool,
+    /// Redis connection URL (e.g. "redis://redis:6379/1"). When unset, the
+    /// cache layer is disabled and every external API call hits the network.
+    pub redis_url: Option<String>,
+    /// Prefix prepended to every cache key (separator included). Lets users
+    /// share a Redis DB between multiple apps without namespace collisions.
+    pub cache_prefix: String,
 }
 
 impl Config {
@@ -110,6 +116,9 @@ impl Config {
             app_unsecure_healthcheck: std::env::var("APP_UNSECURE_HEALTHCHECK")
                 .map(|v| v == "true")
                 .unwrap_or(false),
+            redis_url: std::env::var("REDIS_URL").ok().filter(|s| !s.is_empty()),
+            cache_prefix: std::env::var("CACHE_PREFIX")
+                .unwrap_or_else(|_| "mangacollect/".to_string()),
         })
     }
 }

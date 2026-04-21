@@ -18,6 +18,9 @@ import { useVolumesForManga, useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
+import { refreshFromMangadex } from "@/utils/user.js";
+import { queryClient } from "@/lib/queryClient.js";
+import { db } from "@/lib/db.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -55,9 +58,9 @@ export default function MangaPage({ manga, adult_content_level }) {
   // count never updates after navigation. Grab the live row from the Dexie-
   // backed library so edits (and background syncs) are reflected here.
   const { data: library } = useLibrary();
-  const liveVolumeCount =
-    library?.find((m) => m.mal_id === manga.mal_id)?.volumes ??
-    (manga.volumes ?? 0);
+  const liveLibraryRow = library?.find((m) => m.mal_id === manga.mal_id);
+  const liveVolumeCount = liveLibraryRow?.volumes ?? (manga.volumes ?? 0);
+  const liveMangadexId = liveLibraryRow?.mangadex_id ?? manga.mangadex_id ?? null;
   const updateManga = useUpdateManga();
   const deleteManga = useDeleteManga();
   const updateVolumesOwned = useUpdateVolumesOwned();
@@ -107,19 +110,22 @@ export default function MangaPage({ manga, adult_content_level }) {
   }, [volumes, coffrets]);
 
   // Derive owned counts & pricing from the live volumes table
-  const { volumesOwned, totalPrice, avgPrice } = useMemo(() => {
+  const { volumesOwned, totalPrice, avgPrice, allCollector } = useMemo(() => {
     let counter = 0;
     let sum = 0;
+    let anyNonCollector = false;
     for (const v of volumes) {
       if (v.owned) {
         counter += 1;
         sum += Number(v.price) || 0;
+        if (!v.collector) anyNonCollector = true;
       }
     }
     return {
       volumesOwned: counter,
       totalPrice: sum,
       avgPrice: counter > 0 ? sum / counter : 0,
+      allCollector: counter > 0 && !anyNonCollector,
     };
   }, [volumes]);
 
@@ -130,6 +136,26 @@ export default function MangaPage({ manga, adult_content_level }) {
   useEffect(() => {
     if (!isEditing) setTotalVolumes(liveVolumeCount);
   }, [liveVolumeCount, isEditing]);
+
+  // Same reasoning for name / genres / poster: location.state.manga is a
+  // frozen snapshot from the moment the user navigated here. Without live
+  // sync, a refresh-from-MAL/MangaDex that rewrites these fields on the
+  // server is invisible after a page reload. Re-seed from the Dexie row
+  // whenever it changes — but never mid-edit, since the edit form writes
+  // to these setters too (`setPoster` on upload/remove).
+  useEffect(() => {
+    if (liveLibraryRow?.name && !isEditing) setName(liveLibraryRow.name);
+  }, [liveLibraryRow?.name, isEditing]);
+
+  useEffect(() => {
+    if (liveLibraryRow?.genres && !isEditing) setGenres(liveLibraryRow.genres);
+  }, [liveLibraryRow?.genres, isEditing]);
+
+  useEffect(() => {
+    if (liveLibraryRow?.image_url_jpg != null && !isEditing) {
+      setPoster(liveLibraryRow.image_url_jpg);
+    }
+  }, [liveLibraryRow?.image_url_jpg, isEditing]);
 
   const handleSave = async () => {
     try {
@@ -162,10 +188,25 @@ export default function MangaPage({ manga, adult_content_level }) {
     }
   };
 
-  const volumeUpdateCallback = async () => {
+  // Called by Volume after a persist() succeeds. We only need to sync the
+  // library's `volumes_owned` counter when the ownership actually changed
+  // (price/store/collector edits don't affect the count).
+  //
+  // CRITICAL: re-read the count from Dexie at call time. Relying on the
+  // memoised `volumesOwned` from the current render would capture a stale
+  // closure — by the time the callback fires, `persist()` has already put
+  // the new volume row into Dexie but React hasn't necessarily re-rendered
+  // yet, so the closure would still send the previous count to the server.
+  const volumeUpdateCallback = async ({ ownedChanged } = {}) => {
+    if (!ownedChanged) return;
+    const rows = await db.volumes
+      .where("mal_id")
+      .equals(manga.mal_id)
+      .toArray();
+    const nbOwned = rows.filter((v) => v.owned).length;
     await updateVolumesOwned.mutateAsync({
       mal_id: manga.mal_id,
-      nbOwned: volumesOwned,
+      nbOwned,
     });
   };
 
@@ -205,6 +246,27 @@ export default function MangaPage({ manga, adult_content_level }) {
       const { new_genres, new_name } = await updateLibFromMal(manga.mal_id);
       if (new_genres) setGenres(new_genres);
       if (new_name) setName(new_name);
+      // Server updated the DB; invalidate library so Dexie re-caches from
+      // the fresh server state. Without this, a reload would re-seed from
+      // the stale location.state snapshot.
+      queryClient.invalidateQueries({ queryKey: ["library"] });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const updateFromMangadex = async () => {
+    if (!online) return;
+    setRefreshing(true);
+    try {
+      const { new_genres, new_name, new_image_url_jpg } =
+        await refreshFromMangadex(manga.mal_id);
+      if (new_genres) setGenres(new_genres);
+      if (new_name) setName(new_name);
+      if (new_image_url_jpg) setPoster(new_image_url_jpg);
+      queryClient.invalidateQueries({ queryKey: ["library"] });
     } catch (e) {
       console.error(e);
     } finally {
@@ -284,7 +346,15 @@ export default function MangaPage({ manga, adult_content_level }) {
 
           <div className="grid gap-6 md:grid-cols-[minmax(0,280px)_1fr] md:gap-10">
             <div className="mx-auto w-full max-w-[220px] md:mx-0 md:max-w-none">
-              <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border shadow-2xl glow-red">
+              <div
+                className={`relative aspect-[2/3] overflow-hidden rounded-2xl border border-border shadow-2xl glow-red transition-colors ${
+                  allCollector
+                    ? "hover:border-gold/60"
+                    : completion === 100
+                      ? "hover:border-moegi/60"
+                      : "hover:border-hanko/50"
+                }`}
+              >
                 {displayPoster ? (
                   <img
                     src={displayPoster}
@@ -402,33 +472,85 @@ export default function MangaPage({ manga, adult_content_level }) {
                     MAL
                   </button>
                 )}
+                {liveMangadexId && (
+                  <button
+                    onClick={updateFromMangadex}
+                    disabled={refreshing || !online}
+                    aria-label={t("manga.refreshMangadexTitle")}
+                    className={`${manga.mal_id > 0 ? "" : "ml-auto"} inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-gold/40 hover:text-gold disabled:opacity-40`}
+                    title={
+                      online
+                        ? t("manga.refreshMangadexTitle")
+                        : t("manga.refreshOffline")
+                    }
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`}
+                    >
+                      <path d="M3 2v6h6" />
+                      <path d="M21 12A9 9 0 0 0 6 5.3L3 8" />
+                      <path d="M21 22v-6h-6" />
+                      <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7" />
+                    </svg>
+                    MD
+                  </button>
+                )}
               </div>
 
               <h1 className="mt-2 font-display text-3xl font-semibold leading-tight tracking-tight text-washi md:text-5xl">
                 {name}
               </h1>
 
-              {manga.mal_id > 0 && (
-                <a
-                  href={`https://myanimelist.net/manga/${manga.mal_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim hover:text-washi"
-                >
-                  {t("manga.malLink", { id: manga.mal_id })}
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-2.5 w-2.5"
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                {manga.mal_id > 0 && (
+                  <a
+                    href={`https://myanimelist.net/manga/${manga.mal_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim hover:text-washi"
                   >
-                    <path d="M7 17 17 7M7 7h10v10" />
-                  </svg>
-                </a>
-              )}
+                    {t("manga.malLink", { id: manga.mal_id })}
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-2.5 w-2.5"
+                    >
+                      <path d="M7 17 17 7M7 7h10v10" />
+                    </svg>
+                  </a>
+                )}
+                {liveMangadexId && (
+                  <a
+                    href={`https://mangadex.org/title/${liveMangadexId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-washi-dim hover:text-gold"
+                  >
+                    {t("manga.mangadexLink")}
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-2.5 w-2.5"
+                    >
+                      <path d="M7 17 17 7M7 7h10v10" />
+                    </svg>
+                  </a>
+                )}
+              </div>
 
               {genres?.length > 0 && (
                 <div className="mt-5 flex flex-wrap gap-1.5">
@@ -469,7 +591,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                     <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
                       {t("manga.progress")}
                     </p>
-                    <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-gold">
+                    <p className="mt-1 font-display text-3xl font-semibold tabular-nums text-moegi">
                       {volumesLoading ? (
                         <Skeleton.Stat width="4ch" />
                       ) : (
@@ -482,7 +604,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-washi/15">
                   {!volumesLoading && (
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-hanko via-hanko-bright to-gold transition-all duration-700"
+                      className="h-full rounded-full bg-gradient-to-r from-hanko via-hanko-bright to-moegi transition-all duration-700"
                       style={{ width: `${completion}%` }}
                     />
                   )}

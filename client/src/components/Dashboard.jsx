@@ -7,6 +7,7 @@ import GapSuggestions from "./GapSuggestions.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
+import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -18,10 +19,30 @@ export default function Dashboard() {
   const t = useT();
 
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
+  const { data: allVolumes } = useAllVolumes();
   const library = useMemo(
     () => filterAdultGenreIfNeeded(adult_content_level, rawLibrary ?? []),
     [adult_content_level, rawLibrary],
   );
+
+  // Series where every owned volume is flagged collector (and at least one is
+  // owned). Discreet gold 限 seal on the poster tells the user "full collector
+  // set". Computed once at the Dashboard level so each card stays cheap.
+  const allCollectorSet = useMemo(() => {
+    const byMal = new Map();
+    for (const v of allVolumes ?? []) {
+      if (!v.owned) continue;
+      const entry = byMal.get(v.mal_id) ?? { any: false, anyNonCollector: false };
+      entry.any = true;
+      if (!v.collector) entry.anyNonCollector = true;
+      byMal.set(v.mal_id, entry);
+    }
+    const set = new Set();
+    for (const [mal, { any, anyNonCollector }] of byMal) {
+      if (any && !anyNonCollector) set.add(mal);
+    }
+    return set;
+  }, [allVolumes]);
 
   const stats = useMemo(() => {
     const series = library.length;
@@ -90,7 +111,7 @@ export default function Dashboard() {
             <StatChip
               label={t("dashboard.complete")}
               value={stats.complete}
-              accent="gold"
+              accent="moegi"
               loading={isInitialLoad}
             />
             <StatChip
@@ -194,6 +215,7 @@ export default function Dashboard() {
                   <Manga
                     manga={manga}
                     adult_content_level={adult_content_level}
+                    allCollector={allCollectorSet.has(manga.mal_id)}
                   />
                 </div>
               ))}
@@ -211,7 +233,9 @@ function StatChip({ label, value, accent, loading, width }) {
       ? "text-hanko-bright"
       : accent === "gold"
         ? "text-gold"
-        : "text-washi";
+        : accent === "moegi"
+          ? "text-moegi"
+          : "text-washi";
   return (
     <div className="group relative overflow-hidden rounded-xl border border-border bg-ink-1/50 p-4 backdrop-blur transition hover:border-hanko/30">
       <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">

@@ -4,6 +4,7 @@ use std::time::Instant;
 use crate::auth::OidcState;
 use crate::config::Config;
 use crate::db::{Db, DbPool};
+use crate::services::cache::CacheStore;
 use crate::storage::StorageBackend;
 
 #[derive(Clone)]
@@ -16,6 +17,9 @@ pub struct AppState {
     pub storage: Arc<dyn StorageBackend>,
     pub oidc_client: Arc<OidcState>,
     pub http_client: reqwest::Client,
+    /// Optional Redis-backed cache (disabled when REDIS_URL is not set).
+    /// Services take `Option<&CacheStore>` and no-op when absent.
+    pub cache: Option<Arc<CacheStore>>,
     pub start_time: Instant,
 }
 

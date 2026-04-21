@@ -58,6 +58,7 @@ export default {
   manga: {
     volumesShort: "vols",
     complete: "Complete",
+    allCollector: "All volumes are collector",
     unknownTitle: "Unknown Title",
     seriesLabel: "Series · 作品",
     collection: "Collection",
@@ -88,8 +89,10 @@ export default {
     uploadOffline: "Cover upload requires connection",
     removeCover: "Remove uploaded cover",
     refreshMalTitle: "Refresh metadata from MyAnimeList",
+    refreshMangadexTitle: "Refresh metadata from MangaDex",
     refreshOffline: "Requires connection",
     malLink: "MAL #{id}",
+    mangadexLink: "MangaDex",
   },
   volume: {
     volume: "Volume {n}",
@@ -175,6 +178,15 @@ export default {
     owned: "Owned",
     vols: "{n} vols",
     adding: "Adding…",
+    sourceBothTitle: "Available on both MyAnimeList and MangaDex",
+  },
+  mangadexPrefill: {
+    title: "Add from MangaDex",
+    subtitle:
+      "MangaDex rarely publishes the total volume count — fill it in before adding.",
+    volumesLabel: "Total volumes",
+    volumesHint: "You can change it later from the series page.",
+    confirm: "Add",
   },
   scan: {
     opening: "Opening…",
@@ -352,7 +364,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.1.1 · Archive your collection",
+    version: "v2.2.0 · Archive your collection",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",

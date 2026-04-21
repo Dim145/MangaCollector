@@ -3,12 +3,14 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{activity, coffret, health, library, settings, storage, volume};
+use crate::handlers::{activity, coffret, external, health, library, settings, storage, volume};
 use crate::state::AppState;
 
 pub fn api_router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health::health))
+        // Unified search endpoint — merges MAL + MangaDex results
+        .route("/external/search", get(external::search))
         .nest("/user", user_router())
 }
 
@@ -20,11 +22,16 @@ fn user_router() -> Router<AppState> {
         .route("/library", get(library::get_user_library))
         .route("/library/search", get(library::search_library))
         .route("/library/custom", post(library::add_custom_entry))
+        .route("/library/mangadex", post(library::add_from_mangadex))
         .route("/library", post(library::add_to_library))
         .route("/library/{mal_id}", get(library::get_user_manga))
         .route(
             "/library/{mal_id}/update-from-mal",
             get(library::update_from_mal),
+        )
+        .route(
+            "/library/{mal_id}/refresh-from-mangadex",
+            get(library::refresh_from_mangadex),
         )
         .route("/library/{mal_id}", patch(library::update_manga))
         .route(

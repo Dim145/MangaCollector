@@ -155,7 +155,7 @@ pub async fn delete_poster(
 
     // Restore original MAL image URL
     let mal_poster = if mal_id > 0 {
-        mal_api::get_manga_from_mal(&state.http_client, mal_id)
+        mal_api::get_manga_from_mal(&state.http_client, state.cache.as_deref(), mal_id)
             .await
             .ok()
             .flatten()

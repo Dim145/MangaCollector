@@ -46,23 +46,32 @@ export function useScanCommit() {
       const scanned = scannedVolume ?? maxVolume;
       const priceNum = Number(price) || 0;
 
+      // Accept both the legacy Jikan shape (manga.title, manga.images.jpg…)
+      // and the new unified shape (manga.name, manga.image_url, flat genres).
+      // The scan flow still passes the first MAL candidate so both can happen.
+      const resolvedName = manga.name ?? manga.title;
+      const resolvedImage =
+        manga.image_url ??
+        manga.images?.jpg?.large_image_url ??
+        manga.images?.jpg?.image_url ??
+        null;
+      const resolvedGenres = Array.isArray(manga.genres)
+        ? manga.genres
+            .map((g) => (typeof g === "string" ? g : g?.name))
+            .filter(Boolean)
+        : [];
+
       const mangaData = {
-        name: manga.title,
+        name: resolvedName,
         mal_id: manga.mal_id,
         volumes:
           manga.volumes == null
             ? Math.max(maxVolume, 1)
             : Math.max(manga.volumes, maxVolume),
         volumes_owned: 0,
-        image_url_jpg:
-          manga.images?.jpg?.large_image_url ||
-          manga.images?.jpg?.image_url ||
-          null,
-        genres: (manga.genres || [])
-          .concat(manga.explicit_genres || [])
-          .concat(manga.demographics || [])
-          .filter((g) => g.type === "manga")
-          .map((g) => g.name),
+        image_url_jpg: resolvedImage,
+        genres: resolvedGenres,
+        mangadex_id: manga.mangadex_id ?? null,
       };
 
       const existing = library.find((m) => m.mal_id === mangaData.mal_id);

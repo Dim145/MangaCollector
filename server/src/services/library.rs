@@ -7,9 +7,64 @@ use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity::event_types;
-use crate::models::library::{self, ActiveModel, AddCustomRequest, AddLibraryRequest, Entity as LibraryEntity, LibraryEntry};
-use crate::services::{activity, settings, volume};
+use crate::models::library::{
+    self, ActiveModel, AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest,
+    Entity as LibraryEntity, LibraryEntry,
+};
+use crate::services::cache::CacheStore;
+use crate::services::{activity, mangadex_api, settings, volume};
 use crate::services::mal_api::get_manga_from_mal;
+
+/// Genre names that trigger an adult-content poster upgrade via MangaDex.
+/// Case-insensitive, kept in sync with `client/src/utils/library.js`.
+fn has_adult_genre(genres: &[String]) -> bool {
+    genres.iter().any(|g| {
+        let lc = g.to_lowercase();
+        lc == "hentai" || lc == "erotica" || lc == "adult"
+    })
+}
+
+/// Ask MangaDex for a better (uncensored, often higher-res) cover when the
+/// series has adult tags. Returns `Some(new_url)` only when an upgrade is
+/// found; otherwise `None` so callers keep the MAL fallback.
+///
+/// Skipped when:
+///   - No adult genre present
+///   - `mal_id` is None or ≤ 0 (custom entries with negative ids don't exist
+///     on MangaDex)
+///   - `current_url` points to a user-uploaded file (path starting with `/`
+///     rather than `http`) — we never override a custom upload
+async fn maybe_upgrade_cover_for_adult(
+    client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    current_url: Option<&str>,
+    genres: &[String],
+    mal_id: Option<i32>,
+    title_hint: &str,
+) -> Option<String> {
+    if !has_adult_genre(genres) {
+        return None;
+    }
+    let id = mal_id?;
+    if id <= 0 {
+        // custom entry — no mal_id to cross-reference
+        return None;
+    }
+    if let Some(url) = current_url {
+        if !url.starts_with("http") {
+            // user-uploaded custom path — don't touch
+            return None;
+        }
+    }
+
+    match mangadex_api::find_cover_url_by_mal_id(client, cache, id, title_hint).await {
+        Ok(url) => url,
+        Err(e) => {
+            tracing::warn!(mal_id = id, error = %e, "cover-upgrade: MangaDex call failed");
+            None
+        }
+    }
+}
 
 pub async fn get_user_library(db: &Db, user_id: i32) -> Result<Vec<LibraryEntry>, AppError> {
     let rows = LibraryEntity::find()
@@ -36,18 +91,34 @@ pub async fn get_user_manga(
 
 pub async fn add_to_user_library(
     db: &Db,
+    http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
     user_id: i32,
     req: AddLibraryRequest,
 ) -> Result<LibraryEntry, AppError> {
     let now = Utc::now();
-    let genres_str = req
-        .genres
-        .as_deref()
-        .map(|g| g.join(","))
-        .unwrap_or_default();
+    let genres_vec = req.genres.clone().unwrap_or_default();
+    let genres_str = genres_vec.join(",");
     let volumes_owned = req.volumes_owned.unwrap_or(0);
     let volumes = req.volumes;
     let mal_id = req.mal_id;
+
+    // For adult-tagged series, try to upgrade the cover to the MangaDex
+    // (uncensored, typically higher-res) version before we store the URL.
+    // Silently falls back to MAL's cover on any failure.
+    let image_url_final = match maybe_upgrade_cover_for_adult(
+        http_client,
+        cache,
+        req.image_url_jpg.as_deref(),
+        &genres_vec,
+        mal_id,
+        &req.name,
+    )
+    .await
+    {
+        Some(new_url) => Some(new_url),
+        None => req.image_url_jpg.clone(),
+    };
 
     let txn = db.begin().await.map_err(AppError::from)?;
 
@@ -76,8 +147,9 @@ pub async fn add_to_user_library(
         name: Set(req.name),
         volumes: Set(volumes),
         volumes_owned: Set(volumes_owned),
-        image_url_jpg: Set(req.image_url_jpg),
+        image_url_jpg: Set(image_url_final),
         genres: Set(Some(genres_str)),
+        mangadex_id: Set(req.mangadex_id.clone()),
         ..Default::default()
     };
 
@@ -108,8 +180,111 @@ pub async fn add_to_user_library(
     Ok(LibraryEntry::from(row))
 }
 
+/// Add a library entry sourced from MangaDex. No MAL id exists, so we mint a
+/// new negative mal_id (same scheme as pure-custom entries) and tag the row
+/// with `mangadex_id` so "refresh from MangaDex" can operate on it later.
+pub async fn add_from_mangadex(
+    db: &Db,
+    http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    user_id: i32,
+    req: AddFromMangadexRequest,
+) -> Result<LibraryEntry, AppError> {
+    // Idempotent: if the user already has this mangadex_id, return the row
+    // rather than creating a duplicate with a new negative mal_id.
+    if let Some(existing) = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MangadexId.eq(req.mangadex_id.clone()))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+    {
+        return Ok(LibraryEntry::from(existing));
+    }
+
+    // Mint the next negative mal_id (same scheme as add_custom_entry).
+    let min: Option<i32> = LibraryEntity::find()
+        .select_only()
+        .column_as(Expr::col(library::Column::MalId).min(), "min")
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.lt(0))
+        .into_tuple::<Option<i32>>()
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .flatten();
+
+    let new_mal_id = min.unwrap_or(0) - 1;
+
+    add_to_user_library(
+        db,
+        http_client,
+        cache,
+        user_id,
+        AddLibraryRequest {
+            mal_id: Some(new_mal_id),
+            name: req.name,
+            volumes: req.volumes,
+            volumes_owned: req.volumes_owned,
+            image_url_jpg: req.image_url_jpg,
+            genres: req.genres,
+            mangadex_id: Some(req.mangadex_id),
+        },
+    )
+    .await
+}
+
+/// Re-sync a library entry's name, genres and cover from MangaDex. Only
+/// applies to rows that carry a `mangadex_id` (either pure-MangaDex entries
+/// or MAL entries that were cross-linked at add time).
+pub async fn refresh_from_mangadex(
+    db: &Db,
+    http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    user_id: i32,
+    mal_id: i32,
+) -> Result<(Vec<String>, String, Option<String>), AppError> {
+    let row = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::NotFound("Library entry not found".into()))?;
+
+    let mangadex_id = row
+        .mangadex_id
+        .clone()
+        .ok_or_else(|| AppError::BadRequest("No MangaDex link on this entry".into()))?;
+
+    let md_data = crate::services::mangadex_api::get_by_id(http_client, cache, &mangadex_id)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound("MangaDex info not found".into()))?;
+
+    let now = Utc::now();
+    let genres_str = md_data.genres.join(",");
+
+    // Preserve user-uploaded custom posters (paths not starting with `http`).
+    let image_update = match row.image_url_jpg.as_deref() {
+        Some(u) if !u.starts_with("http") => row.image_url_jpg.clone(),
+        _ => md_data.image_url.clone(),
+    };
+
+    let mut active: ActiveModel = row.into();
+    active.genres = Set(Some(genres_str));
+    active.name = Set(md_data.name.clone());
+    active.image_url_jpg = Set(image_update.clone());
+    active.modified_on = Set(now);
+    active.update(db).await.map_err(AppError::from)?;
+
+    Ok((md_data.genres, md_data.name, image_update))
+}
+
 pub async fn add_custom_entry(
     db: &Db,
+    http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
     user_id: i32,
     req: AddCustomRequest,
 ) -> Result<LibraryEntry, AppError> {
@@ -129,6 +304,8 @@ pub async fn add_custom_entry(
 
     add_to_user_library(
         db,
+        http_client,
+        cache,
         user_id,
         AddLibraryRequest {
             mal_id: Some(new_mal_id),
@@ -137,6 +314,7 @@ pub async fn add_custom_entry(
             volumes_owned: req.volumes_owned,
             image_url_jpg: None,
             genres: req.genres,
+            mangadex_id: None,
         },
     )
     .await
@@ -323,10 +501,11 @@ pub async fn search(
 pub async fn update_infos_from_mal(
     db: &Db,
     http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
     user_id: i32,
     mal_id: i32,
 ) -> Result<(Vec<String>, String), AppError> {
-    let mal_data = get_manga_from_mal(http_client, mal_id)
+    let mal_data = get_manga_from_mal(http_client, cache, mal_id)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound("MAL info not found".into()))?;
@@ -373,7 +552,7 @@ pub async fn update_infos_from_mal(
 
         let now = Utc::now();
         // Only overwrite image if no custom poster set
-        let image_update = if row.image_url_jpg.is_none() {
+        let mut image_update = if row.image_url_jpg.is_none() {
             mal_data
                 .images
                 .as_ref()
@@ -382,6 +561,21 @@ pub async fn update_infos_from_mal(
         } else {
             row.image_url_jpg.clone()
         };
+
+        // Adult series → prefer the uncensored MangaDex cover. Honours any
+        // existing user-uploaded poster (skipped inside the helper).
+        if let Some(new_url) = maybe_upgrade_cover_for_adult(
+            http_client,
+            cache,
+            image_update.as_deref(),
+            &genres,
+            Some(mal_id),
+            &resolved_name,
+        )
+        .await
+        {
+            image_update = Some(new_url);
+        }
 
         let mut active: ActiveModel = row.into();
         active.genres = Set(Some(genres.join(",")));
