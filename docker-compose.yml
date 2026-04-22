@@ -60,6 +60,11 @@ services:
     networks:
       - default
       - internal
+    depends_on:
+        client:
+            condition: service_healthy
+        server:
+          condition: service_healthy
 
   server:
     build: ./server

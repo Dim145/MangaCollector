@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import Tooltip from "./ui/Tooltip.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
+import { useCoverPreviewGesture } from "@/hooks/useCoverPreviewGesture.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -30,6 +31,11 @@ export default function Volume({
   // book cover with a small number chip pinned to the corner.
   coverUrl,
   blurImage = false,
+  // Preview gesture callbacks — forwarded from MangaPage's shared
+  // controller. Volume itself doesn't own the preview state anymore; that
+  // lives upstream so keyboard nav across siblings works.
+  onPreviewShow,
+  onPreviewRelease,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [ownedStatus, setOwnedStatus] = useState(owned);
@@ -40,6 +46,15 @@ export default function Volume({
   const updateVolume = useUpdateVolume();
   const isLoading = updateVolume.isPending;
   const t = useT();
+
+  // Hover (desktop) + long-press (touch) → notifies the shared preview
+  // controller (lives in MangaPage). Only enabled when a cover is
+  // available and we're not in edit mode.
+  const preview = useCoverPreviewGesture({
+    enabled: Boolean(coverUrl) && !isEditing,
+    onShow: (rect, sticky) => onPreviewShow?.(volNum, rect, sticky),
+    onRelease: () => onPreviewRelease?.(),
+  });
 
   async function persist(nextOwned, nextPrice, nextStore, nextCollector, ownedChanged) {
     await updateVolume.mutateAsync({
@@ -56,6 +71,9 @@ export default function Volume({
 
   const toggleOwned = async () => {
     if (isEditing || locked) return;
+    // Suppress the tap when a long-press just opened the preview — the
+    // user wanted to peek, not to flip the ownership.
+    if (preview.consumeClick()) return;
     const next = !ownedStatus;
     setOwnedStatus(next);
     await persist(next, price, purchaseLocation, collectorStatus, true);
@@ -146,6 +164,17 @@ export default function Volume({
                   : t("volume.markOwned")
             }
             title={locked ? t("volume.lockedTitle") : undefined}
+            // Gesture handlers for the floating preview. They spread across
+            // the same button that handles the tap-to-toggle, which is fine
+            // because the hook coordinates the two (long-press suppresses
+            // the subsequent click via consumeClick()).
+            {...preview.handlers}
+            // data-vol-num lets the shared preview controller re-anchor on
+            // the correct DOM node when the user navigates with ← / →.
+            data-vol-num={volNum}
+            // touch-action: avoid the browser treating the long-press as a
+            // text selection or callout; we take ownership of the gesture.
+            style={{ touchAction: "manipulation" }}
             className={`group/vol relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-md border shadow-md transition-all duration-300 ${
               collectorStatus
                 ? "border-gold ring-1 ring-gold/60 shadow-[0_0_12px_rgba(201,169,97,0.35)]"

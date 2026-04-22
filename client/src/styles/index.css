@@ -580,6 +580,34 @@
 .animate-fade-out {
   animation: fade-out 0.22s ease-in both;
 }
+
+/* Cover-preview (Volume hover/long-press) — polaroid float-in effect */
+@keyframes cover-preview-in {
+  from {
+    opacity: 0;
+    transform: rotate(-1deg) translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-1deg) translateY(0) scale(1);
+  }
+}
+@keyframes cover-preview-out {
+  from {
+    opacity: 1;
+    transform: rotate(-1deg) translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: rotate(-1deg) translateY(4px) scale(0.97);
+  }
+}
+.animate-cover-preview-in {
+  animation: cover-preview-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-cover-preview-out {
+  animation: cover-preview-out 0.16s ease-in both;
+}
 .animate-slide-down {
   animation: slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

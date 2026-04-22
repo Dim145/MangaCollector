@@ -19,6 +19,8 @@ import {
 import { useVolumesForManga, useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
 import { useVolumeCovers } from "@/hooks/useVolumeCovers.js";
+import { useVolumePreviewController } from "@/hooks/useVolumePreviewController.js";
+import CoverPreview from "./ui/CoverPreview.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
 import { refreshFromMangadex } from "@/utils/user.js";
@@ -59,6 +61,11 @@ export default function MangaPage({ manga, adult_content_level }) {
   );
   const { data: coffrets } = useCoffretsForManga(manga.mal_id);
   const { data: volumeCoverMap } = useVolumeCovers(manga.mal_id);
+
+  // Shared preview controller — one <CoverPreview /> instance rendered
+  // for the whole page, cross-volume ← / → navigation, sticky mode on
+  // long-press, zoom modal on tap.
+  const previewCtl = useVolumePreviewController({ coverMap: volumeCoverMap });
   // `manga` comes frozen from React Router's location.state, so its volume
   // count never updates after navigation. Grab the live row from the Dexie-
   // backed library so edits (and background syncs) are reflected here.
@@ -916,6 +923,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                         currencySetting={currencySetting}
                         coverUrl={volumeCoverMap?.[vol.vol_num]}
                         blurImage={isBlurred}
+                        onPreviewShow={previewCtl.show}
+                        onPreviewRelease={previewCtl.release}
                       />
                     ))}
                   </CoffretGroup>
@@ -938,6 +947,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                         currencySetting={currencySetting}
                         coverUrl={volumeCoverMap?.[vol.vol_num]}
                         blurImage={isBlurred}
+                        onPreviewShow={previewCtl.show}
+                        onPreviewRelease={previewCtl.release}
                       />
                     ))}
                   </div>
@@ -987,6 +998,36 @@ export default function MangaPage({ manga, adult_content_level }) {
           setCoverPickerOpen(false);
         }}
       />
+
+      {/* Shared volume-cover preview — one instance, driven by the
+          controller. Sticky on mobile (long-press peek + tap to zoom),
+          non-sticky on desktop (hover peek). */}
+      <CoverPreview
+        url={previewCtl.url}
+        anchorRect={previewCtl.anchorRect}
+        visible={previewCtl.visible}
+        sticky={previewCtl.sticky}
+        blur={isBlurred}
+        onClose={previewCtl.hide}
+        onZoom={previewCtl.openZoom}
+      />
+
+      {/* Full-screen zoom modal triggered by tapping the preview on
+          mobile. Reuses the standard Modal shell for consistency. */}
+      <Modal
+        popupOpen={previewCtl.zoomOpen}
+        handleClose={previewCtl.hide}
+      >
+        {previewCtl.url && (
+          <img
+            src={previewCtl.url}
+            alt=""
+            className={`max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl ${
+              isBlurred ? "blur-lg" : ""
+            }`}
+          />
+        )}
+      </Modal>
 
       <Modal
         popupOpen={confirmDelete}
