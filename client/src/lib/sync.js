@@ -117,6 +117,48 @@ export async function enqueueLibraryUpdateVolumes(mal_id, volumes) {
   triggerSync();
 }
 
+/**
+ * Optimistic poster change — picker confirm flow. Offline-first: writes the
+ * new URL to Dexie immediately (the UI reacts via useLiveQuery) and queues
+ * the PATCH for when the server is reachable.
+ *
+ * Merges with any pending op for the same mal_id:
+ *   - delete pending    → bail (the user is about to wipe the series)
+ *   - upsert pending    → update the upsert payload's image_url_jpg
+ *   - patch / owned     → enrich the existing payload with image_url_jpg
+ *   - nothing pending   → new `patch` op carrying only image_url_jpg
+ */
+export async function enqueueLibraryPoster(mal_id, url) {
+  await db.transaction("rw", db.library, db.outboxLibrary, async () => {
+    const existing = await db.library.get(mal_id);
+    if (existing) {
+      await db.library.put({ ...existing, image_url_jpg: url });
+    }
+    const current = await db.outboxLibrary.get(mal_id);
+    if (current?.op === "delete") return;
+    if (current?.op === "upsert") {
+      await db.outboxLibrary.put({
+        ...current,
+        payload: { ...current.payload, image_url_jpg: url },
+        ts: Date.now(),
+      });
+      return;
+    }
+    // owned / patch / none — all routed through a patch-style op so the
+    // flush handler can fire the /poster PATCH alongside any existing
+    // volume / owned changes queued for the same mal_id.
+    const next = current ?? { mal_id, op: "patch", payload: {}, ts: Date.now() };
+    await db.outboxLibrary.put({
+      ...next,
+      op: next.op === "owned" ? "owned" : "patch",
+      payload: { ...(next.payload ?? {}), image_url_jpg: url },
+      ts: Date.now(),
+    });
+  });
+  notifyPendingChanged();
+  triggerSync();
+}
+
 export async function enqueueLibraryVolumesOwned(mal_id, nbOwned) {
   await db.transaction("rw", db.library, db.outboxLibrary, async () => {
     const existing = await db.library.get(mal_id);
@@ -211,14 +253,30 @@ async function flushLibrary() {
       } else if (op.op === "owned") {
         const n = op.payload.volumes_owned;
         await axios.patch(`/api/user/library/${op.mal_id}/${n}`);
+        // Poster changes can ride along — the owned PATCH doesn't accept a
+        // cover URL so we fire a dedicated /poster PATCH afterwards.
+        if (op.payload?.image_url_jpg) {
+          await axios.patch(`/api/user/storage/poster/${op.mal_id}`, {
+            url: op.payload.image_url_jpg,
+          });
+        }
       } else if (op.op === "patch") {
-        await axios.patch(`/api/user/library/${op.mal_id}`, op.payload);
-        // Volume count changes (re)create or drop rows in user_volumes on the
-        // server — without a refetch, the new rows are invisible until the
-        // next manual refresh. Pull the fresh list into Dexie so the UI
-        // reflects the new count immediately.
+        // A "patch" op is a bag of pending field updates. Fire one request
+        // per field, since the server splits volumes vs poster across two
+        // endpoints.
         if (op.payload?.volumes != null) {
+          await axios.patch(`/api/user/library/${op.mal_id}`, {
+            volumes: op.payload.volumes,
+          });
+          // Volume count changes (re)create or drop rows in user_volumes on
+          // the server — without a refetch, the new rows are invisible
+          // until the next manual refresh.
           await refetchVolumes(op.mal_id).catch(() => {});
+        }
+        if (op.payload?.image_url_jpg) {
+          await axios.patch(`/api/user/storage/poster/${op.mal_id}`, {
+            url: op.payload.image_url_jpg,
+          });
         }
       }
       await db.outboxLibrary.delete(op.mal_id);

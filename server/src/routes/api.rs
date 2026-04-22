@@ -34,7 +34,6 @@ fn user_router() -> Router<AppState> {
             get(library::refresh_from_mangadex),
         )
         .route("/library/{mal_id}/covers", get(library::list_covers))
-        .route("/library/{mal_id}/poster", patch(library::set_poster))
         .route("/library/{mal_id}", patch(library::update_manga))
         .route(
             "/library/{mal_id}/{owned}",
@@ -59,6 +58,12 @@ fn user_router() -> Router<AppState> {
         // Storage routes
         .route("/storage/poster/{mal_id}", get(storage::get_poster))
         .route("/storage/poster/{mal_id}", post(storage::upload_poster))
+        // PATCH sets the series' image_url_jpg to a whitelisted URL (cover
+        // picker). Co-located with the other poster operations so it lives
+        // under a 3-segment literal path — no risk of structural overlap
+        // with /library/{mal_id}/{owned}, which was the root cause of the
+        // 405 when PATCH was registered under /library/{mal_id}/poster.
+        .route("/storage/poster/{mal_id}", patch(library::set_poster))
         .route("/storage/poster/{mal_id}", delete(storage::delete_poster))
         // Settings routes
         .route("/settings", get(settings::get_settings))

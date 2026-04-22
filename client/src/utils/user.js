@@ -75,7 +75,7 @@ async function refreshFromMangadex(mal_id) {
 
 async function setSeriesPoster(mal_id, url) {
   return (
-    await axios.patch(`/api/user/library/${mal_id}/poster`, { url })
+    await axios.patch(`/api/user/storage/poster/${mal_id}`, { url })
   ).data;
 }
 

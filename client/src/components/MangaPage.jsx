@@ -12,6 +12,7 @@ import SettingsContext from "@/SettingsContext.js";
 import {
   useDeleteManga,
   useLibrary,
+  useSetPoster,
   useUpdateManga,
   useUpdateVolumesOwned,
 } from "@/hooks/useLibrary.js";
@@ -22,7 +23,7 @@ import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
 import { refreshFromMangadex } from "@/utils/user.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { db } from "@/lib/db.js";
-import { removePoster, setSeriesPoster, uploadPoster } from "@/utils/user.js";
+import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -66,6 +67,7 @@ export default function MangaPage({ manga, adult_content_level }) {
   const updateManga = useUpdateManga();
   const deleteManga = useDeleteManga();
   const updateVolumesOwned = useUpdateVolumesOwned();
+  const setPosterMutation = useSetPoster();
   const updateVolume = useUpdateVolume();
   const [coffretModalOpen, setCoffretModalOpen] = useState(false);
 
@@ -966,12 +968,16 @@ export default function MangaPage({ manga, adult_content_level }) {
         mal_id={manga.mal_id}
         currentUrl={poster}
         onConfirm={async (url) => {
-          await setSeriesPoster(manga.mal_id, url);
+          // Offline-safe: enqueue via Dexie + outbox instead of a direct
+          // axios call. Local state (Dexie → useLiveQuery → liveLibraryRow)
+          // updates immediately, and the PATCH fires whenever the server is
+          // reachable. A queryClient invalidation is no longer needed —
+          // useLiveQuery on Dexie is the canonical source for the UI.
+          await setPosterMutation.mutateAsync({
+            mal_id: manga.mal_id,
+            url,
+          });
           setPoster(url);
-          // Invalidate library so Dexie re-caches with the new cover URL
-          // server-side. Otherwise a reload would rehydrate from the stale
-          // `location.state.manga` snapshot.
-          queryClient.invalidateQueries({ queryKey: ["library"] });
           setCoverPickerOpen(false);
         }}
       />
