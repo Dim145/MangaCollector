@@ -54,22 +54,27 @@ export function isFullyOnline() {
 }
 
 /**
- * Detect the SPA-fallback trap: when the reverse proxy loses the backend
- * route (container down, deploy in progress…) and the request falls through
- * to the static client nginx, we get `200 OK` + `text/html` for `/auth/*`
- * or `/api/*`. That's a lie — the backend is actually unreachable. Any
- * genuine backend response is JSON (or plain text for the legacy health
- * endpoint), never HTML.
+ * Detect a genuine backend response vs a proxy-layer impostor.
+ *
+ * Failure modes we want to catch:
+ *   - Client nginx SPA fallback → 200 with `text/html` (index.html served
+ *     when Traefik loses the backend route but the client container is up)
+ *   - Traefik default 404 → `text/plain; charset=utf-8` "404 page not
+ *     found" (when BOTH containers are down and no router matches)
+ *   - Any other proxy-layer error page
+ *
+ * The real backend ALWAYS responds with `application/json` — every handler
+ * either returns `Json<T>` on success or an `AppError` serialized as JSON.
+ * Narrowing the content-type check to JSON only is the simplest, most
+ * reliable way to tell backend responses from proxy-layer impostors.
  */
 function looksLikeBackendResponse(headers) {
-  const ct = headers?.["content-type"] ?? "";
-  // axios normalizes header names to lowercase, but Vite dev proxy might
-  // keep mixed case — check both defensively.
-  const ctAny = ct || headers?.["Content-Type"] || "";
+  // axios lowercases response headers, but a Vite dev proxy might keep
+  // them mixed-case — check both defensively.
+  const ct = headers?.["content-type"] ?? headers?.["Content-Type"] ?? "";
   return (
-    ctAny.includes("application/json") ||
-    ctAny.includes("text/plain") ||
-    ctAny.includes("application/problem+json")
+    ct.includes("application/json") ||
+    ct.includes("application/problem+json")
   );
 }
 
