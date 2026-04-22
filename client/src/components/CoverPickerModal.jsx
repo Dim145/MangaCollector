@@ -199,9 +199,13 @@ export default function CoverPickerModal({
             }}
           />
 
-          {isPending ? (
-            <Skeleton className="h-[60vh] max-h-[540px] w-auto aspect-[2/3] rounded-lg" />
-          ) : selected ? (
+          {/* Priority order matters for the close animation: as long as we
+              have a `selected` URL (true throughout the lifetime of an open
+              modal — seeded from `currentUrl` on open), we render the image
+              first. Showing a <Skeleton> during the close phase would
+              unmask the red ambient wash behind and produce a brief red
+              flash before the overlay fade-out completes. */}
+          {selected ? (
             <img
               key={selected}
               src={selected}
@@ -213,6 +217,8 @@ export default function CoverPickerModal({
                 transition: swipeX === 0 ? "transform 240ms cubic-bezier(.2,.8,.2,1)" : "none",
               }}
             />
+          ) : isPending ? (
+            <Skeleton className="h-[60vh] max-h-[540px] w-auto aspect-[2/3] rounded-lg" />
           ) : (
             <div className="grid h-[60vh] w-[40vh] max-h-[540px] place-items-center rounded-lg border border-dashed border-border bg-ink-2 text-washi-dim">
               <span

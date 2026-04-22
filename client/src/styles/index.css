@@ -488,6 +488,28 @@
   }
 }
 
+/* Exit counterparts of fade-up / fade-in — same curves, reversed motion.
+   Used by <Modal> to play a closing animation before unmount. */
+@keyframes fade-down-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes slide-down {
   from {
     opacity: 0;
@@ -549,6 +571,14 @@
 }
 .animate-fade-in {
   animation: fade-in 0.4s ease-out both;
+}
+/* Exit animations — shorter duration (closing should feel snappier than
+   opening) + reversed easing so the motion "settles" instead of "launches". */
+.animate-fade-down-out {
+  animation: fade-down-out 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+}
+.animate-fade-out {
+  animation: fade-out 0.22s ease-in both;
 }
 .animate-slide-down {
   animation: slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;

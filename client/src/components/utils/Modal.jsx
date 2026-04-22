@@ -1,5 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
+/** Must match `animate-fade-out` / `animate-fade-down-out` duration in CSS. */
+const CLOSE_ANIM_MS = 220;
 
 export default function Modal({
   children,
@@ -7,8 +10,50 @@ export default function Modal({
   additionalClasses = "",
   handleClose,
 }) {
+  // Decouple DOM lifecycle from the `popupOpen` prop:
+  //   - opening:  mount immediately, play entry animation
+  //   - closing:  flag `leaving=true`, play exit animation, unmount after it
+  // This is the classic "delayed unmount" pattern for exit animations with
+  // no library dependency.
+  const [mounted, setMounted] = useState(popupOpen);
+  const [leaving, setLeaving] = useState(false);
+  const closeTimer = useRef(null);
+
   useEffect(() => {
-    if (!popupOpen) return;
+    if (popupOpen) {
+      // Opening (or cancelled a mid-flight close): make sure we're mounted
+      // and NOT in exit-animation state.
+      if (closeTimer.current) {
+        clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
+      setMounted(true);
+      setLeaving(false);
+      return;
+    }
+
+    // popupOpen flipped false — if we weren't mounted there's nothing to do
+    // (prevents flashing an exit animation on first render).
+    if (!mounted) return;
+
+    setLeaving(true);
+    closeTimer.current = setTimeout(() => {
+      setMounted(false);
+      setLeaving(false);
+      closeTimer.current = null;
+    }, CLOSE_ANIM_MS);
+
+    return () => {
+      if (closeTimer.current) {
+        clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [popupOpen]);
+
+  useEffect(() => {
+    if (!mounted) return;
 
     const handleKeyUp = (e) => {
       if (e.key === "Escape" && typeof handleClose === "function") {
@@ -24,16 +69,22 @@ export default function Modal({
       document.body.style.overflow = prevOverflow;
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [popupOpen, handleClose]);
+  }, [mounted, handleClose]);
 
-  if (!popupOpen) return null;
+  if (!mounted) return null;
   if (typeof document === "undefined") return null;
+
+  // Swap animations based on phase. Entry uses fade-in/fade-up (existing
+  // classes); exit uses fade-out/fade-down-out which mirror the entry's
+  // opacity+translate curves in reverse, slightly snappier.
+  const overlayAnim = leaving ? "animate-fade-out" : "animate-fade-in";
+  const contentAnim = leaving ? "animate-fade-down-out" : "animate-fade-up";
 
   const overlay = (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 flex items-center justify-center bg-ink-0/80 backdrop-blur-md p-4 animate-fade-in"
+      className={`fixed inset-0 flex items-center justify-center bg-ink-0/80 backdrop-blur-md p-4 ${overlayAnim}`}
       // Inline style z-index to escape any stacking context traps from
       // ancestors (DefaultBackground's `isolate`, transformed elements, etc.)
       // Portaled to document.body as belt-and-braces.
@@ -66,7 +117,7 @@ export default function Modal({
       )}
 
       <div
-        className={`relative max-h-[calc(100dvh-2rem)] max-w-full overflow-auto animate-fade-up ${additionalClasses}`}
+        className={`relative max-h-[calc(100dvh-2rem)] max-w-full overflow-auto ${contentAnim} ${additionalClasses}`}
       >
         {children}
       </div>
