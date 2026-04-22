@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
+import Tooltip from "./ui/Tooltip.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -102,17 +103,23 @@ export default function Volume({
     <div
       className={`group relative rounded-xl border transition-all duration-300 ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
     >
-      {/* Collector hanko seal — pinned like a wax seal at the card's top-right corner */}
+      {/* Collector hanko seal — pinned like a wax seal at the card's top-right corner.
+          Wrapped in <Tooltip> for a reliable CSS-only hover label; the native
+          `title` attribute was unreliable on this absolutely-positioned
+          decorative span in certain browser/layout combos. */}
       {collectorStatus && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-2 -top-2 z-20 grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_2px_12px_rgba(201,169,97,0.6)] ring-1 ring-gold/80"
-          style={{ transform: "rotate(-8deg)" }}
-          title={t("volume.collectorTitle")}
-        >
-          <span className="font-display text-[10px] font-bold leading-none">
-            限
-          </span>
+        <span className="absolute -right-2 -top-2 z-20">
+          <Tooltip text={t("volume.collectorTitle")} placement="top">
+            <span
+              aria-label={t("volume.collectorTitle")}
+              className="grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_2px_12px_rgba(201,169,97,0.6)] ring-1 ring-gold/80"
+              style={{ transform: "rotate(-8deg)" }}
+            >
+              <span className="font-display text-[10px] font-bold leading-none">
+                限
+              </span>
+            </span>
+          </Tooltip>
         </span>
       )}
 
@@ -288,6 +295,7 @@ export default function Volume({
                   style={
                     collectorStatus ? { transform: "rotate(-6deg)" } : undefined
                   }
+                  title={t("badges.collector")}
                 >
                   限
                 </span>

@@ -188,7 +188,10 @@ export default function MalRecommendationModal({
               className="h-32 w-24 shrink-0 rounded-md border border-border object-cover shadow-lg"
             />
           ) : (
-            <div className="h-32 w-24 shrink-0 rounded-md border border-border bg-ink-2 grid place-items-center font-display text-3xl italic text-hanko/40">
+            <div
+              className="h-32 w-24 shrink-0 rounded-md border border-border bg-ink-2 grid place-items-center font-display text-3xl italic text-hanko/40"
+              title={t("badges.volume")}
+            >
               巻
             </div>
           )}

@@ -253,6 +253,7 @@ export default function AddCoffretModal({
                     : "bg-ink-2 text-washi-dim"
                 }`}
                 style={collector ? { transform: "rotate(-6deg)" } : undefined}
+                title={t("badges.collector")}
               >
                 限
               </span>

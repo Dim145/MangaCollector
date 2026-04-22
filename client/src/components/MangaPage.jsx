@@ -386,7 +386,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-ink-2">
-                    <span className="font-display text-6xl italic text-hanko/40">
+                    <span
+                      className="font-display text-6xl italic text-hanko/40"
+                      title={t("badges.volume")}
+                    >
                       巻
                     </span>
                   </div>
@@ -859,6 +862,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <span
                   aria-hidden="true"
                   className="font-display text-[13px] leading-none text-washi"
+                  title={t("badges.coffret")}
                 >
                   盒
                 </span>
@@ -977,7 +981,10 @@ export default function MangaPage({ manga, adult_content_level }) {
         handleClose={() => setConfirmDelete(false)}
       >
         <div className="max-w-md rounded-2xl border border-border bg-ink-1 p-6 shadow-2xl">
-          <div className="hanko-seal mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
+          <div
+            className="hanko-seal mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md font-display text-sm"
+            title={t("badges.deletion")}
+          >
             削
           </div>
           <h3 className="text-center font-display text-xl font-semibold text-washi">

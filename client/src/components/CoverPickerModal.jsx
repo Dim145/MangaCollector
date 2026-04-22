@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/components/utils/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
+import Tooltip from "@/components/ui/Tooltip.jsx";
 import { useCoverPool } from "@/hooks/useCoverPool.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -214,7 +215,12 @@ export default function CoverPickerModal({
             />
           ) : (
             <div className="grid h-[60vh] w-[40vh] max-h-[540px] place-items-center rounded-lg border border-dashed border-border bg-ink-2 text-washi-dim">
-              <span className="font-display text-7xl italic text-hanko/40">巻</span>
+              <span
+                className="font-display text-7xl italic text-hanko/40"
+                title={t("badges.volume")}
+              >
+                巻
+              </span>
             </div>
           )}
 
@@ -296,26 +302,42 @@ export default function CoverPickerModal({
                         draggable={false}
                         className="h-16 w-11 object-cover transition-transform duration-500 group-hover:scale-105"
                       />
+                      {/* Badges: CSS-only Tooltip (native `title` misfired
+                          inside the scrolling strip / portaled modal). Clicks
+                          on the wrapper span bubble up to the outer <button>
+                          which handles selection. */}
                       {isCurrent && (
-                        <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute left-0.5 top-0.5 grid h-3.5 w-3.5 place-items-center rounded-[2px] bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow"
-                          style={{ transform: "rotate(-6deg)" }}
-                        >
-                          <span className="font-display text-[8px] font-bold leading-none">
-                            現
-                          </span>
+                        <span className="absolute left-0.5 top-0.5">
+                          <Tooltip
+                            text={t("badges.currentCover")}
+                            placement="bottom"
+                          >
+                            <span
+                              className="grid h-3.5 w-3.5 place-items-center rounded-[2px] bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow"
+                              style={{ transform: "rotate(-6deg)" }}
+                            >
+                              <span className="font-display text-[8px] font-bold leading-none">
+                                現
+                              </span>
+                            </span>
+                          </Tooltip>
                         </span>
                       )}
                       {isSelected && !isCurrent && (
-                        <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute right-0.5 top-0.5 grid h-3.5 w-3.5 place-items-center rounded-[2px] bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow animate-fade-in"
-                          style={{ transform: "rotate(6deg)" }}
-                        >
-                          <span className="font-display text-[8px] font-bold leading-none">
-                            選
-                          </span>
+                        <span className="absolute right-0.5 top-0.5 animate-fade-in">
+                          <Tooltip
+                            text={t("badges.selectedCover")}
+                            placement="bottom"
+                          >
+                            <span
+                              className="grid h-3.5 w-3.5 place-items-center rounded-[2px] bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow"
+                              style={{ transform: "rotate(6deg)" }}
+                            >
+                              <span className="font-display text-[8px] font-bold leading-none">
+                                選
+                              </span>
+                            </span>
+                          </Tooltip>
                         </span>
                       )}
                     </button>
@@ -413,26 +435,45 @@ function NavChevron({ direction, onClick, label }) {
 }
 
 function HeroSeals({ isCurrent, isPending, t }) {
+  // CSS-only Tooltip wrapper for the hero seals. Pointer gestures that start
+  // on a seal still bubble to the parent's onPointerDown (setPointerCapture
+  // on that parent funnels subsequent events there), so swipe keeps working.
   return (
     <>
       {isCurrent && (
-        <span
-          className="pointer-events-none absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-md bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_4px_14px_rgba(201,169,97,0.6)] ring-1 ring-gold/80"
-          style={{ transform: "rotate(-6deg)" }}
-          title={t("coverPicker.currentBadgeTitle")}
-          aria-label={t("coverPicker.currentBadgeTitle")}
-        >
-          <span className="font-display text-lg font-bold leading-none">現</span>
+        <span className="absolute right-4 top-4 z-10">
+          <Tooltip
+            text={t("coverPicker.currentBadgeTitle")}
+            placement="left"
+          >
+            <span
+              className="grid h-10 w-10 place-items-center rounded-md bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_4px_14px_rgba(201,169,97,0.6)] ring-1 ring-gold/80"
+              style={{ transform: "rotate(-6deg)" }}
+              aria-label={t("coverPicker.currentBadgeTitle")}
+            >
+              <span className="font-display text-lg font-bold leading-none">
+                現
+              </span>
+            </span>
+          </Tooltip>
         </span>
       )}
       {isPending && !isCurrent && (
-        <span
-          className="pointer-events-none absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-md bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow-[0_4px_14px_rgba(0,0,0,0.5)] ring-1 ring-moegi/80 animate-fade-in"
-          style={{ transform: "rotate(6deg)" }}
-          title={t("coverPicker.selectedBadgeTitle")}
-          aria-label={t("coverPicker.selectedBadgeTitle")}
-        >
-          <span className="font-display text-lg font-bold leading-none">選</span>
+        <span className="absolute right-4 top-4 z-10 animate-fade-in">
+          <Tooltip
+            text={t("coverPicker.selectedBadgeTitle")}
+            placement="left"
+          >
+            <span
+              className="grid h-10 w-10 place-items-center rounded-md bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow-[0_4px_14px_rgba(0,0,0,0.5)] ring-1 ring-moegi/80"
+              style={{ transform: "rotate(6deg)" }}
+              aria-label={t("coverPicker.selectedBadgeTitle")}
+            >
+              <span className="font-display text-lg font-bold leading-none">
+                選
+              </span>
+            </span>
+          </Tooltip>
         </span>
       )}
     </>

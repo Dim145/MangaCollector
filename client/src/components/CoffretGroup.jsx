@@ -114,9 +114,9 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
         <header className="relative flex flex-wrap items-baseline gap-x-4 gap-y-2 px-4 pt-4 pb-3 md:px-5 md:pt-5">
           <div className="flex items-baseline gap-2">
             <span
-              aria-hidden="true"
               className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-washi text-ink-0 shadow-[0_1px_4px_rgba(10,9,8,0.4)]"
               style={{ transform: "rotate(-4deg)" }}
+              title={t("badges.coffret")}
             >
               <span className="font-display text-[11px] font-bold leading-none">
                 盒
@@ -239,9 +239,9 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
         <header className="relative space-y-3 px-4 pt-4 pb-4 md:px-5 md:pt-5">
           <div className="flex items-center gap-2">
             <span
-              aria-hidden="true"
               className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-washi text-ink-0 shadow-[0_1px_4px_rgba(10,9,8,0.4)]"
               style={{ transform: "rotate(-4deg)" }}
+              title={t("badges.coffret")}
             >
               <span className="font-display text-[11px] font-bold leading-none">
                 盒

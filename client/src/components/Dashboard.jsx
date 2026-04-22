@@ -255,7 +255,10 @@ function EmptyState({ hasQuery, onAdd }) {
   const t = useT();
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-ink-1/30 px-6 py-16 text-center animate-fade-up">
-      <div className="hanko-seal mb-4 grid h-16 w-16 place-items-center rounded-md font-display text-xl">
+      <div
+        className="hanko-seal mb-4 grid h-16 w-16 place-items-center rounded-md font-display text-xl"
+        title={t("badges.empty")}
+      >
         空
       </div>
       <h2 className="font-display text-2xl italic text-washi">

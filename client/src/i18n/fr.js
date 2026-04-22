@@ -185,6 +185,21 @@ export default {
     adding: "Ajout…",
     sourceBothTitle: "Présent sur MyAnimeList et MangaDex",
   },
+  // Traductions centralisées des kanji utilisés comme badges visuels.
+  // Chaque clé cible UN usage sémantique — un même kanji peut apparaître
+  // sous plusieurs clés quand le contexte change le sens (ex. 限 collector
+  // vs 限 quota atteint).
+  badges: {
+    collector: "Édition collector",
+    rateLimit: "Quota atteint",
+    coffret: "Coffret",
+    currentCover: "Couverture actuelle",
+    selectedCover: "Sélection en attente",
+    deletion: "Suppression",
+    search: "Recherche",
+    volume: "Tome",
+    empty: "Vide",
+  },
   coverPicker: {
     label: "COUVERTURES · 絵",
     title: "Changer la couverture",

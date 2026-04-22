@@ -183,6 +183,17 @@ export default {
     adding: "Añadiendo…",
     sourceBothTitle: "Disponible en MyAnimeList y MangaDex",
   },
+  badges: {
+    collector: "Edición coleccionista",
+    rateLimit: "Límite alcanzado",
+    coffret: "Caja",
+    currentCover: "Portada actual",
+    selectedCover: "Selección pendiente",
+    deletion: "Eliminación",
+    search: "Búsqueda",
+    volume: "Tomo",
+    empty: "Vacío",
+  },
   coverPicker: {
     label: "PORTADAS · 絵",
     title: "Cambiar la portada",

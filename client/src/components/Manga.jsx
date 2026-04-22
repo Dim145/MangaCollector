@@ -40,7 +40,10 @@ export default function Manga({ manga, adult_content_level, allCollector }) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-2 to-ink-3">
-            <span className="font-display text-4xl italic text-hanko/40">
+            <span
+              className="font-display text-4xl italic text-hanko/40"
+              title={t("badges.volume")}
+            >
               巻
             </span>
           </div>

@@ -180,6 +180,17 @@ export default {
     adding: "Adding…",
     sourceBothTitle: "Available on both MyAnimeList and MangaDex",
   },
+  badges: {
+    collector: "Collector edition",
+    rateLimit: "Rate limit reached",
+    coffret: "Box set",
+    currentCover: "Current cover",
+    selectedCover: "Pending selection",
+    deletion: "Deletion",
+    search: "Search",
+    volume: "Volume",
+    empty: "Empty",
+  },
   coverPicker: {
     label: "COVERS · 絵",
     title: "Change the cover",

@@ -81,7 +81,10 @@ function GapsPanel({ middleGaps, loading, t, library }) {
                     className="h-12 w-9 shrink-0 rounded object-cover"
                   />
                 ) : (
-                  <div className="grid h-12 w-9 shrink-0 place-items-center rounded bg-ink-2 font-display text-xs italic text-washi-dim">
+                  <div
+                    className="grid h-12 w-9 shrink-0 place-items-center rounded bg-ink-2 font-display text-xs italic text-washi-dim"
+                    title={t("badges.volume")}
+                  >
                     巻
                   </div>
                 )}
@@ -178,7 +181,10 @@ function StalePanel({ stale, loading, t, library }) {
                     className="h-12 w-9 shrink-0 rounded object-cover opacity-70 saturate-50 transition group-hover:opacity-100 group-hover:saturate-100"
                   />
                 ) : (
-                  <div className="grid h-12 w-9 shrink-0 place-items-center rounded bg-ink-2 font-display text-xs italic text-washi-dim">
+                  <div
+                    className="grid h-12 w-9 shrink-0 place-items-center rounded bg-ink-2 font-display text-xs italic text-washi-dim"
+                    title={t("badges.volume")}
+                  >
                     巻
                   </div>
                 )}
