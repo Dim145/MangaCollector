@@ -34,6 +34,10 @@ fn user_router() -> Router<AppState> {
             get(library::refresh_from_mangadex),
         )
         .route("/library/{mal_id}/covers", get(library::list_covers))
+        .route(
+            "/library/{mal_id}/volume-covers",
+            get(library::list_volume_covers),
+        )
         .route("/library/{mal_id}", patch(library::update_manga))
         .route(
             "/library/{mal_id}/{owned}",

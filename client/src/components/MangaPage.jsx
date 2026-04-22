@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useLibrary.js";
 import { useVolumesForManga, useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
+import { useVolumeCovers } from "@/hooks/useVolumeCovers.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
 import { refreshFromMangadex } from "@/utils/user.js";
@@ -57,6 +58,7 @@ export default function MangaPage({ manga, adult_content_level }) {
     manga.mal_id,
   );
   const { data: coffrets } = useCoffretsForManga(manga.mal_id);
+  const { data: volumeCoverMap } = useVolumeCovers(manga.mal_id);
   // `manga` comes frozen from React Router's location.state, so its volume
   // count never updates after navigation. Grab the live row from the Dexie-
   // backed library so edits (and background syncs) are reflected here.
@@ -912,6 +914,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                         locked
                         onUpdate={volumeUpdateCallback}
                         currencySetting={currencySetting}
+                        coverUrl={volumeCoverMap?.[vol.vol_num]}
+                        blurImage={isBlurred}
                       />
                     ))}
                   </CoffretGroup>
@@ -932,6 +936,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                         collector={vol.collector}
                         onUpdate={volumeUpdateCallback}
                         currencySetting={currencySetting}
+                        coverUrl={volumeCoverMap?.[vol.vol_num]}
+                        blurImage={isBlurred}
                       />
                     ))}
                   </div>

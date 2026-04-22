@@ -25,6 +25,11 @@ export default function Volume({
   locked = false,
   onUpdate,
   currencySetting,
+  // Optional per-volume cover URL (from MangaDex via the useVolumeCovers
+  // hook). When present, the click-target badge is replaced by the actual
+  // book cover with a small number chip pinned to the corner.
+  coverUrl,
+  blurImage = false,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [ownedStatus, setOwnedStatus] = useState(owned);
@@ -124,32 +129,100 @@ export default function Volume({
       )}
 
       <div className="flex items-center gap-3 p-4">
-        <button
-          onClick={toggleOwned}
-          disabled={isEditing || isLoading || locked}
-          aria-label={
-            locked
-              ? t("volume.lockedAria")
-              : ownedStatus
-                ? t("volume.markNotOwned")
-                : t("volume.markOwned")
-          }
-          title={locked ? t("volume.lockedTitle") : undefined}
-          className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${badgeClasses} ${locked ? "cursor-not-allowed" : ""}`}
-        >
-          {isLoading ? (
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-          ) : (
-            <>
-              <span className="text-[10px] font-semibold uppercase tracking-wider">
-                {t("manga.volumesShort")}
+        {coverUrl ? (
+          /* Cover-mode click target — a tall 2:3 thumbnail that stands in
+             for the number badge. Ownership state is carried by ring color
+             (gold collector > hanko owned > border missing) + dimming
+             overlay when not owned. A small number chip is pinned to the
+             bottom-right, like a library sticker on a physical volume. */
+          <button
+            onClick={toggleOwned}
+            disabled={isEditing || isLoading || locked}
+            aria-label={
+              locked
+                ? t("volume.lockedAria")
+                : ownedStatus
+                  ? t("volume.markNotOwned")
+                  : t("volume.markOwned")
+            }
+            title={locked ? t("volume.lockedTitle") : undefined}
+            className={`group/vol relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-md border shadow-md transition-all duration-300 ${
+              collectorStatus
+                ? "border-gold ring-1 ring-gold/60 shadow-[0_0_12px_rgba(201,169,97,0.35)]"
+                : ownedStatus
+                  ? "border-hanko/70 shadow-[0_0_10px_rgba(220,38,38,0.2)]"
+                  : "border-border"
+            } ${locked ? "cursor-not-allowed" : "hover:-translate-y-0.5"} ${isEditing ? "opacity-60" : ""}`}
+          >
+            <img
+              src={coverUrl}
+              alt=""
+              loading="lazy"
+              draggable={false}
+              className={`h-full w-full select-none object-cover transition-transform duration-500 group-hover/vol:scale-105 ${
+                blurImage ? "blur-md" : ""
+              } ${!ownedStatus && !locked ? "brightness-40 grayscale" : ""}`}
+            />
+
+            {/* Missing-state overlay — tinted wash that evokes "not yet
+                in the collection" without fully hiding the cover. */}
+            {!ownedStatus && !locked && (
+              <span className="pointer-events-none absolute inset-0 bg-ink-0/55" />
+            )}
+
+            {/* Loading spinner while saving */}
+            {isLoading && (
+              <span className="pointer-events-none absolute inset-0 grid place-items-center bg-ink-0/70">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-washi/40 border-t-washi" />
               </span>
-              <span className="absolute -bottom-0.5 right-0.5 text-[9px]">
-                {volNum}
-              </span>
-            </>
-          )}
-        </button>
+            )}
+
+            {/* Volume number chip — bottom-right corner. Color tracks the
+                ownership state so it's readable even when the cover art
+                is bright/dark/busy. */}
+            <span
+              className={`pointer-events-none absolute bottom-0.5 right-0.5 grid min-h-4 min-w-4 place-items-center rounded-sm px-1 font-mono text-[9px] font-bold leading-none shadow ${
+                collectorStatus
+                  ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
+                  : ownedStatus
+                    ? "bg-hanko text-washi"
+                    : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
+              }`}
+            >
+              {volNum}
+            </span>
+          </button>
+        ) : (
+          /* Legacy number-badge click target — used when no cover URL is
+             available (series without a MangaDex match, or volume not
+             published on MangaDex yet). */
+          <button
+            onClick={toggleOwned}
+            disabled={isEditing || isLoading || locked}
+            aria-label={
+              locked
+                ? t("volume.lockedAria")
+                : ownedStatus
+                  ? t("volume.markNotOwned")
+                  : t("volume.markOwned")
+            }
+            title={locked ? t("volume.lockedTitle") : undefined}
+            className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${badgeClasses} ${locked ? "cursor-not-allowed" : ""}`}
+          >
+            {isLoading ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <>
+                <span className="text-[10px] font-semibold uppercase tracking-wider">
+                  {t("manga.volumesShort")}
+                </span>
+                <span className="absolute -bottom-0.5 right-0.5 text-[9px]">
+                  {volNum}
+                </span>
+              </>
+            )}
+          </button>
+        )}
 
         <div className="min-w-0 flex-1">
           <p className="flex items-baseline gap-2 font-display text-base font-semibold leading-none text-washi">

@@ -175,6 +175,39 @@ pub async fn list_covers(
     Ok(Json(json!({ "covers": covers })))
 }
 
+/// GET /api/user/library/:mal_id/volume-covers
+///
+/// Per-volume cover URLs keyed by volume number. Used by MangaPage to show
+/// the matching cover on each Volume card. MangaDex-only (MAL doesn't
+/// publish per-volume covers); returns an empty object for series without
+/// a MangaDex cross-reference.
+pub async fn list_volume_covers(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(mal_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let entries = library::get_user_manga(&state.db, mal_id, user.id).await?;
+    let entry = entries
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::NotFound("Library entry not found".into()))?;
+
+    let covers = cover_pool::fetch_volume_covers(
+        &state.http_client,
+        state.cache.as_deref(),
+        entry.mangadex_id.as_deref(),
+    )
+    .await;
+
+    // Stringify keys for the JSON shape the client expects.
+    let payload: serde_json::Map<String, serde_json::Value> = covers
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), serde_json::Value::String(v)))
+        .collect();
+
+    Ok(Json(json!({ "covers": payload })))
+}
+
 #[derive(Deserialize)]
 pub struct SetPosterRequest {
     pub url: String,
