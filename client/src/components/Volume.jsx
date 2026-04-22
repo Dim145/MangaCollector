@@ -48,10 +48,13 @@ export default function Volume({
   const t = useT();
 
   // Hover (desktop) + long-press (touch) → notifies the shared preview
-  // controller (lives in MangaPage). Only enabled when a cover is
-  // available and we're not in edit mode.
+  // controller (lives in MangaPage). Disabled when the adult filter is
+  // active (blurImage=true for level 0 or 1) — users who've asked to
+  // blur / hide adult content shouldn't be able to peek around the
+  // filter via the preview. The thumbnail itself stays blurred as-is;
+  // only the "zoom on hover/long-press" interaction is neutralised.
   const preview = useCoverPreviewGesture({
-    enabled: Boolean(coverUrl) && !isEditing,
+    enabled: Boolean(coverUrl) && !isEditing && !blurImage,
     onShow: (rect, sticky) => onPreviewShow?.(volNum, rect, sticky),
     onRelease: () => onPreviewRelease?.(),
   });
