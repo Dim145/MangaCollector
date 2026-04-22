@@ -10,7 +10,7 @@ use crate::errors::AppError;
 use crate::models::library::{
     AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, UpdateVolumesRequest,
 };
-use crate::services::library;
+use crate::services::{cover_pool, library};
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -144,6 +144,64 @@ pub async fn refresh_from_mangadex(
         "new_genres": new_genres,
         "new_name": new_name,
         "new_image_url_jpg": new_image_url_jpg,
+    })))
+}
+
+/// GET /api/user/library/:mal_id/covers
+///
+/// Returns every alternate cover MAL + MangaDex know about for this series,
+/// in a single deduped list. Used by the cover-picker modal on MangaPage.
+pub async fn list_covers(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(mal_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Look up the entry so we know which external ids to query — a
+    // MAL-sourced row might also carry a mangadex_id from cross-linking.
+    let entries = library::get_user_manga(&state.db, mal_id, user.id).await?;
+    let entry = entries
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::NotFound("Library entry not found".into()))?;
+
+    let covers = cover_pool::fetch_cover_pool(
+        &state.http_client,
+        state.cache.as_deref(),
+        entry.mal_id.filter(|id| *id > 0),
+        entry.mangadex_id.as_deref(),
+    )
+    .await;
+
+    Ok(Json(json!({ "covers": covers })))
+}
+
+#[derive(Deserialize)]
+pub struct SetPosterRequest {
+    pub url: String,
+}
+
+/// PATCH /api/user/library/:mal_id/poster
+///
+/// Set the series' cover to an arbitrary URL — used by the cover-picker.
+/// Rejects anything outside our host whitelist (MAL / MangaDex) so the
+/// endpoint can't be abused to inject tracking pixels or unrelated hosts.
+pub async fn set_poster(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(mal_id): Path<i32>,
+    Json(body): Json<SetPosterRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if !cover_pool::is_whitelisted_poster_url(&body.url) {
+        return Err(AppError::BadRequest(
+            "URL not allowed — must be an official MAL or MangaDex cover".into(),
+        ));
+    }
+
+    library::change_poster(&state.db, user.id, mal_id, Some(body.url.clone())).await?;
+
+    Ok(Json(json!({
+        "success": true,
+        "new_image_url_jpg": body.url,
     })))
 }
 

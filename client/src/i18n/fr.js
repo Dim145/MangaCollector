@@ -185,6 +185,22 @@ export default {
     adding: "Ajout…",
     sourceBothTitle: "Présent sur MyAnimeList et MangaDex",
   },
+  coverPicker: {
+    label: "COUVERTURES · 絵",
+    title: "Changer la couverture",
+    loading: "Chargement…",
+    countLabel: "{n} disponibles",
+    empty:
+      "Aucune couverture alternative trouvée sur MAL ou MangaDex pour cette série.",
+    confirm: "Utiliser cette couverture",
+    currentBadgeTitle: "Couverture actuelle",
+    selectedBadgeTitle: "Sélection en attente",
+    prev: "Couverture précédente",
+    next: "Couverture suivante",
+    sourceMal: "Source · MyAnimeList",
+    sourceMangadex: "Source · MangaDex",
+    sourceCustom: "Source · personnalisée",
+  },
   mangadexPrefill: {
     title: "Ajouter depuis MangaDex",
     subtitle:

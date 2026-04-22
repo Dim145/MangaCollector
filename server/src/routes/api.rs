@@ -33,6 +33,8 @@ fn user_router() -> Router<AppState> {
             "/library/{mal_id}/refresh-from-mangadex",
             get(library::refresh_from_mangadex),
         )
+        .route("/library/{mal_id}/covers", get(library::list_covers))
+        .route("/library/{mal_id}/poster", patch(library::set_poster))
         .route("/library/{mal_id}", patch(library::update_manga))
         .route(
             "/library/{mal_id}/{owned}",

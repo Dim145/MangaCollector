@@ -4,6 +4,7 @@ import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
 import CoffretGroup from "./CoffretGroup";
 import AddCoffretModal from "./AddCoffretModal";
+import CoverPickerModal from "./CoverPickerModal.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import Modal from "@/components/utils/Modal.jsx";
@@ -21,7 +22,7 @@ import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
 import { refreshFromMangadex } from "@/utils/user.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { db } from "@/lib/db.js";
-import { removePoster, uploadPoster } from "@/utils/user.js";
+import { removePoster, setSeriesPoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -33,6 +34,7 @@ export default function MangaPage({ manga, adult_content_level }) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [posterPopUp, setPosterPopUp] = useState(false);
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -359,7 +361,25 @@ export default function MangaPage({ manga, adult_content_level }) {
                   <img
                     src={displayPoster}
                     alt={name}
-                    onClick={() => !isBlurred && setPosterPopUp(true)}
+                    onClick={() => {
+                      if (isBlurred) return;
+                      // Custom-uploaded posters (served from our own
+                      // /storage/poster/ endpoint) always open in zoom —
+                      // the user explicitly chose that image, no picker.
+                      // Otherwise, open the carousel when we have any
+                      // external reference (MAL id OR MangaDex id), even
+                      // for custom entries with negative mal_ids.
+                      const isCustomUpload =
+                        typeof displayPoster === "string" &&
+                        !displayPoster.startsWith("http");
+                      const hasExternalRef =
+                        manga.mal_id > 0 || Boolean(liveMangadexId);
+                      if (isCustomUpload || !hasExternalRef) {
+                        setPosterPopUp(true);
+                      } else {
+                        setCoverPickerOpen(true);
+                      }
+                    }}
                     className={`h-full w-full object-cover transition-transform duration-700 ${
                       isBlurred ? "blur-lg" : "cursor-zoom-in hover:scale-105"
                     }`}
@@ -935,6 +955,22 @@ export default function MangaPage({ manga, adult_content_level }) {
           className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
         />
       </Modal>
+
+      <CoverPickerModal
+        open={coverPickerOpen}
+        onClose={() => setCoverPickerOpen(false)}
+        mal_id={manga.mal_id}
+        currentUrl={poster}
+        onConfirm={async (url) => {
+          await setSeriesPoster(manga.mal_id, url);
+          setPoster(url);
+          // Invalidate library so Dexie re-caches with the new cover URL
+          // server-side. Otherwise a reload would rehydrate from the stale
+          // `location.state.manga` snapshot.
+          queryClient.invalidateQueries({ queryKey: ["library"] });
+          setCoverPickerOpen(false);
+        }}
+      />
 
       <Modal
         popupOpen={confirmDelete}

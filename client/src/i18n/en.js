@@ -180,6 +180,21 @@ export default {
     adding: "Adding…",
     sourceBothTitle: "Available on both MyAnimeList and MangaDex",
   },
+  coverPicker: {
+    label: "COVERS · 絵",
+    title: "Change the cover",
+    loading: "Loading…",
+    countLabel: "{n} available",
+    empty: "No alternate covers found on MAL or MangaDex for this series.",
+    confirm: "Use this cover",
+    currentBadgeTitle: "Current cover",
+    selectedBadgeTitle: "Pending selection",
+    prev: "Previous cover",
+    next: "Next cover",
+    sourceMal: "Source · MyAnimeList",
+    sourceMangadex: "Source · MangaDex",
+    sourceCustom: "Source · custom",
+  },
   mangadexPrefill: {
     title: "Add from MangaDex",
     subtitle:
