@@ -608,6 +608,27 @@
 .animate-cover-preview-out {
   animation: cover-preview-out 0.16s ease-in both;
 }
+
+/* Delete-account modal — short shake on wrong input */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: shake 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* Delete-account modal — ambient red glow pulse in the background */
+@keyframes delete-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(1.04); }
+}
+.animate-delete-pulse {
+  animation: delete-pulse 2.4s ease-in-out infinite;
+}
 .animate-slide-down {
   animation: slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

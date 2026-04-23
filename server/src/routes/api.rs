@@ -3,7 +3,10 @@ use axum::{
     Router,
 };
 
-use crate::handlers::{activity, coffret, external, health, library, settings, storage, volume};
+use crate::handlers::{
+    activity, auth as auth_handlers, coffret, external, health, library, settings, storage,
+    volume,
+};
 use crate::state::AppState;
 
 pub fn api_router() -> Router<AppState> {
@@ -74,4 +77,6 @@ fn user_router() -> Router<AppState> {
         .route("/settings", post(settings::update_settings))
         // Activity feed
         .route("/activity", get(activity::list_activity))
+        // GDPR — erase the entire account
+        .route("/account", delete(auth_handlers::delete_account))
 }

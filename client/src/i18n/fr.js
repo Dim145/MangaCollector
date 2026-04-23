@@ -200,6 +200,31 @@ export default {
     volume: "Tome",
     empty: "Vide",
   },
+  deleteAccount: {
+    registryLabel: "録 · REGISTRE",
+    registryTitle: "Ce qui va disparaître",
+    registryBody:
+      "Une fois l'effacement confirmé, ces données seront retirées du serveur et de cet appareil. Elles ne peuvent pas être restaurées.",
+    manifestSeries: "Séries archivées",
+    manifestVolumes: "Tomes possédés",
+    manifestCoffrets: "Coffrets constitués",
+    manifestPosters: "Couvertures uploadées",
+    manifestSpent: "Total investi",
+    irreversibleNotice: "Irréversible · Définitif · Non-annulable",
+    registryBack: "Revenir",
+    registryAdvance: "Je comprends, continuer",
+    actLabel: "消 · ACTE FINAL",
+    actTitle: "Scellez l'effacement",
+    actBody:
+      "Tapez votre adresse email ci-dessous pour confirmer. Ce geste physique vaut signature — le serveur supprime immédiatement tout ce qui vous est lié.",
+    typeEmailLabel: "Pour confirmer, tapez votre email",
+    emailUnknown: "(email inconnu)",
+    typeEmailPlaceholder: "votre adresse email",
+    finalCta: "Effacer définitivement",
+    actCancel: "Annuler · revenir en arrière",
+    submitting: "Effacement en cours…",
+    error: "L'effacement a échoué. Votre compte est intact.",
+  },
   coverPicker: {
     label: "COUVERTURES · 絵",
     title: "Changer la couverture",
@@ -377,6 +402,11 @@ export default {
     pendingDiscardMany: " {n} modifications en attente seront perdues.",
     restore: "Restaurer",
     restoreConnectionHint: "Nécessite une connexion",
+    // GDPR erasure — danger zone
+    deleteAccountTitle: "Effacer mon compte",
+    deleteAccountDesc:
+      "Supprime de manière irréversible toutes vos données — bibliothèque, tomes, coffrets, couvertures uploadées, paramètres, historique. Action définitive.",
+    deleteAccountCta: "Effacer mon compte",
     restoreModalTitle: "Restaurer depuis le serveur ?",
     restoreModalBody:
       "Votre archive locale — bibliothèque, tomes, paramètres — sera remplacée par une copie fraîche du serveur.",

@@ -191,6 +191,31 @@ export default {
     volume: "Volume",
     empty: "Empty",
   },
+  deleteAccount: {
+    registryLabel: "録 · REGISTRY",
+    registryTitle: "What will be lost",
+    registryBody:
+      "Once erasure is confirmed, this data is removed from the server and this device. It cannot be restored.",
+    manifestSeries: "Archived series",
+    manifestVolumes: "Owned volumes",
+    manifestCoffrets: "Box sets",
+    manifestPosters: "Uploaded covers",
+    manifestSpent: "Total invested",
+    irreversibleNotice: "Irreversible · Final · Cannot be undone",
+    registryBack: "Go back",
+    registryAdvance: "I understand, continue",
+    actLabel: "消 · FINAL ACT",
+    actTitle: "Seal the erasure",
+    actBody:
+      "Type your email below to confirm. This physical act stands in for a signature — the server wipes everything tied to you immediately.",
+    typeEmailLabel: "To confirm, type your email",
+    emailUnknown: "(unknown email)",
+    typeEmailPlaceholder: "your email address",
+    finalCta: "Erase permanently",
+    actCancel: "Cancel · go back",
+    submitting: "Erasing…",
+    error: "Erasure failed. Your account is intact.",
+  },
   coverPicker: {
     label: "COVERS · 絵",
     title: "Change the cover",
@@ -361,6 +386,11 @@ export default {
     pendingDiscardMany: " {n} pending changes will be discarded.",
     restore: "Restore",
     restoreConnectionHint: "Requires a connection",
+    // GDPR erasure — danger zone
+    deleteAccountTitle: "Erase my account",
+    deleteAccountDesc:
+      "Permanently removes all your data — library, volumes, box sets, uploaded covers, settings, history. Final action.",
+    deleteAccountCta: "Erase account",
     restoreModalTitle: "Restore from server?",
     restoreModalBody:
       "Your local archive — library, volumes, settings — will be replaced with a fresh copy from the server.",

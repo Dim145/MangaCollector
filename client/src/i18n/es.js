@@ -194,6 +194,31 @@ export default {
     volume: "Tomo",
     empty: "Vacío",
   },
+  deleteAccount: {
+    registryLabel: "録 · REGISTRO",
+    registryTitle: "Lo que se perderá",
+    registryBody:
+      "Una vez confirmada la eliminación, estos datos se quitan del servidor y de este dispositivo. No se pueden restaurar.",
+    manifestSeries: "Series archivadas",
+    manifestVolumes: "Tomos en posesión",
+    manifestCoffrets: "Cajas armadas",
+    manifestPosters: "Portadas subidas",
+    manifestSpent: "Total invertido",
+    irreversibleNotice: "Irreversible · Definitivo · No se puede deshacer",
+    registryBack: "Volver",
+    registryAdvance: "Lo entiendo, continuar",
+    actLabel: "消 · ACTO FINAL",
+    actTitle: "Sella la eliminación",
+    actBody:
+      "Escribe tu correo abajo para confirmar. Este gesto físico vale como firma — el servidor elimina todo lo que te pertenece inmediatamente.",
+    typeEmailLabel: "Para confirmar, escribe tu correo",
+    emailUnknown: "(correo desconocido)",
+    typeEmailPlaceholder: "tu dirección de correo",
+    finalCta: "Eliminar definitivamente",
+    actCancel: "Cancelar · volver",
+    submitting: "Eliminando…",
+    error: "La eliminación falló. Tu cuenta sigue intacta.",
+  },
   coverPicker: {
     label: "PORTADAS · 絵",
     title: "Cambiar la portada",
@@ -368,6 +393,11 @@ export default {
     pendingDiscardMany: " {n} cambios pendientes se descartarán.",
     restore: "Restaurar",
     restoreConnectionHint: "Requiere conexión",
+    // GDPR erasure — danger zone
+    deleteAccountTitle: "Eliminar mi cuenta",
+    deleteAccountDesc:
+      "Elimina de forma irreversible todos tus datos — biblioteca, tomos, cajas, portadas subidas, ajustes, historial. Acción definitiva.",
+    deleteAccountCta: "Eliminar cuenta",
     restoreModalTitle: "¿Restaurar desde el servidor?",
     restoreModalBody:
       "Tu archivo local — biblioteca, tomos, ajustes — será reemplazado por una copia fresca del servidor.",
