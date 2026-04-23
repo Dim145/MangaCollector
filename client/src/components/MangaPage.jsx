@@ -1,4 +1,5 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
@@ -40,7 +41,22 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [posterPopUp, setPosterPopUp] = useState(false);
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  // Per-source refresh tracker: null | "mal" | "mangadex". Lets the
+  // dropdown spin only the item the user clicked while keeping the
+  // other item (and the caret) in their idle state but disabled, so
+  // a user can't fire two syncs in parallel.
+  const [refreshingSource, setRefreshingSource] = useState(null);
+  const refreshing = refreshingSource !== null;
+  // Split-button dropdown state — holds the sync actions (MAL + MangaDex)
+  // attached to the edit button's caret. Visible only when the series has
+  // at least one external reference (mal_id > 0 or mangadex_id).
+  //
+  // Portaled to document.body with fixed positioning so the menu escapes
+  // every ancestor stacking context (the "Total dépensé" card uses
+  // backdrop-blur which creates one, trapping any in-tree z-index).
+  const [editMenuOpen, setEditMenuOpen] = useState(false);
+  const [editMenuPos, setEditMenuPos] = useState(null);
+  const splitButtonRef = useRef(null);
 
   const [totalVolumes, setTotalVolumes] = useState(manga.volumes ?? 0);
   // Seed from the frozen prop on first render; subsequent resyncs use the
@@ -170,6 +186,39 @@ export default function MangaPage({ manga, adult_content_level }) {
     }
   }, [liveLibraryRow?.image_url_jpg, isEditing]);
 
+  // Close the edit caret dropdown on outside-click, scroll, or Escape —
+  // matches the standard menu ergonomics (cmd palette, context menus).
+  // Scroll dismiss is important here because the menu is `position:fixed`
+  // and would otherwise stay glued to the viewport while the anchor
+  // scrolls away.
+  useEffect(() => {
+    if (!editMenuOpen) return;
+    const close = () => setEditMenuOpen(false);
+    const onClick = (e) => {
+      if (e.target.closest("[data-edit-menu]")) return;
+      close();
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") close();
+    };
+    // Defer listener attachment so the click that opened the menu doesn't
+    // immediately close it (same pattern as the cover-preview controller).
+    const id = setTimeout(() => {
+      window.addEventListener("click", onClick);
+      window.addEventListener("keydown", onKey);
+      window.addEventListener("scroll", close, {
+        passive: true,
+        capture: true,
+      });
+    }, 50);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener("click", onClick);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, { capture: true });
+    };
+  }, [editMenuOpen]);
+
   const handleSave = async () => {
     try {
       const newTotal = parseInt(totalVolumes) || 0;
@@ -254,7 +303,7 @@ export default function MangaPage({ manga, adult_content_level }) {
 
   const updateFromMal = async () => {
     if (!online) return;
-    setRefreshing(true);
+    setRefreshingSource("mal");
     try {
       const { new_genres, new_name } = await updateLibFromMal(manga.mal_id);
       if (new_genres) setGenres(new_genres);
@@ -266,13 +315,13 @@ export default function MangaPage({ manga, adult_content_level }) {
     } catch (e) {
       console.error(e);
     } finally {
-      setRefreshing(false);
+      setRefreshingSource(null);
     }
   };
 
   const updateFromMangadex = async () => {
     if (!online) return;
-    setRefreshing(true);
+    setRefreshingSource("mangadex");
     try {
       const { new_genres, new_name, new_image_url_jpg } =
         await refreshFromMangadex(manga.mal_id);
@@ -283,7 +332,7 @@ export default function MangaPage({ manga, adult_content_level }) {
     } catch (e) {
       console.error(e);
     } finally {
-      setRefreshing(false);
+      setRefreshingSource(null);
     }
   };
 
@@ -477,64 +526,6 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
                   {t("manga.seriesLabel")}
                 </span>
-                {manga.mal_id > 0 && (
-                  <button
-                    onClick={updateFromMal}
-                    disabled={refreshing || !online}
-                    aria-label={t("manga.refreshMalTitle")}
-                    className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/40 hover:text-washi disabled:opacity-40"
-                    title={
-                      online
-                        ? t("manga.refreshMalTitle")
-                        : t("manga.refreshOffline")
-                    }
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`}
-                    >
-                      <path d="M3 2v6h6" />
-                      <path d="M21 12A9 9 0 0 0 6 5.3L3 8" />
-                      <path d="M21 22v-6h-6" />
-                      <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7" />
-                    </svg>
-                    MAL
-                  </button>
-                )}
-                {liveMangadexId && (
-                  <button
-                    onClick={updateFromMangadex}
-                    disabled={refreshing || !online}
-                    aria-label={t("manga.refreshMangadexTitle")}
-                    className={`${manga.mal_id > 0 ? "" : "ml-auto"} inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-gold/40 hover:text-gold disabled:opacity-40`}
-                    title={
-                      online
-                        ? t("manga.refreshMangadexTitle")
-                        : t("manga.refreshOffline")
-                    }
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`}
-                    >
-                      <path d="M3 2v6h6" />
-                      <path d="M21 12A9 9 0 0 0 6 5.3L3 8" />
-                      <path d="M21 22v-6h-6" />
-                      <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7" />
-                    </svg>
-                    MD
-                  </button>
-                )}
               </div>
 
               <h1 className="mt-2 font-display text-3xl font-semibold leading-tight tracking-tight text-washi md:text-5xl">
@@ -663,23 +654,75 @@ export default function MangaPage({ manga, adult_content_level }) {
               <div className="mt-4 flex flex-wrap gap-2">
                 {!isEditing ? (
                   <>
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi shadow-lg transition hover:bg-hanko-bright active:scale-95 sm:flex-none"
+                    {/* Split-button: main pill enters edit mode; caret
+                        opens the sync actions menu. The caret is rendered
+                        ONLY when at least one external ref exists —
+                        custom-only series don't have anything to sync
+                        from, so the caret would be dead weight. */}
+                    <div
+                      ref={splitButtonRef}
+                      data-edit-menu
+                      className="inline-flex flex-1 sm:flex-none"
                     >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-3.5 w-3.5"
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className={`inline-flex flex-1 items-center justify-center gap-1.5 bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi shadow-lg transition hover:bg-hanko-bright active:scale-95 sm:flex-none ${
+                          manga.mal_id > 0 || liveMangadexId
+                            ? "rounded-l-full"
+                            : "rounded-full"
+                        }`}
                       >
-                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                      </svg>
-                      {t("common.edit")}
-                    </button>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3.5 w-3.5"
+                        >
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                        {t("common.edit")}
+                      </button>
+                      {(manga.mal_id > 0 || liveMangadexId) && (
+                        <button
+                          onClick={() => {
+                            setEditMenuOpen((prev) => {
+                              const next = !prev;
+                              if (next && splitButtonRef.current) {
+                                const r =
+                                  splitButtonRef.current.getBoundingClientRect();
+                                setEditMenuPos({
+                                  top: r.bottom + 6,
+                                  left: r.left,
+                                });
+                              }
+                              return next;
+                            });
+                          }}
+                          disabled={refreshing}
+                          aria-label={t("manga.syncMenuLabel")}
+                          aria-expanded={editMenuOpen}
+                          aria-haspopup="menu"
+                          className="inline-flex items-center justify-center rounded-r-full border-l border-hanko-deep/60 bg-hanko px-2.5 py-2.5 text-washi shadow-lg transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className={`h-3.5 w-3.5 transition-transform duration-200 ${editMenuOpen ? "rotate-180" : ""}`}
+                            aria-hidden="true"
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+                      )}
+
+                    </div>
                     <button
                       onClick={() => setConfirmDelete(true)}
                       className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-hanko/30 bg-transparent px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/10 active:scale-95 sm:flex-none"
@@ -998,6 +1041,98 @@ export default function MangaPage({ manga, adult_content_level }) {
           setCoverPickerOpen(false);
         }}
       />
+
+      {/* Sync-actions dropdown, portaled to body so it escapes every
+          ancestor stacking context (the Total-dépensé card uses
+          backdrop-blur which creates one). Position is computed at open
+          time from the split-button's bounding rect; scrolling dismisses
+          (handled by the useEffect above). */}
+      {editMenuOpen &&
+        editMenuPos &&
+        createPortal(
+          <div
+            data-edit-menu
+            role="menu"
+            style={{
+              position: "fixed",
+              top: editMenuPos.top,
+              left: editMenuPos.left,
+              zIndex: 2147483620,
+            }}
+            className="min-w-[240px] overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl backdrop-blur animate-fade-up"
+          >
+            <p className="border-b border-border/60 px-4 py-2 font-mono text-[9px] uppercase tracking-[0.25em] text-washi-dim">
+              {t("manga.syncMenuHeading")}
+            </p>
+            {manga.mal_id > 0 && (
+              <button
+                role="menuitem"
+                onClick={async () => {
+                  // Await the full sync BEFORE closing the menu — the user
+                  // gets persistent feedback (spinning icon on this row)
+                  // for however long the request takes.
+                  await updateFromMal();
+                  setEditMenuOpen(false);
+                }}
+                disabled={refreshing || !online}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold text-washi-muted transition hover:bg-hanko/10 hover:text-washi disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`h-3.5 w-3.5 shrink-0 ${refreshingSource === "mal" ? "animate-spin" : ""}`}
+                  aria-hidden="true"
+                >
+                  <path d="M3 2v6h6" />
+                  <path d="M21 12A9 9 0 0 0 6 5.3L3 8" />
+                  <path d="M21 22v-6h-6" />
+                  <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7" />
+                </svg>
+                <span className="flex-1 truncate">{t("manga.syncFromMal")}</span>
+              </button>
+            )}
+            {liveMangadexId && (
+              <button
+                role="menuitem"
+                onClick={async () => {
+                  await updateFromMangadex();
+                  setEditMenuOpen(false);
+                }}
+                disabled={refreshing || !online}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold text-washi-muted transition hover:bg-hanko/10 hover:text-washi disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`h-3.5 w-3.5 shrink-0 ${refreshingSource === "mangadex" ? "animate-spin" : ""}`}
+                  aria-hidden="true"
+                >
+                  <path d="M3 2v6h6" />
+                  <path d="M21 12A9 9 0 0 0 6 5.3L3 8" />
+                  <path d="M21 22v-6h-6" />
+                  <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7" />
+                </svg>
+                <span className="flex-1 truncate">
+                  {t("manga.syncFromMangadex")}
+                </span>
+              </button>
+            )}
+            {!online && (
+              <p className="border-t border-border/60 bg-hanko/5 px-4 py-2 font-mono text-[9px] uppercase tracking-wider text-hanko-bright">
+                {t("manga.refreshOffline")}
+              </p>
+            )}
+          </div>,
+          document.body,
+        )}
 
       {/* Shared volume-cover preview — one instance, driven by the
           controller. Sticky on mobile (long-press peek + tap to zoom),
