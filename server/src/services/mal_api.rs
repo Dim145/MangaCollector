@@ -93,6 +93,61 @@ pub async fn get_manga_from_mal(
     Ok(data)
 }
 
+/// Pictures for a MAL manga — usually 3–8 alternate covers / key-visuals per
+/// popular series. 7-day TTL: these rarely change post-release.
+const MAL_PICTURES_TTL: Duration = Duration::from_secs(7 * 24 * 3600);
+
+/// Fetch the list of alternate cover images MAL ships for this manga via
+/// Jikan's `/manga/{id}/pictures` endpoint. Returns large_image_url
+/// preferentially; falls back to image_url when large is missing.
+/// Best-effort: empty Vec on any failure so the caller can fall through.
+pub async fn get_pictures(
+    client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    mal_id: i32,
+) -> anyhow::Result<Vec<String>> {
+    let cache_key = format!("mal:pictures:{}", mal_id);
+    if let Some(cache) = cache {
+        if let Some(cached) = cache.get::<Vec<String>>(&cache_key).await {
+            return Ok(cached);
+        }
+    }
+
+    let url = format!("https://api.jikan.moe/v4/manga/{}/pictures", mal_id);
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .context("Failed to reach MAL pictures endpoint")?;
+    if !response.status().is_success() {
+        return Ok(Vec::new());
+    }
+
+    #[derive(Deserialize)]
+    struct PicturesPayload {
+        #[serde(default)]
+        data: Vec<MalImages>,
+    }
+
+    let parsed: PicturesPayload = response
+        .json()
+        .await
+        .context("Failed to parse MAL pictures response")?;
+
+    let out: Vec<String> = parsed
+        .data
+        .into_iter()
+        .filter_map(|imgs| {
+            imgs.jpg.and_then(|j| j.large_image_url.or(j.image_url))
+        })
+        .collect();
+
+    if let Some(cache) = cache {
+        cache.set(&cache_key, &out, MAL_PICTURES_TTL).await;
+    }
+    Ok(out)
+}
+
 /// Shape returned by `search_by_title` — subset of `MalMangaData` shaped for
 /// the unified search UI. MangaDex has an equivalent `MangadexResult`; both
 /// are merged by `services::external`.

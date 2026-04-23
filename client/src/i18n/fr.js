@@ -52,9 +52,27 @@ export default {
     noMatchTitle: "Aucun résultat",
     noMatchBody:
       "Aucun titre ne correspond à cette recherche dans votre archive.",
+    noTagMatchTitle: "Rien sous ces étiquettes",
+    noTagMatchBody:
+      "Aucune série ne porte toutes les étiquettes sélectionnées. Essayez d'en retirer une.",
     emptyBody:
       "Commencez à bâtir votre collection — cherchez un titre, ajoutez un tome, et regardez votre archive s'étoffer.",
     addFirst: "Ajouter votre première série",
+    genresLabel: "ÉTIQUETTES · 題箋",
+    genreFilterLabel: "Filtrer par genre",
+    tagsSelected: "actives",
+    clearTags: "Tout retirer",
+    clearTagsAria: "Retirer toutes les étiquettes",
+    openFilters: "Ouvrir le filtre par étiquettes",
+    openFiltersActive: "Filtres · {n} {label}",
+    filterShort: "Filtres",
+    filterTitle: "Feuilleter par genre",
+    searchTags: "Filtrer les étiquettes…",
+    searchNoMatch: "Aucune étiquette ne correspond.",
+    resultsInline: "correspondent",
+    filteredBy: "Filtré par",
+    activeFiltersLabel: "Filtres actifs",
+    removeChip: "Retirer « {name} »",
   },
   manga: {
     volumesShort: "tomes",
@@ -93,6 +111,10 @@ export default {
     refreshMalTitle: "Actualiser les métadonnées depuis MyAnimeList",
     refreshMangadexTitle: "Actualiser les métadonnées depuis MangaDex",
     refreshOffline: "Nécessite une connexion",
+    syncMenuLabel: "Actions de synchronisation",
+    syncMenuHeading: "Synchroniser les métadonnées",
+    syncFromMal: "Depuis MyAnimeList",
+    syncFromMangadex: "Depuis MangaDex",
     malLink: "MAL #{id}",
     mangadexLink: "MangaDex",
   },
@@ -184,6 +206,62 @@ export default {
     vols: "{n} tomes",
     adding: "Ajout…",
     sourceBothTitle: "Présent sur MyAnimeList et MangaDex",
+  },
+  // Traductions centralisées des kanji utilisés comme badges visuels.
+  // Chaque clé cible UN usage sémantique — un même kanji peut apparaître
+  // sous plusieurs clés quand le contexte change le sens (ex. 限 collector
+  // vs 限 quota atteint).
+  badges: {
+    collector: "Édition collector",
+    rateLimit: "Quota atteint",
+    coffret: "Coffret",
+    currentCover: "Couverture actuelle",
+    selectedCover: "Sélection en attente",
+    deletion: "Suppression",
+    search: "Recherche",
+    volume: "Tome",
+    empty: "Vide",
+  },
+  deleteAccount: {
+    registryLabel: "録 · REGISTRE",
+    registryTitle: "Ce qui va disparaître",
+    registryBody:
+      "Une fois l'effacement confirmé, ces données seront retirées du serveur et de cet appareil. Elles ne peuvent pas être restaurées.",
+    manifestSeries: "Séries archivées",
+    manifestVolumes: "Tomes possédés",
+    manifestCoffrets: "Coffrets constitués",
+    manifestPosters: "Couvertures uploadées",
+    manifestSpent: "Total investi",
+    irreversibleNotice: "Irréversible · Définitif · Non-annulable",
+    registryBack: "Revenir",
+    registryAdvance: "Je comprends, continuer",
+    actLabel: "消 · ACTE FINAL",
+    actTitle: "Scellez l'effacement",
+    actBody:
+      "Tapez votre adresse email ci-dessous pour confirmer. Ce geste physique vaut signature — le serveur supprime immédiatement tout ce qui vous est lié.",
+    typeEmailLabel: "Pour confirmer, tapez votre email",
+    emailUnknown: "(email inconnu)",
+    typeEmailPlaceholder: "votre adresse email",
+    finalCta: "Effacer définitivement",
+    actCancel: "Annuler · revenir en arrière",
+    submitting: "Effacement en cours…",
+    error: "L'effacement a échoué. Votre compte est intact.",
+  },
+  coverPicker: {
+    label: "COUVERTURES · 絵",
+    title: "Changer la couverture",
+    loading: "Chargement…",
+    countLabel: "{n} disponibles",
+    empty:
+      "Aucune couverture alternative trouvée sur MAL ou MangaDex pour cette série.",
+    confirm: "Utiliser cette couverture",
+    currentBadgeTitle: "Couverture actuelle",
+    selectedBadgeTitle: "Sélection en attente",
+    prev: "Couverture précédente",
+    next: "Couverture suivante",
+    sourceMal: "Source · MyAnimeList",
+    sourceMangadex: "Source · MangaDex",
+    sourceCustom: "Source · personnalisée",
   },
   mangadexPrefill: {
     title: "Ajouter depuis MangaDex",
@@ -346,6 +424,11 @@ export default {
     pendingDiscardMany: " {n} modifications en attente seront perdues.",
     restore: "Restaurer",
     restoreConnectionHint: "Nécessite une connexion",
+    // GDPR erasure — danger zone
+    deleteAccountTitle: "Effacer mon compte",
+    deleteAccountDesc:
+      "Supprime de manière irréversible toutes vos données — bibliothèque, tomes, coffrets, couvertures uploadées, paramètres, historique. Action définitive.",
+    deleteAccountCta: "Effacer mon compte",
     restoreModalTitle: "Restaurer depuis le serveur ?",
     restoreModalBody:
       "Votre archive locale — bibliothèque, tomes, paramètres — sera remplacée par une copie fraîche du serveur.",
@@ -376,7 +459,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.2.0 · Archivez votre collection",
+    version: "v2.4.0 · Archivez votre collection",
     heroStart: "Chaque",
     heroAccent: "tome",
     heroEnd1: ",",

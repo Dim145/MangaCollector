@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
+import Tooltip from "./ui/Tooltip.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
+import { useCoverPreviewGesture } from "@/hooks/useCoverPreviewGesture.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -24,6 +26,16 @@ export default function Volume({
   locked = false,
   onUpdate,
   currencySetting,
+  // Optional per-volume cover URL (from MangaDex via the useVolumeCovers
+  // hook). When present, the click-target badge is replaced by the actual
+  // book cover with a small number chip pinned to the corner.
+  coverUrl,
+  blurImage = false,
+  // Preview gesture callbacks — forwarded from MangaPage's shared
+  // controller. Volume itself doesn't own the preview state anymore; that
+  // lives upstream so keyboard nav across siblings works.
+  onPreviewShow,
+  onPreviewRelease,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [ownedStatus, setOwnedStatus] = useState(owned);
@@ -34,6 +46,18 @@ export default function Volume({
   const updateVolume = useUpdateVolume();
   const isLoading = updateVolume.isPending;
   const t = useT();
+
+  // Hover (desktop) + long-press (touch) → notifies the shared preview
+  // controller (lives in MangaPage). Disabled when the adult filter is
+  // active (blurImage=true for level 0 or 1) — users who've asked to
+  // blur / hide adult content shouldn't be able to peek around the
+  // filter via the preview. The thumbnail itself stays blurred as-is;
+  // only the "zoom on hover/long-press" interaction is neutralised.
+  const preview = useCoverPreviewGesture({
+    enabled: Boolean(coverUrl) && !isEditing && !blurImage,
+    onShow: (rect, sticky) => onPreviewShow?.(volNum, rect, sticky),
+    onRelease: () => onPreviewRelease?.(),
+  });
 
   async function persist(nextOwned, nextPrice, nextStore, nextCollector, ownedChanged) {
     await updateVolume.mutateAsync({
@@ -50,6 +74,9 @@ export default function Volume({
 
   const toggleOwned = async () => {
     if (isEditing || locked) return;
+    // Suppress the tap when a long-press just opened the preview — the
+    // user wanted to peek, not to flip the ownership.
+    if (preview.consumeClick()) return;
     const next = !ownedStatus;
     setOwnedStatus(next);
     await persist(next, price, purchaseLocation, collectorStatus, true);
@@ -102,47 +129,132 @@ export default function Volume({
     <div
       className={`group relative rounded-xl border transition-all duration-300 ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
     >
-      {/* Collector hanko seal — pinned like a wax seal at the card's top-right corner */}
+      {/* Collector hanko seal — pinned like a wax seal at the card's top-right corner.
+          Wrapped in <Tooltip> for a reliable CSS-only hover label; the native
+          `title` attribute was unreliable on this absolutely-positioned
+          decorative span in certain browser/layout combos. */}
       {collectorStatus && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-2 -top-2 z-20 grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_2px_12px_rgba(201,169,97,0.6)] ring-1 ring-gold/80"
-          style={{ transform: "rotate(-8deg)" }}
-          title={t("volume.collectorTitle")}
-        >
-          <span className="font-display text-[10px] font-bold leading-none">
-            限
-          </span>
+        <span className="absolute -right-2 -top-2 z-20">
+          <Tooltip text={t("volume.collectorTitle")} placement="top">
+            <span
+              aria-label={t("volume.collectorTitle")}
+              className="grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_2px_12px_rgba(201,169,97,0.6)] ring-1 ring-gold/80"
+              style={{ transform: "rotate(-8deg)" }}
+            >
+              <span className="font-display text-[10px] font-bold leading-none">
+                限
+              </span>
+            </span>
+          </Tooltip>
         </span>
       )}
 
       <div className="flex items-center gap-3 p-4">
-        <button
-          onClick={toggleOwned}
-          disabled={isEditing || isLoading || locked}
-          aria-label={
-            locked
-              ? t("volume.lockedAria")
-              : ownedStatus
-                ? t("volume.markNotOwned")
-                : t("volume.markOwned")
-          }
-          title={locked ? t("volume.lockedTitle") : undefined}
-          className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${badgeClasses} ${locked ? "cursor-not-allowed" : ""}`}
-        >
-          {isLoading ? (
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-          ) : (
-            <>
-              <span className="text-[10px] font-semibold uppercase tracking-wider">
-                {t("manga.volumesShort")}
+        {coverUrl ? (
+          /* Cover-mode click target — a tall 2:3 thumbnail that stands in
+             for the number badge. Ownership state is carried by ring color
+             (gold collector > hanko owned > border missing) + dimming
+             overlay when not owned. A small number chip is pinned to the
+             bottom-right, like a library sticker on a physical volume. */
+          <button
+            onClick={toggleOwned}
+            disabled={isEditing || isLoading || locked}
+            aria-label={
+              locked
+                ? t("volume.lockedAria")
+                : ownedStatus
+                  ? t("volume.markNotOwned")
+                  : t("volume.markOwned")
+            }
+            title={locked ? t("volume.lockedTitle") : undefined}
+            // Gesture handlers for the floating preview. They spread across
+            // the same button that handles the tap-to-toggle, which is fine
+            // because the hook coordinates the two (long-press suppresses
+            // the subsequent click via consumeClick()).
+            {...preview.handlers}
+            // data-vol-num lets the shared preview controller re-anchor on
+            // the correct DOM node when the user navigates with ← / →.
+            data-vol-num={volNum}
+            // touch-action: avoid the browser treating the long-press as a
+            // text selection or callout; we take ownership of the gesture.
+            style={{ touchAction: "manipulation" }}
+            className={`group/vol relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-md border shadow-md transition-all duration-300 ${
+              collectorStatus
+                ? "border-gold ring-1 ring-gold/60 shadow-[0_0_12px_rgba(201,169,97,0.35)]"
+                : ownedStatus
+                  ? "border-hanko/70 shadow-[0_0_10px_rgba(220,38,38,0.2)]"
+                  : "border-border"
+            } ${locked ? "cursor-not-allowed" : "hover:-translate-y-0.5"} ${isEditing ? "opacity-60" : ""}`}
+          >
+            <img
+              src={coverUrl}
+              alt=""
+              loading="lazy"
+              draggable={false}
+              className={`h-full w-full select-none object-cover transition-transform duration-500 group-hover/vol:scale-105 ${
+                blurImage ? "blur-md" : ""
+              } ${!ownedStatus && !locked ? "brightness-40 grayscale" : ""}`}
+            />
+
+            {/* Missing-state overlay — tinted wash that evokes "not yet
+                in the collection" without fully hiding the cover. */}
+            {!ownedStatus && !locked && (
+              <span className="pointer-events-none absolute inset-0 bg-ink-0/55" />
+            )}
+
+            {/* Loading spinner while saving */}
+            {isLoading && (
+              <span className="pointer-events-none absolute inset-0 grid place-items-center bg-ink-0/70">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-washi/40 border-t-washi" />
               </span>
-              <span className="absolute -bottom-0.5 right-0.5 text-[9px]">
-                {volNum}
-              </span>
-            </>
-          )}
-        </button>
+            )}
+
+            {/* Volume number chip — bottom-right corner. Color tracks the
+                ownership state so it's readable even when the cover art
+                is bright/dark/busy. */}
+            <span
+              className={`pointer-events-none absolute bottom-0.5 right-0.5 grid min-h-4 min-w-4 place-items-center rounded-sm px-1 font-mono text-[9px] font-bold leading-none shadow ${
+                collectorStatus
+                  ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
+                  : ownedStatus
+                    ? "bg-hanko text-washi"
+                    : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
+              }`}
+            >
+              {volNum}
+            </span>
+          </button>
+        ) : (
+          /* Legacy number-badge click target — used when no cover URL is
+             available (series without a MangaDex match, or volume not
+             published on MangaDex yet). */
+          <button
+            onClick={toggleOwned}
+            disabled={isEditing || isLoading || locked}
+            aria-label={
+              locked
+                ? t("volume.lockedAria")
+                : ownedStatus
+                  ? t("volume.markNotOwned")
+                  : t("volume.markOwned")
+            }
+            title={locked ? t("volume.lockedTitle") : undefined}
+            className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${badgeClasses} ${locked ? "cursor-not-allowed" : ""}`}
+          >
+            {isLoading ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <>
+                <span className="text-[10px] font-semibold uppercase tracking-wider">
+                  {t("manga.volumesShort")}
+                </span>
+                <span className="absolute -bottom-0.5 right-0.5 text-[9px]">
+                  {volNum}
+                </span>
+              </>
+            )}
+          </button>
+        )}
 
         <div className="min-w-0 flex-1">
           <p className="flex items-baseline gap-2 font-display text-base font-semibold leading-none text-washi">
@@ -288,6 +400,7 @@ export default function Volume({
                   style={
                     collectorStatus ? { transform: "rotate(-6deg)" } : undefined
                   }
+                  title={t("badges.collector")}
                 >
                   限
                 </span>

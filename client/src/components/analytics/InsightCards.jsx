@@ -36,9 +36,9 @@ function CollectorCard({ collector, loading, t }) {
       />
       <div className="relative flex items-baseline gap-2">
         <span
-          aria-hidden="true"
           className="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_1px_4px_rgba(201,169,97,0.6)]"
           style={{ transform: "rotate(-4deg)" }}
+          title={t("badges.collector")}
         >
           <span className="font-display text-[11px] font-bold leading-none">
             限
@@ -106,9 +106,9 @@ function CoffretCard({ coffret, loading, t }) {
       />
       <div className="flex items-baseline gap-2">
         <span
-          aria-hidden="true"
           className="grid h-6 w-6 place-items-center rounded-md bg-washi text-ink-0 shadow-[0_1px_4px_rgba(10,9,8,0.4)]"
           style={{ transform: "rotate(-4deg)" }}
+          title={t("badges.coffret")}
         >
           <span className="font-display text-[11px] font-bold leading-none">
             盒

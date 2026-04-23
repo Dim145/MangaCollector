@@ -73,6 +73,12 @@ async function refreshFromMangadex(mal_id) {
   ).data;
 }
 
+async function setSeriesPoster(mal_id, url) {
+  return (
+    await axios.patch(`/api/user/storage/poster/${mal_id}`, { url })
+  ).data;
+}
+
 export {
   addToUserLibrary,
   getUserLibrary,
@@ -88,4 +94,5 @@ export {
   addCustomEntryToUserLibrary,
   addFromMangadexToUserLibrary,
   refreshFromMangadex,
+  setSeriesPoster,
 };

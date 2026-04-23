@@ -1,6 +1,7 @@
 pub mod activity;
 pub mod cache;
 pub mod coffret;
+pub mod cover_pool;
 pub mod external;
 pub mod library;
 pub mod mal_api;

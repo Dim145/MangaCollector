@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/utils/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
+import DeleteAccountFlow from "@/components/DeleteAccountFlow.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
@@ -65,6 +66,11 @@ export default function SettingsPage() {
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState(null);
   const [restoreDone, setRestoreDone] = useState(false);
+
+  // GDPR account-deletion flow — a two-step ceremony living in its own
+  // component. Opens at step 1 (manifest), escalates to step 2 (typed
+  // confirmation), then closes when done.
+  const [deleteFlowOpen, setDeleteFlowOpen] = useState(false);
 
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [apiKeyRevealed, setApiKeyRevealed] = useState(false);
@@ -707,6 +713,58 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
+
+          {/* GDPR erasure — more dangerous than Restore (wipes the server
+              too), visually separated with a darker frame and the 消
+              kanji marker so the weight is obvious. */}
+          <div className="relative mt-4 overflow-hidden rounded-xl border border-hanko/60 bg-gradient-to-br from-hanko/10 via-ink-0/60 to-ink-0/40 p-4">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-hanko/70 to-transparent"
+            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-gradient-to-br from-hanko-bright to-hanko-deep text-washi shadow-[0_0_12px_var(--hanko-glow)]"
+                  style={{ transform: "rotate(-4deg)" }}
+                >
+                  <span className="font-display text-sm font-bold leading-none">
+                    消
+                  </span>
+                </span>
+                <div className="min-w-0">
+                  <p className="font-display text-sm font-semibold text-washi">
+                    {t("settings.deleteAccountTitle")}
+                  </p>
+                  <p className="mt-1 text-xs text-washi-muted">
+                    {t("settings.deleteAccountDesc")}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDeleteFlowOpen(true)}
+                disabled={!online}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-hanko bg-gradient-to-br from-hanko-deep to-hanko px-4 py-2 text-xs font-bold uppercase tracking-wider text-washi shadow-[0_4px_14px_var(--hanko-glow)] transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                title={online ? "" : t("settings.restoreConnectionHint")}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-3.5 w-3.5"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <path d="M19 6 18 20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                </svg>
+                {t("settings.deleteAccountCta")}
+              </button>
+            </div>
+          </div>
         </section>
       </div>
 
@@ -782,6 +840,13 @@ export default function SettingsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Two-step GDPR erasure flow — lives in its own component because
+          the ceremony is substantial enough to avoid bloating this page. */}
+      <DeleteAccountFlow
+        open={deleteFlowOpen}
+        onClose={() => setDeleteFlowOpen(false)}
+      />
     </div>
   );
 }

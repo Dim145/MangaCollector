@@ -65,7 +65,10 @@ export default function MalRecommendations() {
                     className="aspect-[2/3] w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 ) : (
-                  <div className="grid aspect-[2/3] w-full place-items-center font-display text-3xl italic text-hanko/40">
+                  <div
+                    className="grid aspect-[2/3] w-full place-items-center font-display text-3xl italic text-hanko/40"
+                    title={t("badges.volume")}
+                  >
                     巻
                   </div>
                 )}

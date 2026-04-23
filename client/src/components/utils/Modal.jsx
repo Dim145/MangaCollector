@@ -1,5 +1,43 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
+/** Must match `animate-fade-out` / `animate-fade-down-out` duration in CSS. */
+const CLOSE_ANIM_MS = 220;
+
+/**
+ * Module-level body-scroll lock. When multiple Modals stack (e.g. a
+ * multi-step flow that transitions modal 1 → modal 2), a naive per-
+ * instance approach corrupts the original-overflow capture:
+ *
+ *   1. Modal 1 mounts, captures prev="", sets overflow="hidden"
+ *   2. Modal 2 mounts BEFORE modal 1's 220ms leave anim completes,
+ *      captures prev="hidden" (modal 1's lock!), sets overflow="hidden"
+ *   3. Modal 1 unmounts, restores overflow="" — body unlocks even though
+ *      modal 2 is still visible
+ *   4. Modal 2 unmounts, restores overflow="hidden" — body LOCKED
+ *      forever, and only a full page reload clears it
+ *
+ * Reference-counting the active modals fixes it: only the first mount
+ * captures and locks, only the last unmount restores.
+ */
+let activeModalCount = 0;
+let originalBodyOverflow = null;
+
+function acquireScrollLock() {
+  if (activeModalCount === 0) {
+    originalBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  activeModalCount += 1;
+}
+
+function releaseScrollLock() {
+  activeModalCount = Math.max(0, activeModalCount - 1);
+  if (activeModalCount === 0) {
+    document.body.style.overflow = originalBodyOverflow ?? "";
+    originalBodyOverflow = null;
+  }
+}
 
 export default function Modal({
   children,
@@ -7,8 +45,50 @@ export default function Modal({
   additionalClasses = "",
   handleClose,
 }) {
+  // Decouple DOM lifecycle from the `popupOpen` prop:
+  //   - opening:  mount immediately, play entry animation
+  //   - closing:  flag `leaving=true`, play exit animation, unmount after it
+  // This is the classic "delayed unmount" pattern for exit animations with
+  // no library dependency.
+  const [mounted, setMounted] = useState(popupOpen);
+  const [leaving, setLeaving] = useState(false);
+  const closeTimer = useRef(null);
+
   useEffect(() => {
-    if (!popupOpen) return;
+    if (popupOpen) {
+      // Opening (or cancelled a mid-flight close): make sure we're mounted
+      // and NOT in exit-animation state.
+      if (closeTimer.current) {
+        clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
+      setMounted(true);
+      setLeaving(false);
+      return;
+    }
+
+    // popupOpen flipped false — if we weren't mounted there's nothing to do
+    // (prevents flashing an exit animation on first render).
+    if (!mounted) return;
+
+    setLeaving(true);
+    closeTimer.current = setTimeout(() => {
+      setMounted(false);
+      setLeaving(false);
+      closeTimer.current = null;
+    }, CLOSE_ANIM_MS);
+
+    return () => {
+      if (closeTimer.current) {
+        clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [popupOpen]);
+
+  useEffect(() => {
+    if (!mounted) return;
 
     const handleKeyUp = (e) => {
       if (e.key === "Escape" && typeof handleClose === "function") {
@@ -16,24 +96,29 @@ export default function Modal({
       }
     };
 
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    acquireScrollLock();
     window.addEventListener("keyup", handleKeyUp);
 
     return () => {
-      document.body.style.overflow = prevOverflow;
+      releaseScrollLock();
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [popupOpen, handleClose]);
+  }, [mounted, handleClose]);
 
-  if (!popupOpen) return null;
+  if (!mounted) return null;
   if (typeof document === "undefined") return null;
+
+  // Swap animations based on phase. Entry uses fade-in/fade-up (existing
+  // classes); exit uses fade-out/fade-down-out which mirror the entry's
+  // opacity+translate curves in reverse, slightly snappier.
+  const overlayAnim = leaving ? "animate-fade-out" : "animate-fade-in";
+  const contentAnim = leaving ? "animate-fade-down-out" : "animate-fade-up";
 
   const overlay = (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 flex items-center justify-center bg-ink-0/80 backdrop-blur-md p-4 animate-fade-in"
+      className={`fixed inset-0 flex items-center justify-center bg-ink-0/80 backdrop-blur-md p-4 ${overlayAnim}`}
       // Inline style z-index to escape any stacking context traps from
       // ancestors (DefaultBackground's `isolate`, transformed elements, etc.)
       // Portaled to document.body as belt-and-braces.
@@ -66,7 +151,7 @@ export default function Modal({
       )}
 
       <div
-        className={`relative max-h-[calc(100dvh-2rem)] max-w-full overflow-auto animate-fade-up ${additionalClasses}`}
+        className={`relative max-h-[calc(100dvh-2rem)] max-w-full overflow-auto ${contentAnim} ${additionalClasses}`}
       >
         {children}
       </div>

@@ -176,6 +176,115 @@ pub async fn search_by_title(
     Ok(results)
 }
 
+/// One cover entry from MangaDex. Keeps the raw `volume` string and locale
+/// so callers can pick the right one for e.g. volume-icon rendering.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MdCoverEntry {
+    pub url: String,
+    /// `"1"`, `"2"`, `"1.5"`, `"special"`… or empty. Kept as-is; callers
+    /// that need a number parse themselves.
+    pub volume: Option<String>,
+    pub locale: Option<String>,
+}
+
+/// Fetch EVERY cover MangaDex publishes for a manga UUID — typically one
+/// per volume. Richer than `find_cover_url_by_mal_id` (which only returns
+/// the default cover). Used by the cover-picker AND the per-volume cover
+/// feature.
+///
+/// Ordering: Japanese jackets first (most consistent quality), then other
+/// locales. Deduped by URL.
+pub async fn fetch_all_covers_for_manga(
+    client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    mangadex_id: &str,
+) -> anyhow::Result<Vec<MdCoverEntry>> {
+    let cache_key = format!("mangadex:allcovers:{}", mangadex_id);
+    if let Some(cache) = cache {
+        if let Some(cached) = cache.get::<Vec<MdCoverEntry>>(&cache_key).await {
+            return Ok(cached);
+        }
+    }
+
+    let response = client
+        .get("https://api.mangadex.org/cover")
+        .header("User-Agent", USER_AGENT)
+        .query(&[
+            ("manga[]", mangadex_id),
+            ("limit", "100"),
+            ("order[volume]", "asc"),
+        ])
+        .send()
+        .await
+        .context("Failed to reach MangaDex /cover")?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        tracing::warn!(mangadex_id, %status, body, "mangadex: non-2xx on /cover");
+        return Ok(Vec::new());
+    }
+
+    #[derive(Deserialize)]
+    struct CoverList {
+        data: Vec<CoverEntry>,
+    }
+    #[derive(Deserialize)]
+    struct CoverEntry {
+        attributes: CoverAttrs,
+    }
+    #[derive(Deserialize)]
+    struct CoverAttrs {
+        #[serde(rename = "fileName", default)]
+        file_name: Option<String>,
+        #[serde(default)]
+        locale: Option<String>,
+        #[serde(default)]
+        volume: Option<String>,
+    }
+
+    let parsed: CoverList = response
+        .json()
+        .await
+        .context("Failed to parse MangaDex /cover response")?;
+
+    // Japanese jackets first, others after — dedup by URL.
+    let mut jp: Vec<MdCoverEntry> = Vec::new();
+    let mut other: Vec<MdCoverEntry> = Vec::new();
+    for entry in parsed.data {
+        let Some(file) = entry.attributes.file_name else {
+            continue;
+        };
+        let url = format!(
+            "https://uploads.mangadex.org/covers/{}/{}",
+            mangadex_id, file
+        );
+        let item = MdCoverEntry {
+            url,
+            volume: entry
+                .attributes
+                .volume
+                .filter(|v| !v.is_empty()),
+            locale: entry.attributes.locale,
+        };
+        if item.locale.as_deref() == Some("ja") {
+            jp.push(item);
+        } else {
+            other.push(item);
+        }
+    }
+    let mut out = jp;
+    out.extend(other);
+    // Dedup while preserving order
+    let mut seen = std::collections::HashSet::new();
+    out.retain(|c| seen.insert(c.url.clone()));
+
+    if let Some(cache) = cache {
+        cache.set(&cache_key, &out, MANGADEX_HIT_TTL).await;
+    }
+    Ok(out)
+}
+
 /// Fetch a single MangaDex manga by its UUID. Used for the
 /// "refresh from MangaDex" flow when the entry carries a mangadex_id.
 pub async fn get_by_id(

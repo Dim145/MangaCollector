@@ -1,9 +1,10 @@
-import { useContext, useMemo, useState } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
 import MangaSearchBar from "./MangaSearchBar";
 import GapSuggestions from "./GapSuggestions.jsx";
+import { FilterButton, ActiveChips } from "./TagFilter.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
@@ -14,9 +15,24 @@ import { useT } from "@/i18n/index.jsx";
 export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all"); // all | complete | inprogress
+  // Genre filter — Set<string>. Multi-select with AND intersection (series
+  // must carry every selected tag to remain visible). Kept as Set for O(1)
+  // membership checks in the hot filter path below.
+  const [activeTags, setActiveTags] = useState(() => new Set());
   const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
   const t = useT();
+
+  const toggleTag = useCallback((name) => {
+    setActiveTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
+  const clearTags = useCallback(() => setActiveTags(new Set()), []);
 
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const { data: allVolumes } = useAllVolumes();
@@ -74,8 +90,21 @@ export default function Dashboard() {
         (m) => (m.volumes ?? 0) === 0 || (m.volumes_owned ?? 0) < m.volumes,
       );
     }
+    // Tag intersection — AND logic. Each series must carry every selected
+    // tag. Genres are trimmed at read time so "  Romance " matches "Romance".
+    if (activeTags.size > 0) {
+      result = result.filter((m) => {
+        const owned = new Set(
+          (m.genres ?? []).map((g) => (g ?? "").trim()).filter(Boolean),
+        );
+        for (const tag of activeTags) {
+          if (!owned.has(tag)) return false;
+        }
+        return true;
+      });
+    }
     return result;
-  }, [library, filter, query]);
+  }, [library, filter, query, activeTags]);
 
   return (
     <DefaultBackground>
@@ -142,6 +171,17 @@ export default function Dashboard() {
             clearResults={() => setQuery("")}
             hasResults={Boolean(query)}
             clearText={t("dashboard.clearFilter")}
+            additionalButtons={
+              !isInitialLoad && !isEmpty ? (
+                <FilterButton
+                  library={library}
+                  activeTags={activeTags}
+                  onToggle={toggleTag}
+                  onClear={clearTags}
+                  resultsCount={filtered.length}
+                />
+              ) : null
+            }
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -189,7 +229,17 @@ export default function Dashboard() {
               {t("dashboard.addManga")}
             </button>
           </div>
+
         </section>
+
+        {/* Active tag chips — discreet "Filtré par: [shōnen ×] [drame ×]"
+            row. Only renders when at least one tag is active, so zero
+            visual weight in the idle state. */}
+        <ActiveChips
+          activeTags={activeTags}
+          onToggle={toggleTag}
+          onClear={clearTags}
+        />
 
         {/* Grid */}
         <section>
@@ -202,7 +252,9 @@ export default function Dashboard() {
           ) : isEmpty || filtered.length === 0 ? (
             <EmptyState
               hasQuery={Boolean(query)}
+              hasActiveTags={activeTags.size > 0}
               onAdd={() => navigate("/addmanga")}
+              onClearTags={clearTags}
             />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -251,20 +303,41 @@ function StatChip({ label, value, accent, loading, width }) {
   );
 }
 
-function EmptyState({ hasQuery, onAdd }) {
+function EmptyState({ hasQuery, hasActiveTags, onAdd, onClearTags }) {
   const t = useT();
+  // Three flavours: filtered-by-tags (loosen the tags), searched (try different
+  // query), or truly empty archive (add first series).
+  const title = hasActiveTags
+    ? t("dashboard.noTagMatchTitle")
+    : hasQuery
+      ? t("dashboard.noMatchTitle")
+      : t("dashboard.emptyTitle");
+  const body = hasActiveTags
+    ? t("dashboard.noTagMatchBody")
+    : hasQuery
+      ? t("dashboard.noMatchBody")
+      : t("dashboard.emptyBody");
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-ink-1/30 px-6 py-16 text-center animate-fade-up">
-      <div className="hanko-seal mb-4 grid h-16 w-16 place-items-center rounded-md font-display text-xl">
+      <div
+        className="hanko-seal mb-4 grid h-16 w-16 place-items-center rounded-md font-display text-xl"
+        title={t("badges.empty")}
+      >
         空
       </div>
-      <h2 className="font-display text-2xl italic text-washi">
-        {hasQuery ? t("dashboard.noMatchTitle") : t("dashboard.emptyTitle")}
-      </h2>
-      <p className="mt-2 max-w-md text-sm text-washi-muted">
-        {hasQuery ? t("dashboard.noMatchBody") : t("dashboard.emptyBody")}
-      </p>
-      {!hasQuery && (
+      <h2 className="font-display text-2xl italic text-washi">{title}</h2>
+      <p className="mt-2 max-w-md text-sm text-washi-muted">{body}</p>
+      {hasActiveTags ? (
+        <button
+          onClick={onClearTags}
+          className="mt-6 inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko/20 hover:border-hanko"
+        >
+          <span aria-hidden="true" className="font-jp text-base leading-none">
+            解
+          </span>
+          {t("dashboard.clearTags")}
+        </button>
+      ) : !hasQuery ? (
         <button
           onClick={onAdd}
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
@@ -282,7 +355,7 @@ function EmptyState({ hasQuery, onAdd }) {
           </svg>
           {t("dashboard.addFirst")}
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

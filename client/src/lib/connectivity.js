@@ -54,6 +54,31 @@ export function isFullyOnline() {
 }
 
 /**
+ * Detect a genuine backend response vs a proxy-layer impostor.
+ *
+ * Failure modes we want to catch:
+ *   - Client nginx SPA fallback → 200 with `text/html` (index.html served
+ *     when Traefik loses the backend route but the client container is up)
+ *   - Traefik default 404 → `text/plain; charset=utf-8` "404 page not
+ *     found" (when BOTH containers are down and no router matches)
+ *   - Any other proxy-layer error page
+ *
+ * The real backend ALWAYS responds with `application/json` — every handler
+ * either returns `Json<T>` on success or an `AppError` serialized as JSON.
+ * Narrowing the content-type check to JSON only is the simplest, most
+ * reliable way to tell backend responses from proxy-layer impostors.
+ */
+function looksLikeBackendResponse(headers) {
+  // axios lowercases response headers, but a Vite dev proxy might keep
+  // them mixed-case — check both defensively.
+  const ct = headers?.["content-type"] ?? headers?.["Content-Type"] ?? "";
+  return (
+    ct.includes("application/json") ||
+    ct.includes("application/problem+json")
+  );
+}
+
+/**
  * Ping the server explicitly. Deduped — concurrent callers await the same
  * in-flight request.
  */
@@ -66,13 +91,22 @@ export function probeServer() {
 
   probeInFlight = axios
     .get(PROBE_URL, { timeout: PROBE_TIMEOUT_MS })
-    .then(() => {
+    .then((res) => {
+      if (!looksLikeBackendResponse(res.headers)) {
+        // 200 OK but served HTML → SPA fallback, backend is actually down.
+        setReachable(false);
+        return false;
+      }
       setReachable(true);
       return true;
     })
     .catch((err) => {
       const status = err?.response?.status;
-      if (status != null && status < 500) {
+      if (
+        status != null &&
+        status < 500 &&
+        looksLikeBackendResponse(err.response?.headers)
+      ) {
         // server answered — it IS up, just didn't like this request
         setReachable(true);
         return true;
@@ -92,11 +126,17 @@ export function probeServer() {
  */
 export function installConnectivityWatcher() {
   // Piggyback on ambient traffic: whenever a request succeeds or explicitly
-  // fails with a 4xx, we know the server is reachable. Network errors and
-  // 5xx flip us to "unreachable".
+  // fails with a 4xx, we know the server is reachable — AS LONG AS the
+  // response actually came from the backend. A 200 with `text/html` is the
+  // SPA-fallback tell-tale: reverse proxy lost the backend route and we're
+  // looking at `index.html`, not a real API response. Treat that as "down".
   axios.interceptors.response.use(
     (res) => {
-      setReachable(true);
+      if (looksLikeBackendResponse(res.headers)) {
+        setReachable(true);
+      } else {
+        setReachable(false);
+      }
       return res;
     },
     (err) => {
@@ -105,6 +145,9 @@ export function installConnectivityWatcher() {
         // Network error, CORS, timeout — no response reached us.
         setReachable(false);
       } else if (status >= 500) {
+        setReachable(false);
+      } else if (!looksLikeBackendResponse(err.response?.headers)) {
+        // 4xx but HTML body → SPA fallback, not the real backend.
         setReachable(false);
       } else {
         // Server responded with 4xx; it's up, just refused this request.

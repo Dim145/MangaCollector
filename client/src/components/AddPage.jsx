@@ -622,7 +622,10 @@ export default function AddPage() {
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-border bg-ink-1/30 p-8 text-center">
-              <div className="hanko-seal mx-auto mb-3 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
+              <div
+                className="hanko-seal mx-auto mb-3 grid h-12 w-12 place-items-center rounded-md font-display text-sm"
+                title={t("badges.search")}
+              >
                 捜
               </div>
               <p className="font-display text-lg italic text-washi">
@@ -710,7 +713,10 @@ export default function AddPage() {
         handleClose={() => setRateLimited(null)}
       >
         <div className="max-w-md rounded-2xl border border-border bg-ink-1 p-6 shadow-2xl">
-          <div className="hanko-seal mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
+          <div
+            className="hanko-seal mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md font-display text-sm"
+            title={t("badges.rateLimit")}
+          >
             限
           </div>
           <h3 className="text-center font-display text-xl font-semibold text-washi">

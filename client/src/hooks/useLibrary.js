@@ -4,6 +4,7 @@ import axios from "@/utils/axios.js";
 import { cacheLibrary, db } from "@/lib/db.js";
 import {
   enqueueLibraryDelete,
+  enqueueLibraryPoster,
   enqueueLibraryUpdateVolumes,
   enqueueLibraryUpsert,
   enqueueLibraryVolumesOwned,
@@ -108,6 +109,19 @@ export function useUpdateVolumesOwned() {
     mutationFn: async ({ mal_id, nbOwned }) => {
       await enqueueLibraryVolumesOwned(mal_id, nbOwned);
       return { mal_id, nbOwned };
+    },
+  });
+}
+
+/**
+ * Offline-first poster change — same optimistic-Dexie + outbox pattern as
+ * the other library mutations. Used by the cover picker confirm flow.
+ */
+export function useSetPoster() {
+  return useMutation({
+    mutationFn: async ({ mal_id, url }) => {
+      await enqueueLibraryPoster(mal_id, url);
+      return { mal_id, url };
     },
   });
 }

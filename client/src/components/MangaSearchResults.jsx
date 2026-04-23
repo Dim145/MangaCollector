@@ -77,7 +77,10 @@ export default function MangaSearchResults({
                     />
                   ) : (
                     <div className="grid h-20 w-14 place-items-center bg-ink-2 sm:h-24 sm:w-16">
-                      <span className="font-display text-2xl italic text-hanko/40">
+                      <span
+                        className="font-display text-2xl italic text-hanko/40"
+                        title={t("badges.volume")}
+                      >
                         巻
                       </span>
                     </div>
