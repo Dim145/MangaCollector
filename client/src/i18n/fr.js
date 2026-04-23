@@ -52,9 +52,27 @@ export default {
     noMatchTitle: "Aucun résultat",
     noMatchBody:
       "Aucun titre ne correspond à cette recherche dans votre archive.",
+    noTagMatchTitle: "Rien sous ces étiquettes",
+    noTagMatchBody:
+      "Aucune série ne porte toutes les étiquettes sélectionnées. Essayez d'en retirer une.",
     emptyBody:
       "Commencez à bâtir votre collection — cherchez un titre, ajoutez un tome, et regardez votre archive s'étoffer.",
     addFirst: "Ajouter votre première série",
+    genresLabel: "ÉTIQUETTES · 題箋",
+    genreFilterLabel: "Filtrer par genre",
+    tagsSelected: "actives",
+    clearTags: "Tout retirer",
+    clearTagsAria: "Retirer toutes les étiquettes",
+    openFilters: "Ouvrir le filtre par étiquettes",
+    openFiltersActive: "Filtres · {n} {label}",
+    filterShort: "Filtres",
+    filterTitle: "Feuilleter par genre",
+    searchTags: "Filtrer les étiquettes…",
+    searchNoMatch: "Aucune étiquette ne correspond.",
+    resultsInline: "correspondent",
+    filteredBy: "Filtré par",
+    activeFiltersLabel: "Filtres actifs",
+    removeChip: "Retirer « {name} »",
   },
   manga: {
     volumesShort: "tomes",
