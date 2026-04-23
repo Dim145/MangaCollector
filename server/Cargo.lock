@@ -2266,7 +2266,7 @@ dependencies = [
 
 [[package]]
 name = "manga-collector-server"
-version = "2.2.0"
+version = "2.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
