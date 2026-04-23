@@ -25,6 +25,7 @@ export default {
     library: "Biblioteca",
     add: "Añadir",
     stats: "Stats",
+    seals: "Sellos",
     settings: "Ajustes",
     profile: "Perfil",
     signIn: "Iniciar sesión",
@@ -675,6 +676,141 @@ export default {
       byline: "Series sin nuevo tomo desde hace 6 meses o más.",
       empty: "Todas las series recibieron atención recientemente.",
       idle: "inactiva {n} meses · {owned}/{total}",
+    },
+  },
+  seals: {
+    eyebrow: "LIBRO DE SELLOS · 印鑑帳",
+    yourTitle: "Tu",
+    titleAccent: "libro",
+    subtitle:
+      "Cada hito de tu colección queda sellado aquí, a medida que crece el archivo.",
+    progressLabel: "Sellos obtenidos",
+    lockedHint: "Por desbloquear",
+    earnedOn: "Obtenido el {date}",
+    newlyGrantedOne: "Un nuevo sello acaba de estamparse.",
+    newlyGrantedMany: "{n} sellos nuevos acaban de estamparse.",
+    newlyGrantedHint: "Observa la tinta secar en las páginas siguientes.",
+    categories: {
+      firsts: "Comienzos",
+      volumes: "Progresión",
+      series: "Estantería",
+      complete: "Obras completadas",
+      collector: "Ediciones coleccionista",
+      coffret: "Cajas",
+      diversity: "Diversidad",
+      anniversary: "Antigüedad",
+    },
+    categoryHint: {
+      firsts: "Tus primeros pasos como archivista",
+      volumes: "El recuento creciente de tus tomos",
+      series: "El número de obras registradas",
+      complete: "Series coleccionadas hasta el último tomo",
+      collector: "Ediciones limitadas cuidadosamente guardadas",
+      coffret: "Compras agrupadas archivadas en el registro",
+      diversity: "La amplitud de géneros que lees",
+      anniversary: "Tiempo dedicado a cuidar el archivo",
+    },
+    tiers: {
+      sumi: "墨 · Tinta común",
+      hanko: "印 · Bermellón",
+      moegi: "萌葱 · Jade",
+      kin: "金 · Pan de oro",
+      shikkoku: "漆黒 · Laca negra",
+    },
+    tierLegend: "TINTAS · 墨",
+    codes: {
+      first_volume: {
+        label: "El primer tomo",
+        description: "El primerísimo tomo añadido a tu archivo.",
+      },
+      first_series: {
+        label: "Primera serie",
+        description: "Tu primera obra registrada.",
+      },
+      first_complete: {
+        label: "Obra completada",
+        description: "Una serie coleccionada de principio a fin.",
+      },
+      volumes_10: {
+        label: "Diez tomos",
+        description: "Tu estantería cruza la primera decena.",
+      },
+      volumes_100: {
+        label: "Centenario",
+        description: "Cien tomos reunidos en el archivo.",
+      },
+      volumes_500: {
+        label: "Quinientos",
+        description: "Quinientos tomos — una biblioteca seria.",
+      },
+      volumes_1000: {
+        label: "El millar",
+        description: "Mil tomos en tu poder. Un archivista consumado.",
+      },
+      series_10: {
+        label: "Diez series",
+        description: "Diez obras distintas bajo tu techo.",
+      },
+      series_50: {
+        label: "Cincuenta",
+        description: "Cincuenta series — la biblioteca de un curador.",
+      },
+      complete_5: {
+        label: "Cinco completadas",
+        description: "Cinco series coleccionadas por completo.",
+      },
+      complete_25: {
+        label: "Veinticinco completadas",
+        description: "Veinticinco obras completas en tus estantes.",
+      },
+      complete_100: {
+        label: "Cien completadas",
+        description: "Cien series completas. Una hazaña discreta.",
+      },
+      first_collector: {
+        label: "Edición limitada",
+        description: "Tu primer tomo en edición coleccionista.",
+      },
+      collector_10: {
+        label: "Diez coleccionistas",
+        description: "Diez ediciones limitadas en tu caja fuerte.",
+      },
+      collector_100: {
+        label: "Cien coleccionistas",
+        description: "Cien ediciones raras — una vitrina excepcional.",
+      },
+      all_collector_1: {
+        label: "Serie integral",
+        description: "Una serie donde cada tomo es coleccionista.",
+      },
+      all_collector_10: {
+        label: "Diez series integrales",
+        description: "Diez series enteramente coleccionistas — la vitrina absoluta.",
+      },
+      first_coffret: {
+        label: "Primera caja",
+        description: "Tu primera caja registrada.",
+      },
+      coffret_10: {
+        label: "Diez cajas",
+        description: "Diez compras agrupadas consignadas en el registro.",
+      },
+      genres_5: {
+        label: "Cinco géneros",
+        description: "Tu gusto abarca cinco géneros distintos.",
+      },
+      genres_15: {
+        label: "Abanico",
+        description: "Quince géneros representados — lo ecléctico.",
+      },
+      anniversary_1: {
+        label: "Un año",
+        description: "Un año desde que el archivo crece.",
+      },
+      anniversary_5: {
+        label: "Cinco años",
+        description: "Cinco años de archivo continuo.",
+      },
     },
   },
 };

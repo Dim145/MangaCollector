@@ -25,6 +25,7 @@ export default {
     library: "Bibliothèque",
     add: "Ajouter",
     stats: "Stats",
+    seals: "Sceaux",
     settings: "Paramètres",
     profile: "Profil",
     signIn: "Connexion",
@@ -687,6 +688,141 @@ export default {
       byline: "Séries sans nouveau tome depuis 6 mois ou plus.",
       empty: "Toutes les séries ont été nourries récemment.",
       idle: "inactive {n} mois · {owned}/{total}",
+    },
+  },
+  seals: {
+    eyebrow: "CARNET DE SCEAUX · 印鑑帳",
+    yourTitle: "Votre",
+    titleAccent: "carnet",
+    subtitle:
+      "Chaque jalon de votre collection se scelle ici, au fil de vos ajouts.",
+    progressLabel: "Sceaux obtenus",
+    lockedHint: "À sceller",
+    earnedOn: "Obtenu le {date}",
+    newlyGrantedOne: "Un nouveau sceau vient d'être apposé.",
+    newlyGrantedMany: "{n} nouveaux sceaux viennent d'être apposés.",
+    newlyGrantedHint: "Regardez l'encre sécher sur les pages qui suivent.",
+    categories: {
+      firsts: "Débuts",
+      volumes: "Progression",
+      series: "Étagère",
+      complete: "Œuvres achevées",
+      collector: "Édition collector",
+      coffret: "Coffrets",
+      diversity: "Diversité",
+      anniversary: "Ancienneté",
+    },
+    categoryHint: {
+      firsts: "Vos premiers pas d'archiviste",
+      volumes: "Le compte grandissant de vos tomes",
+      series: "Le nombre d'œuvres référencées",
+      complete: "Les séries collectées jusqu'au bout",
+      collector: "Les éditions limitées précieusement gardées",
+      coffret: "Les achats groupés tracés dans le registre",
+      diversity: "L'éventail des genres que vous lisez",
+      anniversary: "Le temps passé à faire vivre l'archive",
+    },
+    tiers: {
+      sumi: "墨 · Encre commune",
+      hanko: "印 · Vermillon",
+      moegi: "萌葱 · Jade",
+      kin: "金 · Feuille d'or",
+      shikkoku: "漆黒 · Laque noire",
+    },
+    tierLegend: "ENCRES · 墨",
+    codes: {
+      first_volume: {
+        label: "Le premier tome",
+        description: "Le tout premier tome ajouté à votre archive.",
+      },
+      first_series: {
+        label: "Première série",
+        description: "Votre première œuvre référencée.",
+      },
+      first_complete: {
+        label: "Œuvre achevée",
+        description: "Une série collectée de bout en bout.",
+      },
+      volumes_10: {
+        label: "Dix tomes",
+        description: "Votre étagère franchit la première dizaine.",
+      },
+      volumes_100: {
+        label: "Centenaire",
+        description: "Cent tomes rassemblés dans votre archive.",
+      },
+      volumes_500: {
+        label: "Cinq cents",
+        description: "Cinq cents tomes — une bibliothèque sérieuse.",
+      },
+      volumes_1000: {
+        label: "Le millier",
+        description: "Mille tomes possédés. Un archiviste accompli.",
+      },
+      series_10: {
+        label: "Dix séries",
+        description: "Dix œuvres différentes sous votre toit.",
+      },
+      series_50: {
+        label: "Cinquantaine",
+        description: "Cinquante séries — la bibliothèque d'un curateur.",
+      },
+      complete_5: {
+        label: "Cinq achevées",
+        description: "Cinq séries intégralement collectées.",
+      },
+      complete_25: {
+        label: "Vingt-cinq achevées",
+        description: "Vingt-cinq œuvres complètes dans vos rayons.",
+      },
+      complete_100: {
+        label: "Cent achevées",
+        description: "Cent séries complètes. Un exploit discret.",
+      },
+      first_collector: {
+        label: "Édition limitée",
+        description: "Votre premier tome en édition collector.",
+      },
+      collector_10: {
+        label: "Dix collectors",
+        description: "Dix éditions limitées dans votre coffre.",
+      },
+      collector_100: {
+        label: "Cent collectors",
+        description: "Cent éditions rares — une vitrine d'exception.",
+      },
+      all_collector_1: {
+        label: "Série intégrale",
+        description: "Une série où chaque tome est collector.",
+      },
+      all_collector_10: {
+        label: "Dix séries intégrales",
+        description: "Dix séries entièrement collector — la vitrine absolue.",
+      },
+      first_coffret: {
+        label: "Premier coffret",
+        description: "Votre premier coffret enregistré.",
+      },
+      coffret_10: {
+        label: "Dix coffrets",
+        description: "Dix achats groupés consignés dans le registre.",
+      },
+      genres_5: {
+        label: "Cinq genres",
+        description: "Votre goût embrasse cinq genres différents.",
+      },
+      genres_15: {
+        label: "Éventail",
+        description: "Quinze genres représentés — l'éclectique.",
+      },
+      anniversary_1: {
+        label: "Un an",
+        description: "Une année que votre archive s'étoffe.",
+      },
+      anniversary_5: {
+        label: "Cinq ans",
+        description: "Cinq années d'archivage continu.",
+      },
     },
   },
 };

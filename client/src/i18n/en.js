@@ -25,6 +25,7 @@ export default {
     library: "Library",
     add: "Add",
     stats: "Stats",
+    seals: "Seals",
     settings: "Settings",
     profile: "Profile",
     signIn: "Sign in",
@@ -666,6 +667,141 @@ export default {
       byline: "Series you haven't added to in six months or more.",
       empty: "Every series got love lately. Nothing dormant.",
       idle: "idle {n} months · {owned}/{total}",
+    },
+  },
+  seals: {
+    eyebrow: "SEAL JOURNAL · 印鑑帳",
+    yourTitle: "Your",
+    titleAccent: "journal",
+    subtitle:
+      "Every milestone in your collection is sealed here, as you grow the archive.",
+    progressLabel: "Seals earned",
+    lockedHint: "To unlock",
+    earnedOn: "Earned on {date}",
+    newlyGrantedOne: "A new seal has just been pressed.",
+    newlyGrantedMany: "{n} new seals have just been pressed.",
+    newlyGrantedHint: "Watch the ink dry on the pages below.",
+    categories: {
+      firsts: "Beginnings",
+      volumes: "Progression",
+      series: "Shelf",
+      complete: "Completed works",
+      collector: "Collector editions",
+      coffret: "Box sets",
+      diversity: "Diversity",
+      anniversary: "Anniversary",
+    },
+    categoryHint: {
+      firsts: "Your first archivist steps",
+      volumes: "The growing count of your volumes",
+      series: "The number of works on record",
+      complete: "Series collected to the last volume",
+      collector: "Limited editions, carefully kept",
+      coffret: "Grouped purchases filed in the register",
+      diversity: "The breadth of genres you read",
+      anniversary: "Time spent tending the archive",
+    },
+    tiers: {
+      sumi: "墨 · Common ink",
+      hanko: "印 · Vermilion",
+      moegi: "萌葱 · Jade",
+      kin: "金 · Gold leaf",
+      shikkoku: "漆黒 · Black lacquer",
+    },
+    tierLegend: "INKS · 墨",
+    codes: {
+      first_volume: {
+        label: "The first volume",
+        description: "The very first volume added to your archive.",
+      },
+      first_series: {
+        label: "First series",
+        description: "Your first referenced work.",
+      },
+      first_complete: {
+        label: "Completed work",
+        description: "A series collected from cover to cover.",
+      },
+      volumes_10: {
+        label: "Ten volumes",
+        description: "Your shelf crosses the first ten.",
+      },
+      volumes_100: {
+        label: "Centenarian",
+        description: "A hundred volumes gathered in the archive.",
+      },
+      volumes_500: {
+        label: "Five hundred",
+        description: "Five hundred volumes — a serious library.",
+      },
+      volumes_1000: {
+        label: "The thousand",
+        description: "A thousand volumes owned. An accomplished archivist.",
+      },
+      series_10: {
+        label: "Ten series",
+        description: "Ten different works under your roof.",
+      },
+      series_50: {
+        label: "Fifty",
+        description: "Fifty series — a curator's library.",
+      },
+      complete_5: {
+        label: "Five completed",
+        description: "Five series collected in full.",
+      },
+      complete_25: {
+        label: "Twenty-five completed",
+        description: "Twenty-five complete works on your shelves.",
+      },
+      complete_100: {
+        label: "Hundred completed",
+        description: "A hundred complete series. A quiet feat.",
+      },
+      first_collector: {
+        label: "Limited edition",
+        description: "Your first collector's edition volume.",
+      },
+      collector_10: {
+        label: "Ten collectors",
+        description: "Ten limited editions in your vault.",
+      },
+      collector_100: {
+        label: "Hundred collectors",
+        description: "A hundred rare editions — an exceptional showcase.",
+      },
+      all_collector_1: {
+        label: "Full set",
+        description: "A series where every volume is collector.",
+      },
+      all_collector_10: {
+        label: "Ten full sets",
+        description: "Ten entirely collector series — the ultimate display.",
+      },
+      first_coffret: {
+        label: "First box set",
+        description: "Your first box set on record.",
+      },
+      coffret_10: {
+        label: "Ten box sets",
+        description: "Ten grouped purchases logged in the register.",
+      },
+      genres_5: {
+        label: "Five genres",
+        description: "Your taste spans five different genres.",
+      },
+      genres_15: {
+        label: "Breadth",
+        description: "Fifteen genres represented — the eclectic.",
+      },
+      anniversary_1: {
+        label: "One year",
+        description: "A full year of the archive growing.",
+      },
+      anniversary_5: {
+        label: "Five years",
+        description: "Five years of continuous archiving.",
+      },
     },
   },
 };

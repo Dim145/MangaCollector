@@ -4,6 +4,7 @@ pub mod coffret;
 pub mod external;
 pub mod health;
 pub mod library;
+pub mod seals;
 pub mod settings;
 pub mod storage;
 pub mod volume;

@@ -4,7 +4,7 @@ use axum::{
 };
 
 use crate::handlers::{
-    activity, auth as auth_handlers, coffret, external, health, library, settings, storage,
+    activity, auth as auth_handlers, coffret, external, health, library, seals, settings, storage,
     volume,
 };
 use crate::state::AppState;
@@ -77,6 +77,8 @@ fn user_router() -> Router<AppState> {
         .route("/settings", post(settings::update_settings))
         // Activity feed
         .route("/activity", get(activity::list_activity))
+        // 印鑑帳 — Carnet de sceaux (ceremonial achievements)
+        .route("/seals", get(seals::list_seals))
         // GDPR — erase the entire account
         .route("/account", delete(auth_handlers::delete_account))
 }

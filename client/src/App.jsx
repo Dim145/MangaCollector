@@ -33,6 +33,7 @@ const AddPage = lazy(() => import("@/components/AddPage.jsx"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
 const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
 const Wishlist = lazy(() => import("./components/Wishlist"));
+const SealsPage = lazy(() => import("./components/SealsPage"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -192,6 +193,14 @@ function AppShell() {
                   <DefaultBackground>
                     <AddPage />
                   </DefaultBackground>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/seals"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <SealsPage />
                 </ProtectedRoute>
               }
             />

@@ -62,6 +62,27 @@ const NAV_ITEMS_BASE = [
     ),
   },
   {
+    to: "/seals",
+    key: "seals",
+    // Seal icon — a rounded square (hanko block) with a small mark inside,
+    // echoing the 印 carved into a stamp. Keeps the vector language of the
+    // other nav items while reading as "a seal" at a glance.
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-5 w-5"
+      >
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <path d="M9 9h6M12 9v6M9 15h6" />
+      </svg>
+    ),
+  },
+  {
     to: "/settings",
     key: "settings",
     icon: (
