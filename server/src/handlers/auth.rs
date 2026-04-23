@@ -110,6 +110,27 @@ pub async fn logout(session: Session) -> Result<Json<serde_json::Value>, AppErro
     Ok(Json(json!({ "message": "Logged out successfully" })))
 }
 
+/// DELETE /api/user/account
+///
+/// GDPR "erasure" endpoint: wipes the user's entire footprint — posters,
+/// library, volumes, coffrets, activity, settings, then the user row
+/// itself — and destroys the session. The frontend receives a 200 and
+/// navigates to `/`; a subsequent request will 401 because the session
+/// cookie now references a deleted session AND a deleted user.
+pub async fn delete_account(
+    State(state): State<AppState>,
+    session: Session,
+    AuthenticatedUser(user): AuthenticatedUser,
+) -> Result<Json<serde_json::Value>, AppError> {
+    users::delete_account(&state.db, state.storage.clone(), user.id).await?;
+    // Destroy the session after the DB wipe so we know the cleanup
+    // succeeded before logging the user out. If session.delete() fails
+    // after a successful wipe, the user is already deleted — the stale
+    // session will 401 on the next request anyway.
+    let _ = session.delete().await;
+    Ok(Json(json!({ "success": true })))
+}
+
 /// GET /auth/user
 pub async fn get_auth_user(
     AuthenticatedUser(user): AuthenticatedUser,
