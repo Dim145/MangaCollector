@@ -434,6 +434,19 @@ export default {
     keySaved: "Guardada",
     apiKeyTip:
       "Consejo: restringe la clave al referente HTTP en Google Cloud Console — será rechazada si se filtra y se usa en otro dominio. La clave se guarda solo en tu navegador (localStorage), nunca en el servidor.",
+    seasonTitle: "Estación · 季節",
+    seasonBody:
+      "Los halos ambientales cambian según la estación japonesa. «Auto» sigue el calendario; «Neutro» conserva la paleta base.",
+    seasonBodyAuto:
+      "Estación actual: {current}. Cambio automático según el mes; elige una estación para fijar la paleta.",
+    seasonName: {
+      auto: "Auto",
+      spring: "Primavera",
+      summer: "Verano",
+      autumn: "Otoño",
+      winter: "Invierno",
+      neutral: "Neutro",
+    },
     publicProfileTitle: "Perfil público · 蔵書公開",
     publicProfileBody:
       "Comparte una galería de sólo lectura de tu archivo vía un enlace público. Precios, fechas de compra y contenido adulto quedan excluidos.",

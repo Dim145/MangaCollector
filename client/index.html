@@ -39,6 +39,49 @@
       })();
     </script>
 
+    <!--
+      季節 Season bootstrap — runs alongside the theme bootstrap so the
+      ambient-glows are tinted correctly on the very first paint.
+      "auto" (the default) resolves to the current Japanese season from
+      the month; an explicit choice ("spring"/"summer"/"autumn"/"winter"
+      /"neutral") takes precedence. "neutral" leaves no attribute, which
+      falls back to the base palette in index.css.
+    -->
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem("mc:season") || "auto";
+          var season = null;
+          if (pref === "neutral") {
+            season = null;
+          } else if (
+            pref === "spring" ||
+            pref === "summer" ||
+            pref === "autumn" ||
+            pref === "winter"
+          ) {
+            season = pref;
+          } else {
+            // auto / unset — month 1..12 → season
+            var m = new Date().getMonth() + 1;
+            season =
+              m >= 3 && m <= 5
+                ? "spring"
+                : m >= 6 && m <= 8
+                  ? "summer"
+                  : m >= 9 && m <= 11
+                    ? "autumn"
+                    : "winter";
+          }
+          if (season) {
+            document.documentElement.setAttribute("data-season", season);
+          }
+        } catch (_) {
+          /* no-op — base palette stays in charge */
+        }
+      })();
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="./src/assets/logo.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />

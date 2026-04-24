@@ -447,6 +447,19 @@ export default {
     dataSection: "Données",
     dataBody:
       "Archive hors ligne mise en cache sur cet appareil. Récupérez l'état frais du serveur pour repartir propre.",
+    seasonTitle: "Saison · 季節",
+    seasonBody:
+      "Les halos ambiants se teintent selon la saison japonaise. « Auto » suit le calendrier ; « Neutre » conserve la palette de base.",
+    seasonBodyAuto:
+      "Saison actuelle : {current}. Bascule automatique selon le mois ; choisissez une saison pour fixer la palette.",
+    seasonName: {
+      auto: "Auto",
+      spring: "Printemps",
+      summer: "Été",
+      autumn: "Automne",
+      winter: "Hiver",
+      neutral: "Neutre",
+    },
     publicProfileTitle: "Profil public · 蔵書公開",
     publicProfileBody:
       "Partagez une galerie en lecture seule de votre archive via un lien public. Les prix, dates d'achat et contenus adulte sont exclus.",

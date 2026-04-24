@@ -4,6 +4,7 @@ import Skeleton from "@/components/ui/Skeleton.jsx";
 import DeleteAccountFlow from "@/components/DeleteAccountFlow.jsx";
 import PublicProfileSection from "@/components/PublicProfileSection.jsx";
 import ArchiveSection from "@/components/ArchiveSection.jsx";
+import SeasonSection from "@/components/SeasonSection.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
@@ -640,6 +641,11 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* ─── Seasonal theme — ambient glows shift with the Japanese
+            season. Purely aesthetic, near the other look-and-feel
+            settings. */}
+        <SeasonSection />
 
         {/* ─── Public profile section — toggle + slug editor.
             Sits before the Data/danger section so users see the feature
