@@ -16,7 +16,7 @@ use std::time::Instant;
 use axum::Router;
 use http::HeaderValue;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, DefaultOnResponse, TraceLayer};
 use tower_sessions::cookie::time::Duration;
 use tower_sessions::cookie::SameSite;
 use tower_sessions::{Expiry, SessionManagerLayer};
@@ -166,7 +166,24 @@ async fn main() -> anyhow::Result<()> {
         .layer(axum::extract::DefaultBodyLimit::max(max_body_bytes))
         .layer(session_layer)
         .layer(cors)
-        .layer(TraceLayer::new_for_http());
+        // HTTP trace — noisy 2xx logs are muted at DEBUG, but the
+        // request span itself runs at INFO so failure logs carry
+        // method/uri context instead of the bare "500 Internal Server
+        // Error · latency=…" the default config produces. For the
+        // actual error message bubble, see `errors.rs::IntoResponse`
+        // which logs at ERROR before the 5xx response is sent.
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(
+                    DefaultMakeSpan::new().level(tracing::Level::INFO),
+                )
+                .on_response(
+                    DefaultOnResponse::new().level(tracing::Level::DEBUG),
+                )
+                .on_failure(
+                    DefaultOnFailure::new().level(tracing::Level::ERROR),
+                ),
+        );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("Server running on port {}", port);

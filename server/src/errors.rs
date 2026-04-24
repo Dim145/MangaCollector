@@ -27,6 +27,33 @@ pub enum AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        // Log the full error message at ERROR level for 5xx variants
+        // BEFORE serialising the response. The tower_http trace layer
+        // only emits "500 Internal Server Error · latency=Xms" with
+        // the method+uri span context — without this, the actual
+        // cause (DB error string, storage backend error, etc.) never
+        // reaches the server logs and every 500 becomes a mystery.
+        match &self {
+            AppError::Database(msg) => {
+                tracing::error!(error = %msg, "database error -> 500");
+            }
+            AppError::Storage(e) => {
+                tracing::error!(error = %e, "storage error -> 500");
+            }
+            AppError::Internal(msg) => {
+                tracing::error!(error = %msg, "internal error -> 500");
+            }
+            // 4xx: quieter; they're usually user-input problems, not
+            // operator-actionable. Log at DEBUG so they're available
+            // when explicitly asked for but don't pollute the default
+            // log stream.
+            AppError::NotFound(msg)
+            | AppError::BadRequest(msg)
+            | AppError::Conflict(msg) => {
+                tracing::debug!(error = %msg, "client error");
+            }
+            AppError::Unauthorized => {}
+        }
         let (status, body) = match &self {
             AppError::Unauthorized => (
                 StatusCode::UNAUTHORIZED,

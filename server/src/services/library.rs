@@ -281,6 +281,93 @@ pub async fn refresh_from_mangadex(
     Ok((md_data.genres, md_data.name, image_update))
 }
 
+/// Copy a user-uploaded poster blob from `src` to `dst` in the storage
+/// backend, with a read-back verification step to catch silent failures.
+///
+/// Failure modes handled:
+///   1. Source blob missing → return false, skip
+///   2. Source blob empty (0 bytes) → return false, skip (don't
+///      propagate a useless blob)
+///   3. `put` returns Err → return false, skip
+///   4. `put` returns Ok but verify read fails or returns empty bytes
+///      → roll back the (potentially-broken) dst, return false
+///
+/// Why case 4 matters: the original bug report was a cover that went
+/// missing right after a compare-import. In theory `put` returning Ok
+/// should mean the object is durable on the next `get`. In practice,
+/// MinIO upgrades mid-copy, bucket policy strippers, or a transient
+/// endpoint issue can leave the caller with a success ACK and no
+/// actual object. Without a verify step we'd record the custom-poster
+/// URL in the library row and only discover the breakage on first
+/// page load.
+///
+/// On any failure, we also `remove(dst)` so we don't leave a
+/// half-written orphan. Caller should fall back to `None` in the
+/// library row when this returns false — the UI will render the 巻
+/// placeholder instead of a broken link.
+async fn copy_poster_blob(
+    storage: &dyn crate::storage::StorageBackend,
+    src: &str,
+    dst: &str,
+) -> bool {
+    let bytes = match storage.get(src).await {
+        Ok(b) if b.is_empty() => {
+            tracing::warn!(
+                src = %src,
+                "copy_poster: source blob is empty, skipping cover copy"
+            );
+            return false;
+        }
+        Ok(b) => b,
+        Err(err) => {
+            tracing::warn!(
+                %err,
+                src = %src,
+                "copy_poster: source blob unreadable, skipping cover copy"
+            );
+            return false;
+        }
+    };
+    let bytes_len = bytes.len();
+    if let Err(err) = storage.put(dst, bytes).await {
+        tracing::warn!(%err, dst = %dst, "copy_poster: put failed");
+        return false;
+    }
+    // Verify round-trip. Also checks the size matches, so a partial
+    // write (rare but possible under some S3 implementations) gets
+    // caught here rather than becoming a silent data corruption.
+    match storage.get(dst).await {
+        Ok(v) if v.len() == bytes_len => {
+            tracing::debug!(
+                bytes = bytes_len,
+                src = %src,
+                dst = %dst,
+                "copy_poster: copied + verified"
+            );
+            true
+        }
+        Ok(v) => {
+            tracing::warn!(
+                expected = bytes_len,
+                actual = v.len(),
+                dst = %dst,
+                "copy_poster: verify read size mismatch, rolling back"
+            );
+            let _ = storage.remove(dst).await;
+            false
+        }
+        Err(err) => {
+            tracing::warn!(
+                %err,
+                dst = %dst,
+                "copy_poster: verify read failed, rolling back"
+            );
+            let _ = storage.remove(dst).await;
+            false
+        }
+    }
+}
+
 /// Copy a single series from another user's library into mine. Built
 /// on top of `add_to_user_library` so we reuse the volume-row creation
 /// and idempotent upsert logic. The wrinkle is the cover: when the
@@ -337,6 +424,10 @@ pub async fn copy_series_from_other_user(
     // Decide the image URL I'll store. External URLs (MAL CDN /
     // MangaDex CDN) work for everyone, so we reuse them. A path-ish
     // URL means the source was a user upload — copy the blob.
+    //
+    // This is always a *copy*, never a move: the source user's blob
+    // stays untouched, and we write a fresh object under a key keyed by
+    // *my* user_id + target_mal_id. Two distinct S3 objects.
     let is_custom_upload = source_entry
         .image_url_jpg
         .as_deref()
@@ -351,27 +442,13 @@ pub async fn copy_series_from_other_user(
             "uploads/images/{}/{}.jpg",
             me_user_id, target_mal_id
         );
-        match storage.get(&src_path).await {
-            Ok(bytes) => match storage.put(&dst_path, bytes).await {
-                Ok(()) => Some(format!(
-                    "/api/user/storage/poster/{}",
-                    target_mal_id
-                )),
-                Err(err) => {
-                    tracing::warn!(
-                        %err,
-                        "copy_from_user: poster put failed, proceeding without cover"
-                    );
-                    None
-                }
-            },
-            Err(err) => {
-                tracing::warn!(
-                    %err,
-                    "copy_from_user: source poster missing, proceeding without cover"
-                );
-                None
-            }
+        if copy_poster_blob(storage.as_ref(), &src_path, &dst_path).await {
+            Some(format!("/api/user/storage/poster/{}", target_mal_id))
+        } else {
+            // Copy failed (missing/empty source, put error, verify
+            // mismatch) — fall back to no cover. Better a 巻 placeholder
+            // than a library row pointing at a blob that doesn't exist.
+            None
         }
     } else {
         source_entry.image_url_jpg.clone()

@@ -42,11 +42,51 @@ pub async fn get_poster(
     }
 
     let path = poster_storage_path(user.id, mal_id);
-    let data = state
-        .storage
-        .get(&path)
-        .await
-        .map_err(AppError::Storage)?;
+    // When the DB says "custom poster" but the blob is actually missing
+    // from storage (old state, manual bucket cleanup, failed import,
+    // lost S3 object…), two things happen without this handling:
+    //
+    //   1. Every page visit fires a 500 that pollutes the error logs.
+    //   2. The frontend's CoverImage keeps hitting the URL, fails, and
+    //      falls back to the 巻 placeholder — but never *fixes* the
+    //      broken state in the DB.
+    //
+    // The fix turns the situation into a clean 404 (semantically
+    // accurate: the blob doesn't exist), and self-heals the library
+    // row so the next visit knows this is no longer a custom poster
+    // and falls back to the MAL CDN URL for MAL-sourced series.
+    let data = match state.storage.get(&path).await {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            tracing::warn!(
+                user_id = user.id,
+                mal_id,
+                error = %err,
+                "storage: custom poster blob missing, self-healing library row"
+            );
+            // Restore an external MAL cover when possible; otherwise
+            // clear the URL so the UI falls back to the placeholder.
+            let fallback = if mal_id > 0 {
+                mal_api::get_manga_from_mal(
+                    &state.http_client,
+                    state.cache.as_deref(),
+                    mal_id,
+                )
+                .await
+                .ok()
+                .flatten()
+                .and_then(|d| d.images)
+                .and_then(|i| i.jpg)
+                .and_then(|j| j.large_image_url)
+            } else {
+                None
+            };
+            let _ = library::change_poster(&state.db, user.id, mal_id, fallback).await;
+            return Err(AppError::NotFound(
+                "Custom poster blob missing (library row healed)".into(),
+            ));
+        }
+    };
 
     let response = (
         [
@@ -61,8 +101,17 @@ pub async fn get_poster(
                     .unwrap(),
             ),
             (
+                // `private` is critical: the URL `/api/user/storage/
+                // poster/{mal_id}` is stable across users (two users who
+                // both have a custom poster for the same MAL id produce
+                // the same URL string), so without `private` an upstream
+                // proxy (Traefik, CDN, corporate gateway) could share a
+                // cached response across sessions and serve user A's
+                // cover to user B. `private` forbids intermediate caches
+                // from storing the response — only the end-user's
+                // browser keeps it, scoped to their own session.
                 header::CACHE_CONTROL,
-                "max-age=425061".parse().unwrap(),
+                "private, max-age=425061".parse().unwrap(),
             ),
         ],
         Body::from(data),
