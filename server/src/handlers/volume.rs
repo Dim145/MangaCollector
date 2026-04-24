@@ -39,6 +39,7 @@ pub async fn update_volume(
     volume::update_by_id(
         &state.db,
         body.id,
+        user.id,
         body.owned,
         body.price,
         body.store,

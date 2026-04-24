@@ -228,14 +228,34 @@ pub async fn apply_import_merge(
 
     // For custom entries with mal_id < 0 we need to mint fresh negative
     // IDs that don't clash. Find the current floor.
-    let min_mal_id: Option<i32> = LibraryEntity::find()
+    //
+    // On DB error we fall back to `None` (→ starting at -1), but log a
+    // warning first so the silent degradation is diagnosable if it
+    // produces surprising duplicate-entry errors downstream.
+    let min_mal_id: Option<i32> = match LibraryEntity::find()
         .filter(library::Column::UserId.eq(user.id))
         .filter(library::Column::MalId.lt(0))
         .all(db)
         .await
-        .ok()
-        .and_then(|rows| rows.iter().filter_map(|r| r.mal_id).min());
-    let mut next_custom_id: i32 = min_mal_id.map(|v| v - 1).unwrap_or(-1);
+    {
+        Ok(rows) => rows.iter().filter_map(|r| r.mal_id).min(),
+        Err(err) => {
+            tracing::warn!(
+                %err,
+                user_id = user.id,
+                "apply_import_merge: MIN(mal_id) lookup failed, starting from -1"
+            );
+            None
+        }
+    };
+    // Overflow-safe: if the user somehow has a row with mal_id = i32::MIN,
+    // `v - 1` would panic in debug / wrap in release. `checked_sub` falls
+    // back to -1 in that case; the UNIQUE(user_id, mal_id) partial index
+    // will reject the eventual duplicate and the import fails cleanly
+    // instead of silently corrupting data.
+    let mut next_custom_id: i32 = min_mal_id
+        .and_then(|v| v.checked_sub(1))
+        .unwrap_or(-1);
 
     let mut preview = ImportPreview {
         total_in_file: bundle.library.len(),
@@ -291,10 +311,24 @@ pub async fn apply_import_merge(
             // NOT NULL/UNIQUE(user, mal_id) invariant holds.
             _ => {
                 let mal = next_custom_id;
-                next_custom_id -= 1;
+                // `saturating_sub` pins at i32::MIN on overflow. The
+                // UNIQUE index guarantees that the subsequent INSERT
+                // fails rather than silently producing duplicates if
+                // we've actually reached that range (which requires
+                // 2.1 billion custom entries — effectively never).
+                next_custom_id = next_custom_id.saturating_sub(1);
                 Some(mal)
             }
         };
+
+        // Clamp imported counts to the same ceiling the live write
+        // paths enforce — a malicious or malformed bundle can't sneak
+        // past here to create billions of INSERTs. We mutate a local
+        // binding rather than the input struct so the preview summary
+        // above still reports what was *actually* in the bundle.
+        let series_volumes = crate::services::library::clamp_volumes(series.volumes);
+        let series_volumes_owned = crate::services::library::clamp_volumes(series.volumes_owned)
+            .min(series_volumes);
 
         let genres_str = series.genres.join(",");
         let now = Utc::now();
@@ -302,8 +336,8 @@ pub async fn apply_import_merge(
             user_id: Set(user.id),
             mal_id: Set(assigned_mal),
             name: Set(series.name.clone()),
-            volumes: Set(series.volumes),
-            volumes_owned: Set(series.volumes_owned),
+            volumes: Set(series_volumes),
+            volumes_owned: Set(series_volumes_owned),
             image_url_jpg: Set(series.image_url_jpg.clone()),
             genres: Set(if genres_str.is_empty() {
                 None
@@ -353,9 +387,9 @@ pub async fn apply_import_merge(
                 };
                 active.insert(db).await.map_err(AppError::from)?;
             }
-        } else if series.volumes > 0 {
-            let owned_up_to = series.volumes_owned.clamp(0, series.volumes);
-            for vol_num in 1..=series.volumes {
+        } else if series_volumes > 0 {
+            let owned_up_to = series_volumes_owned;
+            for vol_num in 1..=series_volumes {
                 let active = volume_mod::ActiveModel {
                     user_id: Set(user.id),
                     mal_id: Set(assigned_mal),

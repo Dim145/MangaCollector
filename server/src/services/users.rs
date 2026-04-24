@@ -266,8 +266,15 @@ pub async fn build_public_profile(
         if fully_read {
             fully_read_series += 1;
         }
-        let read_percent = if row.volumes > 0 {
-            ((read_set.len() as i32).min(row.volumes) * 100) / row.volumes
+        // i64 arithmetic: the old `* 100` path overflowed i32 whenever
+        // `row.volumes > i32::MAX / 100` (≈ 21 million). Still a
+        // pathological input given clamp_volumes, but cheap to make
+        // correct regardless. Result is always in [0, 100] so the
+        // final cast back to i32 is safe.
+        let read_percent: i32 = if row.volumes > 0 {
+            let read_count = read_set.len().min(row.volumes as usize) as i64;
+            let pct = (read_count * 100) / (row.volumes as i64);
+            pct as i32
         } else {
             0
         };

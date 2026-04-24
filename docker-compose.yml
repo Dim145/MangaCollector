@@ -85,6 +85,11 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
     environment:
+      RATE_LIMIT_ENABLED: true
+      RATE_LIMIT_PERIOD_SECONDS: 1
+      RATE_LIMIT_BURST_SIZE: 60
+      X_FRAME_OPTIONS: DENY
+      APP_ENABLE_DOTENV: false
       MAX_BODY_SIZE_MB: 50
       REDIS_URL: redis://redis:6379/1
       CACHE_PREFIX: mangacollect/

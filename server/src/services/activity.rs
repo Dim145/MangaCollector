@@ -36,7 +36,16 @@ pub async fn record(
         ..Default::default()
     };
     if let Err(err) = model.insert(conn).await {
-        eprintln!("[activity] failed to record {}: {}", event_type, err);
+        // Previously `eprintln!`, which bypassed the tracing subscriber
+        // and the structured log format used everywhere else. Use
+        // `tracing::warn!` so operators get consistent formatting and
+        // can filter the event type.
+        tracing::warn!(
+            %err,
+            event_type,
+            user_id,
+            "activity: failed to record event (non-fatal)"
+        );
     }
 }
 
@@ -120,16 +129,32 @@ pub async fn check_volume_milestone(conn: &impl ConnectionTrait, user_id: i32) {
     use crate::models::library;
     use sea_orm::sea_query::Expr;
 
-    let total: Option<i64> = library::Entity::find()
+    // Milestone math degrades gracefully on DB trouble: treating the
+    // aggregate as 0 means we simply don't fire a new milestone this
+    // tick, which is strictly better than bubbling a 500 out of a
+    // post-write activity hook. BUT the silent `.ok().flatten()` of
+    // the previous implementation made that degradation invisible —
+    // if the DB pool ever ran out, milestones just stopped firing
+    // until a redeploy, with no log trail. Now we warn explicitly so
+    // that sustained milestone silence is diagnosable.
+    let total: Option<i64> = match library::Entity::find()
         .filter(library::Column::UserId.eq(user_id))
         .select_only()
         .column_as(Expr::col(library::Column::VolumesOwned).sum(), "sum")
         .into_tuple::<Option<i64>>()
         .one(conn)
         .await
-        .ok()
-        .flatten()
-        .flatten();
+    {
+        Ok(opt) => opt.flatten(),
+        Err(err) => {
+            tracing::warn!(
+                %err,
+                user_id,
+                "check_volume_milestone: aggregate query failed, treating as 0"
+            );
+            None
+        }
+    };
 
     let count = total.unwrap_or(0) as i32;
 

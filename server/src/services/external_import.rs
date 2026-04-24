@@ -95,10 +95,24 @@ pub async fn fetch_mal_by_username(
             "Username contains invalid characters.".into(),
         ));
     }
+    // Hard pagination ceiling. With 25 entries/page (Jikan default)
+    // and our MAX_ENTRIES=500 cap, a legitimate user won't need more
+    // than ~20 pages. Anything beyond is either a very pathological
+    // MAL account or an attacker dragging us into extended outbound
+    // traffic. Cap at 50 pages to give real users ample headroom.
+    const MAX_PAGES: u32 = 50;
     let mut series: Vec<ExportSeries> = Vec::new();
-    let mut page = 1;
+    let mut page = 1_u32;
     loop {
         if series.len() >= MAX_ENTRIES {
+            break;
+        }
+        if page > MAX_PAGES {
+            tracing::warn!(
+                username = user,
+                pages = page - 1,
+                "fetch_mal_by_username: hit MAX_PAGES ceiling, returning partial results"
+            );
             break;
         }
         let url = format!(
@@ -128,11 +142,24 @@ pub async fn fetch_mal_by_username(
             if series.len() >= MAX_ENTRIES {
                 break;
             }
-            let total = entry.manga.volumes.unwrap_or(0);
-            let owned = entry
-                .read_volumes
-                .map(|r| r.min(total).max(0))
-                .unwrap_or(0);
+            // `volumes` from Jikan/MAL is the published total. `None`
+            // means MAL doesn't know (unfinished or metadata gap), in
+            // which case the previous `unwrap_or(0)` forced the clamp
+            // `r.min(0)` below → `owned = 0` regardless of what the
+            // user actually read. Silently discarding the user's
+            // progress at import time is a data-loss footgun.
+            //
+            // New behaviour: when total is unknown, trust the
+            // `read_volumes` count the source shipped, only capping
+            // negatives to zero. If MAL later publishes a total, the
+            // user can re-run the import or edit the value manually.
+            let total = entry.manga.volumes;
+            let owned = match (entry.read_volumes, total) {
+                (Some(r), Some(t)) => r.min(t).max(0),
+                (Some(r), None) => r.max(0),
+                (None, _) => 0,
+            };
+            let total = total.unwrap_or(0);
             let mut genres = Vec::new();
             if let Some(gs) = entry.manga.genres {
                 for g in gs {
@@ -332,11 +359,18 @@ pub async fn fetch_anilist_by_username(
                 .or(entry.media.title.romaji.clone())
                 .or(entry.media.title.native.clone())
                 .unwrap_or_else(|| "Untitled".into());
-            let total = entry.media.volumes.unwrap_or(0);
-            let owned = entry
-                .progress_volumes
-                .map(|v| v.min(total).max(0))
-                .unwrap_or(0);
+            // Same "volume total unknown" preservation as for the MAL
+            // importer: when AniList doesn't publish a volume count
+            // (`media.volumes` is null for ongoing series), trust the
+            // user's reported `progress_volumes` instead of clamping
+            // to zero. See the Jikan branch above for full rationale.
+            let total = entry.media.volumes;
+            let owned = match (entry.progress_volumes, total) {
+                (Some(v), Some(t)) => v.min(t).max(0),
+                (Some(v), None) => v.max(0),
+                (None, _) => 0,
+            };
+            let total = total.unwrap_or(0);
             series.push(ExportSeries {
                 mal_id: entry.media.id_mal,
                 mangadex_id: None,

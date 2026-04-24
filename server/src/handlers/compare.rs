@@ -80,6 +80,19 @@ pub async fn copy_entry(
         .await?
         .ok_or_else(|| AppError::NotFound("Profile not found".into()))?;
 
+    // Re-check that the target still has a public_slug at copy time.
+    // `find_by_public_slug` already enforces this at lookup, but a
+    // user could theoretically clear their slug between the compare
+    // GET and the copy POST (unlikely but possible). Without this
+    // belt-and-braces check, the copy would proceed with stale
+    // knowledge of `other.id`, effectively granting access to a now-
+    // private library. The slug lookup above returns None when
+    // cleared, so normally we'd bail here anyway — keeping the
+    // explicit guard makes the invariant obvious to future readers.
+    if other.public_slug.as_deref().map(|s| s != normalised).unwrap_or(true) {
+        return Err(AppError::NotFound("Profile not found".into()));
+    }
+
     let entry = library::copy_series_from_other_user(
         &state.db,
         &state.storage,

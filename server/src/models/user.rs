@@ -31,6 +31,35 @@ impl ActiveModelBehavior for ActiveModel {}
 
 pub type User = Model;
 
+/// DTO returned by `GET /auth/user`. Explicitly listed fields only —
+/// the full `Model` would leak:
+///   • `google_id` / OIDC subject (unique per-provider identifier for
+///     cross-service correlation attacks)
+///   • `email` (useful for phishing if ever exfiltrated via XSS)
+///   • `created_on` / `modified_on` (low value, noisy)
+///
+/// Anything the SPA genuinely needs in the session context goes here;
+/// if a new field is needed later, add it deliberately rather than
+/// serialising the raw `User` model.
+#[derive(Debug, Serialize)]
+pub struct AuthUserResponse {
+    pub id: i32,
+    pub name: Option<String>,
+    pub public_slug: Option<String>,
+    pub public_show_adult: bool,
+}
+
+impl From<&Model> for AuthUserResponse {
+    fn from(u: &Model) -> Self {
+        Self {
+            id: u.id,
+            name: u.name.clone(),
+            public_slug: u.public_slug.clone(),
+            public_show_adult: u.public_show_adult,
+        }
+    }
+}
+
 /// Request body for PATCH /api/user/public-slug. Send `slug: null` (or
 /// omit it) to disable the public profile. Empty string is also treated
 /// as a disable signal for ergonomic reasons.
