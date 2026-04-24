@@ -29,7 +29,9 @@ export default function MangaSearchResults({
 
   return (
     <>
-      <div className="overflow-hidden rounded-2xl border border-border bg-ink-1/80 backdrop-blur-xl shadow-2xl animate-fade-up">
+      {/* Standalone results panel on AddPage (not inside a Modal) —
+          keeps its own blur but `md` is sufficient on a small panel. */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-ink-1/85 backdrop-blur-md shadow-2xl animate-fade-up">
         <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
           <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
             {t("searchResults.matches", { n: results.length })}

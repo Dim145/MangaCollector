@@ -227,7 +227,10 @@ export default function BarcodeScanner({
           zIndex: 10,
         }}
       >
-        <div className="rounded-2xl border border-border bg-ink-0/70 p-4 backdrop-blur-xl">
+        {/* Bottom status card — sits over the live camera feed.
+            Needs its own blur; `md` is enough to frost a small band
+            at the screen bottom without the `xl` GPU tax. */}
+        <div className="rounded-2xl border border-border bg-ink-0/78 p-4 backdrop-blur-md">
           {state === "denied" && (
             <div className="space-y-3">
               <div className="space-y-2 text-center">
@@ -409,7 +412,11 @@ function ManualIsbnTray({ open, onClose, onSubmit, t }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="manual-isbn-title"
-        className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-lg overflow-hidden rounded-t-3xl border border-b-0 border-border bg-ink-1/95 shadow-[0_-20px_60px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl"
+        // Manual-entry tray — sits over the live camera feed.
+        // `md` blur keeps the frosted feel at ~4× lower GPU cost
+        // than `xl`. Shadow is directional (above) so its radius
+        // stays moderate.
+        className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-lg overflow-hidden rounded-t-3xl border border-b-0 border-border bg-ink-1/96 shadow-[0_-16px_36px_-12px_rgba(0,0,0,0.7)] backdrop-blur-md"
         style={{
           zIndex: 30,
           paddingBottom: `calc(1.25rem + env(safe-area-inset-bottom))`,

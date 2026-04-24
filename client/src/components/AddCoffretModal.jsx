@@ -108,7 +108,10 @@ export default function AddCoffretModal({
     >
       <form
         onSubmit={handleSubmit}
-        className="relative overflow-hidden rounded-2xl border border-washi/15 bg-ink-1/95 shadow-2xl backdrop-blur-xl"
+        // Modal overlay already applies backdrop-blur over the page;
+        // stacking another blur-xl on the modal body is pure GPU
+        // overhead. Bumped opacity /95 → /98 to compensate.
+        className="relative overflow-hidden rounded-2xl border border-washi/15 bg-ink-1/98 shadow-2xl"
       >
         {/* Atmospheric accents — cream + hanko, no gold (reserved for collector) */}
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-washi/15 blur-3xl" />

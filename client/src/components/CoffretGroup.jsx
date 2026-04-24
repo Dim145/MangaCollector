@@ -105,7 +105,11 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
   return (
     <section
       aria-label={coffret.name}
-      className="relative overflow-hidden rounded-2xl border border-washi/15 bg-gradient-to-br from-ink-2/50 via-ink-1/40 to-ink-1/30 shadow-[0_0_30px_rgba(244,235,222,0.02)] transition hover:border-washi/30"
+      // Dropped shadow-[0_0_30px_rgba(...,0.02)]: 0.02 alpha is
+      // basically invisible but the 30px blur radius still costs the
+      // GPU a full shadow raster on every repaint. The border +
+      // hover:border-washi/30 is the real affordance here.
+      className="relative overflow-hidden rounded-2xl border border-washi/15 bg-gradient-to-br from-ink-2/50 via-ink-1/40 to-ink-1/30 transition hover:border-washi/30"
     >
       <span
         aria-hidden="true"

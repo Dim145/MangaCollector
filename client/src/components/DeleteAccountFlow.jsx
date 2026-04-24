@@ -179,7 +179,9 @@ export default function DeleteAccountFlow({ open, onClose }) {
     <>
       {/* ────────────────── STEP 1 · Le registre ────────────────── */}
       <Modal popupOpen={step === 1} handleClose={handleClose}>
-        <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-gold/40 bg-ink-1/98 shadow-2xl backdrop-blur-xl">
+        {/* Step 1 container — inside Modal, so the overlay already
+            blurs the page. Drop the body-level backdrop-blur-xl. */}
+        <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-gold/40 bg-ink-1 shadow-2xl">
           {/* Top gold hairline */}
           <span
             aria-hidden="true"
