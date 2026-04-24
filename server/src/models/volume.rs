@@ -19,6 +19,11 @@ pub struct Model {
     pub collector: bool,
     #[sea_orm(default)]
     pub coffret_id: Option<i32>,
+    /// First-read timestamp — NULL means unread (tsundoku if `owned`).
+    /// Orthogonal to `owned`: a volume can be read without being owned
+    /// (borrowed copy) or owned without being read (classic tsundoku).
+    #[sea_orm(default)]
+    pub read_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -28,7 +33,12 @@ impl ActiveModelBehavior for ActiveModel {}
 
 pub type Volume = Model;
 
-/// Request body for updating a volume
+/// Request body for updating a volume.
+///
+/// `read` is sent by the client as a plain boolean — the server maps it
+/// to a timestamp (now) on the way in and exposes `read_at` on the way
+/// out. Keeping the API boolean means clients don't need to reason about
+/// the exact moment the mark was made.
 #[derive(Debug, Deserialize)]
 pub struct UpdateVolumeRequest {
     pub id: i32,
@@ -37,4 +47,9 @@ pub struct UpdateVolumeRequest {
     pub store: Option<String>,
     #[serde(default)]
     pub collector: bool,
+    /// Reading status — `Some(true)` marks read (stamps read_at=now if
+    /// not already set), `Some(false)` clears the timestamp, `None`
+    /// leaves the field untouched. Defaults to None for partial updates.
+    #[serde(default)]
+    pub read: Option<bool>,
 }

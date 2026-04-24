@@ -185,17 +185,35 @@ export async function enqueueLibraryVolumesOwned(mal_id, nbOwned) {
  */
 
 export async function enqueueVolumeUpdate(volume) {
+  // Translate the `read: boolean` flag (from the mutation call-site) into
+  // a `read_at: iso|null` that matches the server row shape, so Dexie's
+  // live-query readers see the optimistic badge update immediately. The
+  // server mapping is mirrored in `services/volume.rs::update_by_id`.
+  const { read, ...rest } = volume;
+  const local = { ...rest };
+  if (read !== undefined) {
+    local.read_at = read ? new Date().toISOString() : null;
+  }
+
   await db.transaction("rw", db.volumes, db.outboxVolumes, async () => {
-    await db.volumes.put(volume);
+    // Merge with whatever's already cached so we never drop columns that
+    // the mutation didn't touch (e.g. user edits only `read` — we must
+    // keep the existing price/store values intact in the local row).
+    const existing = (await db.volumes.get(local.id)) ?? {};
+    await db.volumes.put({ ...existing, ...local });
+
     await db.outboxVolumes.put({
-      id: volume.id,
-      mal_id: volume.mal_id,
+      id: local.id,
+      mal_id: local.mal_id,
       op: "update",
       payload: {
-        owned: volume.owned,
-        price: Number(volume.price) || 0,
-        store: volume.store ?? "",
-        collector: Boolean(volume.collector),
+        owned: local.owned,
+        price: Number(local.price) || 0,
+        store: local.store ?? "",
+        collector: Boolean(local.collector),
+        // `read: undefined` means "leave unchanged" on the server — the
+        // flush-step omits the field entirely in that case.
+        read,
       },
       ts: Date.now(),
     });
@@ -309,6 +327,11 @@ async function flushVolumes() {
         price: op.payload.price,
         store: op.payload.store,
         collector: Boolean(op.payload.collector),
+        // Only forward the `read` flag when it was explicitly set —
+        // sending undefined leaves the server-side read_at untouched.
+        ...(op.payload.read !== undefined
+          ? { read: Boolean(op.payload.read) }
+          : {}),
       });
       await db.outboxVolumes.delete(op.id);
       notifyPendingChanged();

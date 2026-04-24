@@ -811,6 +811,241 @@
 .seal-glow-kin { background: oklch(0.82 0.13 78 / 0.4); }
 .seal-glow-shikkoku { background: oklch(0.82 0.13 78 / 0.55); }
 
+/* ─── 絵巻 emaki — the reading-progress scroll.
+   The strip mimics aged washi paper with subtle warmth, three state
+   layers stacked on top, scroll-rods at each edge, and an "ink-drop"
+   reading head that floats above the last-read position. */
+
+/* Paper base — gradient from ivory-tinted ink-2 to ink-3, with a soft
+   inner top shadow to suggest the curl of unrolled paper. */
+.emaki-strip {
+  background:
+    linear-gradient(
+      180deg,
+      oklch(0.19 0.012 75 / 1) 0%,
+      oklch(0.13 0.008 68 / 1) 100%
+    );
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 oklch(0.96 0.012 85 / 0.06),
+    inset 0 -1px 0 oklch(0 0 0 / 0.3),
+    0 2px 8px -2px oklch(0 0 0 / 0.3);
+  overflow: hidden;
+}
+:root[data-theme="light"] .emaki-strip {
+  background: linear-gradient(
+    180deg,
+    oklch(0.93 0.012 82) 0%,
+    oklch(0.88 0.012 80) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    inset 0 -1px 0 oklch(0.17 0.015 40 / 0.1),
+    0 2px 8px -2px oklch(0.17 0.015 40 / 0.12);
+}
+
+/* Scroll rods — the bamboo sticks at each end of the emaki. A darker
+   narrow vertical strip with a subtle highlight to suggest depth. */
+.emaki-rod {
+  position: absolute;
+  top: -2px;
+  bottom: 20px; /* stops above the decade-labels row */
+  width: 6px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    oklch(0.09 0.008 30) 0%,
+    oklch(0.17 0.015 30) 50%,
+    oklch(0.09 0.008 30) 100%
+  );
+  box-shadow:
+    inset 0 0 0 0.5px oklch(0 0 0 / 0.6),
+    0 2px 6px -2px oklch(0 0 0 / 0.6);
+}
+.emaki-rod-left {
+  left: -3px;
+}
+.emaki-rod-right {
+  right: -3px;
+}
+:root[data-theme="light"] .emaki-rod {
+  background: linear-gradient(
+    90deg,
+    oklch(0.45 0.04 60) 0%,
+    oklch(0.62 0.07 60) 50%,
+    oklch(0.45 0.04 60) 100%
+  );
+}
+
+/* State segments — absolutely positioned over the strip at their
+   fractional offset. `top/bottom: 0` makes them fill the strip height. */
+.emaki-cell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.emaki-cell-read {
+  background: linear-gradient(180deg, var(--moegi) 0%, var(--moegi-muted) 100%);
+  box-shadow: inset 0 0 0 0.5px oklch(0.78 0.16 140 / 0.3);
+}
+.emaki-cell-tsundoku {
+  background-color: oklch(0.96 0.012 85 / 0.05);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0 2px,
+    oklch(0.78 0.015 70 / 0.2) 2px 3.5px
+  );
+}
+.emaki-cell-missing {
+  /* Transparent — let the paper surface show through so the unread
+     stretches of the scroll feel like blank washi. */
+  background: transparent;
+}
+
+/* Tick marks — thin vertical hairs overlaying the strip. Minor ticks
+   (every 10) are very subtle; major ones (at labelled positions) are
+   slightly bolder and hanko-tinted so the eye locks onto them first. */
+.emaki-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  pointer-events: none;
+}
+.emaki-tick-minor {
+  background: oklch(0 0 0 / 0.25);
+}
+.emaki-tick-major {
+  width: 1.5px;
+  background: oklch(0.6 0.22 25 / 0.45);
+  box-shadow: 0 0 3px oklch(0.6 0.22 25 / 0.25);
+}
+
+/* Click-zone — fully transparent by default, shows a faint wash on hover
+   so the user sees they're clicking a tome. */
+.emaki-hit {
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.emaki-hit:hover {
+  background: oklch(0.96 0.012 85 / 0.08);
+}
+.emaki-hit:focus-visible {
+  background: oklch(0.6 0.22 25 / 0.15);
+  outline: 1px solid var(--hanko);
+  outline-offset: -1px;
+}
+
+/* Ink-drop reading head — a small moegi dot anchored above the strip
+   at the last-read position, with a label above it and a halo that
+   breathes. */
+.emaki-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--moegi);
+  filter: drop-shadow(0 2px 4px oklch(0.78 0.16 140 / 0.4));
+}
+.emaki-head .font-jp {
+  padding: 1px 5px;
+  margin-bottom: 2px;
+  background: var(--ink-0);
+  border-radius: 2px;
+  color: var(--moegi);
+  box-shadow: 0 0 0 1px oklch(0.78 0.16 140 / 0.5);
+}
+.emaki-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(
+    circle at 30% 30%,
+    oklch(0.88 0.18 140) 0%,
+    var(--moegi) 60%,
+    var(--moegi-muted) 100%
+  );
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0 1px oklch(0.78 0.16 140 / 0.4),
+    0 2px 4px oklch(0 0 0 / 0.4);
+}
+/* Tail — a tiny triangular "drip" under the dot, pointing at the
+   strip, like a wet brush touching the paper. */
+.emaki-dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 5px solid var(--moegi-muted);
+  filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.3));
+}
+.emaki-halo {
+  position: absolute;
+  top: 13px; /* aligns with dot center (roughly: kanji-height + margin + half-dot) */
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: oklch(0.78 0.16 140 / 0.35);
+  animation: emaki-halo 2.4s ease-in-out infinite;
+}
+@keyframes emaki-halo {
+  0%, 100% {
+    transform: scale(0.7);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.1;
+  }
+}
+
+/* Unroll animation — the strip reveals itself from left to right the
+   first time the component mounts, echoing the gesture of unrolling a
+   real scroll. Uses clip-path so the state segments and ticks are all
+   revealed in one sweep without per-cell stagger. */
+@keyframes emaki-unroll {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.animate-emaki-unroll {
+  animation: emaki-unroll 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Legend swatch — 12x12, rounded, matches any of the state classes. */
+.reading-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 12px;
+  border-radius: 1px;
+}
+
+/* Ring-flash — used when a reading-cell click scrolls-to its volume.
+   A one-shot animation that overlays a hanko-red glow around the card. */
+@keyframes ring-flash {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--hanko-glow);
+  }
+  30% {
+    box-shadow: 0 0 0 4px var(--hanko-glow);
+  }
+  60% {
+    box-shadow: 0 0 0 6px oklch(0.6 0.22 25 / 0.2);
+  }
+}
+.ring-flash {
+  animation: ring-flash 1.6s ease-out;
+  border-radius: 0.75rem;
+}
+
 /* ─── Tier legend dots — match the earned seal colour for each tier ─ */
 .tier-legend-dot {
   display: inline-block;

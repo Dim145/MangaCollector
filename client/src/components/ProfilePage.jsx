@@ -15,6 +15,7 @@ import Skeleton from "./ui/Skeleton.jsx";
 import ActivityFeed from "./ActivityFeed.jsx";
 import MalRecommendations from "./MalRecommendations.jsx";
 import SpendingChart from "./analytics/SpendingChart.jsx";
+import ReadingChart from "./analytics/ReadingChart.jsx";
 import CompositionPies from "./analytics/CompositionPies.jsx";
 import InsightCards from "./analytics/InsightCards.jsx";
 import ActionableLists from "./analytics/ActionableLists.jsx";
@@ -360,9 +361,18 @@ export default function ProfilePage({ googleUser }) {
           <SpendingChart data={analytics.monthly.spending} loading={loading} />
         </section>
 
+        {/* 読破 · Reading cadence — sibling of SpendingChart, moegi-tinted,
+            rolled-up quick-stats + monthly bar chart of read_at timestamps. */}
         <section
           className="mt-6 animate-fade-up"
-          style={{ animationDelay: "450ms" }}
+          style={{ animationDelay: "430ms" }}
+        >
+          <ReadingChart reading={analytics.reading} loading={loading} />
+        </section>
+
+        <section
+          className="mt-6 animate-fade-up"
+          style={{ animationDelay: "470ms" }}
         >
           <CompositionPies
             stores={analytics.composition.stores}

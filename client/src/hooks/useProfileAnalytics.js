@@ -186,6 +186,61 @@ export function useProfileAnalytics() {
     const nextVolumeMilestone = nextMilestone(ownedVolumeCount, VOLUME_MILESTONES);
     const nextSeriesMilestone = nextMilestone(seriesCount, SERIES_MILESTONES);
 
+    // ─── reading stats ───────────────────────────────────────────
+    // Orthogonal to ownership: a volume is "read" iff read_at is set.
+    // We compute four roll-ups:
+    //   volumesRead    — total read
+    //   tsundokuCount  — owned but unread (the pile)
+    //   fullyReadSeries — series where every vol 1..series.volumes is read
+    //   monthlyReads   — last 12-month histogram of read_at timestamps
+    let volumesRead = 0;
+    let tsundokuCount = 0;
+    const readByMal = new Map(); // mal_id → Set<vol_num>
+    const readBuckets = new Map();
+    for (let i = 11; i >= 0; i -= 1) {
+      const d = addMonths(now, -i);
+      const key = monthKey(d);
+      if (key) {
+        readBuckets.set(key, {
+          month: key,
+          label: formatMonthLabel(key),
+          count: 0,
+        });
+      }
+    }
+    for (const v of vols) {
+      if (v.read_at) {
+        volumesRead += 1;
+        if (v.mal_id != null) {
+          if (!readByMal.has(v.mal_id)) readByMal.set(v.mal_id, new Set());
+          readByMal.get(v.mal_id).add(v.vol_num);
+        }
+        const key = monthKey(v.read_at);
+        if (key) {
+          const bucket = readBuckets.get(key);
+          if (bucket) bucket.count += 1;
+        }
+      }
+      if (v.owned && !v.read_at) tsundokuCount += 1;
+    }
+    let fullyReadSeries = 0;
+    for (const s of lib) {
+      if (!(s.volumes > 0)) continue;
+      const set = readByMal.get(s.mal_id);
+      if (!set) continue;
+      let all = true;
+      for (let n = 1; n <= s.volumes; n += 1) {
+        if (!set.has(n)) {
+          all = false;
+          break;
+        }
+      }
+      if (all) fullyReadSeries += 1;
+    }
+    const readRatio =
+      ownedVolumeCount > 0 ? (volumesRead / ownedVolumeCount) * 100 : 0;
+    const monthlyReads = Array.from(readBuckets.values());
+
     // ─── middle gaps (actionable "finish these volumes") ─────────
     // Series where the user owns vol N and vol N+k (k≥2) but is missing at
     // least one volume strictly between them. Trailing gaps (past the last
@@ -286,6 +341,13 @@ export function useProfileAnalytics() {
         nextSeries: nextSeriesMilestone,
         ownedVolumeCount,
         seriesCount,
+      },
+      reading: {
+        volumesRead,
+        tsundokuCount,
+        fullyReadSeries,
+        readRatio,
+        monthlyReads,
       },
       middleGaps: middleGaps.slice(0, 8),
       stale: stale.slice(0, 6),

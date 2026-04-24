@@ -46,6 +46,7 @@ pub async fn update_by_id(
     price: Option<Decimal>,
     store: Option<String>,
     collector: bool,
+    read: Option<bool>,
 ) -> Result<VolumeUpdateResult, AppError> {
     let now = Utc::now();
 
@@ -56,7 +57,7 @@ pub async fn update_by_id(
         .await
         .map_err(AppError::from)?;
 
-    let res = VolumeEntity::update_many()
+    let mut query = VolumeEntity::update_many()
         .filter(volume::Column::Id.eq(id))
         .col_expr(volume::Column::Owned, owned.into())
         .col_expr(
@@ -74,10 +75,34 @@ pub async fn update_by_id(
             ),
         )
         .col_expr(volume::Column::Collector, collector.into())
-        .col_expr(volume::Column::ModifiedOn, now.into())
-        .exec(db)
-        .await
-        .map_err(AppError::from)?;
+        .col_expr(volume::Column::ModifiedOn, now.into());
+
+    // Reading status — three-way behaviour to preserve the first-read
+    // timestamp across toggles:
+    //  • None          → field untouched
+    //  • Some(true)    → stamp to NOW iff currently NULL (keeps original
+    //                    read date on repeated marks)
+    //  • Some(false)   → clear to NULL
+    if let Some(mark_read) = read {
+        if mark_read {
+            let already_read = existing
+                .as_ref()
+                .and_then(|r| r.read_at)
+                .is_some();
+            if !already_read {
+                query = query.col_expr(volume::Column::ReadAt, now.into());
+            }
+        } else {
+            query = query.col_expr(
+                volume::Column::ReadAt,
+                sea_orm::sea_query::Expr::value(
+                    Option::<chrono::DateTime<chrono::Utc>>::None,
+                ),
+            );
+        }
+    }
+
+    let res = query.exec(db).await.map_err(AppError::from)?;
 
     // Log ownership transitions only — price/store edits alone don't produce
     // an activity entry.

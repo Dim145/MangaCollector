@@ -54,6 +54,15 @@ export const SEAL_CATALOG = [
   // 年 Ancienneté
   { code: "anniversary_1", kanji: "年", category: "anniversary", tier: 2 },
   { code: "anniversary_5", kanji: "歴", category: "anniversary", tier: 5 },
+  // 読 Lecture — orthogonal reading axis, parallel to volumes progression
+  { code: "first_read", kanji: "読", category: "reading", tier: 1 },
+  { code: "read_10", kanji: "十", category: "reading", tier: 2 },
+  { code: "read_100", kanji: "百", category: "reading", tier: 3 },
+  { code: "read_500", kanji: "伍", category: "reading", tier: 4 },
+  { code: "read_1000", kanji: "千", category: "reading", tier: 5 },
+  { code: "first_full_read", kanji: "破", category: "dokuha", tier: 2 },
+  { code: "full_read_10", kanji: "精", category: "dokuha", tier: 3 },
+  { code: "full_read_50", kanji: "究", category: "dokuha", tier: 5 },
 ];
 
 export const SEAL_CATEGORIES = [
@@ -65,6 +74,8 @@ export const SEAL_CATEGORIES = [
   { code: "coffret", kanji: "盒" },
   { code: "diversity", kanji: "彩" },
   { code: "anniversary", kanji: "年" },
+  { code: "reading", kanji: "読" },
+  { code: "dokuha", kanji: "破" },
 ];
 
 /** Seals grouped by category, in catalog order. */

@@ -53,6 +53,11 @@ enum ThresholdKind {
     DistinctGenres,
     /// Days since the user account was created.
     AccountAgeDays,
+    /// Number of volumes with a non-null read_at timestamp.
+    VolumesRead,
+    /// Number of series where every volume is read (volumes > 0 and
+    /// every position 1..=volumes has a read_at set).
+    FullyReadSeries,
 }
 
 /// The authoritative catalog. Order here is **presentation order** for the
@@ -93,6 +98,18 @@ pub const CATALOG: &[SealDef] = &[
     // ── 年 Ancienneté ───────────────────────────────────────────
     SealDef { code: "anniversary_1",  kind: ThresholdKind::AccountAgeDays,     threshold: 365 },
     SealDef { code: "anniversary_5",  kind: ThresholdKind::AccountAgeDays,     threshold: 1825 },
+    // ── 読 Lecture ──────────────────────────────────────────────
+    // Reading-axis seals, orthogonal to ownership. Thresholds mirror the
+    // volumes_* scale so users can track a parallel progression of
+    // "how much I've read" against "how much I've acquired".
+    SealDef { code: "first_read",      kind: ThresholdKind::VolumesRead,      threshold: 1 },
+    SealDef { code: "read_10",         kind: ThresholdKind::VolumesRead,      threshold: 10 },
+    SealDef { code: "read_100",        kind: ThresholdKind::VolumesRead,      threshold: 100 },
+    SealDef { code: "read_500",        kind: ThresholdKind::VolumesRead,      threshold: 500 },
+    SealDef { code: "read_1000",       kind: ThresholdKind::VolumesRead,      threshold: 1000 },
+    SealDef { code: "first_full_read", kind: ThresholdKind::FullyReadSeries,  threshold: 1 },
+    SealDef { code: "full_read_10",    kind: ThresholdKind::FullyReadSeries,  threshold: 10 },
+    SealDef { code: "full_read_50",    kind: ThresholdKind::FullyReadSeries,  threshold: 50 },
 ];
 
 /// Stats snapshot for a single user. Computed in one pass per request.
@@ -106,6 +123,10 @@ struct Stats {
     coffrets: i64,
     distinct_genres: i64,
     account_age_days: i64,
+    /// Total volumes the user has marked as read (read_at is NOT NULL).
+    volumes_read: i64,
+    /// Series where every volume 1..=library.volumes is read.
+    fully_read_series: i64,
 }
 
 impl Stats {
@@ -119,6 +140,8 @@ impl Stats {
             ThresholdKind::Coffrets => self.coffrets,
             ThresholdKind::DistinctGenres => self.distinct_genres,
             ThresholdKind::AccountAgeDays => self.account_age_days,
+            ThresholdKind::VolumesRead => self.volumes_read,
+            ThresholdKind::FullyReadSeries => self.fully_read_series,
         }
     }
 }
@@ -165,15 +188,15 @@ async fn compute_stats(db: &Db, user_id: i32) -> Result<Stats, AppError> {
     }
     stats.distinct_genres = genres.len() as i64;
 
-    // Volume sweep — owned total, collector owned, per-mal_id "all collector".
+    // Volume sweep — owned total, collector owned, per-mal_id "all collector",
+    // read volumes, and per-series read count (for fully-read qualifier).
     let volumes = VolumeEntity::find()
         .filter(volume::Column::UserId.eq(user_id))
         .all(db)
         .await?;
-    // Per-series bookkeeping for "all collector" qualifier: a series counts
-    // iff it has ≥1 owned volume AND every owned volume is collector.
     use std::collections::HashMap;
-    let mut per_series: HashMap<i32, (i64, i64)> = HashMap::new(); // mal_id → (owned, non_collector_owned)
+    // Per-series bookkeeping: (owned, non_collector_owned, distinct_read_vols)
+    let mut per_series: HashMap<i32, (i64, i64, HashSet<i32>)> = HashMap::new();
     for v in &volumes {
         if v.owned {
             stats.volumes_owned += 1;
@@ -188,11 +211,38 @@ async fn compute_stats(db: &Db, user_id: i32) -> Result<Stats, AppError> {
                 }
             }
         }
+        if v.read_at.is_some() {
+            stats.volumes_read += 1;
+            if let Some(mal) = v.mal_id {
+                per_series.entry(mal).or_default().2.insert(v.vol_num);
+            }
+        }
     }
     stats.all_collector_series = per_series
         .values()
-        .filter(|(owned, non_coll)| *owned > 0 && *non_coll == 0)
+        .filter(|(owned, non_coll, _)| *owned > 0 && *non_coll == 0)
         .count() as i64;
+
+    // Fully-read qualifier: series where every volume 1..=library.volumes is
+    // marked read. Requires cross-referencing the library.volumes count
+    // (published total) with the set of read vol_num we just collected.
+    for row in &libraries {
+        if row.volumes <= 0 {
+            continue;
+        }
+        let mal = match row.mal_id {
+            Some(m) => m,
+            None => continue,
+        };
+        let read_set = match per_series.get(&mal) {
+            Some((_, _, set)) => set,
+            None => continue,
+        };
+        let all_read = (1..=row.volumes).all(|n| read_set.contains(&n));
+        if all_read {
+            stats.fully_read_series += 1;
+        }
+    }
 
     // Coffrets.
     stats.coffrets = CoffretEntity::find()

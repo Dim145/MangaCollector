@@ -42,6 +42,7 @@ pub async fn update_volume(
         body.price,
         body.store,
         body.collector,
+        body.read,
     )
     .await?;
     Ok(Json(json!({
