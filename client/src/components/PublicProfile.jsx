@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { usePublicProfile } from "@/hooks/usePublicProfile.js";
 import Skeleton from "./ui/Skeleton.jsx";
+import CoverImage from "./ui/CoverImage.jsx";
 import { useT } from "@/i18n/index.jsx";
 
 /** localStorage key for the visitor's "reveal adult content" choice,
@@ -250,7 +251,6 @@ function PublicCard({ entry, index, blurAdult }) {
   const owned = entry.volumes_owned ?? 0;
   const total = entry.volumes ?? 0;
   const complete = total > 0 && owned >= total;
-  const hasCover = Boolean(entry.image_url_jpg);
   const isMuted = entry.is_adult && blurAdult;
 
   return (
@@ -267,21 +267,24 @@ function PublicCard({ entry, index, blurAdult }) {
               : "group-hover:border-hanko/50"
         }`}
       >
-        {hasCover ? (
-          <img
-            src={entry.image_url_jpg}
-            alt=""
-            loading="lazy"
-            className={`h-full w-full object-cover transition-all duration-700 group-hover:scale-105 ${
-              isMuted ? "blur-xl scale-110 brightness-50" : ""
-            }`}
+        {/* CoverImage handles both the "no URL" and "URL dead" cases
+            with a single placeholder. `isMuted` stacks the adult-blur
+            filter on top when the visitor hasn't confirmed yet. */}
+        <CoverImage
+          src={entry.image_url_jpg}
+          alt=""
+          imgClassName={`h-full w-full object-cover transition-all duration-700 group-hover:scale-105 ${
+            isMuted ? "blur-xl scale-110 brightness-50" : ""
+          }`}
+        />
+        {isMuted && (
+          // Darken the placeholder too when the adult filter is on —
+          // otherwise a public-card with no cover would expose the
+          // adult seal/title overlay against a clean kanji backdrop.
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-ink-0/60"
           />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-2 to-ink-3">
-            <span className="font-display text-4xl italic text-hanko/40">
-              巻
-            </span>
-          </div>
         )}
 
         {/* Bottom gradient for readability */}
