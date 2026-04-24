@@ -884,8 +884,24 @@
   top: 0;
   bottom: 0;
 }
+/* Read cells — horizontal 3-stop gradient painted across ALL read cells
+   as if they shared a single continuous background. The trick: the JSX
+   sets `background-size` to `(totalVolumes × 100%) × 100%` so the gradient
+   spans the whole strip, and sets `background-position-x` per cell so
+   cell N shows its own slice of the gradient [(N-1)/total, N/total].
+   Result: an unbroken moegi ink wash from muted (older "dried ink") to
+   bright (fresh ink, closer to the reading-head). Legend swatch falls
+   back to the centre of the gradient so it stays representative. */
 .emaki-cell-read {
-  background: linear-gradient(180deg, var(--moegi) 0%, var(--moegi-muted) 100%);
+  background-image: linear-gradient(
+    90deg,
+    var(--moegi-muted) 0%,
+    var(--moegi) 50%,
+    oklch(0.86 0.18 140) 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: center;
   box-shadow: inset 0 0 0 0.5px oklch(0.78 0.16 140 / 0.3);
 }
 .emaki-cell-tsundoku {

@@ -1326,20 +1326,34 @@ function LibraryBlock({
             on top via absolute positioning. */}
         <div className="emaki-strip relative h-4 animate-emaki-unroll">
           {/* State segments — one absolute div per tome position.
-              - read: moegi solid
-              - tsundoku: washi-dim rayé
+              - read: moegi gradient (horizontal, continuous across all
+                read cells via matched background-size + position)
+              - tsundoku: washi-dim rayé (solid pattern, no gradient)
               - missing: transparent (lets the paper surface show) */}
-          {cells.map((cell) => (
-            <div
-              key={cell.num}
-              className={`emaki-cell emaki-cell-${cell.state}`}
-              style={{
-                left: `${((cell.num - 1) / totalVolumes) * 100}%`,
-                width: `${(1 / totalVolumes) * 100}%`,
-              }}
-              aria-hidden="true"
-            />
-          ))}
+          {cells.map((cell) => {
+            const style = {
+              left: `${((cell.num - 1) / totalVolumes) * 100}%`,
+              width: `${(1 / totalVolumes) * 100}%`,
+            };
+            if (cell.state === "read" && totalVolumes > 1) {
+              // Stretch the gradient to the full strip width, then offset
+              // so each cell shows only its own slice. Formula:
+              //   size = totalVolumes * 100% (stretches gradient over N cells)
+              //   position-x = (n-1) / (N-1) * 100%  (slides to the cell's slot)
+              style.backgroundSize = `${totalVolumes * 100}% 100%`;
+              style.backgroundPosition = `${
+                ((cell.num - 1) * 100) / (totalVolumes - 1)
+              }% center`;
+            }
+            return (
+              <div
+                key={cell.num}
+                className={`emaki-cell emaki-cell-${cell.state}`}
+                style={style}
+                aria-hidden="true"
+              />
+            );
+          })}
 
           {/* Minor decade ticks — every-10 marks, very subtle */}
           {minorTicks.map((n) => (
