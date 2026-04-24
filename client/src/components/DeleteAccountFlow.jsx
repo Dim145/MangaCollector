@@ -264,28 +264,53 @@ export default function DeleteAccountFlow({ open, onClose }) {
       {/* ────────────────── STEP 2 · L'acte ────────────────── */}
       <Modal popupOpen={step === 2} handleClose={handleClose}>
         <div
-          className={`relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-hanko/70 bg-ink-0/95 shadow-[0_0_60px_rgba(220,38,38,0.45)] backdrop-blur-xl ${
+          // Perf pass on this surface:
+          //   • dropped `backdrop-blur-xl` — the Modal overlay
+          //     already applies a backdrop-blur covering the whole
+          //     viewport; stacking a second one on the modal body
+          //     doubled the GPU cost for zero visual gain (the body
+          //     is already opaque at bg-ink-0/95).
+          //   • shadow radius 60px → 28px. GPU shadow cost scales
+          //     with area, so halving the radius is roughly a 4×
+          //     speedup on that layer with no perceptible change
+          //     (60px was way past the point of visual diminishing
+          //     returns for this use case).
+          className={`relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-hanko/70 bg-ink-0/95 shadow-[0_0_28px_rgba(220,38,38,0.45)] ${
             shake ? "animate-shake" : ""
           }`}
         >
-          {/* Pulsing red glow behind */}
+          {/* Pulsing red glow behind.
+              `will-change` pre-promotes the layer to its own GPU
+              texture so `transform: scale` + `opacity` stay on the
+              compositor thread and never trigger a re-rasterisation
+              of the radial gradient (which would be very expensive
+              because it's 2× the modal size via -inset-20). */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -inset-20 animate-delete-pulse opacity-40"
             style={{
               backgroundImage:
                 "radial-gradient(ellipse 60% 50% at 50% 30%, var(--hanko-glow), transparent 70%)",
+              willChange: "transform, opacity",
             }}
           />
 
           <header className="relative flex flex-col items-center px-8 pt-7 pb-3">
-            {/* 消 seal — grows on hover, grows further when final delete clicked */}
+            {/* 消 seal — grows on hover, grows further when final
+                delete clicked.
+                Rotation moved into the CSS transform chain so it
+                composes with the scale changes rather than fighting
+                them. Shadow radius reduced from 26px to 14px for the
+                same GPU-cost reason as the container. */}
             <span
               aria-hidden="true"
-              className={`grid h-16 w-16 place-items-center rounded-md bg-gradient-to-br from-hanko-bright to-hanko-deep text-washi shadow-[0_0_26px_var(--hanko-glow)] transition-transform duration-500 ${
-                submitting ? "scale-[1.6]" : matches ? "scale-110" : ""
+              className={`grid h-16 w-16 place-items-center rounded-md bg-gradient-to-br from-hanko-bright to-hanko-deep text-washi shadow-[0_0_14px_var(--hanko-glow)] transition-transform duration-500 ${
+                submitting
+                  ? "[transform:rotate(-3deg)_scale(1.6)]"
+                  : matches
+                    ? "[transform:rotate(-3deg)_scale(1.1)]"
+                    : "[transform:rotate(-3deg)]"
               }`}
-              style={{ transform: "rotate(-3deg)" }}
             >
               <span className="font-display text-3xl font-bold leading-none">
                 消
@@ -340,15 +365,21 @@ export default function DeleteAccountFlow({ open, onClose }) {
               {/* Progress bar — fills based on matching PREFIX length,
                   not raw length. Random keystrokes don't advance it;
                   only correct typing does. When complete, the gradient
-                  locks to the hanko tones. */}
+                  locks to the hanko tones.
+                  Driven by `transform: scaleX` with a fixed-width
+                  inner bar — compositor-only. The previous version
+                  animated `width` directly, which fires a layout +
+                  paint on every keystroke (bar width is derived
+                  from typed state, so that's a repaint per key).
+                  `transform-origin: left` anchors the growth. */}
               <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-washi/10">
                 <div
-                  className={`h-full transition-all duration-300 ${
+                  className={`h-full w-full origin-left transition-transform duration-300 will-change-transform ${
                     matches
                       ? "bg-gradient-to-r from-hanko to-hanko-bright"
                       : "bg-gradient-to-r from-washi-dim to-hanko/40"
                   }`}
-                  style={{ width: `${progress * 100}%` }}
+                  style={{ transform: `scaleX(${progress})` }}
                 />
               </div>
             </label>
@@ -368,7 +399,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
               // Progressive materialisation — even disabled, the button
               // is partly visible so the user SEES what awaits them.
               style={{ opacity: 0.25 + progress * 0.75 }}
-              className={`group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-hanko bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright px-5 py-3 font-display text-sm font-bold uppercase tracking-[0.2em] text-washi shadow-[0_0_24px_var(--hanko-glow)] transition-transform active:scale-95 ${
+              className={`group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-hanko bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright px-5 py-3 font-display text-sm font-bold uppercase tracking-[0.2em] text-washi shadow-[0_0_12px_var(--hanko-glow)] transition-transform active:scale-95 ${
                 matches && !submitting
                   ? "cursor-pointer hover:brightness-110"
                   : "cursor-not-allowed"
@@ -416,8 +447,14 @@ export default function DeleteAccountFlow({ open, onClose }) {
 function VowCard({ verb, identity, fallbackPhrase, hint, matches }) {
   const base =
     "relative mx-auto mb-3 overflow-hidden rounded-xl border px-4 py-3 transition-colors duration-300";
+  // Perf: the "matched" state previously added a third large
+  // box-shadow (0_0_18px) on top of the container's already-heavy
+  // glow. On a ceremonial modal where the user is actively typing,
+  // every frame's compositing bill adds up. We swap to a slightly
+  // stronger border color + the existing bg tint for the same
+  // visual "the match is registered" signal, without the shadow.
   const tone = matches
-    ? "border-hanko/70 bg-hanko/10 shadow-[0_0_18px_rgba(220,38,38,0.25)]"
+    ? "border-hanko/70 bg-hanko/10"
     : "border-hanko/30 bg-ink-1";
 
   return (

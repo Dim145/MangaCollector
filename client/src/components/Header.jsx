@@ -129,9 +129,13 @@ export default function Header() {
     <>
       {/* Top header */}
       <header
+        // `backdrop-blur-md` instead of `xl` — the sticky header sits
+        // over scrolling content so every scroll frame re-composites
+        // the blur. 24px → 12px radius is ~4× cheaper and visually
+        // indistinguishable at the density of content behind a header.
         className={`sticky top-0 z-40 transition-all duration-300 ${
           scrolled
-            ? "bg-ink-0/80 backdrop-blur-xl border-b border-border"
+            ? "bg-ink-0/85 backdrop-blur-md border-b border-border"
             : "bg-transparent border-b border-transparent"
         }`}
       >
@@ -198,7 +202,12 @@ export default function Header() {
         >
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-ink-0 via-ink-0/80 to-transparent" />
           <div
-            className="relative mx-3 mb-3 flex items-center justify-around gap-1 rounded-2xl border border-border bg-ink-1/90 p-1.5 backdrop-blur-xl shadow-2xl"
+            // `backdrop-blur-md` instead of `xl` on the always-visible
+            // mobile bottom nav — this is the highest-impact blur in
+            // the app (it sits over scrolling content and on every
+            // page). `shadow-2xl` already contributes a GPU cost so
+            // we don't stack a heavy blur on top of it.
+            className="relative mx-3 mb-3 flex items-center justify-around gap-1 rounded-2xl border border-border bg-ink-1/92 p-1.5 backdrop-blur-md shadow-2xl"
             style={{
               paddingBottom: `calc(0.375rem + env(safe-area-inset-bottom))`,
             }}
