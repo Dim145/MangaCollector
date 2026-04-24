@@ -1,9 +1,8 @@
 import { useCallback } from "react";
 import axios from "@/utils/axios.js";
-import { useLibrary } from "@/hooks/useLibrary.js";
 import { addToUserLibrary } from "@/utils/user.js";
 import { getAllVolumesByID, updateVolumeByID } from "@/utils/volume.js";
-import { cacheVolumesForManga } from "@/lib/db.js";
+import { cacheVolumesForManga, db } from "@/lib/db.js";
 import { updateVolumeOwned } from "@/utils/library.js";
 import { queryClient } from "@/lib/queryClient.js";
 
@@ -23,8 +22,15 @@ import { queryClient } from "@/lib/queryClient.js";
  * anyway).
  */
 export function useScanCommit() {
-  const { data: library } = useLibrary();
-
+  // Intentionally NOT using `useLibrary()` here: `useLibrary` returns
+  // the TanStack Query snapshot at the moment the hook runs, which
+  // gets captured by useCallback's closure. On the first scan after
+  // app start, Dexie may still be loading — the snapshot is `[]` and
+  // every scanned series is treated as "new", re-POSTed, and the
+  // server 409s because the series already exists. Re-reading the
+  // live Dexie rows inside the callback guarantees we always make
+  // decisions from the current state of the local mirror, regardless
+  // of React render timing.
   return useCallback(
     async ({
       manga,
@@ -74,7 +80,12 @@ export function useScanCommit() {
         mangadex_id: manga.mangadex_id ?? null,
       };
 
-      const existing = library.find((m) => m.mal_id === mangaData.mal_id);
+      // Live read from Dexie at call time — see the useCallback
+      // comment above for why we don't use the React snapshot.
+      const existing = await db.library
+        .where("mal_id")
+        .equals(mangaData.mal_id)
+        .first();
       const alreadyInLibrary = Boolean(existing);
 
       // 1. Add series if new
@@ -130,6 +141,10 @@ export function useScanCommit() {
         volumeNumbers: sorted,
       };
     },
-    [library],
+    // Empty deps: we no longer close over anything that changes between
+    // renders — `db` is a module-level singleton, every other imported
+    // function is pure. Re-creating the callback on every render would
+    // just thrash downstream `useMemo`/`useEffect` hooks for nothing.
+    [],
   );
 }

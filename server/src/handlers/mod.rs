@@ -1,9 +1,16 @@
 pub mod activity;
+pub mod archive;
 pub mod auth;
 pub mod coffret;
+pub mod compare;
 pub mod external;
+pub mod external_import;
 pub mod health;
 pub mod library;
+pub mod public;
+pub mod realtime;
+pub mod seals;
 pub mod settings;
 pub mod storage;
+pub mod user_profile;
 pub mod volume;

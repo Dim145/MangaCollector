@@ -87,23 +87,113 @@ export default function Modal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popupOpen]);
 
+  // Ref on the dialog root — used for initial-focus + focus-trap logic.
+  const overlayRef = useRef(null);
+  const lastFocusedBeforeOpenRef = useRef(null);
+
+  // Mirror `handleClose` into a ref so the main keyup/focus effect
+  // DOESN'T depend on its identity. Callers commonly pass an inline
+  // arrow (`handleClose={() => setOpen(false)}`), which means
+  // `handleClose` gets a new identity on every parent render — every
+  // keystroke that updates parent state would otherwise invalidate
+  // the effect's deps, fire its cleanup (which restores focus to
+  // the trigger element OUTSIDE the modal), and re-install it. The
+  // one-frame gap between blur and the RAF-based re-focus is exactly
+  // long enough for the NEXT keystroke to miss the input — manifests
+  // to the user as "I lose focus on every keypress". See
+  // DeleteAccountFlow step 2 for the repro.
+  const handleCloseRef = useRef(handleClose);
+  useEffect(() => {
+    handleCloseRef.current = handleClose;
+  }, [handleClose]);
+
   useEffect(() => {
     if (!mounted) return;
 
     const handleKeyUp = (e) => {
-      if (e.key === "Escape" && typeof handleClose === "function") {
-        handleClose();
+      if (e.key === "Escape") {
+        const close = handleCloseRef.current;
+        if (typeof close === "function") close();
       }
     };
 
+    // Focus-trap keydown handler. Tab / Shift+Tab cycles focus among
+    // the modal's tabbables and refuses to hand focus back to the
+    // page behind. Using `keydown` instead of the existing `keyup`
+    // Escape handler because Tab needs `preventDefault()` on the
+    // keydown phase to actually block the browser's native cycle.
+    const handleKeyDown = (e) => {
+      if (e.key !== "Tab") return;
+      const root = overlayRef.current;
+      if (!root) return;
+      // Enumerate tabbable descendants. The `:not([disabled]):not([aria-hidden="true"])`
+      // chain matches the WAI-ARIA authoring-practices focus-trap
+      // recipe closely enough for our bespoke modals, without
+      // pulling in a dedicated library (focus-trap / react-aria).
+      const selector =
+        'a[href], area[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, audio[controls], video[controls], [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
+      const tabbables = root.querySelectorAll(selector);
+      if (!tabbables.length) {
+        e.preventDefault();
+        return;
+      }
+      const first = tabbables[0];
+      const last = tabbables[tabbables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    // Capture the element that opened the modal so we can restore
+    // focus to it on close. Covers the common case where a <button>
+    // triggered the modal — screen readers + keyboard users expect
+    // to land back on it.
+    lastFocusedBeforeOpenRef.current = document.activeElement;
+
     acquireScrollLock();
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("keydown", handleKeyDown);
+
+    // Move focus INTO the modal so the first Tab cycles through
+    // modal controls rather than leaking back to the page. We try
+    // the first autofocus-eligible child, then the overlay itself
+    // (made tabbable via tabIndex=-1 on the div below).
+    requestAnimationFrame(() => {
+      const root = overlayRef.current;
+      if (!root) return;
+      const preferred = root.querySelector("[data-autofocus]");
+      if (preferred && typeof preferred.focus === "function") {
+        preferred.focus();
+      } else if (typeof root.focus === "function") {
+        root.focus();
+      }
+    });
 
     return () => {
       releaseScrollLock();
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("keydown", handleKeyDown);
+      // Restore focus to the opener — only if it still exists in the
+      // DOM and is focusable; otherwise blur silently.
+      const opener = lastFocusedBeforeOpenRef.current;
+      if (opener && typeof opener.focus === "function" && document.contains(opener)) {
+        try {
+          opener.focus();
+        } catch {
+          /* opener could be a detached node — ignore */
+        }
+      }
+      lastFocusedBeforeOpenRef.current = null;
     };
-  }, [mounted, handleClose]);
+    // Deps intentionally exclude `handleClose` — see the
+    // `handleCloseRef` block above. Only `mounted` gates the
+    // install/teardown of scroll-lock + focus-trap + listeners.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
 
   if (!mounted) return null;
   if (typeof document === "undefined") return null;
@@ -116,8 +206,15 @@ export default function Modal({
 
   const overlay = (
     <div
+      ref={overlayRef}
       role="dialog"
       aria-modal="true"
+      // tabIndex=-1 makes the overlay programmatically focusable so
+      // our initial-focus fallback can land here when the children
+      // expose no `data-autofocus` candidate. Users can't Tab to it
+      // because of the negative value — it's only reachable via
+      // `element.focus()`.
+      tabIndex={-1}
       className={`fixed inset-0 flex items-center justify-center bg-ink-0/80 backdrop-blur-md p-4 ${overlayAnim}`}
       // Inline style z-index to escape any stacking context traps from
       // ancestors (DefaultBackground's `isolate`, transformed elements, etc.)

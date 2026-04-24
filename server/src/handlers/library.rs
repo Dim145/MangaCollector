@@ -10,6 +10,7 @@ use crate::errors::AppError;
 use crate::models::library::{
     AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, UpdateVolumesRequest,
 };
+use crate::services::realtime::SyncKind;
 use crate::services::{cover_pool, library};
 use crate::state::AppState;
 
@@ -62,6 +63,7 @@ pub async fn update_from_mal(
         mal_id,
     )
     .await?;
+    state.broker.publish(user.id, SyncKind::Library).await;
 
     Ok(Json(json!({
         "success": true,
@@ -88,6 +90,8 @@ pub async fn add_to_library(
         body,
     )
     .await?;
+    state.broker.publish(user.id, SyncKind::Library).await;
+    state.broker.publish(user.id, SyncKind::Volumes).await;
     Ok(Json(json!({
         "success": true,
         "message": "Added manga to library successfully"
@@ -116,6 +120,8 @@ pub async fn add_from_mangadex(
         body,
     )
     .await?;
+    state.broker.publish(user.id, SyncKind::Library).await;
+    state.broker.publish(user.id, SyncKind::Volumes).await;
     Ok(Json(json!({
         "success": true,
         "message": "Added MangaDex entry to library successfully",
@@ -137,6 +143,7 @@ pub async fn refresh_from_mangadex(
         mal_id,
     )
     .await?;
+    state.broker.publish(user.id, SyncKind::Library).await;
 
     Ok(Json(json!({
         "success": true,
@@ -231,6 +238,7 @@ pub async fn set_poster(
     }
 
     library::change_poster(&state.db, user.id, mal_id, Some(body.url.clone())).await?;
+    state.broker.publish(user.id, SyncKind::Library).await;
 
     Ok(Json(json!({
         "success": true,
@@ -252,6 +260,8 @@ pub async fn add_custom_entry(
         body,
     )
     .await?;
+    state.broker.publish(user.id, SyncKind::Library).await;
+    state.broker.publish(user.id, SyncKind::Volumes).await;
     Ok(Json(json!({
         "success": true,
         "message": "Added custom entry to library successfully",
@@ -267,6 +277,8 @@ pub async fn update_manga(
     Json(body): Json<UpdateVolumesRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     library::update_manga_volumes(&state.db, mal_id, user.id, body.volumes).await?;
+    state.broker.publish(user.id, SyncKind::Library).await;
+    state.broker.publish(user.id, SyncKind::Volumes).await;
     Ok(Json(json!({
         "success": true,
         "message": "Updated manga in library successfully"
@@ -280,6 +292,8 @@ pub async fn update_manga_owned(
     Path((mal_id, owned)): Path<(i32, i32)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     library::update_volumes_owned(&state.db, user.id, mal_id, owned).await?;
+    state.broker.publish(user.id, SyncKind::Library).await;
+    state.broker.publish(user.id, SyncKind::Volumes).await;
     Ok(Json(json!({ "success": true })))
 }
 
@@ -290,6 +304,9 @@ pub async fn delete_manga(
     Path(mal_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     library::delete_manga(&state.db, mal_id, user.id).await?;
+    state.broker.publish(user.id, SyncKind::Library).await;
+    state.broker.publish(user.id, SyncKind::Volumes).await;
+    state.broker.publish(user.id, SyncKind::Coffrets).await;
     Ok(Json(json!({
         "success": true,
         "message": "Removed manga from library successfully"

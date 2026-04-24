@@ -33,7 +33,9 @@ export default function SyncToaster() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto flex items-start gap-3 rounded-xl border border-hanko/40 bg-ink-1/95 p-3 shadow-2xl backdrop-blur-xl animate-fade-up"
+          // Toast sits over raw page content — needs its own blur,
+          // but `md` (12px) is enough at this small surface size.
+          className="pointer-events-auto flex items-start gap-3 rounded-xl border border-hanko/40 bg-ink-1/96 p-3 shadow-2xl backdrop-blur-md animate-fade-up"
           role="alert"
         >
           <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-hanko/20 text-hanko-bright">

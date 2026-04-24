@@ -54,7 +54,23 @@ impl CacheStore {
         if raw.is_empty() {
             return None;
         }
-        serde_json::from_slice(&raw).ok()
+        // Silent `.ok()` previously: a corrupt or schema-drifted cache
+        // entry would be treated as a miss every time, forcing a
+        // re-fetch on every request until the TTL expired. No log, no
+        // warning. When a struct gets a new field it's worth knowing
+        // that every cache hit is actually re-fetching — log at DEBUG
+        // so sustained drift shows up in diagnostic sessions.
+        match serde_json::from_slice(&raw) {
+            Ok(v) => Some(v),
+            Err(err) => {
+                tracing::debug!(
+                    key,
+                    %err,
+                    "cache: deserialization failed, treating as miss"
+                );
+                None
+            }
+        }
     }
 
     /// Best-effort SET with TTL. Silently drops when Redis is unreachable or

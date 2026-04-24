@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import Modal from "./utils/Modal.jsx";
+import Modal from "./ui/Modal.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import { useAvatarChoices } from "@/hooks/useAvatarChoices.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
@@ -48,7 +48,8 @@ export default function AvatarPicker({ open, onClose }) {
       handleClose={onClose}
       additionalClasses="w-full max-w-3xl"
     >
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/95 shadow-2xl backdrop-blur-xl">
+      {/* Inside Modal — overlay already blurs the page behind. */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/98 shadow-2xl">
         {/* Atmospheric background accent */}
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-hanko/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-gold/10 blur-3xl" />

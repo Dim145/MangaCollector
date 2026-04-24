@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Modal from "@/components/utils/Modal.jsx";
+import Modal from "@/components/ui/Modal.jsx";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import axios from "@/utils/axios.js";
 import { getCachedUser } from "@/utils/auth.js";
-import { db } from "@/lib/db.js";
+import { clearAllUserData } from "@/lib/db.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -20,15 +19,26 @@ import { useT } from "@/i18n/index.jsx";
  *     • Passive action "Relire" / committed action "Je comprends".
  *
  *   Step 2 — "L'acte"  (the final gate)
- *     • User must TYPE their email to proceed — a physical act, not a
- *       click. The "erase" button fades in as they type correctly.
- *     • Empty-handed attempts trigger a short shake.
- *     • Irreversible once validated: calls DELETE /api/user/account,
- *       wipes every local Dexie table, signs out, redirects to /.
+ *     • User must TYPE a localised vow — "ERASE {name}" — as a
+ *       physical act. The "erase" button fades in as they approach
+ *       the expected phrase. Empty-handed attempts trigger a short
+ *       shake. Irreversible once validated.
+ *
+ *   Why a vow and not the email?
+ *     The /auth/user DTO was trimmed in the security-hardening pass
+ *     (no email, no google_id), so we can't use email as the
+ *     confirmation token any more — and we pointedly don't want to
+ *     re-widen the DTO just to feed this one modal. A localised
+ *     imperative phrase plus the user's display name is:
+ *       - specific (requires awareness of the app language + your
+ *         own name, neither of which password managers autofill)
+ *       - shorter + easier on mobile keyboards
+ *       - aligned with the already-ceremonial aesthetic of the
+ *         flow (label already says "Scellez l'effacement", seal is
+ *         the 消 kanji — a verbal oath fits the register).
  */
 export default function DeleteAccountFlow({ open, onClose }) {
   const t = useT();
-  const navigate = useNavigate();
 
   const [step, setStep] = useState(0); // 0 = closed, 1 = registre, 2 = acte
   const [typed, setTyped] = useState("");
@@ -37,27 +47,33 @@ export default function DeleteAccountFlow({ open, onClose }) {
   const [errorMsg, setErrorMsg] = useState(null);
   const typedInputRef = useRef(null);
 
-  // Email is the confirmation token. Seed synchronously from localStorage
-  // (written by the auth flow) so the user doesn't see "(email inconnu)"
-  // flash, then freshen from /auth/user when the flow opens in case the
-  // cache is stale.
-  const [email, setEmail] = useState(() => getCachedUser()?.email ?? "");
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    axios
-      .get("/auth/user")
-      .then((res) => {
-        if (!cancelled && res.data?.email) setEmail(res.data.email);
-      })
-      .catch(() => {
-        /* keep the cached value */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
+  // Identity token for the vow.
+  //
+  //   1st choice  — `name` (display name).
+  //   2nd choice  — `public_slug` prefixed with `@` so it reads as a
+  //                 handle even when the user never set a name.
+  //   3rd choice  — dedicated fallback phrase that is LONGER than the
+  //                 usual "VERB name" form. This preserves the
+  //                 "takes some time to type" guard for edge-case
+  //                 accounts that have neither name nor slug.
+  //
+  // All three are derived from the localStorage cache (populated by
+  // the auth flow). We don't fetch from the server at open-time
+  // because the point of the DTO trim is to NOT pull PII down again.
+  const cached = getCachedUser();
+  const verb = t("deleteAccount.vowEraseVerb");
+  const fallbackPhrase = t("deleteAccount.vowFallbackPhrase");
+  const { identity, expectedPhrase } = useMemo(() => {
+    const name = (cached?.name || "").trim();
+    if (name) return { identity: name, expectedPhrase: `${verb} ${name}` };
+    const slug = (cached?.public_slug || "").trim();
+    if (slug)
+      return {
+        identity: `@${slug}`,
+        expectedPhrase: `${verb} @${slug}`,
+      };
+    return { identity: null, expectedPhrase: fallbackPhrase };
+  }, [cached?.name, cached?.public_slug, verb, fallbackPhrase]);
 
   // Data used in step 1 manifest — derived from live Dexie, so counts
   // reflect what the user actually sees in their library right now.
@@ -90,21 +106,35 @@ export default function DeleteAccountFlow({ open, onClose }) {
     }
   }, [open]);
 
-  // Focus the email input when step 2 opens
+  // Focus the vow input when step 2 opens — slight delay so the
+  // modal's enter animation completes before we raise the mobile
+  // keyboard (iOS Safari silently refuses focus() on a paint-not-
+  // landed-yet element).
   useEffect(() => {
     if (step === 2) {
       setTimeout(() => typedInputRef.current?.focus(), 80);
     }
   }, [step]);
 
-  const expected = (email ?? "").trim().toLowerCase();
-  const typedNorm = typed.trim().toLowerCase();
+  // Normalise both sides the same way: collapse any inner whitespace
+  // to a single space, strip surrounding whitespace, case-insensitive.
+  // Accent-preserving on purpose: a user with an accented name still
+  // has to type the accents — protects against mindless slam-typing.
+  const normalise = (s) => s.trim().replace(/\s+/g, " ").toLowerCase();
+  const expected = normalise(expectedPhrase);
+  const typedNorm = normalise(typed);
   // Progressive reveal of the final button — fades in as user types.
+  // Advances based on how many leading characters match, not just
+  // length, so random mashing doesn't move the bar at all.
+  const matchingPrefix = (() => {
+    let i = 0;
+    while (i < typedNorm.length && i < expected.length && typedNorm[i] === expected[i]) i++;
+    return i;
+  })();
   const progress =
     expected.length === 0
       ? 0
-      : Math.min(typedNorm.length, expected.length) /
-        Math.max(expected.length, 1);
+      : matchingPrefix / expected.length;
   const matches = typedNorm.length > 0 && typedNorm === expected;
 
   const handleClose = () => {
@@ -125,13 +155,14 @@ export default function DeleteAccountFlow({ open, onClose }) {
     setErrorMsg(null);
     try {
       await axios.delete("/api/user/account");
-      // Wipe all local state so no ghost data remains
-      await db.library.clear();
-      await db.volumes.clear();
-      await db.settings.clear();
-      await db.outboxLibrary.clear();
-      await db.outboxVolumes.clear();
-      await db.outboxSettings.clear();
+      // Wipe every client-side trace of this user: Dexie tables,
+      // Workbox caches, TanStack Query cache, AND the
+      // `mc:auth-user` localStorage entry (display name / email /
+      // avatar). Previously this block only touched Dexie — on the
+      // redirect to `/`, localStorage still held the old identity
+      // until the next API call 401'd, during which a quick keep-
+      // alive hit might flash the previous user's profile chip.
+      await clearAllUserData();
       // Hard redirect so every hook / context tree resets from scratch.
       window.location.assign("/");
     } catch (err) {
@@ -148,7 +179,9 @@ export default function DeleteAccountFlow({ open, onClose }) {
     <>
       {/* ────────────────── STEP 1 · Le registre ────────────────── */}
       <Modal popupOpen={step === 1} handleClose={handleClose}>
-        <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-gold/40 bg-ink-1/98 shadow-2xl backdrop-blur-xl">
+        {/* Step 1 container — inside Modal, so the overlay already
+            blurs the page. Drop the body-level backdrop-blur-xl. */}
+        <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-gold/40 bg-ink-1 shadow-2xl">
           {/* Top gold hairline */}
           <span
             aria-hidden="true"
@@ -233,28 +266,53 @@ export default function DeleteAccountFlow({ open, onClose }) {
       {/* ────────────────── STEP 2 · L'acte ────────────────── */}
       <Modal popupOpen={step === 2} handleClose={handleClose}>
         <div
-          className={`relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-hanko/70 bg-ink-0/95 shadow-[0_0_60px_rgba(220,38,38,0.45)] backdrop-blur-xl ${
+          // Perf pass on this surface:
+          //   • dropped `backdrop-blur-xl` — the Modal overlay
+          //     already applies a backdrop-blur covering the whole
+          //     viewport; stacking a second one on the modal body
+          //     doubled the GPU cost for zero visual gain (the body
+          //     is already opaque at bg-ink-0/95).
+          //   • shadow radius 60px → 28px. GPU shadow cost scales
+          //     with area, so halving the radius is roughly a 4×
+          //     speedup on that layer with no perceptible change
+          //     (60px was way past the point of visual diminishing
+          //     returns for this use case).
+          className={`relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-hanko/70 bg-ink-0/95 shadow-[0_0_28px_rgba(220,38,38,0.45)] ${
             shake ? "animate-shake" : ""
           }`}
         >
-          {/* Pulsing red glow behind */}
+          {/* Pulsing red glow behind.
+              `will-change` pre-promotes the layer to its own GPU
+              texture so `transform: scale` + `opacity` stay on the
+              compositor thread and never trigger a re-rasterisation
+              of the radial gradient (which would be very expensive
+              because it's 2× the modal size via -inset-20). */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -inset-20 animate-delete-pulse opacity-40"
             style={{
               backgroundImage:
                 "radial-gradient(ellipse 60% 50% at 50% 30%, var(--hanko-glow), transparent 70%)",
+              willChange: "transform, opacity",
             }}
           />
 
           <header className="relative flex flex-col items-center px-8 pt-7 pb-3">
-            {/* 消 seal — grows on hover, grows further when final delete clicked */}
+            {/* 消 seal — grows on hover, grows further when final
+                delete clicked.
+                Rotation moved into the CSS transform chain so it
+                composes with the scale changes rather than fighting
+                them. Shadow radius reduced from 26px to 14px for the
+                same GPU-cost reason as the container. */}
             <span
               aria-hidden="true"
-              className={`grid h-16 w-16 place-items-center rounded-md bg-gradient-to-br from-hanko-bright to-hanko-deep text-washi shadow-[0_0_26px_var(--hanko-glow)] transition-transform duration-500 ${
-                submitting ? "scale-[1.6]" : matches ? "scale-110" : ""
+              className={`grid h-16 w-16 place-items-center rounded-md bg-gradient-to-br from-hanko-bright to-hanko-deep text-washi shadow-[0_0_14px_var(--hanko-glow)] transition-transform duration-500 ${
+                submitting
+                  ? "[transform:rotate(-3deg)_scale(1.6)]"
+                  : matches
+                    ? "[transform:rotate(-3deg)_scale(1.1)]"
+                    : "[transform:rotate(-3deg)]"
               }`}
-              style={{ transform: "rotate(-3deg)" }}
             >
               <span className="font-display text-3xl font-bold leading-none">
                 消
@@ -274,12 +332,25 @@ export default function DeleteAccountFlow({ open, onClose }) {
             </p>
 
             <label className="block">
-              <span className="mb-1.5 block text-center font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-                {t("deleteAccount.typeEmailLabel")}
+              <span className="mb-2 block text-center font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
+                {t("deleteAccount.vowLabel")}
               </span>
-              <code className="mb-2 block truncate rounded border border-hanko/30 bg-ink-1 px-3 py-1.5 text-center font-mono text-xs text-hanko-bright">
-                {email || t("deleteAccount.emailUnknown")}
-              </code>
+
+              {/* ── The vow card ──
+                  Calligraphic display of the expected phrase, rendered
+                  as a leaning brush-stroke oath. The verb gets the
+                  hanko accent, the identity half gets washi. A subtle
+                  rotation + hairline underline sell the "seal on
+                  paper" feel. Matches the actTitle tone rather than
+                  the utilitarian <code> block we had before. */}
+              <VowCard
+                verb={verb}
+                identity={identity}
+                fallbackPhrase={identity ? null : fallbackPhrase}
+                hint={t("deleteAccount.vowIdentityHint")}
+                matches={matches}
+              />
+
               <input
                 ref={typedInputRef}
                 type="text"
@@ -288,18 +359,29 @@ export default function DeleteAccountFlow({ open, onClose }) {
                 spellCheck="false"
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
-                placeholder={t("deleteAccount.typeEmailPlaceholder")}
+                placeholder={t("deleteAccount.vowPlaceholder")}
+                aria-label={t("deleteAccount.vowLabel")}
+                aria-invalid={typed.length > 0 && !matches}
                 className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2.5 text-center font-mono text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/70 focus:outline-none focus:ring-2 focus:ring-hanko/20"
               />
-              {/* Progress bar under the input — fills as user types */}
+              {/* Progress bar — fills based on matching PREFIX length,
+                  not raw length. Random keystrokes don't advance it;
+                  only correct typing does. When complete, the gradient
+                  locks to the hanko tones.
+                  Driven by `transform: scaleX` with a fixed-width
+                  inner bar — compositor-only. The previous version
+                  animated `width` directly, which fires a layout +
+                  paint on every keystroke (bar width is derived
+                  from typed state, so that's a repaint per key).
+                  `transform-origin: left` anchors the growth. */}
               <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-washi/10">
                 <div
-                  className={`h-full transition-all duration-300 ${
+                  className={`h-full w-full origin-left transition-transform duration-300 will-change-transform ${
                     matches
                       ? "bg-gradient-to-r from-hanko to-hanko-bright"
                       : "bg-gradient-to-r from-washi-dim to-hanko/40"
                   }`}
-                  style={{ width: `${progress * 100}%` }}
+                  style={{ transform: `scaleX(${progress})` }}
                 />
               </div>
             </label>
@@ -319,7 +401,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
               // Progressive materialisation — even disabled, the button
               // is partly visible so the user SEES what awaits them.
               style={{ opacity: 0.25 + progress * 0.75 }}
-              className={`group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-hanko bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright px-5 py-3 font-display text-sm font-bold uppercase tracking-[0.2em] text-washi shadow-[0_0_24px_var(--hanko-glow)] transition-transform active:scale-95 ${
+              className={`group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-hanko bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright px-5 py-3 font-display text-sm font-bold uppercase tracking-[0.2em] text-washi shadow-[0_0_12px_var(--hanko-glow)] transition-transform active:scale-95 ${
                 matches && !submitting
                   ? "cursor-pointer hover:brightness-110"
                   : "cursor-not-allowed"
@@ -345,6 +427,84 @@ export default function DeleteAccountFlow({ open, onClose }) {
         </div>
       </Modal>
     </>
+  );
+}
+
+/* ─────────────────── Vow card — calligraphic phrase to reproduce ─────
+ *
+ * Visual anchor of step 2. The user's "oath" sits in this card; the
+ * adjacent input demands they reproduce it.
+ *
+ * Two modes:
+ *   • `identity` set   →  split display: VERB in hanko, identity in
+ *                         washi, a middle-dot kanji-style separator
+ *                         between them.
+ *   • `fallbackPhrase` →  single-line rendering of the ceremonial
+ *                         phrase when the user has no name/slug.
+ *
+ * When the user's typed text matches, the card gets a soft hanko glow
+ * (no loud animation — this is still a destructive flow, not a
+ * celebration).
+ */
+function VowCard({ verb, identity, fallbackPhrase, hint, matches }) {
+  const base =
+    "relative mx-auto mb-3 overflow-hidden rounded-xl border px-4 py-3 transition-colors duration-300";
+  // Perf: the "matched" state previously added a third large
+  // box-shadow (0_0_18px) on top of the container's already-heavy
+  // glow. On a ceremonial modal where the user is actively typing,
+  // every frame's compositing bill adds up. We swap to a slightly
+  // stronger border color + the existing bg tint for the same
+  // visual "the match is registered" signal, without the shadow.
+  const tone = matches
+    ? "border-hanko/70 bg-hanko/10"
+    : "border-hanko/30 bg-ink-1";
+
+  return (
+    <div className={`${base} ${tone}`} style={{ transform: "rotate(-0.35deg)" }}>
+      {/* Paper-seal hairline — top */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-hanko/60 to-transparent"
+      />
+      {/* Small 消 sigil, quietly placed as a stamp */}
+      <span
+        aria-hidden="true"
+        className="absolute right-2.5 top-2 font-display text-[11px] leading-none text-hanko/60"
+        style={{ letterSpacing: "-0.05em" }}
+      >
+        消
+      </span>
+
+      {fallbackPhrase ? (
+        // No name available — render the full ceremonial phrase on
+        // one line, no identity split. Slightly tighter tracking so
+        // it doesn't overflow on narrow viewports.
+        <p className="text-center font-display text-base italic leading-snug tracking-tight text-hanko-bright sm:text-lg">
+          {fallbackPhrase}
+        </p>
+      ) : (
+        <p className="flex flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5 text-center leading-tight">
+          <span className="font-display text-xl font-bold uppercase tracking-[0.12em] text-hanko-bright sm:text-2xl">
+            {verb}
+          </span>
+          <span
+            aria-hidden="true"
+            className="font-display text-sm text-washi-dim"
+          >
+            ·
+          </span>
+          <span className="font-display text-xl italic text-washi sm:text-2xl">
+            {identity}
+          </span>
+        </p>
+      )}
+
+      {!fallbackPhrase && (
+        <p className="mt-1 text-center font-mono text-[9px] uppercase tracking-[0.22em] text-washi-dim">
+          {hint}
+        </p>
+      )}
+    </div>
   );
 }
 

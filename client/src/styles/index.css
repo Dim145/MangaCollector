@@ -158,6 +158,67 @@
   --chart-5: oklch(0.35 0.05 30);
 }
 
+/* ─────────────────────────────────────────────
+   季節 · Seasonal theme overrides
+   The ambient glows (body background + DefaultBackground orbs) shift
+   with the Japanese season when `data-season` is set on <html>:
+     spring / summer / autumn / winter
+   "auto" resolves at boot (see anti-FOUC inline script in index.html)
+   and "neutral" means "no attribute" → falls back to the base palette
+   above. The overrides stack on top of `data-theme` so both light and
+   dark modes receive the season shift.
+   ───────────────────────────────────────────── */
+
+/* 春 Spring — saturated sakura pink (hue 10, chroma 0.13 — markedly
+   warmer and more pigmented than the base's 0.07 sakura whisper) so
+   it doesn't blur visually with winter's cool haze. Moegi sprout
+   stays the accent in the bottom corner. */
+:root[data-season="spring"] {
+  --bg-glow-red: oklch(0.8 0.14 10 / 0.24);
+  --bg-glow-gold: oklch(0.78 0.18 140 / 0.14);
+  --bg-glow-sakura: oklch(0.82 0.12 20 / 0.1);
+  --scene-red: oklch(0.8 0.14 10 / 0.5);
+  --scene-gold: oklch(0.78 0.18 140 / 0.38);
+  --scene-sakura: oklch(0.82 0.12 20 / 0.55);
+}
+
+/* 夏 Summer — solar energy + cool counterpoint: gold + turquoise. */
+:root[data-season="summer"] {
+  --bg-glow-red: oklch(0.82 0.13 78 / 0.2);
+  --bg-glow-gold: oklch(0.65 0.15 200 / 0.1);
+  --bg-glow-sakura: oklch(0.82 0.12 50 / 0.06);
+  --scene-red: oklch(0.82 0.13 78 / 0.45);
+  --scene-gold: oklch(0.65 0.15 200 / 0.3);
+  --scene-sakura: oklch(0.82 0.12 50 / 0.4);
+}
+
+/* 秋 Autumn — 紅葉 kouyou, but the kind that reads as *autumn* and
+   not just "a deeper hanko red". We shift the dominant halo to a
+   burnished copper (hue 45) so it doesn't overlap with the base
+   palette's hanko in neutral mode; the gold becomes more ochre and
+   the accent carries the classic red-leaf via hanko-deep. */
+:root[data-season="autumn"] {
+  --bg-glow-red: oklch(0.58 0.17 45 / 0.26);
+  --bg-glow-gold: oklch(0.7 0.14 65 / 0.2);
+  --bg-glow-sakura: oklch(0.48 0.2 25 / 0.14);
+  --scene-red: oklch(0.58 0.17 45 / 0.55);
+  --scene-gold: oklch(0.7 0.14 65 / 0.45);
+  --scene-sakura: oklch(0.48 0.2 25 / 0.5);
+}
+
+/* 冬 Winter — glacier-ice blue at real chroma (0.13 instead of the
+   previous washed-out 0.04). Shifts hue to 225 so the blue reads
+   unmistakably cold, never warm-pastel like spring. Nacreous cream
+   stays the snow-glint accent. */
+:root[data-season="winter"] {
+  --bg-glow-red: oklch(0.55 0.13 225 / 0.24);
+  --bg-glow-gold: oklch(0.9 0.04 210 / 0.14);
+  --bg-glow-sakura: oklch(0.7 0.11 250 / 0.12);
+  --scene-red: oklch(0.55 0.13 225 / 0.5);
+  --scene-gold: oklch(0.9 0.04 210 / 0.35);
+  --scene-sakura: oklch(0.7 0.11 250 / 0.48);
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -566,6 +627,717 @@
   }
 }
 
+/* Seal ceremony — heavier than plain stamp. Used ONCE on newly-earned
+   seals in the 印鑑帳 journal, so it's an emphatic motion: the sceau
+   drops from scale 1.6 with a bigger tilt, overshoots into a reverse
+   tilt, and settles on its permanent angle. */
+@keyframes seal-ceremony {
+  0% {
+    transform: scale(1.6) rotate(-18deg);
+    opacity: 0;
+    filter: blur(4px);
+  }
+  45% {
+    transform: scale(0.85) rotate(4deg);
+    opacity: 1;
+    filter: blur(0);
+  }
+  70% {
+    transform: scale(1.05) rotate(-3deg);
+  }
+  100% {
+    /* End rotation comes from the inline transform (seal's stable tilt),
+       but because CSS animations overwrite the style, we let it resolve
+       via `animation-fill-mode: none` and let the inline style take over
+       after completion. Set `forwards` on the class if you want the end
+       state to stick, otherwise the inline transform is applied on
+       animation end by the browser. */
+    transform: scale(1) rotate(-2deg);
+    opacity: 1;
+  }
+}
+
+/* Red glow halo behind a newly-earned seal, fades out over ~2.4s. */
+@keyframes seal-glow {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+/* ─── Tier system ───────────────────────────────────────────────────
+   Each seal carries a tier (1..5) that determines its ink lineage:
+     1 · 墨 sumi     — common ink (grey washi on dim ink)
+     2 · 印 hanko    — vermilion red (signature)
+     3 · 萌葱 moegi  — jade green (cultivated)
+     4 · 金 kin      — gold leaf (precious)
+     5 · 漆黒 shikkoku — lacquer black with gold inlay (legendary)
+
+   The base `.seal-earned` sets up the shared transition/texture; each
+   `.seal-tier-*` swaps background + text colour + shadow tint to match.
+   `.seal-locked` shares the same structure but uses the dashed outline
+   treatment with the kanji tinted to the future tier at 15% — a quiet
+   "treasure map" effect. */
+
+.seal-earned {
+  color: var(--washi);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.seal-earned:hover {
+  transform: rotate(0deg) scale(1.06) !important;
+}
+
+.seal-locked {
+  background: oklch(0.11 0.008 30 / 0.35);
+  border: 1.5px dashed oklch(0.96 0.012 85 / 0.15);
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 0.3s,
+    color 0.3s;
+}
+.seal-locked:hover {
+  transform: rotate(-1.5deg) scale(1.03) !important;
+  border-color: oklch(0.6 0.22 25 / 0.4);
+}
+
+/* Tier 1 · 墨 Sumi — common ink, grey on dim background.
+   Reads as "a first stamp" — modest but present. */
+.seal-earned.seal-tier-sumi {
+  background: linear-gradient(160deg, var(--ink-3) 0%, var(--ink-2) 100%);
+  color: var(--washi-muted);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.96 0.012 85 / 0.08),
+    0 4px 14px -6px oklch(0 0 0 / 0.5),
+    0 1px 2px -1px oklch(0 0 0 / 0.3);
+}
+.seal-locked.seal-tier-sumi {
+  color: oklch(0.78 0.015 70 / 0.18);
+}
+
+/* Tier 2 · 印 Hanko — vermilion red, the signature tier. */
+.seal-earned.seal-tier-hanko {
+  background: linear-gradient(160deg, var(--hanko) 0%, var(--hanko-deep) 100%);
+  color: var(--washi);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.6 0.22 25 / 0.4),
+    0 6px 20px -6px var(--hanko-glow),
+    0 2px 4px -1px oklch(0 0 0 / 0.3);
+}
+.seal-locked.seal-tier-hanko {
+  color: oklch(0.6 0.22 25 / 0.2);
+}
+
+/* Tier 3 · 萌葱 Moegi — jade green, "cultivated" / "completed".
+   Kanji is dark ink so it reads on bright jade. */
+.seal-earned.seal-tier-moegi {
+  background: linear-gradient(160deg, var(--moegi) 0%, var(--moegi-muted) 100%);
+  color: var(--ink-0);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.78 0.16 140 / 0.4),
+    0 6px 22px -6px oklch(0.78 0.16 140 / 0.3),
+    0 2px 4px -1px oklch(0 0 0 / 0.3);
+}
+.seal-locked.seal-tier-moegi {
+  color: oklch(0.78 0.16 140 / 0.22);
+}
+
+/* Tier 4 · 金 Kin — gold leaf, precious. Kanji dark ink.
+   The `seal-shine` sweep (see below) adds a living sheen. */
+.seal-earned.seal-tier-kin {
+  background: linear-gradient(155deg, var(--gold) 0%, var(--gold-muted) 100%);
+  color: var(--ink-0);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.82 0.13 78 / 0.5),
+    0 6px 24px -6px oklch(0.82 0.13 78 / 0.4),
+    0 2px 4px -1px oklch(0 0 0 / 0.3);
+}
+.seal-locked.seal-tier-kin {
+  color: oklch(0.82 0.13 78 / 0.22);
+}
+
+/* Tier 5 · 漆黒 Shikkoku — lacquer black with gold inlay. Legendary.
+   A nearly-black radial base with a thin gold ring, and a slow glint
+   animation across the face. The kanji is gilded (gold gradient fill). */
+.seal-earned.seal-tier-shikkoku {
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    oklch(0.18 0.015 28) 0%,
+    oklch(0.05 0.005 30) 100%
+  );
+  color: var(--gold);
+  box-shadow:
+    inset 0 0 0 1.5px oklch(0.82 0.13 78 / 0.6),
+    0 8px 28px -6px oklch(0 0 0 / 0.7),
+    0 0 24px -4px oklch(0.82 0.13 78 / 0.35);
+}
+.seal-earned.seal-tier-shikkoku > span.font-jp {
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-muted) 40%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 6px oklch(0.82 0.13 78 / 0.25);
+}
+.seal-locked.seal-tier-shikkoku {
+  color: oklch(0.82 0.13 78 / 0.25);
+}
+
+/* ─── Tier tag — tiny kanji marker in the top-right of every seal ─── */
+.seal-tier-tag {
+  background: var(--ink-0);
+  color: var(--washi-dim);
+  box-shadow: 0 0 0 1px oklch(0.96 0.012 85 / 0.2);
+  font-weight: 500;
+  transition:
+    background 0.3s,
+    color 0.3s;
+}
+.seal-tier-sumi .seal-tier-tag {
+  color: oklch(0.78 0.015 70 / 0.7);
+}
+.seal-tier-hanko .seal-tier-tag {
+  background: var(--hanko-deep);
+  color: var(--washi);
+  box-shadow: 0 0 0 1px oklch(0.6 0.22 25 / 0.6);
+}
+.seal-tier-moegi .seal-tier-tag {
+  background: oklch(0.35 0.08 140);
+  color: var(--moegi);
+  box-shadow: 0 0 0 1px oklch(0.78 0.16 140 / 0.5);
+}
+.seal-tier-kin .seal-tier-tag {
+  background: oklch(0.3 0.05 78);
+  color: var(--gold);
+  box-shadow: 0 0 0 1px oklch(0.82 0.13 78 / 0.6);
+}
+.seal-tier-shikkoku .seal-tier-tag {
+  background: var(--ink-0);
+  color: var(--gold);
+  box-shadow:
+    0 0 0 1px oklch(0.82 0.13 78 / 0.6),
+    0 0 8px oklch(0.82 0.13 78 / 0.4);
+}
+/* Locked tier tag — always muted */
+.seal-locked .seal-tier-tag {
+  background: oklch(0.11 0.008 30 / 0.6);
+  color: oklch(0.58 0.015 60 / 0.6);
+  box-shadow: 0 0 0 1px oklch(0.96 0.012 85 / 0.1);
+}
+
+/* ─── Shine sweep — kin/shikkoku get a slow diagonal glint ──────── */
+@keyframes seal-shine {
+  0%, 65% {
+    transform: translateX(-80%) translateY(-80%) rotate(25deg);
+    opacity: 0;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(80%) translateY(80%) rotate(25deg);
+    opacity: 0;
+  }
+}
+.seal-shine {
+  background: linear-gradient(
+    115deg,
+    transparent 40%,
+    oklch(1 0 0 / 0.22) 50%,
+    transparent 60%
+  );
+  animation: seal-shine 6s ease-in-out infinite;
+  animation-delay: var(--shine-delay, 0s);
+}
+.seal-tier-shikkoku .seal-shine {
+  background: linear-gradient(
+    115deg,
+    transparent 42%,
+    oklch(0.82 0.13 78 / 0.38) 50%,
+    transparent 58%
+  );
+  animation-duration: 5s;
+}
+
+/* ─── Tier-tinted glow halos for the ceremony animation ─────────── */
+.seal-glow-sumi { background: oklch(0.78 0.015 70 / 0.25); }
+.seal-glow-hanko { background: var(--hanko-glow); }
+.seal-glow-moegi { background: oklch(0.78 0.16 140 / 0.35); }
+.seal-glow-kin { background: oklch(0.82 0.13 78 / 0.4); }
+.seal-glow-shikkoku { background: oklch(0.82 0.13 78 / 0.55); }
+
+/* ─── 季節 Season chips — self-illustrative swatches in Settings.
+   Each chip carries a scaled-down preview of the palette it would
+   apply, so the choice is readable before the user clicks. */
+.season-chip {
+  background: oklch(0.11 0.008 30 / 0.4);
+  color: var(--washi-muted);
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 0.25s,
+    background 0.25s,
+    color 0.25s;
+}
+.season-chip:hover {
+  transform: translateY(-1px);
+  color: var(--washi);
+}
+.season-chip-auto {
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    oklch(0.82 0.07 12 / 0.15),
+    oklch(0.11 0.008 30 / 0.4) 70%
+  );
+}
+.season-chip-spring {
+  /* Saturated sakura pink + moegi sprout — matches the new spring
+     palette; pink is now unmistakable at small swatch size. */
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    oklch(0.8 0.14 10 / 0.4),
+    oklch(0.78 0.18 140 / 0.24) 55%,
+    oklch(0.11 0.008 30 / 0.4) 100%
+  );
+  color: oklch(0.8 0.14 10);
+}
+.season-chip-summer {
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    oklch(0.82 0.13 78 / 0.3),
+    oklch(0.65 0.15 200 / 0.22) 55%,
+    oklch(0.11 0.008 30 / 0.4) 100%
+  );
+  color: var(--gold);
+}
+.season-chip-autumn {
+  /* Copper (hue 45) + ochre gold — walks far enough from hanko that
+     the chip now reads "autumn", not "dense neutral". */
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    oklch(0.58 0.17 45 / 0.42),
+    oklch(0.7 0.14 65 / 0.26) 55%,
+    oklch(0.11 0.008 30 / 0.4) 100%
+  );
+  color: oklch(0.72 0.16 45);
+}
+.season-chip-winter {
+  /* Real blue chroma + slight nacreous white for snow glint. */
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    oklch(0.55 0.13 225 / 0.4),
+    oklch(0.9 0.04 210 / 0.2) 55%,
+    oklch(0.11 0.008 30 / 0.4) 100%
+  );
+  color: oklch(0.72 0.12 225);
+}
+.season-chip-neutral {
+  background: oklch(0.11 0.008 30 / 0.5);
+  color: var(--washi-dim);
+}
+.season-chip-active {
+  box-shadow: inset 0 0 0 1px var(--washi);
+  transform: translateY(-2px);
+}
+
+/* ─── 絵巻 emaki — the reading-progress scroll.
+   The strip mimics aged washi paper with subtle warmth, three state
+   layers stacked on top, scroll-rods at each edge, and an "ink-drop"
+   reading head that floats above the last-read position. */
+
+/* Paper base — gradient from ivory-tinted ink-2 to ink-3, with a soft
+   inner top shadow to suggest the curl of unrolled paper. */
+.emaki-strip {
+  background:
+    linear-gradient(
+      180deg,
+      oklch(0.19 0.012 75 / 1) 0%,
+      oklch(0.13 0.008 68 / 1) 100%
+    );
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 oklch(0.96 0.012 85 / 0.06),
+    inset 0 -1px 0 oklch(0 0 0 / 0.3),
+    0 2px 8px -2px oklch(0 0 0 / 0.3);
+  overflow: hidden;
+}
+:root[data-theme="light"] .emaki-strip {
+  background: linear-gradient(
+    180deg,
+    oklch(0.93 0.012 82) 0%,
+    oklch(0.88 0.012 80) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    inset 0 -1px 0 oklch(0.17 0.015 40 / 0.1),
+    0 2px 8px -2px oklch(0.17 0.015 40 / 0.12);
+}
+
+/* Scroll rods — the bamboo sticks at each end of the emaki. A darker
+   narrow vertical strip with a subtle highlight to suggest depth. */
+.emaki-rod {
+  position: absolute;
+  top: -2px;
+  bottom: 20px; /* stops above the decade-labels row */
+  width: 6px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    oklch(0.09 0.008 30) 0%,
+    oklch(0.17 0.015 30) 50%,
+    oklch(0.09 0.008 30) 100%
+  );
+  box-shadow:
+    inset 0 0 0 0.5px oklch(0 0 0 / 0.6),
+    0 2px 6px -2px oklch(0 0 0 / 0.6);
+}
+.emaki-rod-left {
+  left: -3px;
+}
+.emaki-rod-right {
+  right: -3px;
+}
+:root[data-theme="light"] .emaki-rod {
+  background: linear-gradient(
+    90deg,
+    oklch(0.45 0.04 60) 0%,
+    oklch(0.62 0.07 60) 50%,
+    oklch(0.45 0.04 60) 100%
+  );
+}
+
+/* State segments — absolutely positioned over the strip at their
+   fractional offset. `top/bottom: 0` makes them fill the strip height. */
+.emaki-cell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+/* Read cells — horizontal 3-stop gradient painted across ALL read cells
+   as if they shared a single continuous background. The trick: the JSX
+   sets `background-size` to `(totalVolumes × 100%) × 100%` so the gradient
+   spans the whole strip, and sets `background-position-x` per cell so
+   cell N shows its own slice of the gradient [(N-1)/total, N/total].
+   Result: an unbroken moegi ink wash from muted (older "dried ink") to
+   bright (fresh ink, closer to the reading-head). Legend swatch falls
+   back to the centre of the gradient so it stays representative. */
+.emaki-cell-read {
+  background-image: linear-gradient(
+    90deg,
+    var(--moegi-muted) 0%,
+    var(--moegi) 50%,
+    oklch(0.86 0.18 140) 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: center;
+  box-shadow: inset 0 0 0 0.5px oklch(0.78 0.16 140 / 0.3);
+}
+.emaki-cell-tsundoku {
+  background-color: oklch(0.96 0.012 85 / 0.05);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0 2px,
+    oklch(0.78 0.015 70 / 0.2) 2px 3.5px
+  );
+}
+.emaki-cell-missing {
+  /* Transparent — let the paper surface show through so the unread
+     stretches of the scroll feel like blank washi. */
+  background: transparent;
+}
+
+/* Tick marks — thin vertical hairs overlaying the strip. Minor ticks
+   (every 10) are very subtle; major ones (at labelled positions) are
+   slightly bolder and hanko-tinted so the eye locks onto them first. */
+.emaki-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  pointer-events: none;
+}
+.emaki-tick-minor {
+  background: oklch(0 0 0 / 0.25);
+}
+.emaki-tick-major {
+  width: 1.5px;
+  background: oklch(0.6 0.22 25 / 0.45);
+  box-shadow: 0 0 3px oklch(0.6 0.22 25 / 0.25);
+}
+
+/* Click-zone — fully transparent by default, shows a faint wash on hover
+   so the user sees they're clicking a tome. */
+.emaki-hit {
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.emaki-hit:hover {
+  background: oklch(0.96 0.012 85 / 0.08);
+}
+.emaki-hit:focus-visible {
+  background: oklch(0.6 0.22 25 / 0.15);
+  outline: 1px solid var(--hanko);
+  outline-offset: -1px;
+}
+
+/* Ink-drop reading head — a small moegi dot anchored above the strip
+   at the last-read position, with a label above it and a halo that
+   breathes. */
+.emaki-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--moegi);
+  filter: drop-shadow(0 2px 4px oklch(0.78 0.16 140 / 0.4));
+}
+.emaki-head .font-jp {
+  padding: 1px 5px;
+  margin-bottom: 2px;
+  background: var(--ink-0);
+  border-radius: 2px;
+  color: var(--moegi);
+  box-shadow: 0 0 0 1px oklch(0.78 0.16 140 / 0.5);
+}
+.emaki-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(
+    circle at 30% 30%,
+    oklch(0.88 0.18 140) 0%,
+    var(--moegi) 60%,
+    var(--moegi-muted) 100%
+  );
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0 1px oklch(0.78 0.16 140 / 0.4),
+    0 2px 4px oklch(0 0 0 / 0.4);
+}
+/* Tail — a tiny triangular "drip" under the dot, pointing at the
+   strip, like a wet brush touching the paper. */
+.emaki-dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 5px solid var(--moegi-muted);
+  filter: drop-shadow(0 1px 1px oklch(0 0 0 / 0.3));
+}
+.emaki-halo {
+  position: absolute;
+  top: 13px; /* aligns with dot center (roughly: kanji-height + margin + half-dot) */
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: oklch(0.78 0.16 140 / 0.35);
+  animation: emaki-halo 2.4s ease-in-out infinite;
+}
+@keyframes emaki-halo {
+  0%, 100% {
+    transform: scale(0.7);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.1;
+  }
+}
+
+/* Unroll animation — the strip reveals itself from left to right the
+   first time the component mounts, echoing the gesture of unrolling a
+   real scroll. Uses clip-path so the state segments and ticks are all
+   revealed in one sweep without per-cell stagger. */
+@keyframes emaki-unroll {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.animate-emaki-unroll {
+  animation: emaki-unroll 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Legend swatch — 12x12, rounded, matches any of the state classes. */
+.reading-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 12px;
+  border-radius: 1px;
+}
+
+/* Ring-flash — used when a reading-cell click scrolls-to its volume.
+   A one-shot animation that overlays a hanko-red glow around the card. */
+@keyframes ring-flash {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--hanko-glow);
+  }
+  30% {
+    box-shadow: 0 0 0 4px var(--hanko-glow);
+  }
+  60% {
+    box-shadow: 0 0 0 6px oklch(0.6 0.22 25 / 0.2);
+  }
+}
+.ring-flash {
+  animation: ring-flash 1.6s ease-out;
+  border-radius: 0.75rem;
+}
+
+/* ─── Public profile (museum mode) ──────────────────────────────────
+   A distinctly more editorial/contemplative backdrop than the private
+   dashboard: warmer tones, bigger halos, visible grain, so anonymous
+   viewers land on something that reads as "artefact" not "tool". */
+.public-profile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--ink-0);
+}
+.public-profile-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 70% 50% at 12% 8%,
+      var(--scene-red) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 80% 60% at 92% 100%,
+      var(--scene-gold) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 45% 40% at 30% 110%,
+      var(--scene-sakura) 0%,
+      transparent 60%
+    );
+}
+.public-profile-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* Compare page — twin hanko pair that overlap slightly to visually
+   signal "intersection happening right there". */
+.compare-hanko {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 6px;
+  color: var(--washi);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.6 0.22 25 / 0.4),
+    0 6px 18px -6px var(--hanko-glow);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.compare-hanko-mine {
+  background: linear-gradient(160deg, var(--hanko) 0%, var(--hanko-deep) 100%);
+  transform: rotate(-4deg);
+  z-index: 1;
+}
+.compare-hanko-other {
+  background: linear-gradient(160deg, var(--gold) 0%, var(--gold-muted) 100%);
+  color: var(--ink-0);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.82 0.13 78 / 0.5),
+    0 6px 18px -6px oklch(0.82 0.13 78 / 0.4);
+  transform: rotate(3deg);
+  margin-left: -1rem; /* overlap — they kiss at ~25% */
+  z-index: 0;
+}
+.compare-hanko:hover {
+  transform: scale(1.05);
+  z-index: 2;
+}
+
+/* Museum hanko — larger and more ceremonial than inline ones. */
+.public-hanko {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  background: linear-gradient(160deg, var(--hanko) 0%, var(--hanko-deep) 100%);
+  color: var(--washi);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 1.5px oklch(0.6 0.22 25 / 0.5),
+    0 10px 30px -8px var(--hanko-glow),
+    0 2px 6px -1px oklch(0 0 0 / 0.3);
+  transform: rotate(-3deg);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.public-hanko:hover {
+  transform: rotate(0) scale(1.04);
+}
+.public-hanko-dot {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: linear-gradient(160deg, var(--gold) 0%, var(--gold-muted) 100%);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.82 0.13 78 / 0.6),
+    0 2px 6px -2px oklch(0.82 0.13 78 / 0.4);
+}
+
+/* ─── Tier legend dots — match the earned seal colour for each tier ─ */
+.tier-legend-dot {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.4), 0 0 6px -1px currentColor;
+}
+.tier-legend-sumi {
+  background: linear-gradient(160deg, var(--ink-3), var(--ink-2));
+  color: oklch(0.78 0.015 70 / 0.3);
+}
+.tier-legend-hanko {
+  background: linear-gradient(160deg, var(--hanko), var(--hanko-deep));
+  color: var(--hanko-glow);
+}
+.tier-legend-moegi {
+  background: linear-gradient(160deg, var(--moegi), var(--moegi-muted));
+  color: oklch(0.78 0.16 140 / 0.5);
+}
+.tier-legend-kin {
+  background: linear-gradient(160deg, var(--gold), var(--gold-muted));
+  color: oklch(0.82 0.13 78 / 0.55);
+}
+.tier-legend-shikkoku {
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    oklch(0.18 0.015 28) 0%,
+    oklch(0.05 0.005 30) 100%
+  );
+  box-shadow:
+    0 0 0 1px oklch(0.82 0.13 78 / 0.6),
+    0 0 6px -1px oklch(0.82 0.13 78 / 0.5);
+}
+
 .animate-fade-up {
   animation: fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -720,6 +1492,12 @@
 }
 .animate-stamp {
   animation: stamp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.animate-seal-ceremony {
+  animation: seal-ceremony 1.1s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.animate-seal-glow {
+  animation: seal-glow 2.4s ease-out both;
 }
 
 /* Motion preferences */

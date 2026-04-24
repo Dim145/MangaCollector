@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import ProfileButton from "./ProfileButton";
 import InstallPrompt from "./InstallPrompt";
-import { checkAuthStatus } from "../utils/auth";
+import { useAuth } from "@/hooks/useAuth.js";
 import { useT } from "@/i18n/index.jsx";
 
 const NAV_ITEMS_BASE = [
@@ -62,6 +62,27 @@ const NAV_ITEMS_BASE = [
     ),
   },
   {
+    to: "/seals",
+    key: "seals",
+    // Seal icon — a rounded square (hanko block) with a small mark inside,
+    // echoing the 印 carved into a stamp. Keeps the vector language of the
+    // other nav items while reading as "a seal" at a glance.
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-5 w-5"
+      >
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <path d="M9 9h6M12 9v6M9 15h6" />
+      </svg>
+    ),
+  },
+  {
     to: "/settings",
     key: "settings",
     icon: (
@@ -82,21 +103,20 @@ const NAV_ITEMS_BASE = [
 ];
 
 export default function Header() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const location = useLocation();
   const t = useT();
+  // Shared auth state via TanStack Query — this is the same cache
+  // entry consumed by ProtectedRoute and ProfileButton, so the three
+  // components agree on "who the user is" without three independent
+  // /auth/user calls per render. Previously the Header also
+  // re-called `checkAuthStatus()` via `[location.pathname]` deps on
+  // every navigation — an unnecessary round-trip for a value that
+  // can't change between navigations.
+  const { isAuthenticated } = useAuth();
   const NAV_ITEMS = NAV_ITEMS_BASE.map((item) => ({
     ...item,
     label: t(`nav.${item.key}`),
   }));
-
-  useEffect(() => {
-    (async () => {
-      const user = await checkAuthStatus();
-      setIsAuthenticated(Boolean(user));
-    })();
-  }, [location.pathname]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -109,9 +129,13 @@ export default function Header() {
     <>
       {/* Top header */}
       <header
+        // `backdrop-blur-md` instead of `xl` — the sticky header sits
+        // over scrolling content so every scroll frame re-composites
+        // the blur. 24px → 12px radius is ~4× cheaper and visually
+        // indistinguishable at the density of content behind a header.
         className={`sticky top-0 z-40 transition-all duration-300 ${
           scrolled
-            ? "bg-ink-0/80 backdrop-blur-xl border-b border-border"
+            ? "bg-ink-0/85 backdrop-blur-md border-b border-border"
             : "bg-transparent border-b border-transparent"
         }`}
       >
@@ -178,7 +202,12 @@ export default function Header() {
         >
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-ink-0 via-ink-0/80 to-transparent" />
           <div
-            className="relative mx-3 mb-3 flex items-center justify-around gap-1 rounded-2xl border border-border bg-ink-1/90 p-1.5 backdrop-blur-xl shadow-2xl"
+            // `backdrop-blur-md` instead of `xl` on the always-visible
+            // mobile bottom nav — this is the highest-impact blur in
+            // the app (it sits over scrolling content and on every
+            // page). `shadow-2xl` already contributes a GPU cost so
+            // we don't stack a heavy blur on top of it.
+            className="relative mx-3 mb-3 flex items-center justify-around gap-1 rounded-2xl border border-border bg-ink-1/92 p-1.5 backdrop-blur-md shadow-2xl"
             style={{
               paddingBottom: `calc(0.375rem + env(safe-area-inset-bottom))`,
             }}

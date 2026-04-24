@@ -83,11 +83,16 @@ export default function OfflineBanner() {
           <p className="truncate font-mono text-[10px] uppercase tracking-[0.2em] text-washi">
             {cause === "syncing" ? (
               <>
-                {t("offline.syncing")}{" "}
-                <span className="font-sans font-semibold text-gold">
-                  {pending}
-                </span>{" "}
-                {pending === 1 ? "change" : "changes"}
+                {/* Pluralised via t() — the raw "change"/"changes"
+                    English literals that used to sit here broke the
+                    banner for fr/es users while "Syncing" around them
+                    was correctly translated. */}
+                {t(
+                  pending === 1
+                    ? "offline.syncingChanges"
+                    : "offline.syncingChangesPlural",
+                  { n: pending },
+                )}
               </>
             ) : cause === "server" ? (
               <>

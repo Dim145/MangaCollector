@@ -4,8 +4,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    activity, auth as auth_handlers, coffret, external, health, library, settings, storage,
-    volume,
+    activity, archive, auth as auth_handlers, coffret, compare, external, external_import, health,
+    library, public, realtime, seals, settings, storage, user_profile, volume,
 };
 use crate::state::AppState;
 
@@ -14,6 +14,14 @@ pub fn api_router() -> Router<AppState> {
         .route("/health", get(health::health))
         // Unified search endpoint — merges MAL + MangaDex results
         .route("/external/search", get(external::search))
+        // Read-only public profile — `/public/u/{slug}` — no auth.
+        // Nested under /api by the main router but carries no session
+        // logic at the handler level so it's trivially cacheable later.
+        .route("/public/u/{slug}", get(public::get_public_profile))
+        // 同期 — Realtime sync WebSocket. Authenticates via the same
+        // session cookie as the REST endpoints and streams invalidation
+        // events scoped to the user. Anonymous visitors get 401.
+        .route("/ws", get(realtime::ws_handler))
         .nest("/user", user_router())
 }
 
@@ -77,6 +85,29 @@ fn user_router() -> Router<AppState> {
         .route("/settings", post(settings::update_settings))
         // Activity feed
         .route("/activity", get(activity::list_activity))
+        // 印鑑帳 — Carnet de sceaux (ceremonial achievements)
+        .route("/seals", get(seals::list_seals))
+        // 対照 — Compare my library with a public profile slug + add
+        // a missing series from their library to mine.
+        .route("/compare/{slug}", get(compare::compare_with))
+        .route("/compare/{slug}/add/{mal_id}", post(compare::copy_entry))
+        // Public profile management:
+        //   GET /public-slug    → full state { slug, show_adult }
+        //   PATCH /public-slug  → set/change/clear the slug
+        //   PATCH /public-adult → toggle adult-content opt-in
+        .route("/public-slug", get(user_profile::get_public_slug))
+        .route("/public-slug", patch(user_profile::update_public_slug))
+        .route("/public-adult", patch(user_profile::update_public_adult))
+        // 写本 · Archive — portable export / merge-import.
+        .route("/export.json", get(archive::export_json))
+        .route("/export.csv", get(archive::export_csv))
+        .route("/import", post(archive::import_archive))
+        // 外部輸入 · External import — fetch a library from another
+        // service and return a bundle + dry-run preview in one call.
+        .route("/import/external/mal", post(external_import::import_mal))
+        .route("/import/external/anilist", post(external_import::import_anilist))
+        .route("/import/external/mangadex", post(external_import::import_mangadex))
+        .route("/import/external/yamtrack", post(external_import::import_yamtrack))
         // GDPR — erase the entire account
         .route("/account", delete(auth_handlers::delete_account))
 }

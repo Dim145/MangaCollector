@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import Modal from "./utils/Modal.jsx";
+import Modal from "./ui/Modal.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useCreateCoffret } from "@/hooks/useCoffrets.js";
+import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -95,6 +96,7 @@ export default function AddCoffretModal({
       onClose?.();
     } catch (err) {
       console.error("[coffret] create failed:", err?.message);
+      notifySyncError(err, "coffret-create");
     }
   };
 
@@ -106,7 +108,10 @@ export default function AddCoffretModal({
     >
       <form
         onSubmit={handleSubmit}
-        className="relative overflow-hidden rounded-2xl border border-washi/15 bg-ink-1/95 shadow-2xl backdrop-blur-xl"
+        // Modal overlay already applies backdrop-blur over the page;
+        // stacking another blur-xl on the modal body is pure GPU
+        // overhead. Bumped opacity /95 → /98 to compensate.
+        className="relative overflow-hidden rounded-2xl border border-washi/15 bg-ink-1/98 shadow-2xl"
       >
         {/* Atmospheric accents — cream + hanko, no gold (reserved for collector) */}
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-washi/15 blur-3xl" />

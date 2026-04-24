@@ -11,13 +11,6 @@ use crate::models::library::{self as library_mod, Entity as LibraryEntity};
 use crate::models::volume::{self, ActiveModel, Entity as VolumeEntity, Volume};
 use crate::services::activity;
 
-/// Return value for `update_by_id` — we keep a lightweight result so the
-/// handler can respond "ok" even when the row no longer exists (idempotent
-/// replay of a queued offline edit).
-pub struct VolumeUpdateResult {
-    pub affected: bool,
-}
-
 pub async fn get_all_for_user(db: &Db, user_id: i32) -> Result<Vec<Volume>, AppError> {
     VolumeEntity::find()
         .filter(volume::Column::UserId.eq(user_id))
@@ -42,22 +35,40 @@ pub async fn get_all_for_user_by_mal_id(
 pub async fn update_by_id(
     db: &Db,
     id: i32,
+    user_id: i32,
     owned: bool,
     price: Option<Decimal>,
     store: Option<String>,
     collector: bool,
-) -> Result<VolumeUpdateResult, AppError> {
+    read: Option<bool>,
+) -> Result<(), AppError> {
+    // Note: the update is idempotent on two axes — a row that no longer
+    // exists (e.g. offline outbox replay after deletion) and a row that
+    // exists under another user (IDOR attempt or stale client state).
+    // Both paths return Ok without touching the DB. The caller doesn't
+    // need to distinguish, and we never leak existence info to an
+    // attacker who guessed a row id.
     let now = Utc::now();
 
-    // Fetch the existing row upfront so we can detect an ownership change
-    // (for activity logging) and still behave idempotently if it's gone.
-    let existing = VolumeEntity::find_by_id(id)
+    // Fetch the existing row scoped to the caller — the user_id filter
+    // is the horizontal-authz gate. `find_by_id` alone is NOT enough:
+    // every authenticated user can call this handler with any row id
+    // they fancy, so the filter is mandatory. Also used below to decide
+    // whether to emit an activity event.
+    let existing = VolumeEntity::find()
+        .filter(volume::Column::Id.eq(id))
+        .filter(volume::Column::UserId.eq(user_id))
         .one(db)
         .await
         .map_err(AppError::from)?;
 
-    let res = VolumeEntity::update_many()
+    // Second, independent defence in depth: scope the UPDATE itself by
+    // (id, user_id). Even if `existing` were wrong somehow (e.g. a bug
+    // in a future refactor of the lookup above), the DB will refuse to
+    // touch rows owned by anyone else.
+    let mut query = VolumeEntity::update_many()
         .filter(volume::Column::Id.eq(id))
+        .filter(volume::Column::UserId.eq(user_id))
         .col_expr(volume::Column::Owned, owned.into())
         .col_expr(
             volume::Column::Price,
@@ -74,24 +85,62 @@ pub async fn update_by_id(
             ),
         )
         .col_expr(volume::Column::Collector, collector.into())
-        .col_expr(volume::Column::ModifiedOn, now.into())
-        .exec(db)
-        .await
-        .map_err(AppError::from)?;
+        .col_expr(volume::Column::ModifiedOn, now.into());
+
+    // Reading status — three-way behaviour to preserve the first-read
+    // timestamp across toggles:
+    //  • None          → field untouched
+    //  • Some(true)    → stamp to NOW iff currently NULL (keeps original
+    //                    read date on repeated marks)
+    //  • Some(false)   → clear to NULL
+    if let Some(mark_read) = read {
+        if mark_read {
+            let already_read = existing
+                .as_ref()
+                .and_then(|r| r.read_at)
+                .is_some();
+            if !already_read {
+                query = query.col_expr(volume::Column::ReadAt, now.into());
+            }
+        } else {
+            query = query.col_expr(
+                volume::Column::ReadAt,
+                sea_orm::sea_query::Expr::value(
+                    Option::<chrono::DateTime<chrono::Utc>>::None,
+                ),
+            );
+        }
+    }
+
+    query.exec(db).await.map_err(AppError::from)?;
 
     // Log ownership transitions only — price/store edits alone don't produce
     // an activity entry.
     if let Some(prev) = existing {
         if prev.owned != owned {
             let mal_id = prev.mal_id.unwrap_or(0);
-            let series_name = LibraryEntity::find()
+            // Series name is a nice-to-have for the activity feed —
+            // failing to fetch it shouldn't block the ownership flip,
+            // but we do want operator visibility when it happens,
+            // otherwise the feed degrades to "unknown series" entries
+            // and the cause is invisible.
+            let series_name = match LibraryEntity::find()
                 .filter(library_mod::Column::UserId.eq(prev.user_id))
                 .filter(library_mod::Column::MalId.eq(mal_id))
                 .one(db)
                 .await
-                .ok()
-                .flatten()
-                .map(|r| r.name);
+            {
+                Ok(opt) => opt.map(|r| r.name),
+                Err(err) => {
+                    tracing::warn!(
+                        %err,
+                        user_id = prev.user_id,
+                        mal_id,
+                        "update_by_id: series-name lookup for activity log failed"
+                    );
+                    None
+                }
+            };
 
             activity::record(
                 db,
@@ -110,9 +159,7 @@ pub async fn update_by_id(
         }
     }
 
-    Ok(VolumeUpdateResult {
-        affected: res.rows_affected > 0,
-    })
+    Ok(())
 }
 
 pub async fn add_volume(db: &Db, user_id: i32, mal_id: i32, vol_num: i32) -> Result<Volume, AppError> {
@@ -150,16 +197,6 @@ pub async fn add_volume_tx(
         ..Default::default()
     };
     model.insert(conn).await.map_err(AppError::from)?;
-    Ok(())
-}
-
-pub async fn delete_all_for_user_by_mal_id(db: &Db, user_id: i32, mal_id: i32) -> Result<(), AppError> {
-    VolumeEntity::delete_many()
-        .filter(volume::Column::UserId.eq(user_id))
-        .filter(volume::Column::MalId.eq(mal_id))
-        .exec(db)
-        .await
-        .map_err(AppError::from)?;
     Ok(())
 }
 

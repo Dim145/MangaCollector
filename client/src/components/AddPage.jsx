@@ -5,7 +5,7 @@ import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
 import BarcodeScanner from "@/components/BarcodeScanner.jsx";
 import ScanLoadingView from "@/components/ScanLoadingView.jsx";
-import Modal from "@/components/utils/Modal.jsx";
+import Modal from "@/components/ui/Modal.jsx";
 import AddCoffretModal from "@/components/AddCoffretModal.jsx";
 import MangadexPrefillModal from "@/components/MangadexPrefillModal.jsx";
 import SettingsContext from "@/SettingsContext.js";
@@ -422,12 +422,12 @@ export default function AddPage() {
           >
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
-          Back
+          {t("common.back")}
         </button>
 
         <div className="flex items-baseline gap-3">
           <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
-            ADD · 追加
+            {t("add.eyebrow")}
           </span>
           <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
         </div>

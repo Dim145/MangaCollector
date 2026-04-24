@@ -132,10 +132,15 @@ pub async fn delete_account(
 }
 
 /// GET /auth/user
+///
+/// Returns the minimal fields the SPA needs to render a "who am I"
+/// state. Serialising the raw `User` model would leak `google_id`
+/// (OIDC subject) and `email` — both usable by an XSS payload to
+/// identify or phish the user, neither needed by the frontend.
 pub async fn get_auth_user(
     AuthenticatedUser(user): AuthenticatedUser,
-) -> Result<Json<serde_json::Value>, AppError> {
-    Ok(Json(serde_json::to_value(&user).unwrap()))
+) -> Result<Json<crate::models::user::AuthUserResponse>, AppError> {
+    Ok(Json((&user).into()))
 }
 
 /// GET /auth/provider — public info about the configured OAuth provider

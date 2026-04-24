@@ -1,8 +1,14 @@
 import { useNavigate } from "react-router-dom";
+import CoverImage from "./ui/CoverImage.jsx";
 import { hasToBlurImage } from "@/utils/library.js";
 import { useT } from "@/i18n/index.jsx";
 
-export default function Manga({ manga, adult_content_level, allCollector }) {
+export default function Manga({
+  manga,
+  adult_content_level,
+  allCollector,
+  tsundokuCount = 0,
+}) {
   const navigate = useNavigate();
   const t = useT();
 
@@ -29,24 +35,23 @@ export default function Manga({ manga, adult_content_level, allCollector }) {
               : "group-hover:border-hanko/50"
         }`}
       >
-        {manga.image_url_jpg ? (
-          <img
-            src={manga.image_url_jpg}
-            alt=""
-            loading="lazy"
-            className={`h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 ${
-              blur ? "blur-md" : ""
-            }`}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-2 to-ink-3">
-            <span
-              className="font-display text-4xl italic text-hanko/40"
-              title={t("badges.volume")}
-            >
-              巻
-            </span>
-          </div>
+        {/* CoverImage falls back to the 巻 placeholder when the URL is
+            missing OR the image errors out (404, CORS, timeout, etc.).
+            Without this, a broken cover left the card visually empty
+            and the user couldn't spot the click target to open the
+            series and fix its cover via the picker. */}
+        <CoverImage
+          src={manga.image_url_jpg}
+          alt=""
+          blur={blur}
+          imgClassName="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+        />
+        {/* Tooltip-target for the placeholder — only meaningful when
+            the fallback is visible, i.e. no URL or failed load. */}
+        {!manga.image_url_jpg && (
+          <span className="sr-only" title={t("badges.volume")}>
+            {t("badges.volume")}
+          </span>
         )}
 
         {/* Top gradient for badge readability */}
@@ -65,6 +70,30 @@ export default function Manga({ manga, adult_content_level, allCollector }) {
           >
             <span className="font-display text-[8px] font-bold leading-none">
               限
+            </span>
+          </div>
+        )}
+
+        {/* Tsundoku counter — top-left cluster, sitting next to the
+            collector seal (which is h-4 w-4). When a collector seal is
+            present we shift right by ~24px to clear it; otherwise we
+            occupy the primary top-left slot. This keeps the right-hand
+            corner free for the completion badge so the two visual
+            languages (reading axis vs. collection axis) stop colliding. */}
+        {tsundokuCount > 0 && (
+          <div
+            className={`absolute top-2 z-10 inline-flex items-center gap-0.5 rounded-sm border border-moegi/50 bg-ink-0/70 px-1 py-0.5 text-moegi shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 transition group-hover:opacity-100 ${
+              allCollector ? "left-8" : "left-2"
+            }`}
+            style={{ transform: "rotate(3deg)" }}
+            title={t("manga.tsundokuHint", { n: tsundokuCount })}
+            aria-label={t("manga.tsundokuHint", { n: tsundokuCount })}
+          >
+            <span className="font-jp text-[9px] font-bold leading-none">
+              積
+            </span>
+            <span className="font-mono text-[9px] font-bold leading-none tabular-nums">
+              {tsundokuCount}
             </span>
           </div>
         )}

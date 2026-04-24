@@ -44,20 +44,27 @@ export default function Dashboard() {
   // Series where every owned volume is flagged collector (and at least one is
   // owned). Discreet gold 限 seal on the poster tells the user "full collector
   // set". Computed once at the Dashboard level so each card stays cheap.
-  const allCollectorSet = useMemo(() => {
+  // Tsundoku map is derived in the same pass — one per series counting
+  // owned but unread volumes (owned && !read_at). Piggyback avoids a
+  // second full scan of the volumes array.
+  const { allCollectorSet, tsundokuByMal } = useMemo(() => {
     const byMal = new Map();
+    const tsundoku = new Map();
     for (const v of allVolumes ?? []) {
       if (!v.owned) continue;
       const entry = byMal.get(v.mal_id) ?? { any: false, anyNonCollector: false };
       entry.any = true;
       if (!v.collector) entry.anyNonCollector = true;
       byMal.set(v.mal_id, entry);
+      if (!v.read_at) {
+        tsundoku.set(v.mal_id, (tsundoku.get(v.mal_id) ?? 0) + 1);
+      }
     }
     const set = new Set();
     for (const [mal, { any, anyNonCollector }] of byMal) {
       if (any && !anyNonCollector) set.add(mal);
     }
-    return set;
+    return { allCollectorSet: set, tsundokuByMal: tsundoku };
   }, [allVolumes]);
 
   const stats = useMemo(() => {
@@ -89,6 +96,9 @@ export default function Dashboard() {
       result = result.filter(
         (m) => (m.volumes ?? 0) === 0 || (m.volumes_owned ?? 0) < m.volumes,
       );
+    } else if (filter === "tsundoku") {
+      // Tsundoku (積読) = series with ≥1 owned-but-unread volume.
+      result = result.filter((m) => (tsundokuByMal.get(m.mal_id) ?? 0) > 0);
     }
     // Tag intersection — AND logic. Each series must carry every selected
     // tag. Genres are trimmed at read time so "  Romance " matches "Romance".
@@ -194,6 +204,7 @@ export default function Dashboard() {
                 { id: "all", label: t("dashboard.tabAll") },
                 { id: "inprogress", label: t("dashboard.tabOngoing") },
                 { id: "complete", label: t("dashboard.tabComplete") },
+                { id: "tsundoku", label: t("dashboard.tabTsundoku") },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -260,7 +271,15 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filtered.map((manga, i) => (
                 <div
-                  key={manga.mal_id}
+                  // Use the Dexie row `id` as a stable, unique key.
+                  // `mal_id` collides when multiple custom series with
+                  // `mal_id = null` coexist (a legitimate state before
+                  // a server-side negative id is minted), triggering
+                  // React key-collision warnings and mis-mounted DOM
+                  // between sibling Manga cards. Falling back through
+                  // `mal_id` → `index` preserves keying for legacy
+                  // rows that may lack a Dexie primary key in hand.
+                  key={manga.id ?? manga.mal_id ?? `idx-${i}`}
                   style={{ animationDelay: `${Math.min(i * 40, 500)}ms` }}
                   className="animate-fade-up"
                 >
@@ -268,6 +287,7 @@ export default function Dashboard() {
                     manga={manga}
                     adult_content_level={adult_content_level}
                     allCollector={allCollectorSet.has(manga.mal_id)}
+                    tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
                   />
                 </div>
               ))}

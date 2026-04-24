@@ -23,6 +23,11 @@ export default function Volume({
   paid,
   store,
   collector,
+  // Reading status — ISO timestamp string if read, null otherwise.
+  // Orthogonal to ownership: a volume can be read without being owned
+  // (borrowed / library copy) and owned without being read (classic
+  // tsundoku 積読 — the pile of acquired-but-unread books).
+  readAt,
   locked = false,
   onUpdate,
   currencySetting,
@@ -42,6 +47,7 @@ export default function Volume({
   const [price, setPrice] = useState(Number(paid) || 0);
   const [purchaseLocation, setPurchaseLocation] = useState(store ?? "");
   const [collectorStatus, setCollectorStatus] = useState(Boolean(collector));
+  const [readStatus, setReadStatus] = useState(Boolean(readAt));
 
   const updateVolume = useUpdateVolume();
   const isLoading = updateVolume.isPending;
@@ -59,7 +65,17 @@ export default function Volume({
     onRelease: () => onPreviewRelease?.(),
   });
 
-  async function persist(nextOwned, nextPrice, nextStore, nextCollector, ownedChanged) {
+  async function persist(
+    nextOwned,
+    nextPrice,
+    nextStore,
+    nextCollector,
+    ownedChanged,
+    nextRead,
+  ) {
+    // `nextRead === undefined` → leave read_at untouched (used when
+    // only owned / price / store / collector change). When set, we send
+    // a boolean that the server maps to a timestamp (or null).
     await updateVolume.mutateAsync({
       id,
       mal_id,
@@ -68,6 +84,7 @@ export default function Volume({
       price: Number(nextPrice) || 0,
       store: nextStore ?? "",
       collector: Boolean(nextCollector),
+      ...(nextRead !== undefined ? { read: Boolean(nextRead) } : {}),
     });
     onUpdate?.({ ownedChanged });
   }
@@ -82,10 +99,49 @@ export default function Volume({
     await persist(next, price, purchaseLocation, collectorStatus, true);
   };
 
+  const toggleRead = async () => {
+    if (isEditing) return;
+    // Reading is orthogonal to the coffret lock — a box set controls
+    // ownership/price/collector state for its members, but it does NOT
+    // control whether you've read them. We let locked volumes flip their
+    // read status freely, and just make sure we don't clobber the
+    // coffret-owned fields (owned/price/store/collector) on persist.
+    const next = !readStatus;
+    setReadStatus(next);
+    // Auto-own on mark-read — but only for non-locked volumes. Locked
+    // volumes already have owned=true from their coffret (you can't box
+    // unowned volumes), so the branch below rarely fires anyway; guarding
+    // on `!locked` makes the intent explicit and prevents any future
+    // regression where a locked volume's `owned` state gets clobbered.
+    let nextOwned = ownedStatus;
+    let ownedChanged = false;
+    if (!locked && next && !ownedStatus) {
+      nextOwned = true;
+      setOwnedStatus(true);
+      ownedChanged = true;
+    }
+    await persist(
+      nextOwned,
+      price,
+      purchaseLocation,
+      collectorStatus,
+      ownedChanged,
+      next,
+    );
+  };
+
   const handleSave = async () => {
     setIsEditing(false);
     const ownedChanged = ownedStatus !== owned;
-    await persist(ownedStatus, price, purchaseLocation, collectorStatus, ownedChanged);
+    const readChanged = readStatus !== Boolean(readAt);
+    await persist(
+      ownedStatus,
+      price,
+      purchaseLocation,
+      collectorStatus,
+      ownedChanged,
+      readChanged ? readStatus : undefined,
+    );
   };
 
   const handleCancel = () => {
@@ -94,14 +150,29 @@ export default function Volume({
     setPrice(Number(paid) || 0);
     setPurchaseLocation(store ?? "");
     setCollectorStatus(Boolean(collector));
+    setReadStatus(Boolean(readAt));
   };
 
+  // Seed local state from server props, BUT only when the user isn't
+  // actively editing. Without this guard, a realtime-sync push (WS
+  // broadcast from another device, or the outbox flush echoing back
+  // the same row after a partial save) would overwrite the fields
+  // the user is currently typing into — their half-filled price or
+  // store gets reset to the previous saved value mid-edit.
+  //
+  // Note: when the user exits editing (either via save or cancel),
+  // the reset in `resetEditState` (called from the cancel path) or
+  // the successful `persist` (which already mutates local state
+  // optimistically) lines things back up with the incoming props on
+  // the NEXT render.
   useEffect(() => {
+    if (isEditing) return;
     setOwnedStatus(owned);
     setPrice(Number(paid) || 0);
     setPurchaseLocation(store ?? "");
     setCollectorStatus(Boolean(collector));
-  }, [owned, paid, store, collector]);
+    setReadStatus(Boolean(readAt));
+  }, [owned, paid, store, collector, readAt, isEditing]);
 
   // If a volume becomes locked while the edit form is open (e.g. the user
   // adds it to a coffret from elsewhere), collapse the form automatically.
@@ -148,6 +219,10 @@ export default function Volume({
           </Tooltip>
         </span>
       )}
+
+      {/* (The tsundoku seal was removed here — the inline 読/未 toggle
+          below makes it redundant, and the two together visually
+          doubled-up on the same card corner.) */}
 
       <div className="flex items-center gap-3 p-4">
         {coverUrl ? (
@@ -324,6 +399,38 @@ export default function Volume({
           </div>
         </div>
 
+        {/* Quick read toggle — an inline 読/未 pill that flips the reading
+            status without opening the full editor. Moegi-jade when read,
+            muted ink when unread. Placed just before the edit pencil so
+            the most common toggle is reachable with a single tap.
+            Stays available on locked (coffret) volumes because reading
+            is independent of the box-set-managed ownership axes. On a
+            locked volume we surface the read date in `title` since the
+            full editor (where the date normally lives) is unreachable. */}
+        {!isEditing && (
+          <button
+            onClick={toggleRead}
+            aria-label={readStatus ? t("volume.markUnread") : t("volume.markRead")}
+            aria-pressed={readStatus}
+            title={
+              readStatus
+                ? readAt
+                  ? t("volume.readTitle", {
+                      date: formatReadDate(readAt),
+                    })
+                  : t("volume.markUnread")
+                : t("volume.markRead")
+            }
+            className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border font-jp text-[13px] font-bold transition ${
+              readStatus
+                ? "border-moegi/60 bg-moegi/15 text-moegi shadow-[0_0_10px_rgba(163,201,97,0.2)] hover:bg-moegi/25"
+                : "border-transparent text-washi-dim hover:border-border hover:bg-washi/5 hover:text-washi"
+            }`}
+          >
+            {readStatus ? "読" : "未"}
+          </button>
+        )}
+
         {/* Edit pencil — hidden when the volume is managed by a coffret */}
         {!locked && !isEditing ? (
           <button
@@ -372,6 +479,71 @@ export default function Volume({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Reading toggle — the tsundoku axis. Paired with collector
+              below so the two orthogonal states (edition type + read
+              status) live side by side in the editor, visually. */}
+          <div>
+            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+              {t("volume.readingLabel")}
+            </label>
+            <button
+              type="button"
+              onClick={() => setReadStatus((r) => !r)}
+              aria-pressed={readStatus}
+              className={`group flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+                readStatus
+                  ? "border-moegi/60 bg-gradient-to-br from-moegi/10 to-transparent"
+                  : "border-border bg-ink-1 hover:border-moegi/40"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className={`grid h-6 w-6 place-items-center rounded-full font-jp text-[12px] font-bold leading-none transition ${
+                    readStatus
+                      ? "bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow-[0_0_10px_rgba(163,201,97,0.4)]"
+                      : "bg-ink-2 text-washi-dim"
+                  }`}
+                  style={readStatus ? { transform: "rotate(5deg)" } : undefined}
+                >
+                  {readStatus ? "読" : "未"}
+                </span>
+                <span>
+                  <span
+                    className={`block text-sm font-semibold ${
+                      readStatus ? "text-moegi" : "text-washi"
+                    }`}
+                  >
+                    {readStatus
+                      ? t("volume.readOption")
+                      : t("volume.unreadOption")}
+                  </span>
+                  <span className="block text-[11px] text-washi-muted">
+                    {readStatus && readAt
+                      ? t("volume.readSince", {
+                          date: formatReadDate(readAt),
+                        })
+                      : t("volume.readingHint")}
+                  </span>
+                </span>
+              </span>
+              <span
+                className={`relative h-6 w-11 rounded-full border transition ${
+                  readStatus
+                    ? "border-moegi bg-moegi/90"
+                    : "border-border bg-ink-2"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
+                    readStatus
+                      ? "right-0.5 bg-ink-0 shadow-md"
+                      : "left-0.5 bg-washi-dim"
+                  }`}
+                />
+              </span>
+            </button>
           </div>
 
           {/* Collector toggle — a distinct gold-accented switch so users
@@ -508,4 +680,18 @@ export default function Volume({
       )}
     </div>
   );
+}
+
+/** Format an ISO read_at timestamp for UI captions — short locale-aware
+ *  rendering (e.g. "14 mars 2026"). Returns an empty string on bad input. */
+function formatReadDate(iso) {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return "";
+  }
 }

@@ -43,13 +43,32 @@ pub async fn create(
             "vol_end must be >= vol_start".into(),
         ));
     }
+    // Guard against volume numbers the user shouldn't ever send — the
+    // range check above rejects inverted windows but not individually
+    // nonsensical bounds. Clamping here also protects the arithmetic
+    // below: `(vol_end - vol_start + 1)` would overflow i32 if a
+    // pathological input passes `vol_start = i32::MIN, vol_end = 0`.
+    if req.vol_start < 1 || req.vol_end < 1 {
+        return Err(AppError::BadRequest(
+            "vol_start and vol_end must both be ≥ 1".into(),
+        ));
+    }
+    const MAX_COFFRET_SIZE: i64 = crate::services::library::MAX_VOLUMES_PER_SERIES as i64;
+    // i64 arithmetic on purpose: even with both bounds in [1, i32::MAX]
+    // the subtraction can produce a number larger than i32::MAX. Cast
+    // up before subtracting, then cap at MAX_COFFRET_SIZE.
+    let count = i64::from(req.vol_end) - i64::from(req.vol_start) + 1;
+    if count > MAX_COFFRET_SIZE {
+        return Err(AppError::BadRequest(format!(
+            "Coffret too large ({} volumes); maximum is {}",
+            count, MAX_COFFRET_SIZE
+        )));
+    }
 
     let name = req.name.trim();
     if name.is_empty() {
         return Err(AppError::BadRequest("coffret name is required".into()));
     }
-
-    let count = (req.vol_end - req.vol_start + 1) as i64;
     let per_volume_price: Option<Decimal> = req.price.and_then(|total| {
         let divisor = Decimal::from(count);
         if divisor.is_zero() {

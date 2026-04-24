@@ -87,8 +87,11 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Card */}
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/70 p-6 shadow-2xl backdrop-blur-2xl md:p-8">
+        {/* Card — `backdrop-blur-2xl` (40px) was overkill on a
+            fullscreen page with a decorative gradient backdrop;
+            `md` (12px) is indistinguishable at that scale and ~10×
+            cheaper. Opacity bumped /70 → /80 to compensate slightly. */}
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/80 p-6 shadow-2xl backdrop-blur-md md:p-8">
           {/* Top ornamental line */}
           <div
             className="pointer-events-none absolute inset-x-0 top-0 h-px"

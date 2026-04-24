@@ -32,7 +32,12 @@ const MangaPage = lazy(() => import("./components/MangaPage"));
 const AddPage = lazy(() => import("@/components/AddPage.jsx"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
 const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
-const Wishlist = lazy(() => import("./components/Wishlist"));
+const SealsPage = lazy(() => import("./components/SealsPage"));
+const PublicProfile = lazy(() => import("./components/PublicProfile"));
+const ImportExternalPage = lazy(() =>
+  import("./components/ImportExternalPage"),
+);
+const ComparePage = lazy(() => import("./components/ComparePage"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -41,6 +46,7 @@ import { installSyncRunner } from "@/lib/sync.js";
 import { applyThemePreference, rememberThemePreference } from "@/lib/theme.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync.js";
 import axios from "@/utils/axios.js";
 import {
   cacheAllVolumes,
@@ -130,6 +136,11 @@ function AppShell() {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
 
+  // 同期 · Realtime sync — opens a WebSocket as soon as we're auth'd
+  // and invalidates TanStack queries on incoming events so changes
+  // made on another device materialise here without a refresh.
+  useRealtimeSync({ enabled: Boolean(googleUser) });
+
   return (
     <>
       <Header />
@@ -145,14 +156,6 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/wishlist"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <Wishlist />
                 </ProtectedRoute>
               }
             />
@@ -195,6 +198,37 @@ function AppShell() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/seals"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <SealsPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Public profile — deliberately outside ProtectedRoute so
+                anonymous visitors can see the gallery. Server-side
+                filters adult content + sensitive fields. */}
+            <Route path="/u/:slug" element={<PublicProfile />} />
+            {/* External imports — accessed from Settings → Archive. */}
+            <Route
+              path="/settings/import-external"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <ImportExternalPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 対照 · Compare — authenticated; diffs my library with a
+                public profile slug. */}
+            <Route
+              path="/compare/:slug"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <ComparePage />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </Suspense>
       </main>
@@ -206,8 +240,15 @@ export default function App() {
   useEffect(() => {
     // Order matters: the connectivity watcher installs the axios interceptor
     // that feeds the sync runner's "is-server-reachable" signal.
-    installConnectivityWatcher();
-    installSyncRunner();
+    //
+    // Both installers are idempotent via module-level guards (React
+    // StrictMode's double-invocation in dev previously stacked two
+    // axios interceptors + two 60s intervals — fixed with
+    // `_connectivityInstalled` / `_syncRunnerInstalled` sentinels).
+    // We still return teardown functions so hot-module-replacement
+    // during a dev cycle doesn't leave dead subscribers around.
+    const uninstallConn = installConnectivityWatcher();
+    const uninstallSync = installSyncRunner();
 
     // Prime the Dexie cache in the background so the first internal nav is
     // instant. Uses requestIdleCallback to stay out of the critical path;
@@ -230,6 +271,11 @@ export default function App() {
       } else {
         clearTimeout(handle);
       }
+      // Only actually uninstalls in dev (HMR) — in prod the app
+      // never unmounts and these runners persist for the page's
+      // lifetime. Calling them is cheap either way.
+      uninstallSync?.();
+      uninstallConn?.();
     };
   }, []);
 

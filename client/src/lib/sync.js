@@ -57,6 +57,28 @@ export function onSyncError(handler) {
   return () => window.removeEventListener(SYNC_ERROR_EVENT, handler);
 }
 
+/**
+ * Surface an arbitrary error through the SyncToaster. Useful for
+ * direct (non-outbox) mutations — poster upload/remove, MAL refresh,
+ * MangaDex refresh, delete-manga — that previously logged to console
+ * with no UI feedback, leaving the user believing their action had
+ * succeeded.
+ *
+ * Accepts a string, an Error, or an axios-style error-with-response;
+ * the helper unwraps the most informative message available. The
+ * resulting toast uses the same shell as outbox-flush errors, so the
+ * user experience is consistent.
+ */
+export function notifySyncError(errOrMessage, opContext = "direct") {
+  const message =
+    typeof errOrMessage === "string"
+      ? errOrMessage
+      : (errOrMessage?.response?.data?.error ??
+        errOrMessage?.message ??
+        "Request failed");
+  emit(SYNC_ERROR_EVENT, { op: opContext, message });
+}
+
 /*
  * ─── Library outbox operations ────────────────────────────────────────────
  */
@@ -185,18 +207,58 @@ export async function enqueueLibraryVolumesOwned(mal_id, nbOwned) {
  */
 
 export async function enqueueVolumeUpdate(volume) {
+  // Translate the `read: boolean` flag (from the mutation call-site) into
+  // a `read_at: iso|null` that matches the server row shape, so Dexie's
+  // live-query readers see the optimistic badge update immediately. The
+  // server mapping is mirrored in `services/volume.rs::update_by_id`.
+  const { read, ...rest } = volume;
+  const local = { ...rest };
+  if (read !== undefined) {
+    local.read_at = read ? new Date().toISOString() : null;
+  }
+
   await db.transaction("rw", db.volumes, db.outboxVolumes, async () => {
-    await db.volumes.put(volume);
+    // Merge with whatever's already cached so we never drop columns that
+    // the mutation didn't touch (e.g. user edits only `read` — we must
+    // keep the existing price/store values intact in the local row).
+    const existing = (await db.volumes.get(local.id)) ?? {};
+    await db.volumes.put({ ...existing, ...local });
+
+    // Merge with any already-pending outbox op for this volume. The
+    // previous `put` overwrote the pending payload, so a fast sequence
+    // like "toggle read" then "toggle owned" (before the flusher fires)
+    // would lose the `read` flag: the second put's `read: undefined`
+    // clobbered the first put's `read: true`.
+    //
+    // Merge semantics:
+    //   • Fields the new call did NOT specify (undefined) fall back to
+    //     whatever the previous pending payload had — preserving it.
+    //   • Fields the new call DID specify take precedence.
+    //   • `read: undefined` stays undefined in the merged payload →
+    //     flush-step omits the field on the PATCH, which means "leave
+    //     unchanged" server-side, consistent with the documented
+    //     volume.rs contract.
+    const pending = await db.outboxVolumes.get(local.id);
+    const prev = pending?.payload ?? {};
+    const mergedPayload = {
+      owned: local.owned !== undefined ? local.owned : prev.owned,
+      price:
+        local.price !== undefined ? Number(local.price) || 0 : prev.price,
+      store: local.store !== undefined ? (local.store ?? "") : prev.store,
+      collector:
+        local.collector !== undefined
+          ? Boolean(local.collector)
+          : prev.collector,
+      // `read` is the boolean the flusher translates into the PATCH
+      // field. `undefined` means "don't touch" — keep the prior value.
+      read: read !== undefined ? read : prev.read,
+    };
+
     await db.outboxVolumes.put({
-      id: volume.id,
-      mal_id: volume.mal_id,
+      id: local.id,
+      mal_id: local.mal_id,
       op: "update",
-      payload: {
-        owned: volume.owned,
-        price: Number(volume.price) || 0,
-        store: volume.store ?? "",
-        collector: Boolean(volume.collector),
-      },
+      payload: mergedPayload,
       ts: Date.now(),
     });
   });
@@ -309,6 +371,11 @@ async function flushVolumes() {
         price: op.payload.price,
         store: op.payload.store,
         collector: Boolean(op.payload.collector),
+        // Only forward the `read` flag when it was explicitly set —
+        // sending undefined leaves the server-side read_at untouched.
+        ...(op.payload.read !== undefined
+          ? { read: Boolean(op.payload.read) }
+          : {}),
       });
       await db.outboxVolumes.delete(op.id);
       notifyPendingChanged();
@@ -479,6 +546,17 @@ async function onServerRecover() {
   if (isFullyOnline()) syncOutbox();
 }
 
+// Module-level singleton guard: ensures we only subscribe to
+// connectivity once and only start one interval, no matter how many
+// times `installSyncRunner()` is called. React StrictMode
+// double-invokes every effect in dev, so without this sentinel we'd
+// end up with two connectivity listeners + two intervals firing in
+// parallel — benign functionally but confusing in logs and a source
+// of flaky test runs.
+let _syncRunnerInstalled = false;
+let _syncRunnerInterval = null;
+let _syncRunnerUnsubscribe = null;
+
 /**
  * Install sync runner.
  *
@@ -486,9 +564,16 @@ async function onServerRecover() {
  * connectivity watcher so a flush happens when EITHER:
  *   - the browser regains connectivity, or
  *   - the server itself comes back up after a crash/deploy.
+ *
+ * Returns a teardown function so callers (e.g. the React mount-effect
+ * in `App.jsx`) can cleanly undo the install during hot-reload or
+ * StrictMode's synthetic second mount.
  */
 export function installSyncRunner() {
-  onConnectivityChange((e) => {
+  if (_syncRunnerInstalled) return uninstallSyncRunner;
+  _syncRunnerInstalled = true;
+
+  _syncRunnerUnsubscribe = onConnectivityChange((e) => {
     if (e.detail?.serverReachable && navigator.onLine) {
       onServerRecover();
     }
@@ -497,7 +582,7 @@ export function installSyncRunner() {
   // Slow safety-net for stuck ops: only do real work if there's actually
   // something pending. A bare interval that fires GETs every minute would
   // pile up on top of the React Query refetches and delay initial render.
-  setInterval(async () => {
+  _syncRunnerInterval = setInterval(async () => {
     if (!isFullyOnline()) return;
     if (hasPendingLogout()) {
       flushPendingLogout();
@@ -522,4 +607,19 @@ export function installSyncRunner() {
   } else {
     setTimeout(startup, 1000);
   }
+
+  return uninstallSyncRunner;
+}
+
+/** Undo `installSyncRunner` — exposed for tests + StrictMode cleanup. */
+export function uninstallSyncRunner() {
+  if (_syncRunnerInterval) {
+    clearInterval(_syncRunnerInterval);
+    _syncRunnerInterval = null;
+  }
+  if (typeof _syncRunnerUnsubscribe === "function") {
+    _syncRunnerUnsubscribe();
+    _syncRunnerUnsubscribe = null;
+  }
+  _syncRunnerInstalled = false;
 }

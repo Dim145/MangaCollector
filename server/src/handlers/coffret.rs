@@ -8,7 +8,16 @@ use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::models::coffret::{CreateCoffretRequest, UpdateCoffretRequest};
 use crate::services::coffret;
+use crate::services::realtime::SyncKind;
 use crate::state::AppState;
+
+async fn publish_coffret_sync(state: &AppState, user_id: i32) {
+    state.broker.publish(user_id, SyncKind::Coffrets).await;
+    // Coffret mutations also touch user_volumes (price share, owned
+    // flag, collector flag cascade), so the client's volume queries
+    // need to revalidate too.
+    state.broker.publish(user_id, SyncKind::Volumes).await;
+}
 
 /// GET /api/user/library/:mal_id/coffrets
 pub async fn list_for_manga(
@@ -28,6 +37,7 @@ pub async fn create(
     Json(body): Json<CreateCoffretRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let row = coffret::create(&state.db, user.id, mal_id, &body).await?;
+    publish_coffret_sync(&state, user.id).await;
     Ok(Json(serde_json::to_value(row).unwrap()))
 }
 
@@ -39,6 +49,7 @@ pub async fn update(
     Json(body): Json<UpdateCoffretRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let row = coffret::update_by_id(&state.db, user.id, id, &body).await?;
+    publish_coffret_sync(&state, user.id).await;
     Ok(Json(serde_json::to_value(row).unwrap()))
 }
 
@@ -49,5 +60,6 @@ pub async fn delete(
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     coffret::delete(&state.db, user.id, id).await?;
+    publish_coffret_sync(&state, user.id).await;
     Ok(Json(json!({ "success": true })))
 }

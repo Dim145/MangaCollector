@@ -121,16 +121,32 @@ export function probeServer() {
   return probeInFlight;
 }
 
+// Module-level guards against double-install: React StrictMode
+// double-invokes mount effects in dev, and since `axios.interceptors.use`
+// has no idempotency of its own, a second call would stack a second
+// interceptor that runs for every response and causes duplicate
+// setReachable() calls. Same reasoning for the window listeners and
+// the polling timer.
+let _connectivityInstalled = false;
+let _connectivityEjectors = [];
+
 /**
  * Install interceptors + polling. Call once at app start.
+ *
+ * Returns a teardown function; callers (e.g. React mount-effects)
+ * can invoke it to fully undo the install during hot-reload or
+ * StrictMode's second mount.
  */
 export function installConnectivityWatcher() {
+  if (_connectivityInstalled) return uninstallConnectivityWatcher;
+  _connectivityInstalled = true;
+
   // Piggyback on ambient traffic: whenever a request succeeds or explicitly
   // fails with a 4xx, we know the server is reachable — AS LONG AS the
   // response actually came from the backend. A 200 with `text/html` is the
   // SPA-fallback tell-tale: reverse proxy lost the backend route and we're
   // looking at `index.html`, not a real API response. Treat that as "down".
-  axios.interceptors.response.use(
+  const interceptorId = axios.interceptors.response.use(
     (res) => {
       if (looksLikeBackendResponse(res.headers)) {
         setReachable(true);
@@ -156,15 +172,20 @@ export function installConnectivityWatcher() {
       return Promise.reject(err);
     },
   );
+  _connectivityEjectors.push(() => axios.interceptors.response.eject(interceptorId));
 
   // Browser-level events reflect the link itself
-  window.addEventListener("online", () => {
+  const onOnline = () => {
     // Re-probe immediately — the browser might be connected but not yet
     // routing to our origin.
     probeServer();
-  });
-  window.addEventListener("offline", () => {
-    setReachable(false);
+  };
+  const onOffline = () => setReachable(false);
+  window.addEventListener("online", onOnline);
+  window.addEventListener("offline", onOffline);
+  _connectivityEjectors.push(() => {
+    window.removeEventListener("online", onOnline);
+    window.removeEventListener("offline", onOffline);
   });
 
   // Adaptive polling. Aggressive only when we know we're down, so recovery
@@ -182,8 +203,28 @@ export function installConnectivityWatcher() {
     }, delay);
   };
 
-  onConnectivityChange(schedule);
+  const offConnChange = onConnectivityChange(schedule);
+  _connectivityEjectors.push(offConnChange);
+  _connectivityEjectors.push(() => {
+    if (timer) clearTimeout(timer);
+  });
   schedule();
 
   if (!navigator.onLine) setReachable(false);
+
+  return uninstallConnectivityWatcher;
+}
+
+/** Undo `installConnectivityWatcher` — axios interceptor, window
+ *  listeners, polling timer. Safe to call multiple times. */
+export function uninstallConnectivityWatcher() {
+  for (const eject of _connectivityEjectors) {
+    try {
+      eject();
+    } catch {
+      /* best effort */
+    }
+  }
+  _connectivityEjectors = [];
+  _connectivityInstalled = false;
 }

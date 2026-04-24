@@ -65,36 +65,68 @@ pub async fn update_user_settings(
 ) -> Result<SettingRow, AppError> {
     let now = Utc::now();
 
+    // PARTIAL UPDATE SEMANTICS
+    //
+    // Every field in `UpdateSettingsRequest` is `Option<T>`. A `None`
+    // means "caller didn't touch this field — preserve what's there".
+    // The previous implementation hydrated every absent field with its
+    // default (USD, "Default", "dark", "en"…) and then wrote that back
+    // to the DB via an upsert with `update_columns` listing every
+    // column, silently clobbering whatever the user had set. A PATCH
+    // carrying only `{"theme": "light"}` would therefore reset
+    // currency → USD, title_type → Default, language → en, etc.
+    //
+    // The fix is to read the existing row (or synthesise defaults when
+    // there is none) and merge field-by-field: `req.x OR existing.x`.
+    // The upsert below then writes the merged state, which is
+    // idempotent for absent fields (they get re-written to the same
+    // value) but no longer destructive.
+    let existing = get_user_settings(db, user_id).await?;
+
+    // Validation layer — applied AFTER the merge so a malformed
+    // `theme: "rainbow"` in the request falls back to the existing
+    // theme (not the hard-coded default), which is the least
+    // surprising behaviour.
     let currency_code = req
         .currency
         .as_deref()
         .and_then(|c| get_currency_by_code(c))
         .map(|c| c.code)
-        .unwrap_or_else(|| DEFAULT_CURRENCY.into());
+        .unwrap_or(existing.currency);
 
     let title_type = req
         .title_type
-        .as_deref()
-        .unwrap_or(DEFAULT_TITLE_TYPE)
-        .to_string();
+        .clone()
+        .or(existing.title_type)
+        .unwrap_or_else(|| DEFAULT_TITLE_TYPE.to_string());
 
-    let adult_content_level = req.adult_content_level.unwrap_or(0);
+    let adult_content_level = req.adult_content_level.unwrap_or(existing.adult_content_level);
 
     let theme = req
         .theme
         .as_deref()
         .filter(|t| VALID_THEMES.contains(t))
-        .unwrap_or(DEFAULT_THEME)
-        .to_string();
+        .map(|s| s.to_string())
+        .or(existing.theme)
+        .unwrap_or_else(|| DEFAULT_THEME.to_string());
 
     let language = req
         .language
         .as_deref()
         .filter(|l| VALID_LANGUAGES.contains(l))
-        .unwrap_or(DEFAULT_LANGUAGE)
-        .to_string();
+        .map(|s| s.to_string())
+        .or(existing.language)
+        .unwrap_or_else(|| DEFAULT_LANGUAGE.to_string());
 
-    let avatar_url = req.avatar_url.clone();
+    // Avatar URL — `None` in the request means "don't touch"; the
+    // front-end signals "clear" via an explicit empty string, which
+    // the handler translates to `Some("")` and we normalise to None
+    // here (empty URL is never a valid value).
+    let avatar_url = match req.avatar_url.as_deref() {
+        Some("") => None,
+        Some(u) => Some(u.to_string()),
+        None => existing.avatar_url,
+    };
 
     let model = ActiveModel {
         created_on: Set(now),

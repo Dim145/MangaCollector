@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { checkAuthStatus, logout } from "../utils/auth";
+import { logout } from "../utils/auth";
+import { useAuth } from "@/hooks/useAuth.js";
 import { useT } from "@/i18n/index.jsx";
 import { useUserSettings } from "@/hooks/useSettings.js";
+import { queryClient } from "@/lib/queryClient.js";
 
 export default function ProfileButton() {
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
-  const [user, setUser] = useState(null);
+  // Shared auth state — same cache entry as Header/ProtectedRoute.
+  // On logout we invalidate the key so the next render everywhere
+  // re-reads from the server.
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const dropdownRef = useRef(null);
@@ -14,19 +18,6 @@ export default function ProfileButton() {
   const t = useT();
   const { data: settings } = useUserSettings();
   const avatarUrl = !avatarFailed ? (settings?.avatarUrl ?? null) : null;
-
-  useEffect(() => {
-    const verifyAuth = async () => {
-      const user = await checkAuthStatus();
-      if (user) {
-        setIsAuthenticated(true);
-        setUser(user);
-      } else {
-        setIsAuthenticated(false);
-      }
-    };
-    verifyAuth();
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -46,8 +37,9 @@ export default function ProfileButton() {
   const handleLogout = async () => {
     try {
       await logout();
-      setIsAuthenticated(false);
-      setUser(null);
+      // Invalidate the shared auth query so every consumer
+      // (Header, ProtectedRoute) re-reads and observes the logout.
+      queryClient.setQueryData(["auth", "user"], null);
       navigate("/log-in");
     } catch (error) {
       console.error("Logout failed: ", error);
@@ -56,7 +48,7 @@ export default function ProfileButton() {
 
   const initial = user?.name?.[0]?.toUpperCase() ?? "U";
 
-  if (isAuthenticated === null) {
+  if (authLoading) {
     return <div className="h-9 w-9 rounded-full animate-shimmer" />;
   }
 
@@ -102,7 +94,11 @@ export default function ProfileButton() {
       {isOpen && (
         <div
           role="menu"
-          className="absolute right-0 mt-3 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2/95 shadow-2xl backdrop-blur-xl animate-slide-down"
+          // Dropdown sits over raw page content, so it DOES need its
+          // own blur. `md` (12px) is plenty frosted for a small
+          // surface; `xl` (24px) was a GPU tax with no visual win at
+          // this scale. Opacity bumped /95 → /96 to compensate.
+          className="absolute right-0 mt-3 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2/96 shadow-2xl backdrop-blur-md animate-slide-down"
         >
           <div className="flex items-center gap-3 border-b border-border p-3">
             <div

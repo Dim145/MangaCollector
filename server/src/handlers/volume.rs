@@ -7,6 +7,7 @@ use serde_json::json;
 use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::models::volume::UpdateVolumeRequest;
+use crate::services::realtime::SyncKind;
 use crate::services::volume;
 use crate::state::AppState;
 
@@ -32,18 +33,21 @@ pub async fn get_volumes_by_id(
 /// PATCH /api/user/volume
 pub async fn update_volume(
     State(state): State<AppState>,
-    AuthenticatedUser(_user): AuthenticatedUser,
+    AuthenticatedUser(user): AuthenticatedUser,
     Json(body): Json<UpdateVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     volume::update_by_id(
         &state.db,
         body.id,
+        user.id,
         body.owned,
         body.price,
         body.store,
         body.collector,
+        body.read,
     )
     .await?;
+    state.broker.publish(user.id, SyncKind::Volumes).await;
     Ok(Json(json!({
         "success": true,
         "message": "Volume updated successfully"

@@ -1,6 +1,7 @@
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
+    TransactionTrait,
 };
 use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 
@@ -14,6 +15,85 @@ use crate::models::library::{
 use crate::services::cache::CacheStore;
 use crate::services::{activity, mangadex_api, settings, volume};
 use crate::services::mal_api::get_manga_from_mal;
+
+/// Upper bound on `volumes` for a single series, enforced at every
+/// write path. Real manga cap out at ~200 tomes (One Piece is at
+/// ~108 as of this writing); 10 000 is ~50× the longest known series
+/// and gives plenty of headroom for obscure long-running works while
+/// making DoS attacks (e.g. `{"volumes": 2_000_000_000}` → that many
+/// INSERTs in one transaction) structurally impossible.
+///
+/// Applied at service-layer entry points, not in the INSERT loops
+/// themselves, so existing persisted rows aren't retroactively
+/// corrupted — but no new row can slip past the cap.
+pub const MAX_VOLUMES_PER_SERIES: i32 = 10_000;
+
+/// Clamp a user-supplied volume count to the safe range.
+/// Negative values collapse to 0 (no volumes recorded), very large
+/// values cap at [`MAX_VOLUMES_PER_SERIES`]. The clamp is silent — we
+/// could return a 400 instead, but that would surprise legitimate
+/// users with typos and the attack surface is an abuse vector, not a
+/// UX one.
+#[inline]
+pub fn clamp_volumes(n: i32) -> i32 {
+    n.clamp(0, MAX_VOLUMES_PER_SERIES)
+}
+
+/// `true` when the URL is an external HTTP(S) URL (MAL CDN, MangaDex
+/// CDN, arbitrary http/https image host). `false` for anything else —
+/// i.e. user-uploaded custom posters whose URL is a server-relative
+/// path like `/api/user/storage/poster/{mal_id}`, or an unexpected
+/// value we should treat defensively as "not external".
+///
+/// Replaces a previous `starts_with("http")` check that was fooled by
+/// any string starting with those four letters (`"httpfoo"`,
+/// `"http.example"`, etc.). Strict scheme prefixes eliminate the
+/// ambiguity without introducing a full URL parse on every call.
+#[inline]
+pub fn is_external_http_url(url: &str) -> bool {
+    url.starts_with("http://") || url.starts_with("https://")
+}
+
+/// Produce the next negative mal_id for a user's custom entries.
+///
+/// Custom library entries (manually added, MangaDex-sourced, or copied
+/// from another user's custom entry) use negative `mal_id` values to
+/// keep them out of the MAL positive-id namespace. The next id is
+/// `MIN(existing_negative) - 1`, or `-1` when the user has no custom
+/// entries yet.
+///
+/// Concurrency note: two concurrent callers can both read the same
+/// `MIN` and both compute the same next id. The partial unique index
+/// `uniq_user_libraries_user_mal` (migration
+/// 20260424160000_unique_library_volumes.sql) guarantees that only
+/// one INSERT succeeds; the other gets a 23505 error which propagates
+/// up as `AppError::Database`. That's acceptable — the user retries
+/// their request and gets a fresh mint — and definitely safer than
+/// silent data corruption from two rows sharing a negative id.
+///
+/// Overflow: the `checked_sub` defends against the (practically
+/// impossible) case of 2.1 billion custom entries for one user. On
+/// overflow we return an explicit Internal error rather than
+/// wrapping around into the positive range.
+pub async fn mint_next_custom_mal_id(
+    conn: &impl ConnectionTrait,
+    user_id: i32,
+) -> Result<i32, AppError> {
+    let min_existing: Option<i32> = LibraryEntity::find()
+        .select_only()
+        .column_as(Expr::col(library::Column::MalId).min(), "min")
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.lt(0))
+        .into_tuple::<Option<i32>>()
+        .one(conn)
+        .await
+        .map_err(AppError::from)?
+        .flatten();
+    let base = min_existing.unwrap_or(0);
+    base.checked_sub(1).ok_or_else(|| {
+        AppError::Internal("Custom mal_id namespace exhausted for user".into())
+    })
+}
 
 /// Genre names that trigger an adult-content poster upgrade via MangaDex.
 /// Case-insensitive, kept in sync with `client/src/utils/library.js`.
@@ -51,7 +131,7 @@ async fn maybe_upgrade_cover_for_adult(
         return None;
     }
     if let Some(url) = current_url {
-        if !url.starts_with("http") {
+        if !is_external_http_url(url) {
             // user-uploaded custom path — don't touch
             return None;
         }
@@ -99,8 +179,11 @@ pub async fn add_to_user_library(
     let now = Utc::now();
     let genres_vec = req.genres.clone().unwrap_or_default();
     let genres_str = genres_vec.join(",");
-    let volumes_owned = req.volumes_owned.unwrap_or(0);
-    let volumes = req.volumes;
+    // Clamp before any downstream use: guards the `for 1..=volumes`
+    // loop from DoS-sized inputs, and makes volumes_owned consistent
+    // with the volumes ceiling (you can't own more than there are).
+    let volumes = clamp_volumes(req.volumes);
+    let volumes_owned = clamp_volumes(req.volumes_owned.unwrap_or(0)).min(volumes);
     let mal_id = req.mal_id;
 
     // For adult-tagged series, try to upgrade the cover to the MangaDex
@@ -202,19 +285,7 @@ pub async fn add_from_mangadex(
         return Ok(LibraryEntry::from(existing));
     }
 
-    // Mint the next negative mal_id (same scheme as add_custom_entry).
-    let min: Option<i32> = LibraryEntity::find()
-        .select_only()
-        .column_as(Expr::col(library::Column::MalId).min(), "min")
-        .filter(library::Column::UserId.eq(user_id))
-        .filter(library::Column::MalId.lt(0))
-        .into_tuple::<Option<i32>>()
-        .one(db)
-        .await
-        .map_err(AppError::from)?
-        .flatten();
-
-    let new_mal_id = min.unwrap_or(0) - 1;
+    let new_mal_id = mint_next_custom_mal_id(db, user_id).await?;
 
     add_to_user_library(
         db,
@@ -265,9 +336,11 @@ pub async fn refresh_from_mangadex(
     let now = Utc::now();
     let genres_str = md_data.genres.join(",");
 
-    // Preserve user-uploaded custom posters (paths not starting with `http`).
+    // Preserve user-uploaded custom posters. Any URL that isn't
+    // http(s)://… is treated as a local/path-like value we must not
+    // override with a MangaDex CDN URL.
     let image_update = match row.image_url_jpg.as_deref() {
-        Some(u) if !u.starts_with("http") => row.image_url_jpg.clone(),
+        Some(u) if !is_external_http_url(u) => row.image_url_jpg.clone(),
         _ => md_data.image_url.clone(),
     };
 
@@ -281,6 +354,195 @@ pub async fn refresh_from_mangadex(
     Ok((md_data.genres, md_data.name, image_update))
 }
 
+/// Copy a user-uploaded poster blob from `src` to `dst` in the storage
+/// backend, with a read-back verification step to catch silent failures.
+///
+/// Failure modes handled:
+///   1. Source blob missing → return false, skip
+///   2. Source blob empty (0 bytes) → return false, skip (don't
+///      propagate a useless blob)
+///   3. `put` returns Err → return false, skip
+///   4. `put` returns Ok but verify read fails or returns empty bytes
+///      → roll back the (potentially-broken) dst, return false
+///
+/// Why case 4 matters: the original bug report was a cover that went
+/// missing right after a compare-import. In theory `put` returning Ok
+/// should mean the object is durable on the next `get`. In practice,
+/// MinIO upgrades mid-copy, bucket policy strippers, or a transient
+/// endpoint issue can leave the caller with a success ACK and no
+/// actual object. Without a verify step we'd record the custom-poster
+/// URL in the library row and only discover the breakage on first
+/// page load.
+///
+/// On any failure, we also `remove(dst)` so we don't leave a
+/// half-written orphan. Caller should fall back to `None` in the
+/// library row when this returns false — the UI will render the 巻
+/// placeholder instead of a broken link.
+async fn copy_poster_blob(
+    storage: &dyn crate::storage::StorageBackend,
+    src: &str,
+    dst: &str,
+) -> bool {
+    let bytes = match storage.get(src).await {
+        Ok(b) if b.is_empty() => {
+            tracing::warn!(
+                src = %src,
+                "copy_poster: source blob is empty, skipping cover copy"
+            );
+            return false;
+        }
+        Ok(b) => b,
+        Err(err) => {
+            tracing::warn!(
+                %err,
+                src = %src,
+                "copy_poster: source blob unreadable, skipping cover copy"
+            );
+            return false;
+        }
+    };
+    let bytes_len = bytes.len();
+    if let Err(err) = storage.put(dst, bytes).await {
+        tracing::warn!(%err, dst = %dst, "copy_poster: put failed");
+        return false;
+    }
+    // Verify round-trip. Also checks the size matches, so a partial
+    // write (rare but possible under some S3 implementations) gets
+    // caught here rather than becoming a silent data corruption.
+    match storage.get(dst).await {
+        Ok(v) if v.len() == bytes_len => {
+            tracing::debug!(
+                bytes = bytes_len,
+                src = %src,
+                dst = %dst,
+                "copy_poster: copied + verified"
+            );
+            true
+        }
+        Ok(v) => {
+            tracing::warn!(
+                expected = bytes_len,
+                actual = v.len(),
+                dst = %dst,
+                "copy_poster: verify read size mismatch, rolling back"
+            );
+            let _ = storage.remove(dst).await;
+            false
+        }
+        Err(err) => {
+            tracing::warn!(
+                %err,
+                dst = %dst,
+                "copy_poster: verify read failed, rolling back"
+            );
+            let _ = storage.remove(dst).await;
+            false
+        }
+    }
+}
+
+/// Copy a single series from another user's library into mine. Built
+/// on top of `add_to_user_library` so we reuse the volume-row creation
+/// and idempotent upsert logic. The wrinkle is the cover: when the
+/// source entry has a custom upload (path-like URL, not http), we
+/// copy the blob from their S3 path into mine under the new mal_id.
+///
+/// Behaviour by source entry type:
+///   • MAL series (mal_id > 0)    → keep mal_id, keep image URL (CDN)
+///   • MangaDex only              → mint new negative mal_id locally,
+///                                  keep mangadex_id + image URL (CDN)
+///   • Custom w/ external image   → mint new negative mal_id, keep URL
+///   • Custom w/ manual upload    → mint new negative mal_id, copy
+///                                  blob, stored URL becomes the
+///                                  `/api/user/storage/poster/{new}` form
+pub async fn copy_series_from_other_user(
+    db: &Db,
+    storage: &std::sync::Arc<dyn crate::storage::StorageBackend>,
+    http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    me_user_id: i32,
+    other_user_id: i32,
+    source_mal_id: i32,
+) -> Result<LibraryEntry, AppError> {
+    // Fetch source row from the other user's library.
+    let source = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(other_user_id))
+        .filter(library::Column::MalId.eq(source_mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::NotFound("Source series not found".into()))?;
+    let source_entry = LibraryEntry::from(source.clone());
+
+    // Figure out the mal_id I'll use locally. MAL series keep their
+    // positive id; everything else mints a fresh negative id so the
+    // custom-entry / uniqueness invariants hold.
+    let is_mal = source_mal_id > 0;
+    let target_mal_id = if is_mal {
+        source_mal_id
+    } else {
+        mint_next_custom_mal_id(db, me_user_id).await?
+    };
+
+    // Decide the image URL I'll store. External URLs (MAL CDN /
+    // MangaDex CDN) work for everyone, so we reuse them. A path-ish
+    // URL means the source was a user upload — copy the blob.
+    //
+    // This is always a *copy*, never a move: the source user's blob
+    // stays untouched, and we write a fresh object under a key keyed by
+    // *my* user_id + target_mal_id. Two distinct S3 objects.
+    let is_custom_upload = source_entry
+        .image_url_jpg
+        .as_deref()
+        .map(|u| !is_external_http_url(u))
+        .unwrap_or(false);
+    let final_image_url = if is_custom_upload {
+        let src_path = format!(
+            "uploads/images/{}/{}.jpg",
+            other_user_id, source_mal_id
+        );
+        let dst_path = format!(
+            "uploads/images/{}/{}.jpg",
+            me_user_id, target_mal_id
+        );
+        if copy_poster_blob(storage.as_ref(), &src_path, &dst_path).await {
+            Some(format!("/api/user/storage/poster/{}", target_mal_id))
+        } else {
+            // Copy failed (missing/empty source, put error, verify
+            // mismatch) — fall back to no cover. Better a 巻 placeholder
+            // than a library row pointing at a blob that doesn't exist.
+            None
+        }
+    } else {
+        source_entry.image_url_jpg.clone()
+    };
+
+    // Delegate to add_to_user_library for the library row + per-volume
+    // creation + milestone hooks. `volumes_owned=0` honours the spec:
+    // user gets the series listed but marked as "unowned" so they can
+    // check off what they actually have afterwards.
+    add_to_user_library(
+        db,
+        http_client,
+        cache,
+        me_user_id,
+        AddLibraryRequest {
+            mal_id: Some(target_mal_id),
+            name: source_entry.name,
+            volumes: source_entry.volumes,
+            volumes_owned: Some(0),
+            image_url_jpg: final_image_url,
+            genres: if source_entry.genres.is_empty() {
+                None
+            } else {
+                Some(source_entry.genres)
+            },
+            mangadex_id: source_entry.mangadex_id,
+        },
+    )
+    .await
+}
+
 pub async fn add_custom_entry(
     db: &Db,
     http_client: &reqwest::Client,
@@ -288,19 +550,7 @@ pub async fn add_custom_entry(
     user_id: i32,
     req: AddCustomRequest,
 ) -> Result<LibraryEntry, AppError> {
-    // Assign the next negative mal_id (custom entries use mal_id < 0)
-    let min: Option<i32> = LibraryEntity::find()
-        .select_only()
-        .column_as(Expr::col(library::Column::MalId).min(), "min")
-        .filter(library::Column::UserId.eq(user_id))
-        .filter(library::Column::MalId.lt(0))
-        .into_tuple::<Option<i32>>()
-        .one(db)
-        .await
-        .map_err(AppError::from)?
-        .flatten();
-
-    let new_mal_id = min.unwrap_or(0) - 1;
+    let new_mal_id = mint_next_custom_mal_id(db, user_id).await?;
 
     add_to_user_library(
         db,
@@ -374,6 +624,10 @@ pub async fn update_manga_volumes(
     user_id: i32,
     new_volumes: i32,
 ) -> Result<(), AppError> {
+    // Clamp at the entry point — a PATCH with `volumes: 2_000_000_000`
+    // would otherwise fire 2 billion per-volume INSERTs (one row per
+    // tick of the loop below) in one request and exhaust disk/memory.
+    let new_volumes = clamp_volumes(new_volumes);
     let old_total = get_total_volumes(db, mal_id, user_id).await?.unwrap_or(0);
 
     if old_total == new_volumes {
@@ -429,6 +683,12 @@ pub async fn update_volumes_owned(
         let previous_owned = existing.volumes_owned;
         let total_volumes = existing.volumes;
         let name = existing.name.clone();
+        // Clamp so the persisted `volumes_owned` is always in
+        // [0, total_volumes]. Prevents dashboards from rendering "12/8
+        // volumes" when a client sends a stale or malformed value.
+        // Consistent with the clamp in `add_to_user_library` and the
+        // `owned_up_to` clamp in the archive importer.
+        let volumes_owned = volumes_owned.clamp(0, total_volumes);
 
         let mut active: ActiveModel = existing.into();
         active.volumes_owned = Set(volumes_owned);
@@ -488,7 +748,24 @@ pub async fn search(
     user_id: i32,
     query: &str,
 ) -> Result<Vec<LibraryEntry>, AppError> {
-    let pattern = format!("%{}%", query.to_lowercase());
+    // Escape LIKE wildcards before wrapping with our own `%...%`.
+    // Without this, a user searching for `100%` matches every row
+    // (the `%` they typed is treated as the SQL wildcard); `foo_bar`
+    // matches any character in the middle slot. Not a SQL injection
+    // (arguments are still parameterised by sea-orm/sqlx), but a
+    // surprising search UX and a light-weight information leak.
+    //
+    // Standard pattern: escape `\`, `%`, `_` with a preceding `\`, and
+    // rely on Postgres' LIKE default escape char (also `\`).
+    let escaped: String = query
+        .to_lowercase()
+        .chars()
+        .flat_map(|c| match c {
+            '\\' | '%' | '_' => vec!['\\', c],
+            other => vec![other],
+        })
+        .collect();
+    let pattern = format!("%{}%", escaped);
     let rows = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(Expr::col(library::Column::Name).ilike(pattern))

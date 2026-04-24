@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAuthStatus, getCachedUser } from "../utils/auth";
 import DefaultBackground from "./DefaultBackground";
+import { useAuth } from "@/hooks/useAuth.js";
 import { useT } from "@/i18n/index.jsx";
 
 /*
@@ -17,51 +17,26 @@ import { useT } from "@/i18n/index.jsx";
  */
 export default function ProtectedRoute({ children, setGoogleUser }) {
   const t = useT();
-  const [status, setStatus] = useState(() => {
-    const cached = getCachedUser();
-    return cached ? { kind: "cached", user: cached } : { kind: "checking" };
-  });
   const navigate = useNavigate();
+  // Shared auth state — same TanStack Query cache entry consumed by
+  // Header and ProfileButton. Three consumers, one network request.
+  const { status, user } = useAuth();
 
+  // Lift the user up to App-level state (still needed until the
+  // consumers of `googleUser` are themselves migrated to `useAuth`,
+  // tracked for the structural-cleanup sprint).
   useEffect(() => {
-    if (status.kind === "cached" && status.user) {
-      setGoogleUser(status.user);
+    if (user) setGoogleUser(user);
+  }, [user, setGoogleUser]);
+
+  // Redirect on an explicit unauthenticated verdict. We DON'T redirect
+  // on `unknown` (server unreachable + no cache) — that's handled by
+  // the dedicated panel below.
+  useEffect(() => {
+    if (status.kind === "unauthenticated") {
+      navigate("/log-in");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const result = await getAuthStatus();
-      if (cancelled) return;
-
-      if (result.kind === "authenticated") {
-        setStatus(result);
-        setGoogleUser(result.user);
-        return;
-      }
-
-      if (result.kind === "unauthenticated") {
-        setStatus(result);
-        navigate("/log-in");
-        return;
-      }
-
-      if (result.kind === "cached") {
-        setStatus(result);
-        setGoogleUser(result.user);
-        return;
-      }
-
-      // "unknown" — server unreachable AND no cached profile. First-ever
-      // visit during an outage. Keep the user parked rather than login.
-      setStatus(result);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate, setGoogleUser]);
+  }, [status.kind, navigate]);
 
   if (status.kind === "checking") {
     return (

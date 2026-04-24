@@ -123,11 +123,25 @@ export async function readSettings() {
 }
 
 /**
- * Wipe every trace of the current user from local storage. Used on logout
- * so the next visitor on this browser can't see residual data, even though
- * the server may still consider the session alive for a bit longer.
+ * Wipe every trace of the current user from local storage.
+ *
+ * Used on logout (and the account-deletion flow) so the next visitor
+ * on this browser can't see residual data even though the server may
+ * still consider the session alive for a bit longer.
+ *
+ * Four storage surfaces to clean, not one:
+ *   1. Dexie tables — library, volumes, settings, outbox, caches.
+ *   2. Workbox runtime caches — the PWA service worker caches
+ *      `/api/user/storage/poster/*` with StaleWhileRevalidate, so
+ *      without clearing it user B briefly sees user A's covers.
+ *   3. TanStack Query cache — in-memory but still holds the previous
+ *      user's library/profile data until refetch.
+ *   4. localStorage auth profile (`mc:auth-user`) — name/email/avatar
+ *      that survives the redirect back to `/` unless explicitly
+ *      removed.
  */
 export async function clearAllUserData() {
+  // 1) Dexie
   try {
     await db.transaction(
       "rw",
@@ -155,6 +169,39 @@ export async function clearAllUserData() {
       },
     );
   } catch (err) {
-    console.warn("[db] clearAllUserData failed:", err?.message);
+    console.warn("[db] clearAllUserData (Dexie) failed:", err?.message);
+  }
+
+  // 2) Workbox / service worker runtime caches. We delete ALL caches
+  //    owned by this origin — the SW re-populates anything it still
+  //    needs on the next navigation. Narrow filtering by name would
+  //    be more surgical but risks missing caches if workbox config
+  //    changes down the line.
+  try {
+    if (typeof caches !== "undefined" && caches.keys) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch (err) {
+    console.warn("[db] clearAllUserData (caches) failed:", err?.message);
+  }
+
+  // 3) TanStack Query cache. Import lazily to avoid a circular dep
+  //    (`queryClient.js` imports `db.js` for some mutations).
+  try {
+    const { queryClient } = await import("@/lib/queryClient.js");
+    queryClient.clear();
+  } catch (err) {
+    console.warn("[db] clearAllUserData (query cache) failed:", err?.message);
+  }
+
+  // 4) localStorage auth profile cache (`mc:auth-user` — see
+  //    utils/auth.js). Can't call clearCachedUser() here because of
+  //    the same circular-import risk; removing the key directly is
+  //    safe and cheap.
+  try {
+    localStorage.removeItem("mc:auth-user");
+  } catch {
+    // Private/incognito modes may throw — not worth reporting.
   }
 }
