@@ -91,12 +91,29 @@ export default function Modal({
   const overlayRef = useRef(null);
   const lastFocusedBeforeOpenRef = useRef(null);
 
+  // Mirror `handleClose` into a ref so the main keyup/focus effect
+  // DOESN'T depend on its identity. Callers commonly pass an inline
+  // arrow (`handleClose={() => setOpen(false)}`), which means
+  // `handleClose` gets a new identity on every parent render — every
+  // keystroke that updates parent state would otherwise invalidate
+  // the effect's deps, fire its cleanup (which restores focus to
+  // the trigger element OUTSIDE the modal), and re-install it. The
+  // one-frame gap between blur and the RAF-based re-focus is exactly
+  // long enough for the NEXT keystroke to miss the input — manifests
+  // to the user as "I lose focus on every keypress". See
+  // DeleteAccountFlow step 2 for the repro.
+  const handleCloseRef = useRef(handleClose);
+  useEffect(() => {
+    handleCloseRef.current = handleClose;
+  }, [handleClose]);
+
   useEffect(() => {
     if (!mounted) return;
 
     const handleKeyUp = (e) => {
-      if (e.key === "Escape" && typeof handleClose === "function") {
-        handleClose();
+      if (e.key === "Escape") {
+        const close = handleCloseRef.current;
+        if (typeof close === "function") close();
       }
     };
 
@@ -172,7 +189,11 @@ export default function Modal({
       }
       lastFocusedBeforeOpenRef.current = null;
     };
-  }, [mounted, handleClose]);
+    // Deps intentionally exclude `handleClose` — see the
+    // `handleCloseRef` block above. Only `mounted` gates the
+    // install/teardown of scroll-lock + focus-trap + listeners.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
 
   if (!mounted) return null;
   if (typeof document === "undefined") return null;
