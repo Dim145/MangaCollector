@@ -434,6 +434,22 @@ export default {
     keySaved: "Guardada",
     apiKeyTip:
       "Consejo: restringe la clave al referente HTTP en Google Cloud Console — será rechazada si se filtra y se usa en otro dominio. La clave se guarda solo en tu navegador (localStorage), nunca en el servidor.",
+    publicProfileTitle: "Perfil público · 蔵書公開",
+    publicProfileBody:
+      "Comparte una galería de sólo lectura de tu archivo vía un enlace público. Precios, fechas de compra y contenido adulto quedan excluidos.",
+    publicProfileToggleAria: "Activar perfil público",
+    publicProfileSlugLabel: "Tu identificador público",
+    publicProfilePlaceholder: "mi-alias",
+    publicProfileHint:
+      "3–32 caracteres · minúsculas, dígitos, guiones. No puede empezar ni acabar en guión.",
+    publicProfileTaken: "Ese identificador ya está en uso.",
+    publicProfileInvalid: "Identificador no válido.",
+    publicProfileCopy: "Copiar",
+    publicProfileCopied: "¡Copiado!",
+    publicProfileAdultTitle: "Incluir contenido adulto",
+    publicProfileAdultBody:
+      "Publica también las series marcadas 18+. Los visitantes verán un aviso y las portadas se mantienen difuminadas por defecto hasta confirmar explícitamente.",
+    publicProfileAdultToggleAria: "Activar contenido adulto en el perfil público",
     dataSection: "Datos",
     dataBody:
       "Archivo offline cacheado en este dispositivo. Recupera el estado fresco del servidor cuando quieras empezar limpio.",
@@ -889,5 +905,33 @@ export default {
         description: "Cincuenta series leídas en su totalidad. El dokuha verdadero.",
       },
     },
+  },
+  publicProfile: {
+    archiveOf: "ARCHIVO DE",
+    archivistSince: "Archivista desde {date}",
+    statsLabel: "Estadísticas públicas",
+    statSeries: "Series",
+    statOwned: "Tomos",
+    statRead: "Leídos",
+    statFullyRead: "Completadas",
+    seriesAllCollector: "Set coleccionista íntegro",
+    seriesFullyRead: "Serie leída al completo",
+    emptyTitle: "Estantería aún vacía",
+    emptyBody:
+      "Este archivista todavía no ha añadido ninguna serie a su archivo público.",
+    notFoundTitle: "Archivo no encontrado",
+    notFoundBody:
+      "No existe ningún archivo bajo el identificador \u00AB{slug}\u00BB. Puede haber sido renombrado o retirado.",
+    backHome: "Volver al inicio",
+    footerPoweredBy: "Archivo impulsado por",
+    seriesAdult: "Contenido adulto",
+    adultHidden: "Difuminado",
+    adultBannerEyebrow: "CONTENIDO ADULTO · 成人向け",
+    adultBannerHidden:
+      "Este archivo contiene obras destinadas a un público adulto.",
+    adultBannerRevealed:
+      "Contenido adulto mostrado. Debes ser mayor de edad.",
+    adultBannerReveal: "Mostrar",
+    adultBannerHide: "Ocultar de nuevo",
   },
 };

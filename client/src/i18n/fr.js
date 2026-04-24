@@ -447,6 +447,22 @@ export default {
     dataSection: "Données",
     dataBody:
       "Archive hors ligne mise en cache sur cet appareil. Récupérez l'état frais du serveur pour repartir propre.",
+    publicProfileTitle: "Profil public · 蔵書公開",
+    publicProfileBody:
+      "Partagez une galerie en lecture seule de votre archive via un lien public. Les prix, dates d'achat et contenus adulte sont exclus.",
+    publicProfileToggleAria: "Activer le profil public",
+    publicProfileSlugLabel: "Votre handle public",
+    publicProfilePlaceholder: "mon-pseudo",
+    publicProfileHint:
+      "3 à 32 caractères · lettres minuscules, chiffres, tirets. Pas de tiret en début ou fin.",
+    publicProfileTaken: "Ce handle est déjà pris.",
+    publicProfileInvalid: "Handle invalide.",
+    publicProfileCopy: "Copier",
+    publicProfileCopied: "Copié !",
+    publicProfileAdultTitle: "Inclure le contenu adulte",
+    publicProfileAdultBody:
+      "Publie également les séries taguées 18+. Les visiteurs verront un avertissement et les couvertures restent floutées par défaut jusqu'à confirmation explicite.",
+    publicProfileAdultToggleAria: "Activer le contenu adulte sur le profil public",
     restoreFromServer: "Restaurer depuis le serveur",
     restoreDesc: "Remplace l'archive locale par le dernier état serveur.",
     pendingDiscardOne: " {n} modification en attente sera perdue.",
@@ -901,5 +917,33 @@ export default {
         description: "Cinquante séries intégralement lues. Le dokuha véritable.",
       },
     },
+  },
+  publicProfile: {
+    archiveOf: "ARCHIVE DE",
+    archivistSince: "Archiviste depuis {date}",
+    statsLabel: "Statistiques publiques",
+    statSeries: "Séries",
+    statOwned: "Tomes",
+    statRead: "Lus",
+    statFullyRead: "Achevées",
+    seriesAllCollector: "Édition collector intégrale",
+    seriesFullyRead: "Série entièrement lue",
+    emptyTitle: "Étagère encore vide",
+    emptyBody:
+      "Cet archiviste n'a pas encore ajouté de série à son archive publique.",
+    notFoundTitle: "Archive introuvable",
+    notFoundBody:
+      "Aucune archive n'existe sous le handle « {slug} ». Il a peut-être été renommé ou retiré.",
+    backHome: "Retour à l'accueil",
+    footerPoweredBy: "Archive propulsée par",
+    seriesAdult: "Contenu pour adulte",
+    adultHidden: "Flouté",
+    adultBannerEyebrow: "CONTENU ADULTE · 成人向け",
+    adultBannerHidden:
+      "Cette archive contient des œuvres destinées à un public averti.",
+    adultBannerRevealed:
+      "Contenu adulte affiché. Vous devez être majeur·e.",
+    adultBannerReveal: "Afficher",
+    adultBannerHide: "Masquer à nouveau",
   },
 };

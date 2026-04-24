@@ -12,6 +12,9 @@ pub enum AppError {
     #[error("{0}")]
     BadRequest(String),
 
+    #[error("{0}")]
+    Conflict(String),
+
     #[error("Database error: {0}")]
     Database(String),
 
@@ -35,6 +38,10 @@ impl IntoResponse for AppError {
             ),
             AppError::BadRequest(msg) => (
                 StatusCode::BAD_REQUEST,
+                json!({ "success": false, "error": msg }),
+            ),
+            AppError::Conflict(msg) => (
+                StatusCode::CONFLICT,
                 json!({ "success": false, "error": msg }),
             ),
             AppError::Database(msg) => (

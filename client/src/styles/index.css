@@ -1062,6 +1062,79 @@
   border-radius: 0.75rem;
 }
 
+/* ─── Public profile (museum mode) ──────────────────────────────────
+   A distinctly more editorial/contemplative backdrop than the private
+   dashboard: warmer tones, bigger halos, visible grain, so anonymous
+   viewers land on something that reads as "artefact" not "tool". */
+.public-profile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--ink-0);
+}
+.public-profile-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 70% 50% at 12% 8%,
+      var(--scene-red) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 80% 60% at 92% 100%,
+      var(--scene-gold) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 45% 40% at 30% 110%,
+      var(--scene-sakura) 0%,
+      transparent 60%
+    );
+}
+.public-profile-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* Museum hanko — larger and more ceremonial than inline ones. */
+.public-hanko {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  background: linear-gradient(160deg, var(--hanko) 0%, var(--hanko-deep) 100%);
+  color: var(--washi);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 1.5px oklch(0.6 0.22 25 / 0.5),
+    0 10px 30px -8px var(--hanko-glow),
+    0 2px 6px -1px oklch(0 0 0 / 0.3);
+  transform: rotate(-3deg);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.public-hanko:hover {
+  transform: rotate(0) scale(1.04);
+}
+.public-hanko-dot {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: linear-gradient(160deg, var(--gold) 0%, var(--gold-muted) 100%);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.82 0.13 78 / 0.6),
+    0 2px 6px -2px oklch(0.82 0.13 78 / 0.4);
+}
+
 /* ─── Tier legend dots — match the earned seal colour for each tier ─ */
 .tier-legend-dot {
   display: inline-block;

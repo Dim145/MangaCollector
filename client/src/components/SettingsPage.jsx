@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Modal from "@/components/utils/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
 import DeleteAccountFlow from "@/components/DeleteAccountFlow.jsx";
+import PublicProfileSection from "@/components/PublicProfileSection.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
@@ -638,6 +639,12 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* ─── Public profile section — toggle + slug editor.
+            Sits before the Data/danger section so users see the feature
+            in a natural progression: Account → Preferences → Sharing →
+            Data management. */}
+        <PublicProfileSection />
 
         {/* ─── Data section ─── */}
         <section

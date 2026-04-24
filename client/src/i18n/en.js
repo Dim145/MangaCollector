@@ -428,6 +428,22 @@ export default {
     keySaved: "Saved",
     apiKeyTip:
       "Tip: restrict the key to your HTTP referrer in Google Cloud Console — it'll be rejected if leaked and used on another domain. The key is stored in your browser only (localStorage), never on the server.",
+    publicProfileTitle: "Public profile · 蔵書公開",
+    publicProfileBody:
+      "Share a read-only gallery of your archive via a public link. Prices, purchase dates and adult content are excluded.",
+    publicProfileToggleAria: "Enable public profile",
+    publicProfileSlugLabel: "Your public handle",
+    publicProfilePlaceholder: "my-handle",
+    publicProfileHint:
+      "3–32 chars · lowercase letters, digits, hyphens. Cannot start or end with a hyphen.",
+    publicProfileTaken: "That handle is already taken.",
+    publicProfileInvalid: "Invalid handle.",
+    publicProfileCopy: "Copy",
+    publicProfileCopied: "Copied!",
+    publicProfileAdultTitle: "Include adult content",
+    publicProfileAdultBody:
+      "Also publishes 18+ tagged series. Visitors see a warning and covers stay blurred by default until they explicitly confirm.",
+    publicProfileAdultToggleAria: "Enable adult content on public profile",
     dataSection: "Data",
     dataBody:
       "Offline archive cached on this device. Pull fresh state from the server when you want to start clean.",
@@ -880,5 +896,33 @@ export default {
         description: "Fifty series read in full. True dokuha.",
       },
     },
+  },
+  publicProfile: {
+    archiveOf: "ARCHIVE OF",
+    archivistSince: "Archivist since {date}",
+    statsLabel: "Public statistics",
+    statSeries: "Series",
+    statOwned: "Volumes",
+    statRead: "Read",
+    statFullyRead: "Completed",
+    seriesAllCollector: "Full collector set",
+    seriesFullyRead: "Series read in full",
+    emptyTitle: "Shelves still empty",
+    emptyBody:
+      "This archivist hasn't added any series to their public archive yet.",
+    notFoundTitle: "Archive not found",
+    notFoundBody:
+      "No archive exists under the handle \u201C{slug}\u201D. It may have been renamed or removed.",
+    backHome: "Back home",
+    footerPoweredBy: "Archive powered by",
+    seriesAdult: "Adult content",
+    adultHidden: "Blurred",
+    adultBannerEyebrow: "ADULT CONTENT · 成人向け",
+    adultBannerHidden:
+      "This archive contains works intended for a mature audience.",
+    adultBannerRevealed:
+      "Adult content shown. You must be of legal age.",
+    adultBannerReveal: "Reveal",
+    adultBannerHide: "Hide again",
   },
 };

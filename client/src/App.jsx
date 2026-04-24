@@ -34,6 +34,7 @@ const ProfilePage = lazy(() => import("./components/ProfilePage"));
 const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
 const Wishlist = lazy(() => import("./components/Wishlist"));
 const SealsPage = lazy(() => import("./components/SealsPage"));
+const PublicProfile = lazy(() => import("./components/PublicProfile"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -204,6 +205,10 @@ function AppShell() {
                 </ProtectedRoute>
               }
             />
+            {/* Public profile — deliberately outside ProtectedRoute so
+                anonymous visitors can see the gallery. Server-side
+                filters adult content + sensitive fields. */}
+            <Route path="/u/:slug" element={<PublicProfile />} />
           </Routes>
         </Suspense>
       </main>
