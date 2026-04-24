@@ -4,8 +4,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    activity, auth as auth_handlers, coffret, external, health, library, public, seals, settings,
-    storage, user_profile, volume,
+    activity, archive, auth as auth_handlers, coffret, external, external_import, health, library,
+    public, seals, settings, storage, user_profile, volume,
 };
 use crate::state::AppState;
 
@@ -90,6 +90,16 @@ fn user_router() -> Router<AppState> {
         .route("/public-slug", get(user_profile::get_public_slug))
         .route("/public-slug", patch(user_profile::update_public_slug))
         .route("/public-adult", patch(user_profile::update_public_adult))
+        // 写本 · Archive — portable export / merge-import.
+        .route("/export.json", get(archive::export_json))
+        .route("/export.csv", get(archive::export_csv))
+        .route("/import", post(archive::import_archive))
+        // 外部輸入 · External import — fetch a library from another
+        // service and return a bundle + dry-run preview in one call.
+        .route("/import/external/mal", post(external_import::import_mal))
+        .route("/import/external/anilist", post(external_import::import_anilist))
+        .route("/import/external/mangadex", post(external_import::import_mangadex))
+        .route("/import/external/yamtrack", post(external_import::import_yamtrack))
         // GDPR — erase the entire account
         .route("/account", delete(auth_handlers::delete_account))
 }

@@ -1,7 +1,9 @@
 pub mod activity;
+pub mod archive;
 pub mod auth;
 pub mod coffret;
 pub mod external;
+pub mod external_import;
 pub mod health;
 pub mod library;
 pub mod public;

@@ -450,6 +450,44 @@ export default {
     publicProfileAdultBody:
       "Publica también las series marcadas 18+. Los visitantes verán un aviso y las portadas se mantienen difuminadas por defecto hasta confirmar explícitamente.",
     publicProfileAdultToggleAria: "Activar contenido adulto en el perfil público",
+    archiveTitle: "Archivo y portabilidad · 写本",
+    archiveBody:
+      "Exporta tu colección para archivarla o importa un rollo recibido. Solo fusión: las series ya presentes (mismo mal_id) se ignoran.",
+    archiveExport: "EXPORTAR · 巻",
+    archiveExportBody:
+      "Descarga todo tu archivo en un único fichero. JSON para restaurar más tarde, CSV para abrir en una hoja de cálculo.",
+    archiveExportJson: "JSON completo",
+    archiveExportCsv: "CSV plano",
+    archiveImport: "IMPORTAR · 封",
+    archiveImportBody:
+      "Arrastra un JSON exportado desde MangaCollector. Las series existentes nunca se sobrescriben.",
+    archiveImportCta: "Elegir un fichero",
+    archiveImportExternalCta: "Importar desde un servicio externo",
+    archiveImportStep: "Paso {step}/{total}",
+    archiveImportStep1Title: "Elegir el rollo",
+    archiveImportStep1Body:
+      "Selecciona un JSON exportado desde MangaCollector. La vista previa se carga automáticamente.",
+    archiveImportChoose: "Examinar…",
+    archiveImportChooseDifferent: "Elegir otro fichero",
+    archiveImportNotBundle:
+      "Este fichero no parece un export MangaCollector (falta version/library).",
+    archiveImportBadJson: "Este fichero no es un JSON válido.",
+    archiveImportStep2Title: "Vista previa",
+    archiveImportPreviewOf: "Vista previa de",
+    archiveImportAdded: "A añadir",
+    archiveImportConflict: "Conflictos",
+    archiveImportInvalid: "Inválidas",
+    archiveImportAddedList: "Series añadidas",
+    archiveImportConflictList: "Ya presentes",
+    archiveImportNothingToAdd:
+      "Todas las series del rollo ya existen en tu biblioteca — nada que añadir.",
+    archiveImportChooseAgain: "Otro fichero",
+    archiveImportApply: "Aplicar · +{n} series",
+    archiveImportGenericError: "No se puede importar este fichero.",
+    archiveImportStep3Title: "Importación completa",
+    archiveImportDoneTitle: "Rollo sellado",
+    archiveImportDoneBody:
+      "{added} series añadidas, {skipped} conflictos ignorados. Tu biblioteca está al día.",
     dataSection: "Datos",
     dataBody:
       "Archivo offline cacheado en este dispositivo. Recupera el estado fresco del servidor cuando quieras empezar limpio.",
@@ -933,5 +971,66 @@ export default {
       "Contenido adulto mostrado. Debes ser mayor de edad.",
     adultBannerReveal: "Mostrar",
     adultBannerHide: "Ocultar de nuevo",
+  },
+  importExternal: {
+    title: "Ritual",
+    titleAccent: "de importación · 外部輸入",
+    subtitle:
+      "Trae tu colección desde un servicio externo. Modo fusión: las series ya presentes nunca se sobrescriben.",
+    backToSettings: "Ajustes",
+    servicesLabel: "Servicios disponibles",
+    openService: "Elegir este servicio",
+    fetching: "Obteniendo…",
+    preview: "Previsualizar",
+    previewEyebrow: "VISTA PREVIA",
+    previewTitle: "{total} series encontradas",
+    added: "A añadir",
+    conflict: "Conflictos",
+    invalid: "Inválidas",
+    addedList: "Series a añadir",
+    conflictList: "Ya presentes",
+    nothingToAdd:
+      "Todas estas series ya existen en tu biblioteca — nada que añadir.",
+    apply: "Aplicar · +{n}",
+    doneTitle: "Importación completa",
+    doneBody: "{added} series añadidas, {skipped} conflictos ignorados.",
+    importAnother: "Importar otro servicio",
+    goToLibrary: "Ir a mi biblioteca",
+    genericError: "Algo salió mal.",
+    malInputKind: "Por usuario MAL · vía Jikan",
+    malBlurb:
+      "Importa tu mangalist MAL proporcionando tu nombre de usuario. Perfil público requerido.",
+    malInputTitle: "Tu usuario MyAnimeList",
+    malInputLabel: "Usuario",
+    malPlaceholder: "ej. Xinil",
+    malHint:
+      "Nombre de usuario MAL público. Se usa la API Jikan para recorrer tu mangalist.",
+    mdInputKind: "Por UUID de lista · API pública",
+    mdBlurb:
+      "Pega la URL o el UUID de una lista pública de MangaDex. Las series se obtienen vía la API oficial.",
+    mdInputTitle: "Una lista pública de MangaDex",
+    mdInputLabel: "URL o UUID(s)",
+    mdPlaceholder:
+      "https://mangadex.org/list/abcdef01-2345-6789-abcd-ef0123456789",
+    mdHint:
+      "URL de lista, UUID único de lista, o varios UUIDs de manga separados por comas / saltos de línea.",
+    aniInputKind: "Por usuario AniList · GraphQL",
+    aniBlurb:
+      "Importa tu mangalist AniList con tu nombre de usuario. Perfil público requerido (por defecto en AniList).",
+    aniInputTitle: "Tu usuario AniList",
+    aniInputLabel: "Usuario",
+    aniPlaceholder: "ej. yoursname",
+    aniHint:
+      "Nombre de usuario AniList público. Se usa la API GraphQL.",
+    ymInputKind: "Por CSV de exportación · self-hosted",
+    ymBlurb:
+      "Importa desde tu instancia Yamtrack. Exporta el CSV desde tu perfil Yamtrack y suéltalo aquí. Solo se procesan las filas de manga.",
+    ymInputTitle: "Tu exportación Yamtrack",
+    ymInputLabel: "Fichero CSV",
+    ymPlaceholder: "yamtrack_export.csv",
+    ymHint:
+      "Ve a Perfil → Exportar en Yamtrack, descarga el CSV y suéltalo aquí. Las filas no-manga se ignoran automáticamente.",
+    chooseFile: "Elegir un fichero",
+    fileChosen: "Fichero seleccionado",
   },
 };

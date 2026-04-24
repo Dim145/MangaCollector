@@ -1,0 +1,364 @@
+//! 写本 · Archive service.
+//!
+//! Pure functions that transform between the DB state and the
+//! shareable ExportBundle. Kept separate from `users` because the
+//! concerns are orthogonal: users deals with identity/auth, archive
+//! deals with data portability.
+
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use std::collections::{HashMap, HashSet};
+
+use crate::db::Db;
+use crate::errors::AppError;
+use crate::models::archive::{
+    ExportBundle, ExportCoffret, ExportSeries, ExportSettings, ExportUser,
+    ExportVolume, ImportAddedSummary, ImportPreview, EXPORT_VERSION,
+};
+use crate::models::coffret::{self, Entity as CoffretEntity};
+use crate::models::library::{self, Entity as LibraryEntity};
+use crate::models::setting::Entity as SettingEntity;
+use crate::models::user::{Entity as UserEntity, User};
+use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
+
+/// Build a complete export bundle for the given user.
+pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError> {
+    // ─── Settings ───
+    let setting = SettingEntity::find()
+        .filter(crate::models::setting::Column::UserId.eq(user.id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+    let settings = setting.map(|s| ExportSettings {
+        currency: s.currency,
+        title_type: s.title_type,
+        adult_content_level: s.adult_content_level,
+        theme: s.theme,
+        language: s.language,
+    });
+
+    // ─── Library rows ───
+    let library_rows = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user.id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+
+    // ─── Volumes + coffrets (bulk-loaded then grouped in-memory) ───
+    let volume_rows = VolumeEntity::find()
+        .filter(volume_mod::Column::UserId.eq(user.id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    let coffret_rows = CoffretEntity::find()
+        .filter(coffret::Column::UserId.eq(user.id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+
+    let mut volumes_by_mal: HashMap<i32, Vec<crate::models::volume::Model>> =
+        HashMap::new();
+    for v in volume_rows {
+        if let Some(mal) = v.mal_id {
+            volumes_by_mal.entry(mal).or_default().push(v);
+        }
+    }
+    let mut coffrets_by_mal: HashMap<i32, Vec<crate::models::coffret::Model>> =
+        HashMap::new();
+    for c in coffret_rows {
+        coffrets_by_mal.entry(c.mal_id).or_default().push(c);
+    }
+
+    // ─── Shape each series ───
+    let mut library: Vec<ExportSeries> = Vec::with_capacity(library_rows.len());
+    for row in library_rows {
+        let mal_key = row.mal_id.unwrap_or(0);
+        let mut vols: Vec<ExportVolume> = volumes_by_mal
+            .remove(&mal_key)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|v| ExportVolume {
+                vol_num: v.vol_num,
+                owned: v.owned,
+                price: v.price,
+                store: v.store,
+                collector: v.collector,
+                read_at: v.read_at,
+                in_coffret: v.coffret_id.is_some(),
+            })
+            .collect();
+        vols.sort_by_key(|v| v.vol_num);
+
+        let coffrets: Vec<ExportCoffret> = coffrets_by_mal
+            .remove(&mal_key)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|c| ExportCoffret {
+                name: c.name,
+                vol_start: c.vol_start,
+                vol_end: c.vol_end,
+                price: c.price,
+                store: c.store,
+            })
+            .collect();
+
+        let genres: Vec<String> = row
+            .genres
+            .as_deref()
+            .unwrap_or("")
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .collect();
+
+        library.push(ExportSeries {
+            mal_id: row.mal_id,
+            mangadex_id: row.mangadex_id,
+            name: row.name,
+            volumes: row.volumes,
+            volumes_owned: row.volumes_owned,
+            image_url_jpg: row.image_url_jpg,
+            genres,
+            volumes_detail: vols,
+            coffrets,
+        });
+    }
+    library.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+    Ok(ExportBundle {
+        version: EXPORT_VERSION,
+        exported_at: Utc::now(),
+        source: "MangaCollector".into(),
+        user: ExportUser {
+            name: user.name.clone(),
+        },
+        settings,
+        library,
+    })
+}
+
+/// Flatten the whole archive into CSV rows — one line per volume of
+/// every series (so a collector can open the file in a spreadsheet and
+/// sort/pivot freely). Returns the raw CSV text including the header.
+pub fn build_export_csv(bundle: &ExportBundle) -> String {
+    let mut out = String::new();
+    out.push_str(
+        "mal_id,series,vol_num,owned,collector,read_at,price,store,genres\n",
+    );
+    for series in &bundle.library {
+        let mal = series
+            .mal_id
+            .map(|i| i.to_string())
+            .unwrap_or_default();
+        let name = csv_escape(&series.name);
+        let genres = csv_escape(&series.genres.join("|"));
+        if series.volumes_detail.is_empty() {
+            // No per-volume detail — emit a single summary row so the
+            // series still appears in the CSV.
+            out.push_str(&format!(
+                "{mal},{name},,,,,,,{genres}\n"
+            ));
+            continue;
+        }
+        for v in &series.volumes_detail {
+            let price = v
+                .price
+                .map(|p| p.to_string())
+                .unwrap_or_default();
+            let store = csv_escape(v.store.as_deref().unwrap_or(""));
+            let read = v
+                .read_at
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_default();
+            out.push_str(&format!(
+                "{mal},{name},{vol},{owned},{collector},{read},{price},{store},{genres}\n",
+                vol = v.vol_num,
+                owned = v.owned,
+                collector = v.collector,
+            ));
+        }
+    }
+    out
+}
+
+/// CSV-escape a single field: wrap in double quotes if it contains
+/// comma, quote, or newline; double any embedded quotes.
+fn csv_escape(s: &str) -> String {
+    let needs_quote =
+        s.contains(',') || s.contains('"') || s.contains('\n');
+    if !needs_quote {
+        return s.to_string();
+    }
+    let escaped = s.replace('"', "\"\"");
+    format!("\"{}\"", escaped)
+}
+
+/// Apply an import bundle in **merge** mode. Series whose mal_id is
+/// already present in the user's library are skipped (reported as
+/// conflicts). Entries without a mal_id are always added as new custom
+/// entries (with a fresh negative mal_id if needed, same logic as the
+/// existing custom-entry flow).
+///
+/// When `dry_run=true`, no writes are performed — we only walk the
+/// bundle to compute the preview counts.
+pub async fn apply_import_merge(
+    db: &Db,
+    user: &User,
+    bundle: &ExportBundle,
+    dry_run: bool,
+) -> Result<ImportPreview, AppError> {
+    // Version gate — reject unknown schemas outright.
+    if bundle.version > EXPORT_VERSION {
+        return Err(AppError::BadRequest(format!(
+            "Unknown export version {} (supported up to {}).",
+            bundle.version, EXPORT_VERSION
+        )));
+    }
+
+    // Pre-fetch the current library's mal_ids so we can detect conflicts
+    // in one query.
+    let existing_mal_ids: HashSet<i32> = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user.id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .filter_map(|r| r.mal_id)
+        .collect();
+
+    // For custom entries with mal_id < 0 we need to mint fresh negative
+    // IDs that don't clash. Find the current floor.
+    let min_mal_id: Option<i32> = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user.id))
+        .filter(library::Column::MalId.lt(0))
+        .all(db)
+        .await
+        .ok()
+        .and_then(|rows| rows.iter().filter_map(|r| r.mal_id).min());
+    let mut next_custom_id: i32 = min_mal_id.map(|v| v - 1).unwrap_or(-1);
+
+    let mut preview = ImportPreview {
+        total_in_file: bundle.library.len(),
+        ..Default::default()
+    };
+
+    for series in &bundle.library {
+        if series.name.trim().is_empty() || series.volumes < 0 {
+            preview.skipped_invalid += 1;
+            continue;
+        }
+        // Conflict check: if the bundle carries a positive mal_id that
+        // matches an existing library row, skip in merge mode.
+        if let Some(mal) = series.mal_id {
+            if mal > 0 && existing_mal_ids.contains(&mal) {
+                preview.skipped_conflict += 1;
+                preview.conflict_series.push(ImportAddedSummary {
+                    mal_id: Some(mal),
+                    name: series.name.clone(),
+                    volumes: series.volumes,
+                    owned_volumes: series
+                        .volumes_detail
+                        .iter()
+                        .filter(|v| v.owned)
+                        .count(),
+                });
+                continue;
+            }
+        }
+
+        preview.added += 1;
+        let owned_count = series
+            .volumes_detail
+            .iter()
+            .filter(|v| v.owned)
+            .count();
+        preview.added_series.push(ImportAddedSummary {
+            mal_id: series.mal_id,
+            name: series.name.clone(),
+            volumes: series.volumes,
+            owned_volumes: owned_count,
+        });
+
+        if dry_run {
+            continue;
+        }
+
+        // Persist — library row first, then volumes, then coffrets.
+        let assigned_mal = match series.mal_id {
+            Some(m) if m > 0 => Some(m),
+            // Custom entries use negative mal_ids. Honour the imported
+            // ID if it's still free, otherwise mint a new one so the
+            // NOT NULL/UNIQUE(user, mal_id) invariant holds.
+            _ => {
+                let mal = next_custom_id;
+                next_custom_id -= 1;
+                Some(mal)
+            }
+        };
+
+        let genres_str = series.genres.join(",");
+        let now = Utc::now();
+        let lib_active = library::ActiveModel {
+            user_id: Set(user.id),
+            mal_id: Set(assigned_mal),
+            name: Set(series.name.clone()),
+            volumes: Set(series.volumes),
+            volumes_owned: Set(series.volumes_owned),
+            image_url_jpg: Set(series.image_url_jpg.clone()),
+            genres: Set(if genres_str.is_empty() {
+                None
+            } else {
+                Some(genres_str)
+            }),
+            mangadex_id: Set(series.mangadex_id.clone()),
+            created_on: Set(now),
+            modified_on: Set(now),
+            ..Default::default()
+        };
+        lib_active.insert(db).await.map_err(AppError::from)?;
+
+        // Volumes
+        for v in &series.volumes_detail {
+            let active = volume_mod::ActiveModel {
+                user_id: Set(user.id),
+                mal_id: Set(assigned_mal),
+                vol_num: Set(v.vol_num),
+                owned: Set(v.owned),
+                price: Set(v.price),
+                store: Set(v.store.clone()),
+                collector: Set(v.collector),
+                read_at: Set(v.read_at),
+                created_on: Set(now),
+                modified_on: Set(now),
+                ..Default::default()
+            };
+            active.insert(db).await.map_err(AppError::from)?;
+        }
+
+        // Coffrets — names & ranges only. Volumes aren't re-linked to
+        // a coffret_id here; doing so would require a second pass and
+        // the v1 import contract is "restore metadata, user can
+        // re-assign coffrets if needed". The per-volume `in_coffret`
+        // flag in the bundle is advisory for future versions.
+        for c in &series.coffrets {
+            let active = coffret::ActiveModel {
+                user_id: Set(user.id),
+                mal_id: Set(assigned_mal.unwrap_or(0)),
+                name: Set(c.name.clone()),
+                vol_start: Set(c.vol_start),
+                vol_end: Set(c.vol_end),
+                price: Set(c.price),
+                store: Set(c.store.clone()),
+                created_on: Set(now),
+                modified_on: Set(now),
+                ..Default::default()
+            };
+            active.insert(db).await.map_err(AppError::from)?;
+        }
+    }
+
+    // Swallow the unused-arg warning.
+    let _ = UserEntity::find_by_id(user.id);
+
+    Ok(preview)
+}

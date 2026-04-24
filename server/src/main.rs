@@ -129,10 +129,26 @@ async fn main() -> anyhow::Result<()> {
         .allow_headers(Any);
 
     // Router
+    //
+    // Body-size budget — Axum's default DefaultBodyLimit is 2 MiB. That
+    // bites the archive-import path the moment a user uploads a real
+    // Yamtrack / MAL / etc. CSV export (2 MB lists are common beyond a
+    // hundred entries). Default to 10 MiB globally; operators can
+    // override with `MAX_BODY_SIZE_MB` (in whole megabytes) when they
+    // need headroom for bigger imports. Clamped to a sane [1, 1024]
+    // window so a typo'd value can't accidentally disable the guard.
+    let max_body_mb = std::env::var("MAX_BODY_SIZE_MB")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(|n| n.clamp(1, 1024))
+        .unwrap_or(10);
+    let max_body_bytes = (max_body_mb * 1024 * 1024) as usize;
+    tracing::info!("HTTP body limit: {} MiB", max_body_mb);
     let app = Router::new()
         .nest("/auth", routes::auth::auth_router())
         .nest("/api", routes::api::api_router())
         .with_state(state)
+        .layer(axum::extract::DefaultBodyLimit::max(max_body_bytes))
         .layer(session_layer)
         .layer(cors)
         .layer(TraceLayer::new_for_http());

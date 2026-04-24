@@ -1,8 +1,10 @@
 pub mod activity;
+pub mod archive;
 pub mod cache;
 pub mod coffret;
 pub mod cover_pool;
 pub mod external;
+pub mod external_import;
 pub mod library;
 pub mod mal_api;
 pub mod mangadex_api;

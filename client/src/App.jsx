@@ -35,6 +35,9 @@ const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
 const Wishlist = lazy(() => import("./components/Wishlist"));
 const SealsPage = lazy(() => import("./components/SealsPage"));
 const PublicProfile = lazy(() => import("./components/PublicProfile"));
+const ImportExternalPage = lazy(() =>
+  import("./components/ImportExternalPage"),
+);
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -209,6 +212,15 @@ function AppShell() {
                 anonymous visitors can see the gallery. Server-side
                 filters adult content + sensitive fields. */}
             <Route path="/u/:slug" element={<PublicProfile />} />
+            {/* External imports — accessed from Settings → Archive. */}
+            <Route
+              path="/settings/import-external"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <ImportExternalPage />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </Suspense>
       </main>

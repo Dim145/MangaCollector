@@ -1,4 +1,5 @@
 pub mod activity;
+pub mod archive;
 pub mod coffret;
 pub mod library;
 pub mod setting;

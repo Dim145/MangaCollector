@@ -3,6 +3,7 @@ import Modal from "@/components/utils/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
 import DeleteAccountFlow from "@/components/DeleteAccountFlow.jsx";
 import PublicProfileSection from "@/components/PublicProfileSection.jsx";
+import ArchiveSection from "@/components/ArchiveSection.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
@@ -645,6 +646,10 @@ export default function SettingsPage() {
             in a natural progression: Account → Preferences → Sharing →
             Data management. */}
         <PublicProfileSection />
+
+        {/* ─── Archive (export / import) — sits alongside public
+            profile as another "what can I do with my data" feature. */}
+        <ArchiveSection />
 
         {/* ─── Data section ─── */}
         <section
