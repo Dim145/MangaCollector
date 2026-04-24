@@ -45,8 +45,6 @@ struct MdMangaAttrs {
     last_volume: Option<String>,
     #[serde(default, rename = "contentRating")]
     content_rating: Option<String>,
-    #[serde(default, rename = "originalLanguage")]
-    original_language: Option<String>,
     #[serde(default)]
     tags: Vec<MdTag>,
     #[serde(default)]

@@ -66,7 +66,12 @@ enum ThresholdKind {
 ///
 /// Do NOT remove a code once shipped — users may have earned it. Mark it
 /// internal instead if needed.
-pub const CATALOG: &[SealDef] = &[
+///
+/// Visibility note: `CATALOG` stays crate-private (no external caller
+/// needs it — the public API is `evaluate_and_grant`). We drop the
+/// `pub` keyword so its type `SealDef` can also stay private without
+/// triggering the "more private than the item" lint.
+const CATALOG: &[SealDef] = &[
     // ── 入 Débuts ────────────────────────────────────────────────
     SealDef { code: "first_volume",   kind: ThresholdKind::VolumesOwned,       threshold: 1 },
     SealDef { code: "first_series",   kind: ThresholdKind::SeriesCount,        threshold: 1 },

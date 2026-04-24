@@ -76,20 +76,6 @@ pub async fn milestone_already_recorded(
     Ok(existing.is_some())
 }
 
-/// Check whether a crossed-threshold milestone should be emitted.
-/// Returns the first threshold ≤ `current` that hasn't been recorded yet.
-pub fn first_new_threshold(
-    thresholds: &[i32],
-    current: i32,
-    previous: i32,
-) -> Option<i32> {
-    thresholds
-        .iter()
-        .copied()
-        .filter(|t| *t > previous && *t <= current)
-        .max()
-}
-
 /// Record series-count milestone if crossed. Call after any add/remove that
 /// changes the number of series owned.
 pub async fn check_series_milestone(conn: &impl ConnectionTrait, user_id: i32) {

@@ -11,13 +11,6 @@ use crate::models::library::{self as library_mod, Entity as LibraryEntity};
 use crate::models::volume::{self, ActiveModel, Entity as VolumeEntity, Volume};
 use crate::services::activity;
 
-/// Return value for `update_by_id` — we keep a lightweight result so the
-/// handler can respond "ok" even when the row no longer exists (idempotent
-/// replay of a queued offline edit).
-pub struct VolumeUpdateResult {
-    pub affected: bool,
-}
-
 pub async fn get_all_for_user(db: &Db, user_id: i32) -> Result<Vec<Volume>, AppError> {
     VolumeEntity::find()
         .filter(volume::Column::UserId.eq(user_id))
@@ -47,7 +40,11 @@ pub async fn update_by_id(
     store: Option<String>,
     collector: bool,
     read: Option<bool>,
-) -> Result<VolumeUpdateResult, AppError> {
+) -> Result<(), AppError> {
+    // Note: the update is idempotent — when the row no longer exists
+    // (e.g. an offline outbox replay after the series got deleted),
+    // `update_many` simply returns 0 rows affected and we still
+    // succeed. Callers don't need to distinguish.
     let now = Utc::now();
 
     // Fetch the existing row upfront so we can detect an ownership change
@@ -102,7 +99,7 @@ pub async fn update_by_id(
         }
     }
 
-    let res = query.exec(db).await.map_err(AppError::from)?;
+    query.exec(db).await.map_err(AppError::from)?;
 
     // Log ownership transitions only — price/store edits alone don't produce
     // an activity entry.
@@ -135,9 +132,7 @@ pub async fn update_by_id(
         }
     }
 
-    Ok(VolumeUpdateResult {
-        affected: res.rows_affected > 0,
-    })
+    Ok(())
 }
 
 pub async fn add_volume(db: &Db, user_id: i32, mal_id: i32, vol_num: i32) -> Result<Volume, AppError> {
@@ -175,16 +170,6 @@ pub async fn add_volume_tx(
         ..Default::default()
     };
     model.insert(conn).await.map_err(AppError::from)?;
-    Ok(())
-}
-
-pub async fn delete_all_for_user_by_mal_id(db: &Db, user_id: i32, mal_id: i32) -> Result<(), AppError> {
-    VolumeEntity::delete_many()
-        .filter(volume::Column::UserId.eq(user_id))
-        .filter(volume::Column::MalId.eq(mal_id))
-        .exec(db)
-        .await
-        .map_err(AppError::from)?;
     Ok(())
 }
 

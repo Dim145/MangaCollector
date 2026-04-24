@@ -21,8 +21,6 @@ pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
 
-pub type UserSeal = Model;
-
 /// API response shape for the carnet de sceaux.
 ///
 /// Sent as a single GET payload so the client can render the full journal
