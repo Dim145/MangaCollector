@@ -317,22 +317,60 @@ pub async fn apply_import_merge(
         };
         lib_active.insert(db).await.map_err(AppError::from)?;
 
-        // Volumes
-        for v in &series.volumes_detail {
-            let active = volume_mod::ActiveModel {
-                user_id: Set(user.id),
-                mal_id: Set(assigned_mal),
-                vol_num: Set(v.vol_num),
-                owned: Set(v.owned),
-                price: Set(v.price),
-                store: Set(v.store.clone()),
-                collector: Set(v.collector),
-                read_at: Set(v.read_at),
-                created_on: Set(now),
-                modified_on: Set(now),
-                ..Default::default()
-            };
-            active.insert(db).await.map_err(AppError::from)?;
+        // Volumes — two codepaths:
+        //
+        //  A. Bundle carries explicit per-volume detail (our own JSON
+        //     export, or a future v2 import format). Restore verbatim.
+        //
+        //  B. External imports (MAL/AniList/Yamtrack) ship just a
+        //     `volumes` count + a `volumes_owned` count, no per-volume
+        //     rows. Without synthesising user_volumes entries, the
+        //     MangaPage shows an empty "Tomes" list even though the
+        //     dashboard reads `library.volumes/volumes_owned` and
+        //     renders them correctly — that asymmetry was the source
+        //     of the bug where users had to manually reset the total
+        //     volume count to regenerate the rows.
+        //
+        // For path B, we synthesise vol_num 1..=volumes and mark the
+        // first `volumes_owned` of them as `owned=true` (the classic
+        // "I've got tomes 1 through N" convention, which matches how
+        // `update_manga_volumes` reseeds the rows when the user edits
+        // the total manually).
+        if !series.volumes_detail.is_empty() {
+            for v in &series.volumes_detail {
+                let active = volume_mod::ActiveModel {
+                    user_id: Set(user.id),
+                    mal_id: Set(assigned_mal),
+                    vol_num: Set(v.vol_num),
+                    owned: Set(v.owned),
+                    price: Set(v.price),
+                    store: Set(v.store.clone()),
+                    collector: Set(v.collector),
+                    read_at: Set(v.read_at),
+                    created_on: Set(now),
+                    modified_on: Set(now),
+                    ..Default::default()
+                };
+                active.insert(db).await.map_err(AppError::from)?;
+            }
+        } else if series.volumes > 0 {
+            let owned_up_to = series.volumes_owned.clamp(0, series.volumes);
+            for vol_num in 1..=series.volumes {
+                let active = volume_mod::ActiveModel {
+                    user_id: Set(user.id),
+                    mal_id: Set(assigned_mal),
+                    vol_num: Set(vol_num),
+                    owned: Set(vol_num <= owned_up_to),
+                    price: Set(None),
+                    store: Set(None),
+                    collector: Set(false),
+                    read_at: Set(None),
+                    created_on: Set(now),
+                    modified_on: Set(now),
+                    ..Default::default()
+                };
+                active.insert(db).await.map_err(AppError::from)?;
+            }
         }
 
         // Coffrets — names & ranges only. Volumes aren't re-linked to

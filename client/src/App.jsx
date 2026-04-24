@@ -38,6 +38,7 @@ const PublicProfile = lazy(() => import("./components/PublicProfile"));
 const ImportExternalPage = lazy(() =>
   import("./components/ImportExternalPage"),
 );
+const ComparePage = lazy(() => import("./components/ComparePage"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -224,6 +225,16 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <ImportExternalPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 対照 · Compare — authenticated; diffs my library with a
+                public profile slug. */}
+            <Route
+              path="/compare/:slug"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <ComparePage />
                 </ProtectedRoute>
               }
             />

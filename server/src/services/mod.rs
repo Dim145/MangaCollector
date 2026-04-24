@@ -2,6 +2,7 @@ pub mod activity;
 pub mod archive;
 pub mod cache;
 pub mod coffret;
+pub mod compare;
 pub mod cover_pool;
 pub mod external;
 pub mod external_import;

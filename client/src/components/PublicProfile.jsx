@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { usePublicProfile } from "@/hooks/usePublicProfile.js";
+import { usePublicProfile, useOwnPublicSlug } from "@/hooks/usePublicProfile.js";
+import { getCachedUser } from "@/utils/auth.js";
 import Skeleton from "./ui/Skeleton.jsx";
 import CoverImage from "./ui/CoverImage.jsx";
 import { useT } from "@/i18n/index.jsx";
@@ -209,7 +210,43 @@ function Masthead({ data, isLoading, slug }) {
           <span className="public-hanko-dot" />
         </div>
       </div>
+
+      {/* Compare CTA — only shown when a logged-in visitor is looking
+          at someone ELSE's profile. Anonymous visitors and the
+          profile's owner see nothing here. */}
+      {!isLoading && data && <CompareCTA slug={slug} />}
     </header>
+  );
+}
+
+/**
+ * Renders a "Compare your libraries" link when the current viewer is
+ * logged-in AND the profile shown isn't their own. Uses the cheap
+ * `getCachedUser()` check first (no network) and only probes
+ * `/api/user/public-slug` lazily via `useOwnPublicSlug` once we know
+ * there's a session to test.
+ */
+function CompareCTA({ slug }) {
+  const t = useT();
+  const cached = typeof window !== "undefined" ? getCachedUser() : null;
+  const { slug: ownSlug, isLoading } = useOwnPublicSlug();
+  // Don't render if we can't prove we're logged in yet, or if this
+  // is our own profile.
+  if (!cached) return null;
+  if (isLoading) return null;
+  if (ownSlug && ownSlug === slug) return null;
+  return (
+    <div className="mt-6">
+      <Link
+        to={`/compare/${encodeURIComponent(slug)}`}
+        className="inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-hanko-bright transition hover:bg-hanko/20 hover:border-hanko/60"
+      >
+        <span aria-hidden="true" className="font-jp text-sm leading-none">
+          対
+        </span>
+        {t("publicProfile.compareCta")}
+      </Link>
+    </div>
   );
 }
 

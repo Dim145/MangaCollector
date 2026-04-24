@@ -4,8 +4,8 @@ use axum::{
 };
 
 use crate::handlers::{
-    activity, archive, auth as auth_handlers, coffret, external, external_import, health, library,
-    public, realtime, seals, settings, storage, user_profile, volume,
+    activity, archive, auth as auth_handlers, coffret, compare, external, external_import, health,
+    library, public, realtime, seals, settings, storage, user_profile, volume,
 };
 use crate::state::AppState;
 
@@ -87,6 +87,8 @@ fn user_router() -> Router<AppState> {
         .route("/activity", get(activity::list_activity))
         // 印鑑帳 — Carnet de sceaux (ceremonial achievements)
         .route("/seals", get(seals::list_seals))
+        // 対照 — Compare my library with a public profile slug
+        .route("/compare/{slug}", get(compare::compare_with))
         // Public profile management:
         //   GET /public-slug    → full state { slug, show_adult }
         //   PATCH /public-slug  → set/change/clear the slug

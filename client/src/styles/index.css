@@ -1237,6 +1237,40 @@
   background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
+/* Compare page — twin hanko pair that overlap slightly to visually
+   signal "intersection happening right there". */
+.compare-hanko {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 6px;
+  color: var(--washi);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.6 0.22 25 / 0.4),
+    0 6px 18px -6px var(--hanko-glow);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.compare-hanko-mine {
+  background: linear-gradient(160deg, var(--hanko) 0%, var(--hanko-deep) 100%);
+  transform: rotate(-4deg);
+  z-index: 1;
+}
+.compare-hanko-other {
+  background: linear-gradient(160deg, var(--gold) 0%, var(--gold-muted) 100%);
+  color: var(--ink-0);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.82 0.13 78 / 0.5),
+    0 6px 18px -6px oklch(0.82 0.13 78 / 0.4);
+  transform: rotate(3deg);
+  margin-left: -1rem; /* overlap — they kiss at ~25% */
+  z-index: 0;
+}
+.compare-hanko:hover {
+  transform: scale(1.05);
+  z-index: 2;
+}
+
 /* Museum hanko — larger and more ceremonial than inline ones. */
 .public-hanko {
   display: grid;
