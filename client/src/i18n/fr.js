@@ -335,6 +335,17 @@ export default {
       "« {title} » n'est pas sur MyAnimeList. Essayez une entrée personnalisée.",
     scanAnother: "Scanner un autre code",
     enterManually: "Saisir manuellement",
+    manualEyebrow: "手入力 · SAISIE MANUELLE",
+    manualTitle: "Tapez l'ISBN",
+    manualByline:
+      "Recopiez les 10 ou 13 chiffres imprimés sous le code-barres au dos du tome.",
+    manualInputLabel: "ISBN",
+    manualInputPlaceholder: "978… ",
+    manualValid: "ISBN valide",
+    manualInvalid: "10 ou 13 chiffres — continuez",
+    manualSubmit: "Rechercher",
+    manualCancel: "Retour caméra",
+    manualOpen: "Saisir l'ISBN",
     closeScanner: "Fermer le scanner",
     rateLimitTitle: "Google Books — limite atteinte",
     rateLimitFix:

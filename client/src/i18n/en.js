@@ -324,6 +324,17 @@ export default {
     noMatchMal: '"{title}" isn\'t on MyAnimeList. Try a custom entry.',
     scanAnother: "Scan another barcode",
     enterManually: "Enter manually",
+    manualEyebrow: "手入力 · MANUAL ENTRY",
+    manualTitle: "Type the ISBN",
+    manualByline:
+      "Copy the 10 or 13 digits printed under the barcode on the back cover.",
+    manualInputLabel: "ISBN",
+    manualInputPlaceholder: "978… ",
+    manualValid: "Valid ISBN",
+    manualInvalid: "10 or 13 digits — keep going",
+    manualSubmit: "Look up",
+    manualCancel: "Back to camera",
+    manualOpen: "Type ISBN",
     closeScanner: "Close scanner",
     rateLimitTitle: "Google Books rate-limited",
     rateLimitFix:
