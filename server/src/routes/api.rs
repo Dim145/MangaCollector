@@ -5,7 +5,7 @@ use axum::{
 
 use crate::handlers::{
     activity, archive, auth as auth_handlers, coffret, external, external_import, health, library,
-    public, seals, settings, storage, user_profile, volume,
+    public, realtime, seals, settings, storage, user_profile, volume,
 };
 use crate::state::AppState;
 
@@ -18,6 +18,10 @@ pub fn api_router() -> Router<AppState> {
         // Nested under /api by the main router but carries no session
         // logic at the handler level so it's trivially cacheable later.
         .route("/public/u/{slug}", get(public::get_public_profile))
+        // 同期 — Realtime sync WebSocket. Authenticates via the same
+        // session cookie as the REST endpoints and streams invalidation
+        // events scoped to the user. Anonymous visitors get 401.
+        .route("/ws", get(realtime::ws_handler))
         .nest("/user", user_router())
 }
 

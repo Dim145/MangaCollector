@@ -5,6 +5,7 @@ use crate::auth::OidcState;
 use crate::config::Config;
 use crate::db::{Db, DbPool};
 use crate::services::cache::CacheStore;
+use crate::services::realtime::SyncBroker;
 use crate::storage::StorageBackend;
 
 #[derive(Clone)]
@@ -20,6 +21,11 @@ pub struct AppState {
     /// Optional Redis-backed cache (disabled when REDIS_URL is not set).
     /// Services take `Option<&CacheStore>` and no-op when absent.
     pub cache: Option<Arc<CacheStore>>,
+    /// Realtime sync broker — fans out invalidation events to every
+    /// open WebSocket so mutations propagate between the user's
+    /// devices. Always present; Redis is an optional scale-out
+    /// backend under the hood.
+    pub broker: SyncBroker,
     pub start_time: Instant,
 }
 

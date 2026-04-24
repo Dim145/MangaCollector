@@ -46,6 +46,7 @@ import { installSyncRunner } from "@/lib/sync.js";
 import { applyThemePreference, rememberThemePreference } from "@/lib/theme.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync.js";
 import axios from "@/utils/axios.js";
 import {
   cacheAllVolumes,
@@ -134,6 +135,11 @@ function AppShell() {
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [location.pathname]);
+
+  // 同期 · Realtime sync — opens a WebSocket as soon as we're auth'd
+  // and invalidates TanStack queries on incoming events so changes
+  // made on another device materialise here without a refresh.
+  useRealtimeSync({ enabled: Boolean(googleUser) });
 
   return (
     <>

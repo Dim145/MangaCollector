@@ -3,6 +3,7 @@ use axum::{extract::State, Json};
 use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::models::setting::{SettingsResponse, UpdateSettingsRequest};
+use crate::services::realtime::SyncKind;
 use crate::services::settings;
 use crate::state::AppState;
 
@@ -35,6 +36,7 @@ pub async fn update_settings(
     Json(body): Json<UpdateSettingsRequest>,
 ) -> Result<Json<SettingsResponse>, AppError> {
     let row = settings::update_user_settings(&state.db, user.id, &body).await?;
+    state.broker.publish(user.id, SyncKind::Settings).await;
 
     let currency = settings::get_currency_by_code(&row.currency)
         .unwrap_or_else(|| settings::get_currency_by_code("USD").unwrap());

@@ -96,6 +96,20 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    // Realtime sync broker — uses the same Redis URL when available so
+    // mutation events propagate across backend instances. Falls back to
+    // an in-memory broadcast in single-instance / Redis-less setups.
+    let broker = match config.redis_url.as_deref() {
+        Some(url) => {
+            tracing::info!("Realtime sync: Redis-backed (scales across instances)");
+            crate::services::realtime::SyncBroker::with_redis(url).await
+        }
+        None => {
+            tracing::info!("Realtime sync: in-memory (single-instance deploys)");
+            crate::services::realtime::SyncBroker::in_memory()
+        }
+    };
+
     // Session store backed by PostgreSQL (uses raw sqlx pool)
     let session_store = PostgresStore::new(pool.clone());
     session_store.migrate().await?;
@@ -115,6 +129,7 @@ async fn main() -> anyhow::Result<()> {
         oidc_client: Arc::new(oidc_client),
         http_client,
         cache,
+        broker,
         start_time: Instant::now(),
     };
 
