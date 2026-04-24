@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import Modal from "./utils/Modal.jsx";
+import Modal from "./ui/Modal.jsx";
 import { useArchive } from "@/hooks/useArchive.js";
 import { useT } from "@/i18n/index.jsx";
 

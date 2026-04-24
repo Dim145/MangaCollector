@@ -153,13 +153,26 @@ export default function Volume({
     setReadStatus(Boolean(readAt));
   };
 
+  // Seed local state from server props, BUT only when the user isn't
+  // actively editing. Without this guard, a realtime-sync push (WS
+  // broadcast from another device, or the outbox flush echoing back
+  // the same row after a partial save) would overwrite the fields
+  // the user is currently typing into — their half-filled price or
+  // store gets reset to the previous saved value mid-edit.
+  //
+  // Note: when the user exits editing (either via save or cancel),
+  // the reset in `resetEditState` (called from the cancel path) or
+  // the successful `persist` (which already mutates local state
+  // optimistically) lines things back up with the incoming props on
+  // the NEXT render.
   useEffect(() => {
+    if (isEditing) return;
     setOwnedStatus(owned);
     setPrice(Number(paid) || 0);
     setPurchaseLocation(store ?? "");
     setCollectorStatus(Boolean(collector));
     setReadStatus(Boolean(readAt));
-  }, [owned, paid, store, collector, readAt]);
+  }, [owned, paid, store, collector, readAt, isEditing]);
 
   // If a volume becomes locked while the edit form is open (e.g. the user
   // adds it to a coffret from elsewhere), collapse the form automatically.

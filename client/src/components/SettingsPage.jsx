@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import Modal from "@/components/utils/Modal.jsx";
+import { useEffect, useRef, useState } from "react";
+import Modal from "@/components/ui/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
 import DeleteAccountFlow from "@/components/DeleteAccountFlow.jsx";
 import PublicProfileSection from "@/components/PublicProfileSection.jsx";
@@ -8,7 +8,7 @@ import SeasonSection from "@/components/SeasonSection.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
-import { forceResyncFromServer } from "@/lib/sync.js";
+import { forceResyncFromServer, notifySyncError } from "@/lib/sync.js";
 import { getApiKey, setApiKey } from "@/lib/isbn.js";
 import { formatCurrency } from "@/utils/price.js";
 import { LANGUAGES, useT } from "@/i18n/index.jsx";
@@ -35,6 +35,42 @@ const CURRENCIES = [
   { code: "USD", key: "USD", flag: "🇺🇸" },
   { code: "EUR", key: "EUR", flag: "🇪🇺" },
 ];
+
+/**
+ * Client-side mirror of the server's `get_currency_by_code`
+ * (server/src/services/settings.rs). Needed because the backend
+ * returns a rich object (`{ code, symbol, separator, decimal,
+ * precision, format, negative_pattern }`) but the PATCH we send only
+ * carries the selected code — and `formatCurrency` reads
+ * `.symbol/.separator/...` to render the preview. Without this
+ * hydration, every currency switch degrades to the `"$"` fallback
+ * until the next server GET round-trips.
+ *
+ * Keep in sync with the server list. New currencies added on the
+ * backend must also appear here (and in CURRENCIES above) until we
+ * pull the full formatting info from the initial /api/user/settings
+ * response.
+ */
+const CURRENCY_FORMATS = {
+  USD: {
+    code: "USD",
+    symbol: "$",
+    separator: ",",
+    decimal: ".",
+    precision: 2,
+    format: "!#",
+    negative_pattern: "-!#",
+  },
+  EUR: {
+    code: "EUR",
+    symbol: "€",
+    separator: " ",
+    decimal: ",",
+    precision: 2,
+    format: "#!",
+    negative_pattern: "-#!",
+  },
+};
 
 export default function SettingsPage() {
   const { data: settings, isInitialLoad: settingsLoading } = useUserSettings();
@@ -79,13 +115,22 @@ export default function SettingsPage() {
   const [apiKeyRevealed, setApiKeyRevealed] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
 
+  // Seed local state from server ONCE, not on every settings refresh.
+  // Without this guard, a background refetch (focus regain, realtime
+  // sync) arriving while the user is clicking Currency/Language
+  // buttons would reset their in-progress selection to whatever the
+  // server last persisted — a visible flicker and sometimes a lost
+  // edit. `seededRef` flips true the first time we have data; after
+  // that, the server stops owning the UI and the user does.
+  const seededRef = useRef(false);
   useEffect(() => {
-    if (!settings) return;
+    if (!settings || seededRef.current) return;
     setShowAdultContent(settings?.adult_content_level || 0);
     setCurrencyObject(settings?.currency);
     setTitleType(settings?.titleType || "Default");
     setTheme(settings?.theme || "dark");
     setLanguage(settings?.language || "en");
+    seededRef.current = true;
   }, [settings]);
 
   useEffect(() => {
@@ -112,6 +157,7 @@ export default function SettingsPage() {
       setTimeout(() => setSaved(false), 1500);
     } catch (err) {
       console.error("Error updating setting:", err);
+      notifySyncError(err, "settings-save");
     }
   };
 
@@ -144,7 +190,12 @@ export default function SettingsPage() {
   };
 
   const handleCurrencyChange = (code) => {
-    const nextCurrency = { code };
+    // Hydrate the full format object from the client-side lookup so
+    // downstream `formatCurrency` reads see the correct symbol /
+    // separator / decimal / precision / format IMMEDIATELY. The
+    // previous `{ code }` alone triggered a "$"/USD fallback flicker
+    // for every switch while waiting for the server response.
+    const nextCurrency = CURRENCY_FORMATS[code] ?? { code };
     setCurrencyObject(nextCurrency);
     save({ ...baseSettings(), currency: nextCurrency });
   };
@@ -164,7 +215,7 @@ export default function SettingsPage() {
       setRestoreError(
         err?.response?.data?.error ??
           err?.message ??
-          "Restore failed — please try again.",
+          t("settings.restoreFailedGeneric"),
       );
     } finally {
       setRestoring(false);

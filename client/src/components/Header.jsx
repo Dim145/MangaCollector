@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import ProfileButton from "./ProfileButton";
 import InstallPrompt from "./InstallPrompt";
-import { checkAuthStatus } from "../utils/auth";
+import { useAuth } from "@/hooks/useAuth.js";
 import { useT } from "@/i18n/index.jsx";
 
 const NAV_ITEMS_BASE = [
@@ -103,21 +103,20 @@ const NAV_ITEMS_BASE = [
 ];
 
 export default function Header() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const location = useLocation();
   const t = useT();
+  // Shared auth state via TanStack Query — this is the same cache
+  // entry consumed by ProtectedRoute and ProfileButton, so the three
+  // components agree on "who the user is" without three independent
+  // /auth/user calls per render. Previously the Header also
+  // re-called `checkAuthStatus()` via `[location.pathname]` deps on
+  // every navigation — an unnecessary round-trip for a value that
+  // can't change between navigations.
+  const { isAuthenticated } = useAuth();
   const NAV_ITEMS = NAV_ITEMS_BASE.map((item) => ({
     ...item,
     label: t(`nav.${item.key}`),
   }));
-
-  useEffect(() => {
-    (async () => {
-      const user = await checkAuthStatus();
-      setIsAuthenticated(Boolean(user));
-    })();
-  }, [location.pathname]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);

@@ -1,45 +1,21 @@
 import axios from "./axios";
 
+/*
+ * Thin HTTP wrappers around the user-library API.
+ *
+ * Pruned down to the six endpoints the rest of the app actually uses
+ * for *direct* server calls — everything else goes through a TanStack
+ * Query hook (`useLibrary`, `useVolumes`, `useUpdateSettings`, etc.),
+ * which handles caching, invalidation, and optimistic updates.
+ *
+ * Historically this file exported ~15 wrappers, most of which became
+ * unused once the hooks layer landed. The dead ones were pruned
+ * during the S4 cleanup sprint (see code-review doc) to keep the
+ * utility surface small enough to reason about at a glance.
+ */
+
 async function addToUserLibrary(mangaData) {
   await axios.post(`/api/user/library`, mangaData);
-}
-
-async function getUserLibrary() {
-  const response = await axios.get(`/api/user/library`);
-  return response.data;
-}
-
-async function getUserManga(mal_id) {
-  const response = await axios.get(`/api/user/library/${mal_id}`);
-  return response.data[0];
-}
-
-async function deleteMangaFromUserLibraryByID(mal_id) {
-  await axios.delete(`/api/user/library/${mal_id}`);
-}
-
-async function updateMangaByID(mal_id, volumes) {
-  await axios.patch(`/api/user/library/${mal_id}`, { volumes });
-}
-
-async function updateMangaOwned(mal_id, owned) {
-  await axios.patch(`/api/user/library/${mal_id}/${owned}`);
-}
-
-async function getUserSettings() {
-  return (await axios.get(`/api/user/settings`)).data;
-}
-
-async function updateSettings(settings) {
-  return (
-    await axios.post("/api/user/settings", {
-      currency: settings.currency?.code,
-      titleType: settings.titleType,
-      adult_content_level: settings.adult_content_level,
-      theme: settings.theme,
-      language: settings.language,
-    })
-  ).data;
 }
 
 async function uploadPoster(mangaId, image) {
@@ -52,11 +28,6 @@ async function uploadPoster(mangaId, image) {
 async function removePoster(mangaId) {
   return (await axios.delete(`/api/user/storage/poster/${mangaId}`)).data
     ?.malPoster;
-}
-
-async function searchInLib(query) {
-  return (await axios.get(`/api/user/library/search`, { params: { q: query } }))
-    .data;
 }
 
 async function addCustomEntryToUserLibrary(mangaData) {
@@ -73,26 +44,11 @@ async function refreshFromMangadex(mal_id) {
   ).data;
 }
 
-async function setSeriesPoster(mal_id, url) {
-  return (
-    await axios.patch(`/api/user/storage/poster/${mal_id}`, { url })
-  ).data;
-}
-
 export {
   addToUserLibrary,
-  getUserLibrary,
-  getUserManga,
-  deleteMangaFromUserLibraryByID,
-  updateMangaByID,
-  updateMangaOwned,
-  updateSettings,
-  getUserSettings,
   uploadPoster,
   removePoster,
-  searchInLib,
   addCustomEntryToUserLibrary,
   addFromMangadexToUserLibrary,
   refreshFromMangadex,
-  setSeriesPoster,
 };

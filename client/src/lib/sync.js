@@ -57,6 +57,28 @@ export function onSyncError(handler) {
   return () => window.removeEventListener(SYNC_ERROR_EVENT, handler);
 }
 
+/**
+ * Surface an arbitrary error through the SyncToaster. Useful for
+ * direct (non-outbox) mutations — poster upload/remove, MAL refresh,
+ * MangaDex refresh, delete-manga — that previously logged to console
+ * with no UI feedback, leaving the user believing their action had
+ * succeeded.
+ *
+ * Accepts a string, an Error, or an axios-style error-with-response;
+ * the helper unwraps the most informative message available. The
+ * resulting toast uses the same shell as outbox-flush errors, so the
+ * user experience is consistent.
+ */
+export function notifySyncError(errOrMessage, opContext = "direct") {
+  const message =
+    typeof errOrMessage === "string"
+      ? errOrMessage
+      : (errOrMessage?.response?.data?.error ??
+        errOrMessage?.message ??
+        "Request failed");
+  emit(SYNC_ERROR_EVENT, { op: opContext, message });
+}
+
 /*
  * ─── Library outbox operations ────────────────────────────────────────────
  */
@@ -202,19 +224,41 @@ export async function enqueueVolumeUpdate(volume) {
     const existing = (await db.volumes.get(local.id)) ?? {};
     await db.volumes.put({ ...existing, ...local });
 
+    // Merge with any already-pending outbox op for this volume. The
+    // previous `put` overwrote the pending payload, so a fast sequence
+    // like "toggle read" then "toggle owned" (before the flusher fires)
+    // would lose the `read` flag: the second put's `read: undefined`
+    // clobbered the first put's `read: true`.
+    //
+    // Merge semantics:
+    //   • Fields the new call did NOT specify (undefined) fall back to
+    //     whatever the previous pending payload had — preserving it.
+    //   • Fields the new call DID specify take precedence.
+    //   • `read: undefined` stays undefined in the merged payload →
+    //     flush-step omits the field on the PATCH, which means "leave
+    //     unchanged" server-side, consistent with the documented
+    //     volume.rs contract.
+    const pending = await db.outboxVolumes.get(local.id);
+    const prev = pending?.payload ?? {};
+    const mergedPayload = {
+      owned: local.owned !== undefined ? local.owned : prev.owned,
+      price:
+        local.price !== undefined ? Number(local.price) || 0 : prev.price,
+      store: local.store !== undefined ? (local.store ?? "") : prev.store,
+      collector:
+        local.collector !== undefined
+          ? Boolean(local.collector)
+          : prev.collector,
+      // `read` is the boolean the flusher translates into the PATCH
+      // field. `undefined` means "don't touch" — keep the prior value.
+      read: read !== undefined ? read : prev.read,
+    };
+
     await db.outboxVolumes.put({
       id: local.id,
       mal_id: local.mal_id,
       op: "update",
-      payload: {
-        owned: local.owned,
-        price: Number(local.price) || 0,
-        store: local.store ?? "",
-        collector: Boolean(local.collector),
-        // `read: undefined` means "leave unchanged" on the server — the
-        // flush-step omits the field entirely in that case.
-        read,
-      },
+      payload: mergedPayload,
       ts: Date.now(),
     });
   });
@@ -502,6 +546,17 @@ async function onServerRecover() {
   if (isFullyOnline()) syncOutbox();
 }
 
+// Module-level singleton guard: ensures we only subscribe to
+// connectivity once and only start one interval, no matter how many
+// times `installSyncRunner()` is called. React StrictMode
+// double-invokes every effect in dev, so without this sentinel we'd
+// end up with two connectivity listeners + two intervals firing in
+// parallel — benign functionally but confusing in logs and a source
+// of flaky test runs.
+let _syncRunnerInstalled = false;
+let _syncRunnerInterval = null;
+let _syncRunnerUnsubscribe = null;
+
 /**
  * Install sync runner.
  *
@@ -509,9 +564,16 @@ async function onServerRecover() {
  * connectivity watcher so a flush happens when EITHER:
  *   - the browser regains connectivity, or
  *   - the server itself comes back up after a crash/deploy.
+ *
+ * Returns a teardown function so callers (e.g. the React mount-effect
+ * in `App.jsx`) can cleanly undo the install during hot-reload or
+ * StrictMode's synthetic second mount.
  */
 export function installSyncRunner() {
-  onConnectivityChange((e) => {
+  if (_syncRunnerInstalled) return uninstallSyncRunner;
+  _syncRunnerInstalled = true;
+
+  _syncRunnerUnsubscribe = onConnectivityChange((e) => {
     if (e.detail?.serverReachable && navigator.onLine) {
       onServerRecover();
     }
@@ -520,7 +582,7 @@ export function installSyncRunner() {
   // Slow safety-net for stuck ops: only do real work if there's actually
   // something pending. A bare interval that fires GETs every minute would
   // pile up on top of the React Query refetches and delay initial render.
-  setInterval(async () => {
+  _syncRunnerInterval = setInterval(async () => {
     if (!isFullyOnline()) return;
     if (hasPendingLogout()) {
       flushPendingLogout();
@@ -545,4 +607,19 @@ export function installSyncRunner() {
   } else {
     setTimeout(startup, 1000);
   }
+
+  return uninstallSyncRunner;
+}
+
+/** Undo `installSyncRunner` — exposed for tests + StrictMode cleanup. */
+export function uninstallSyncRunner() {
+  if (_syncRunnerInterval) {
+    clearInterval(_syncRunnerInterval);
+    _syncRunnerInterval = null;
+  }
+  if (typeof _syncRunnerUnsubscribe === "function") {
+    _syncRunnerUnsubscribe();
+    _syncRunnerUnsubscribe = null;
+  }
+  _syncRunnerInstalled = false;
 }

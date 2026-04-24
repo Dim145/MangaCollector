@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import CoverImage from "./ui/CoverImage.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
-import Modal from "./utils/Modal.jsx";
+import Modal from "./ui/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import {
   filterAdultGenreIfNeeded,

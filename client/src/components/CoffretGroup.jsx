@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useDeleteCoffret, useUpdateCoffret } from "@/hooks/useCoffrets.js";
+import { notifySyncError } from "@/lib/sync.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -89,6 +90,7 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
       setEditing(false);
     } catch (err) {
       console.error("[coffret] update failed:", err?.message);
+      notifySyncError(err, "coffret-update");
     }
   };
 

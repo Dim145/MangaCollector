@@ -8,7 +8,7 @@ import AddCoffretModal from "./AddCoffretModal";
 import CoverPickerModal from "./CoverPickerModal.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
-import Modal from "@/components/utils/Modal.jsx";
+import Modal from "@/components/ui/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import {
   useDeleteManga,
@@ -27,6 +27,7 @@ import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
 import { refreshFromMangadex } from "@/utils/user.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { db } from "@/lib/db.js";
+import { notifySyncError } from "@/lib/sync.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -235,12 +236,14 @@ export default function MangaPage({ manga, adult_content_level }) {
           setPoster(newPoster + `?t=${Date.now()}`);
         } catch (err) {
           console.error("Poster upload failed:", err);
+          notifySyncError(err, "poster-upload");
         }
       } else if (selectedImage === null && online) {
         try {
           setPoster(await removePoster(manga.mal_id));
         } catch (err) {
           console.error("Poster remove failed:", err);
+          notifySyncError(err, "poster-remove");
         }
       }
     } finally {
@@ -293,6 +296,7 @@ export default function MangaPage({ manga, adult_content_level }) {
         });
       } catch (error) {
         console.error(error);
+        notifySyncError(error, "bulk-add");
       } finally {
         setShowAddDropdown(false);
         setAddAvgPrice("");
@@ -314,6 +318,7 @@ export default function MangaPage({ manga, adult_content_level }) {
       queryClient.invalidateQueries({ queryKey: ["library"] });
     } catch (e) {
       console.error(e);
+      notifySyncError(e, "mal-refresh");
     } finally {
       setRefreshingSource(null);
     }
@@ -331,6 +336,7 @@ export default function MangaPage({ manga, adult_content_level }) {
       queryClient.invalidateQueries({ queryKey: ["library"] });
     } catch (e) {
       console.error(e);
+      notifySyncError(e, "mangadex-refresh");
     } finally {
       setRefreshingSource(null);
     }
@@ -357,6 +363,7 @@ export default function MangaPage({ manga, adult_content_level }) {
       navigate("/dashboard");
     } catch (error) {
       console.error(error);
+      notifySyncError(error, "delete-manga");
     }
   };
 
@@ -495,7 +502,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                       {t("manga.uploadOffline")}
                     </div>
                   )}
-                  {!`${poster}`.startsWith("http") &&
+                  {poster &&
+                    typeof poster === "string" &&
+                    !poster.startsWith("http") &&
                     !selectedImagePreview &&
                     online && (
                       <button
@@ -1207,7 +1216,12 @@ function LibraryBlock({
     }
     cells.push({ num: n, state, readAt: v?.read_at });
   }
-  const percent = Math.round((readCount / totalVolumes) * 100);
+  // Division-by-zero guard: `totalVolumes = 0` produces NaN which
+  // then renders as "NaN%" in LibraryChip and trashed styles via
+  // width: `${NaN}%`. Happens when a series is freshly created with
+  // an unknown volume total.
+  const percent =
+    totalVolumes > 0 ? Math.round((readCount / totalVolumes) * 100) : 0;
 
   // Decade ticks + labels. For short series (<=40) we draw every-10 ticks
   // + every-10 labels; for longer series we space labels every 25 or 50

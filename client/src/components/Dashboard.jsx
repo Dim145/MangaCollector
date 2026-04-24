@@ -271,7 +271,15 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filtered.map((manga, i) => (
                 <div
-                  key={manga.mal_id}
+                  // Use the Dexie row `id` as a stable, unique key.
+                  // `mal_id` collides when multiple custom series with
+                  // `mal_id = null` coexist (a legitimate state before
+                  // a server-side negative id is minted), triggering
+                  // React key-collision warnings and mis-mounted DOM
+                  // between sibling Manga cards. Falling back through
+                  // `mal_id` → `index` preserves keying for legacy
+                  // rows that may lack a Dexie primary key in hand.
+                  key={manga.id ?? manga.mal_id ?? `idx-${i}`}
                   style={{ animationDelay: `${Math.min(i * 40, 500)}ms` }}
                   className="animate-fade-up"
                 >

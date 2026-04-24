@@ -1,7 +1,7 @@
 import { useContext, useState } from "react";
 import SettingsContext from "@/SettingsContext.js";
 import { hasToBlurImage } from "@/utils/library.js";
-import Modal from "@/components/utils/Modal.jsx";
+import Modal from "@/components/ui/Modal.jsx";
 import { useT } from "@/i18n/index.jsx";
 
 /**

@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Skeleton from "./ui/Skeleton.jsx";
+import SettingsContext from "@/SettingsContext.js";
 import { useActivity } from "@/hooks/useActivity.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useT, useLang } from "@/i18n/index.jsx";
@@ -88,6 +89,7 @@ export default function ActivityFeed({ limit = 20 }) {
   const t = useT();
   const lang = useLang();
   const navigate = useNavigate();
+  const { adult_content_level } = useContext(SettingsContext);
   const { data: activity, isInitialLoad, isEmpty } = useActivity(limit);
   const { data: library } = useLibrary();
 
@@ -142,7 +144,7 @@ export default function ActivityFeed({ limit = 20 }) {
               onOpen={(m) =>
                 m &&
                 navigate("/mangapage", {
-                  state: { manga: m, adult_content_level: 0 },
+                  state: { manga: m, adult_content_level },
                 })
               }
               lang={lang}

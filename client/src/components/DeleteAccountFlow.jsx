@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Modal from "@/components/utils/Modal.jsx";
+import Modal from "@/components/ui/Modal.jsx";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import axios from "@/utils/axios.js";
 import { getCachedUser } from "@/utils/auth.js";
-import { db } from "@/lib/db.js";
+import { clearAllUserData } from "@/lib/db.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -125,13 +125,14 @@ export default function DeleteAccountFlow({ open, onClose }) {
     setErrorMsg(null);
     try {
       await axios.delete("/api/user/account");
-      // Wipe all local state so no ghost data remains
-      await db.library.clear();
-      await db.volumes.clear();
-      await db.settings.clear();
-      await db.outboxLibrary.clear();
-      await db.outboxVolumes.clear();
-      await db.outboxSettings.clear();
+      // Wipe every client-side trace of this user: Dexie tables,
+      // Workbox caches, TanStack Query cache, AND the
+      // `mc:auth-user` localStorage entry (display name / email /
+      // avatar). Previously this block only touched Dexie — on the
+      // redirect to `/`, localStorage still held the old identity
+      // until the next API call 401'd, during which a quick keep-
+      // alive hit might flash the previous user's profile chip.
+      await clearAllUserData();
       // Hard redirect so every hook / context tree resets from scratch.
       window.location.assign("/");
     } catch (err) {

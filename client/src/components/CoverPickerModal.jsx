@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Modal from "@/components/utils/Modal.jsx";
+import Modal from "@/components/ui/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
 import Tooltip from "@/components/ui/Tooltip.jsx";
 import { useCoverPool } from "@/hooks/useCoverPool.js";
@@ -66,9 +66,16 @@ export default function CoverPickerModal({
     [goTo, selectedIdx],
   );
 
-  // Reset selection whenever the modal re-opens for a different series.
+  // Reset selection ONLY when the modal transitions from closed to
+  // open. Tracking the previous `open` value via a ref means a live
+  // refetch that changes `currentUrl` mid-session (e.g. the outbox
+  // flushed an earlier poster PATCH while the user is browsing) no
+  // longer stomps on their in-progress click.
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (open) setSelected(currentUrl);
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (justOpened) setSelected(currentUrl);
   }, [open, currentUrl]);
 
   // Scroll current cover into view in the strip once it renders.

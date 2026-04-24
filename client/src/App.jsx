@@ -32,7 +32,6 @@ const MangaPage = lazy(() => import("./components/MangaPage"));
 const AddPage = lazy(() => import("@/components/AddPage.jsx"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
 const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
-const Wishlist = lazy(() => import("./components/Wishlist"));
 const SealsPage = lazy(() => import("./components/SealsPage"));
 const PublicProfile = lazy(() => import("./components/PublicProfile"));
 const ImportExternalPage = lazy(() =>
@@ -161,14 +160,6 @@ function AppShell() {
               }
             />
             <Route
-              path="/wishlist"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <Wishlist />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/profile"
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
@@ -249,8 +240,15 @@ export default function App() {
   useEffect(() => {
     // Order matters: the connectivity watcher installs the axios interceptor
     // that feeds the sync runner's "is-server-reachable" signal.
-    installConnectivityWatcher();
-    installSyncRunner();
+    //
+    // Both installers are idempotent via module-level guards (React
+    // StrictMode's double-invocation in dev previously stacked two
+    // axios interceptors + two 60s intervals — fixed with
+    // `_connectivityInstalled` / `_syncRunnerInstalled` sentinels).
+    // We still return teardown functions so hot-module-replacement
+    // during a dev cycle doesn't leave dead subscribers around.
+    const uninstallConn = installConnectivityWatcher();
+    const uninstallSync = installSyncRunner();
 
     // Prime the Dexie cache in the background so the first internal nav is
     // instant. Uses requestIdleCallback to stay out of the critical path;
@@ -273,6 +271,11 @@ export default function App() {
       } else {
         clearTimeout(handle);
       }
+      // Only actually uninstalls in dev (HMR) — in prod the app
+      // never unmounts and these runners persist for the page's
+      // lifetime. Calling them is cheap either way.
+      uninstallSync?.();
+      uninstallConn?.();
     };
   }, []);
 

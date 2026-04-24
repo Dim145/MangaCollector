@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import Modal from "./utils/Modal.jsx";
+import Modal from "./ui/Modal.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useCreateCoffret } from "@/hooks/useCoffrets.js";
+import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -95,6 +96,7 @@ export default function AddCoffretModal({
       onClose?.();
     } catch (err) {
       console.error("[coffret] create failed:", err?.message);
+      notifySyncError(err, "coffret-create");
     }
   };
 

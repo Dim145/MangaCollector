@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Modal from "./utils/Modal.jsx";
+import Modal from "./ui/Modal.jsx";
 import { useT } from "@/i18n/index.jsx";
 
 /**

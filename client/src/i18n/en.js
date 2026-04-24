@@ -195,6 +195,7 @@ export default {
     notACoffret: "Not a box set? Back to single volume",
   },
   add: {
+    eyebrow: "ADD · 追加",
     title: "Add to your",
     titleAccent: "archive",
     subtitle: "Scan a barcode, search MyAnimeList, or create a custom entry.",
@@ -519,6 +520,7 @@ export default {
     restoreDone: "Archive restored successfully.",
     restoreConfirm: "Yes, restore",
     restoringState: "Restoring…",
+    restoreFailedGeneric: "Restore failed — please try again.",
   },
   login: {
     welcomeBack: "Welcome",
@@ -593,13 +595,6 @@ export default {
     ctaBody: "Sign in, search a title, and start the quiet joy of cataloguing.",
     startCollecting: "Start collecting",
     footerYear: "© {year} MangaCollector",
-  },
-  wishlist: {
-    labelJp: "WISHLIST · 欲しい",
-    comingSoon: "Coming",
-    comingSoonAccent: "soon.",
-    body: "We're designing a dedicated space to track the volumes you dream of owning — pre-orders, re-prints and holy grails all in one place.",
-    backLib: "Back to library",
   },
   offline: {
     offline: "Offline",

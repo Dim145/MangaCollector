@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from "react";
-import Modal from "@/components/utils/Modal.jsx";
+import Modal from "@/components/ui/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useAddManga } from "@/hooks/useLibrary.js";

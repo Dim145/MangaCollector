@@ -197,6 +197,7 @@ export default {
     notACoffret: "Pas un coffret ? Revenir au tome classique",
   },
   add: {
+    eyebrow: "AJOUTER · 追加",
     title: "Ajouter à votre",
     titleAccent: "archive",
     subtitle:
@@ -535,6 +536,7 @@ export default {
     restoreDone: "Archive restaurée avec succès.",
     restoreConfirm: "Oui, restaurer",
     restoringState: "Restauration…",
+    restoreFailedGeneric: "Échec de la restauration — réessayez.",
   },
   login: {
     welcomeBack: "Bon",
@@ -611,13 +613,6 @@ export default {
       "Connectez-vous, cherchez un titre, et commencez la joie tranquille du catalogage.",
     startCollecting: "Commencer la collection",
     footerYear: "© {year} MangaCollector",
-  },
-  wishlist: {
-    labelJp: "LISTE DE SOUHAITS · 欲しい",
-    comingSoon: "Bientôt",
-    comingSoonAccent: "disponible.",
-    body: "Nous concevons un espace dédié pour suivre les tomes que vous rêvez de posséder — précommandes, retirages et graals, tout au même endroit.",
-    backLib: "Retour à la bibliothèque",
   },
   offline: {
     offline: "Hors ligne",
