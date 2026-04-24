@@ -1010,6 +1010,17 @@ export default {
     selfBody:
       "No necesitas un diagrama — lo tienes todo. Prueba con otro archivista.",
     backHome: "Volver a mi biblioteca",
+    addEyebrow: "AÑADIR DESDE {name}",
+    addDoneEyebrow: "AÑADIDO A TU ARCHIVO",
+    addVolumesHint: "{n} tomos publicados",
+    addUnknownVolumesHint: "Nº de tomos desconocido",
+    addBody:
+      "Esta serie se añadirá a tu biblioteca con 0 tomos poseídos. Se crearán {n} tomos vacíos — marca luego los que tienes realmente.",
+    addDoneBody:
+      "Serie añadida. {n} tomos creados, ninguno poseído — marca los que tienes.",
+    addConfirm: "Añadir a mi archivo",
+    addSeeSeries: "Ver la serie",
+    addError: "Error al añadir. Inténtalo de nuevo.",
   },
   importExternal: {
     title: "Ritual",

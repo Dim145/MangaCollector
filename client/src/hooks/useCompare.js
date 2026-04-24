@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "@/utils/axios.js";
 
 /**
@@ -37,5 +37,39 @@ export function useCompare(slug) {
     isLoading: q.isPending,
     isError: q.isError,
     error: q.error,
+  };
+}
+
+/**
+ * Copy a single series from the compared user's library into mine via
+ * `POST /api/user/compare/{slug}/add/{mal_id}`. The server handles the
+ * id munging (reuse mal_id for MAL series, mint fresh negatives for
+ * customs), volume-row creation, and poster copy for manual uploads.
+ *
+ * On success we invalidate the compare query (so the card disappears
+ * from their-only and moves to shared) plus the library/volumes keys
+ * so the dashboard reflects the new series immediately.
+ */
+export function useCopyFromCompare(slug) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: async (malId) => {
+      const { data } = await axios.post(
+        `/api/user/compare/${encodeURIComponent(slug)}/add/${malId}`,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["compare", slug] });
+      qc.invalidateQueries({ queryKey: ["library"] });
+      qc.invalidateQueries({ queryKey: ["volumes-all"] });
+    },
+  });
+  return {
+    copy: mutation.mutateAsync,
+    isCopying: mutation.isPending,
+    error: mutation.error,
+    result: mutation.data,
+    reset: mutation.reset,
   };
 }

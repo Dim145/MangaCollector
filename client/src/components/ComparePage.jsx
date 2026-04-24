@@ -3,12 +3,13 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import CoverImage from "./ui/CoverImage.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
+import Modal from "./utils/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import {
   filterAdultGenreIfNeeded,
   hasToBlurImage,
 } from "@/utils/library.js";
-import { useCompare } from "@/hooks/useCompare.js";
+import { useCompare, useCopyFromCompare } from "@/hooks/useCompare.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -37,6 +38,13 @@ export default function ComparePage() {
   const status = error?.response?.status;
   const notFound = isError && status === 404;
   const selfCompare = isError && status === 400;
+
+  // "Add to my library" confirmation modal state. Tracks which entry
+  // from their-only the user clicked so the modal can render its
+  // cover + name + volume count and pass the mal_id to the mutation.
+  const [addCandidate, setAddCandidate] = useState(null);
+  const { copy, isCopying, error: copyError, result: copyResult, reset } =
+    useCopyFromCompare(slug);
 
   // Apply the same filter as the dashboard uses — at level 1 ("hide")
   // adult-tagged series are dropped from every bucket; at level 0
@@ -198,6 +206,10 @@ export default function ComparePage() {
                 entries={buckets.their_only}
                 adultLevel={adult_content_level}
                 discover
+                onDiscoverClick={(entry) => {
+                  reset();
+                  setAddCandidate(entry);
+                }}
                 navigate={navigate}
               />
             </div>
@@ -218,8 +230,196 @@ export default function ComparePage() {
             )}
           </>
         )}
+
+        {/* Confirmation modal — shown when the user clicks a card in
+            the "their only" panel. Lives here rather than inside the
+            card so the async mutation state survives the user closing
+            and reopening modals. */}
+        <AddToMyLibraryModal
+          candidate={addCandidate}
+          onClose={() => {
+            setAddCandidate(null);
+            reset();
+          }}
+          onConfirm={async () => {
+            if (!addCandidate?.mal_id) return;
+            try {
+              await copy(addCandidate.mal_id);
+              // Hold the modal open for one more tick so the success
+              // state gets to render; the user dismisses it.
+            } catch {
+              /* handled via copyError in the modal below */
+            }
+          }}
+          onSeeSeries={() => {
+            const res = copyResult?.entry;
+            if (!res) return;
+            const target = addCandidate;
+            setAddCandidate(null);
+            reset();
+            navigate("/mangapage", {
+              state: {
+                manga: {
+                  mal_id: res.mal_id ?? target?.mal_id,
+                  name: res.name ?? target?.name,
+                  image_url_jpg: res.image_url_jpg ?? target?.image_url_jpg,
+                  volumes: res.volumes ?? target?.volumes,
+                  volumes_owned: 0,
+                  genres: res.genres ?? target?.genres ?? [],
+                },
+              },
+            });
+          }}
+          adultLevel={adult_content_level}
+          isCopying={isCopying}
+          copyError={copyError}
+          copyResult={copyResult}
+          otherName={data?.other?.display_name}
+        />
       </div>
     </DefaultBackground>
+  );
+}
+
+/* ══════════════ Add-to-my-library confirmation modal ══════════════ */
+
+function AddToMyLibraryModal({
+  candidate,
+  onClose,
+  onConfirm,
+  onSeeSeries,
+  adultLevel,
+  isCopying,
+  copyError,
+  copyResult,
+  otherName,
+}) {
+  const t = useT();
+  const open = Boolean(candidate);
+  const done = Boolean(copyResult);
+  const blur = candidate ? hasToBlurImage(candidate, adultLevel) : false;
+
+  return (
+    <Modal
+      popupOpen={open}
+      handleClose={onClose}
+      additionalClasses="w-[min(95vw,520px)] rounded-2xl border border-border bg-ink-1 p-0"
+    >
+      {candidate && (
+        <div className="flex flex-col">
+          {/* Header — cover + name */}
+          <div className="flex gap-4 border-b border-border/60 bg-ink-2/30 p-5">
+            <div className="aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-md border border-border shadow-md">
+              <CoverImage
+                src={candidate.image_url_jpg}
+                alt=""
+                blur={blur}
+                imgClassName="h-full w-full object-cover"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
+                {done
+                  ? t("compare.addDoneEyebrow")
+                  : t("compare.addEyebrow", { name: otherName })}
+              </p>
+              <h3 className="mt-1 font-display text-2xl font-light italic leading-tight text-washi">
+                {candidate.name}
+              </h3>
+              <p className="mt-2 font-mono text-[10px] tabular-nums text-washi-muted">
+                {candidate.volumes > 0
+                  ? t("compare.addVolumesHint", { n: candidate.volumes })
+                  : t("compare.addUnknownVolumesHint")}
+              </p>
+              {candidate.genres?.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {candidate.genres.slice(0, 4).map((g) => (
+                    <span
+                      key={g}
+                      className="rounded-full border border-border bg-ink-1/60 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-washi-muted"
+                    >
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="px-5 py-4">
+            {done ? (
+              <div className="flex items-start gap-3">
+                <span
+                  className="hanko-seal grid h-10 w-10 shrink-0 place-items-center rounded-md font-display text-base"
+                  style={{ transform: "rotate(-4deg)" }}
+                >
+                  印
+                </span>
+                <p className="text-sm text-washi">
+                  {t("compare.addDoneBody", { n: candidate.volumes })}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-washi-muted">
+                {t("compare.addBody", { n: candidate.volumes })}
+              </p>
+            )}
+
+            {copyError && (
+              <p className="mt-3 rounded-md border border-hanko/30 bg-hanko/10 px-3 py-2 text-xs text-hanko-bright">
+                {copyError?.response?.data?.error ??
+                  t("compare.addError")}
+              </p>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-2 border-t border-border/60 bg-ink-2/20 px-5 py-3">
+            {done ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-full border border-border bg-transparent px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-washi-muted transition hover:text-washi"
+                >
+                  {t("common.close")}
+                </button>
+                <button
+                  type="button"
+                  onClick={onSeeSeries}
+                  className="rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright"
+                >
+                  {t("compare.addSeeSeries")}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isCopying}
+                  className="rounded-full border border-border bg-transparent px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-washi-muted transition hover:text-washi disabled:opacity-40"
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={onConfirm}
+                  disabled={isCopying}
+                  className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {isCopying ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
+                  ) : null}
+                  {t("compare.addConfirm")}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -293,6 +493,7 @@ function Panel({
   discover,
   highlight,
   navigate,
+  onDiscoverClick,
 }) {
   const t = useT();
   const accentCls =
@@ -350,6 +551,7 @@ function Panel({
               index={i}
               clickable={clickable}
               discover={discover}
+              onDiscoverClick={onDiscoverClick}
               navigate={navigate}
               accent={accent}
               adultLevel={adultLevel}
@@ -366,6 +568,7 @@ function MiniCard({
   index,
   clickable,
   discover,
+  onDiscoverClick,
   navigate,
   accent,
   adultLevel,
@@ -375,6 +578,13 @@ function MiniCard({
   // the cover; level 2 shows it fully. hasToBlurImage handles all 3.
   const blur = hasToBlurImage(entry, adultLevel);
   const onClick = () => {
+    if (discover) {
+      // "Their only" click — open the add-to-my-library confirmation.
+      // We route the click up so the page owns the modal state (the
+      // modal is portal'd and needs the mutation state the page holds).
+      onDiscoverClick?.(entry);
+      return;
+    }
     if (clickable && entry.mal_id && entry.mal_id > 0) {
       // Navigate to our local MangaPage for series we own.
       navigate("/mangapage", {

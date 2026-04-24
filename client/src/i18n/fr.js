@@ -1023,6 +1023,17 @@ export default {
     selfBody:
       "Pas besoin de diagramme : vous avez tout ! Essayez avec un autre archiviste.",
     backHome: "Retour à ma bibliothèque",
+    addEyebrow: "AJOUTER DEPUIS {name}",
+    addDoneEyebrow: "AJOUTÉ À VOTRE ARCHIVE",
+    addVolumesHint: "{n} tomes publiés",
+    addUnknownVolumesHint: "Nombre de tomes inconnu",
+    addBody:
+      "Cette série sera ajoutée à votre bibliothèque avec 0 tome marqué possédé. Les {n} tomes seront créés vides, à cocher plus tard.",
+    addDoneBody:
+      "Série ajoutée. {n} tomes créés, tous non possédés — à vous de cocher ceux que vous avez.",
+    addConfirm: "Ajouter à mon archive",
+    addSeeSeries: "Voir la série",
+    addError: "L'ajout a échoué. Réessayez dans un instant.",
   },
   importExternal: {
     title: "Rituel",

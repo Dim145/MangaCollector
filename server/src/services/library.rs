@@ -281,6 +281,128 @@ pub async fn refresh_from_mangadex(
     Ok((md_data.genres, md_data.name, image_update))
 }
 
+/// Copy a single series from another user's library into mine. Built
+/// on top of `add_to_user_library` so we reuse the volume-row creation
+/// and idempotent upsert logic. The wrinkle is the cover: when the
+/// source entry has a custom upload (path-like URL, not http), we
+/// copy the blob from their S3 path into mine under the new mal_id.
+///
+/// Behaviour by source entry type:
+///   • MAL series (mal_id > 0)    → keep mal_id, keep image URL (CDN)
+///   • MangaDex only              → mint new negative mal_id locally,
+///                                  keep mangadex_id + image URL (CDN)
+///   • Custom w/ external image   → mint new negative mal_id, keep URL
+///   • Custom w/ manual upload    → mint new negative mal_id, copy
+///                                  blob, stored URL becomes the
+///                                  `/api/user/storage/poster/{new}` form
+pub async fn copy_series_from_other_user(
+    db: &Db,
+    storage: &std::sync::Arc<dyn crate::storage::StorageBackend>,
+    http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    me_user_id: i32,
+    other_user_id: i32,
+    source_mal_id: i32,
+) -> Result<LibraryEntry, AppError> {
+    // Fetch source row from the other user's library.
+    let source = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(other_user_id))
+        .filter(library::Column::MalId.eq(source_mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::NotFound("Source series not found".into()))?;
+    let source_entry = LibraryEntry::from(source.clone());
+
+    // Figure out the mal_id I'll use locally. MAL series keep their
+    // positive id; everything else mints a fresh negative id so the
+    // custom-entry / uniqueness invariants hold.
+    let is_mal = source_mal_id > 0;
+    let target_mal_id = if is_mal {
+        source_mal_id
+    } else {
+        let min_existing: Option<i32> = LibraryEntity::find()
+            .select_only()
+            .column_as(Expr::col(library::Column::MalId).min(), "min")
+            .filter(library::Column::UserId.eq(me_user_id))
+            .filter(library::Column::MalId.lt(0))
+            .into_tuple::<Option<i32>>()
+            .one(db)
+            .await
+            .map_err(AppError::from)?
+            .flatten();
+        min_existing.unwrap_or(0) - 1
+    };
+
+    // Decide the image URL I'll store. External URLs (MAL CDN /
+    // MangaDex CDN) work for everyone, so we reuse them. A path-ish
+    // URL means the source was a user upload — copy the blob.
+    let is_custom_upload = source_entry
+        .image_url_jpg
+        .as_deref()
+        .map(|u| !u.starts_with("http"))
+        .unwrap_or(false);
+    let final_image_url = if is_custom_upload {
+        let src_path = format!(
+            "uploads/images/{}/{}.jpg",
+            other_user_id, source_mal_id
+        );
+        let dst_path = format!(
+            "uploads/images/{}/{}.jpg",
+            me_user_id, target_mal_id
+        );
+        match storage.get(&src_path).await {
+            Ok(bytes) => match storage.put(&dst_path, bytes).await {
+                Ok(()) => Some(format!(
+                    "/api/user/storage/poster/{}",
+                    target_mal_id
+                )),
+                Err(err) => {
+                    tracing::warn!(
+                        %err,
+                        "copy_from_user: poster put failed, proceeding without cover"
+                    );
+                    None
+                }
+            },
+            Err(err) => {
+                tracing::warn!(
+                    %err,
+                    "copy_from_user: source poster missing, proceeding without cover"
+                );
+                None
+            }
+        }
+    } else {
+        source_entry.image_url_jpg.clone()
+    };
+
+    // Delegate to add_to_user_library for the library row + per-volume
+    // creation + milestone hooks. `volumes_owned=0` honours the spec:
+    // user gets the series listed but marked as "unowned" so they can
+    // check off what they actually have afterwards.
+    add_to_user_library(
+        db,
+        http_client,
+        cache,
+        me_user_id,
+        AddLibraryRequest {
+            mal_id: Some(target_mal_id),
+            name: source_entry.name,
+            volumes: source_entry.volumes,
+            volumes_owned: Some(0),
+            image_url_jpg: final_image_url,
+            genres: if source_entry.genres.is_empty() {
+                None
+            } else {
+                Some(source_entry.genres)
+            },
+            mangadex_id: source_entry.mangadex_id,
+        },
+    )
+    .await
+}
+
 pub async fn add_custom_entry(
     db: &Db,
     http_client: &reqwest::Client,

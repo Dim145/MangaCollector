@@ -87,8 +87,10 @@ fn user_router() -> Router<AppState> {
         .route("/activity", get(activity::list_activity))
         // 印鑑帳 — Carnet de sceaux (ceremonial achievements)
         .route("/seals", get(seals::list_seals))
-        // 対照 — Compare my library with a public profile slug
+        // 対照 — Compare my library with a public profile slug + add
+        // a missing series from their library to mine.
         .route("/compare/{slug}", get(compare::compare_with))
+        .route("/compare/{slug}/add/{mal_id}", post(compare::copy_entry))
         // Public profile management:
         //   GET /public-slug    → full state { slug, show_adult }
         //   PATCH /public-slug  → set/change/clear the slug

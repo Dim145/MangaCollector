@@ -1001,6 +1001,17 @@ export default {
     selfBody:
       "No diagram needed — you have everything! Try another archivist instead.",
     backHome: "Back to my library",
+    addEyebrow: "ADD FROM {name}",
+    addDoneEyebrow: "ADDED TO YOUR ARCHIVE",
+    addVolumesHint: "{n} published volumes",
+    addUnknownVolumesHint: "Volume count unknown",
+    addBody:
+      "This series will be added to your library with 0 owned volumes. All {n} volumes will be created empty — check off the ones you actually have later.",
+    addDoneBody:
+      "Series added. {n} volumes created, all unowned — tick the ones you have.",
+    addConfirm: "Add to my archive",
+    addSeeSeries: "Open series",
+    addError: "Add failed. Please try again.",
   },
   importExternal: {
     title: "Import",
