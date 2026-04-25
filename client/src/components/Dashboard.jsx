@@ -139,6 +139,11 @@ export default function Dashboard() {
 
           {/* Stat chips */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {/* Stat-card colour grammar (locked across Dashboard + Profile):
+                  · count   → washi    (raw counts: series, volumes-owned/total)
+                  · achievement → gold (lifetime totals: complete series, € invested)
+                  · rate    → hanko    (current rate / progression: % done)
+                The same metric uses the same colour on every page. */}
             <StatChip
               label={t("dashboard.series")}
               value={stats.series}
@@ -153,7 +158,7 @@ export default function Dashboard() {
             <StatChip
               label={t("dashboard.complete")}
               value={stats.complete}
-              accent="moegi"
+              accent="gold"
               loading={isInitialLoad}
             />
             <StatChip

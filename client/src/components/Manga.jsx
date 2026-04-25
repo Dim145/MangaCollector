@@ -98,8 +98,15 @@ export default function Manga({
           </div>
         )}
 
-        {/* Status badge (top-right) */}
-        {complete && (
+        {/* Status badge (top-right) — mutually exclusive states.
+            COMPLETE: solid moegi pill + ✓. The achievement state, loud.
+            ONGOING : muted hanko outline + ◐ half-disc glyph. Quiet but
+                      explicit, so series state is visible without relying
+                      solely on the bottom-bar progress bar. Without this
+                      pair, "ongoing" was encoded only by the *absence* of a
+                      badge — a colour-only cue that's invisible to anyone
+                      who can't tell hanko-red from moegi-green. */}
+        {complete ? (
           <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-gradient-to-br from-moegi to-moegi-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-0 shadow-md">
             <svg
               viewBox="0 0 24 24"
@@ -109,12 +116,40 @@ export default function Manga({
               strokeLinecap="round"
               strokeLinejoin="round"
               className="h-2.5 w-2.5"
+              aria-hidden="true"
             >
               <polyline points="20 6 9 17 4 12" />
             </svg>
             {t("manga.complete")}
           </div>
-        )}
+        ) : total > 0 ? (
+          <div
+            className="absolute top-2 right-2 flex items-center gap-1 rounded-full border border-hanko/50 bg-ink-0/65 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-hanko-bright shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 backdrop-blur transition group-hover:opacity-100"
+            aria-label={t("manga.ongoing")}
+          >
+            {/* Half-filled disc — the universal "in progress" glyph.
+                Outer circle = total target, filled half = work landed. */}
+            <svg
+              viewBox="0 0 16 16"
+              className="h-2.5 w-2.5"
+              aria-hidden="true"
+            >
+              <circle
+                cx="8"
+                cy="8"
+                r="6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              />
+              <path
+                d="M8 2.5 A5.5 5.5 0 0 1 8 13.5 Z"
+                fill="currentColor"
+              />
+            </svg>
+            {t("manga.ongoing")}
+          </div>
+        ) : null}
 
         {/* Title + meta absolute bottom */}
         <div className="absolute inset-x-0 bottom-0 p-3">

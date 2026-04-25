@@ -25,10 +25,18 @@
   --ink-2: oklch(0.15 0.01 28); /* raised */
   --ink-3: oklch(0.21 0.012 28); /* overlay */
 
-  /* Text */
+  /* Text — dark theme.
+     Three rungs sized to clear WCAG-AA on every surface we paint on:
+       washi      → body / display copy on ink-0 → ink-2 (~21:1 on ink-0)
+       washi-muted→ secondary copy / hints       (~12:1 on ink-0, ~9:1 on ink-2)
+       washi-dim  → captions / tracked labels    (~7:1 on ink-0, ~5.2:1 on ink-2)
+     Bumped 2026-04: previous values (0.78 / 0.58) flirted with the AA floor on
+     raised surfaces, especially for 10–11 px tracked-uppercase labels. The new
+     ladder gives every tier headroom without touching the saturation, so the
+     warm-cream cast survives. */
   --washi: oklch(0.96 0.012 85); /* cream */
-  --washi-muted: oklch(0.78 0.015 70);
-  --washi-dim: oklch(0.58 0.015 60);
+  --washi-muted: oklch(0.85 0.015 70);
+  --washi-dim: oklch(0.68 0.015 60);
 
   /* Signature */
   --hanko: oklch(0.6 0.22 25); /* stamp red */

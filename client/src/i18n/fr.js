@@ -79,6 +79,7 @@ export default {
   manga: {
     volumesShort: "tomes",
     complete: "Complet",
+    ongoing: "En cours",
     allCollector: "Tous les tomes sont collector",
     tsundokuHint: "{n} tome(s) possédé(s) non lu(s) · 積読",
     libraryLabel: "COLLECTION · 蔵書",
@@ -396,6 +397,12 @@ export default {
     completionRateLabel: "Taux de complétion",
     progression: "Progression",
     completeShort: "complets",
+    closestLabel: "Bientôt complets · あと少し",
+    closestHeading: "Au plus près de la complétion",
+    closestCount: "Top {n}",
+    closestRemaining: "encore {n}",
+    closestEmpty: "Aucune série en cours — chaque étagère est soit complète, soit intacte.",
+    closestAria: "{title} — {pct}% complet",
     topSpend: "Top dépenses",
     mostValued: "Séries les plus précieuses",
     startAdding:

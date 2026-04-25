@@ -149,7 +149,7 @@ function AppShell() {
       <main className="relative">
         <Suspense fallback={<PageLoader />}>
           <Routes>
-            <Route path="/" element={<About />} />
+            <Route path="/" element={<About googleUser={googleUser} />} />
             <Route path="/log-in" element={<Login />} />
             <Route
               path="/dashboard"

@@ -350,10 +350,39 @@ export default function Volume({
           </p>
           <div className="mt-1 flex items-baseline gap-2">
             <span
-              className={`text-[10px] font-semibold uppercase tracking-wider ${
+              className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${
                 ownedStatus ? "text-gold" : "text-washi-dim"
               }`}
             >
+              {/* Non-colour state glyph — gives the row a second cue beyond
+                  the gold/dim tint, so colour-blind users can read state at
+                  a glance. ✓ for owned, ○ for missing. Inline SVG keeps the
+                  baseline aligned with the label. */}
+              {ownedStatus ? (
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-2.5 w-2.5 self-center"
+                  aria-hidden="true"
+                >
+                  <polyline points="3 8.5 7 12 13 4.5" />
+                </svg>
+              ) : (
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-2.5 w-2.5 self-center"
+                  aria-hidden="true"
+                >
+                  <circle cx="8" cy="8" r="5.5" />
+                </svg>
+              )}
               {ownedStatus ? t("volume.inCollection") : t("volume.missing")}
             </span>
             {ownedStatus && price > 0 && (

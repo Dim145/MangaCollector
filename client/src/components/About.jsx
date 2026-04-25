@@ -17,10 +17,17 @@ const MOCKED = [
   { id: 6, title: "Beastars", volumes: 22, img: Beastars },
 ];
 
-export default function About() {
+export default function About({ googleUser } = {}) {
   const [topMangas, setTopMangas] = useState(MOCKED);
   const { authName } = useContext(SettingsContext);
   const t = useT();
+  // The hero CTA used to render two near-identical buttons (Get Started +
+  // Open Dashboard) regardless of auth state. For a logged-out visitor both
+  // routes funnel to /log-in — the choice was theatre. For a returning,
+  // already-signed-in user, "Get Started" is misleading. We collapse to a
+  // single primary action whose label and destination track the actual
+  // session.
+  const isAuthed = Boolean(googleUser);
 
   useEffect(() => {
     (async () => {
@@ -91,15 +98,19 @@ export default function About() {
               {t("about.subHero")}
             </p>
 
+            {/* Single primary CTA — destination & label depend on auth.
+                Logged-out → "Get started" (→ /log-in). Logged-in → "Open
+                dashboard" (→ /dashboard). One button, no mid-funnel
+                hesitation. */}
             <div
-              className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row animate-fade-up"
+              className="mt-8 flex justify-center animate-fade-up"
               style={{ animationDelay: "200ms" }}
             >
               <a
-                href="/log-in"
-                className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-hanko px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-washi shadow-xl glow-red transition hover:scale-[1.02] hover:bg-hanko-bright active:scale-95 sm:w-auto"
+                href={isAuthed ? "/dashboard" : "/log-in"}
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-hanko px-7 py-3.5 text-sm font-semibold uppercase tracking-wider text-washi shadow-xl glow-red transition hover:scale-[1.02] hover:bg-hanko-bright active:scale-95"
               >
-                {t("about.getStarted")}
+                {isAuthed ? t("about.openDashboard") : t("about.getStarted")}
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
@@ -112,12 +123,6 @@ export default function About() {
                   <line x1="5" y1="12" x2="19" y2="12" />
                   <polyline points="12 5 19 12 12 19" />
                 </svg>
-              </a>
-              <a
-                href="/dashboard"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-ink-1/60 px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-washi-muted backdrop-blur transition hover:border-border/80 hover:text-washi sm:w-auto"
-              >
-                {t("about.openDashboard")}
               </a>
             </div>
           </div>

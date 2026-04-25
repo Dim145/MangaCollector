@@ -1,15 +1,14 @@
 import { lazy, Suspense, useContext, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Bar,
   BarChart,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import CoverImage from "./ui/CoverImage.jsx";
 import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
 import ActivityFeed from "./ActivityFeed.jsx";
@@ -30,12 +29,14 @@ import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
 export default function ProfilePage({ googleUser }) {
-  const { currency: currencySetting } = useContext(SettingsContext);
+  const { currency: currencySetting, adult_content_level } =
+    useContext(SettingsContext);
   const { data: library, isInitialLoad: loadingLib } = useLibrary();
   const { data: volumes, isInitialLoad: loadingVol } = useAllVolumes();
   const { data: settings } = useUserSettings();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const navigate = useNavigate();
   const t = useT();
 
   const loading = loadingLib || loadingVol;
@@ -94,10 +95,30 @@ export default function ProfilePage({ googleUser }) {
     };
   }, [library, volumes]);
 
-  const completionData = [
-    { name: "Owned", value: completionRate },
-    { name: "Missing", value: Math.max(0, 100 - completionRate) },
-  ];
+  // Top 5 series closest to completion — replaces the previous donut chart,
+  // which surfaced a single global percentage already shown in the stat strip.
+  // The list keeps every pixel earning its keep: cover, title, progress bar,
+  // and a "X to go" tail. One row = one actionable target.
+  const inProgress = useMemo(() => {
+    const rows = [];
+    for (const m of library ?? []) {
+      const total = m.volumes ?? 0;
+      const owned = m.volumes_owned ?? 0;
+      if (total > 0 && owned > 0 && owned < total) {
+        rows.push({
+          mal_id: m.mal_id,
+          manga: m,
+          title: m.name,
+          owned,
+          total,
+          missing: total - owned,
+          progress: owned / total,
+        });
+      }
+    }
+    rows.sort((a, b) => b.progress - a.progress);
+    return rows.slice(0, 5);
+  }, [library]);
 
   const userName = googleUser?.name ?? t("profile.reader");
   const initial = userName?.[0]?.toUpperCase() ?? "U";
@@ -176,6 +197,10 @@ export default function ProfilePage({ googleUser }) {
           </Suspense>
         )}
 
+        {/* Stat-card colour grammar (matches Dashboard):
+              · count        → washi    (series, volumes owned/total)
+              · achievement  → gold     (€ invested — lifetime spend)
+              · rate         → hanko    (completion %) */}
         <section className="mb-8 grid gap-4 animate-fade-up sm:grid-cols-2 lg:grid-cols-4">
           <HeroStat
             label={t("profile.series")}
@@ -188,7 +213,6 @@ export default function ProfilePage({ googleUser }) {
             value={`${totalVolumesOwned}`}
             sub={`/ ${totalVolumes}`}
             hint={t("profile.ownedTracked")}
-            accent="hanko"
             loading={loading}
           />
           <HeroStat
@@ -202,6 +226,7 @@ export default function ProfilePage({ googleUser }) {
             label={t("profile.completion")}
             value={`${completionRate}%`}
             hint={t("profile.ofTracked")}
+            accent="hanko"
             loading={loading}
           />
         </section>
@@ -210,52 +235,123 @@ export default function ProfilePage({ googleUser }) {
           className="mb-8 grid gap-6 animate-fade-up md:grid-cols-2"
           style={{ animationDelay: "200ms" }}
         >
+          {/* "Closest to completion" — replaces the previous global donut.
+              Five rows × (cover + title + bar + remaining), each one a
+              tappable shortcut to that series' edit page. Density-first:
+              the donut showed a single percentage already in the stat strip
+              above; this card shows five concrete next targets. */}
           <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-              {t("profile.completionRateLabel")}
-            </p>
-            <h2 className="mt-1 font-display text-xl font-semibold text-washi">
-              {t("profile.progression")}
-            </h2>
+            <div className="flex items-baseline justify-between gap-2">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
+                  {t("profile.closestLabel")}
+                </p>
+                <h2 className="mt-1 font-display text-xl font-semibold text-washi">
+                  {t("profile.closestHeading")}
+                </h2>
+              </div>
+              {!loading && inProgress.length > 0 && (
+                <span className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                  {t("profile.closestCount", { n: inProgress.length })}
+                </span>
+              )}
+            </div>
 
-            <div className="relative mt-4 flex h-64 items-center justify-center">
+            <div className="mt-4 h-64">
               {loading ? (
-                <>
-                  <Skeleton.Circle size={190} thickness={30} />
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5">
-                    <Skeleton className="h-6 w-16" />
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                      complete
-                    </p>
-                  </div>
-                </>
+                <ul className="flex h-full flex-col gap-3">
+                  {[...Array(5)].map((_, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center gap-3 rounded-lg border border-border/60 bg-ink-2/30 px-2 py-2"
+                    >
+                      <Skeleton className="h-10 w-7 rounded-sm" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-3 w-1/2" />
+                        <Skeleton className="h-1 w-full" />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : inProgress.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                  <span
+                    className="font-display text-4xl italic text-hanko/30"
+                    aria-hidden="true"
+                  >
+                    完
+                  </span>
+                  <p className="text-sm text-washi-muted">
+                    {t("profile.closestEmpty")}
+                  </p>
+                </div>
               ) : (
-                <>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={completionData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={65}
-                        outerRadius={95}
-                        paddingAngle={3}
-                        stroke="none"
-                      >
-                        <Cell fill="var(--hanko)" />
-                        <Cell fill="var(--ink-2)" />
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <p className="font-display text-4xl font-semibold tabular-nums text-hanko-gradient">
-                      {completionRate}%
-                    </p>
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-                      {t("profile.completeShort")}
-                    </p>
-                  </div>
-                </>
+                <ul className="flex h-full flex-col gap-2">
+                  {inProgress.map((row, i) => {
+                    const pct = Math.round(row.progress * 100);
+                    return (
+                      <li key={row.mal_id ?? i}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate("/mangapage", {
+                              state: {
+                                manga: row.manga,
+                                adult_content_level,
+                              },
+                            })
+                          }
+                          className="group flex w-full items-center gap-3 rounded-lg border border-border/60 bg-ink-2/30 px-2 py-1.5 text-left transition hover:border-hanko/50 hover:bg-ink-2/60"
+                        >
+                          <span className="relative h-10 w-7 flex-shrink-0 overflow-hidden rounded-sm border border-border bg-ink-2 shadow-sm">
+                            <CoverImage
+                              src={row.manga.image_url_jpg}
+                              alt=""
+                              imgClassName="h-full w-full object-cover"
+                            />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <p className="truncate font-display text-sm font-semibold text-washi group-hover:text-hanko-bright">
+                                {row.title}
+                              </p>
+                              <span className="flex-shrink-0 font-mono text-[10px] tabular-nums text-washi-dim">
+                                <span className="text-washi">
+                                  {row.owned}
+                                </span>
+                                {" / "}
+                                {row.total}
+                              </span>
+                            </div>
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <div
+                                className="h-1 flex-1 overflow-hidden rounded-full bg-washi/10"
+                                role="progressbar"
+                                aria-valuenow={pct}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-label={t("profile.closestAria", {
+                                  title: row.title,
+                                  pct,
+                                })}
+                              >
+                                <div
+                                  className="h-full bg-gradient-to-r from-hanko to-hanko-bright transition-all duration-500"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="flex-shrink-0 font-mono text-[10px] uppercase tracking-wider text-hanko-bright">
+                                {t("profile.closestRemaining", {
+                                  n: row.missing,
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
           </div>
