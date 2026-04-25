@@ -33,9 +33,17 @@ path = "src/main.rs"
 # Every other direct dependency below is at its latest-stable version.
 
 # Web framework
+#
+# `axum-extra` and a direct `tower` dep used to live here too. Both
+# were dropped after the maintenance audit:
+#   • `axum-extra` was declared with `cookie` + `typed-header` features
+#     but never imported in `src/` (cookies are managed by
+#     tower-sessions, no `TypedHeader` extractor in any handler).
+#   • `tower` (the trait core) appears in the dep graph transitively
+#     via `tower-http` and `tower_governor`; we never wrote any direct
+#     `use tower::` line. Declaring it as a top-level dep added noise
+#     without giving any new types.
 axum = { version = "0.8", features = ["multipart", "macros", "ws"] }
-axum-extra = { version = "0.12", features = ["cookie", "typed-header"] }
-tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace", "set-header"] }
 
 # Async runtime — narrow feature selection instead of "full".
