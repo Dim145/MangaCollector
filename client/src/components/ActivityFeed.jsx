@@ -215,7 +215,7 @@ function ActivityRow({ entry, cover, onOpen, lang, t, index }) {
           aria-label={cover.name}
           className="shrink-0"
         >
-          <img
+          <img referrerPolicy="no-referrer"
             src={cover.image_url_jpg}
             alt=""
             className="h-10 w-7 rounded border border-border object-cover"

@@ -74,7 +74,7 @@ function GapsPanel({ middleGaps, loading, t, library }) {
                 className="group flex w-full items-center gap-3 rounded-lg border border-border bg-ink-2/40 p-3 text-left transition hover:border-hanko/40 hover:bg-ink-2/60"
               >
                 {g.image_url_jpg ? (
-                  <img
+                  <img referrerPolicy="no-referrer"
                     src={g.image_url_jpg}
                     alt=""
                     loading="lazy"
@@ -174,7 +174,7 @@ function StalePanel({ stale, loading, t, library }) {
                 className="group flex w-full items-center gap-3 rounded-lg border border-border bg-ink-2/40 p-3 text-left transition hover:border-gold/40 hover:bg-ink-2/60"
               >
                 {s.image_url_jpg ? (
-                  <img
+                  <img referrerPolicy="no-referrer"
                     src={s.image_url_jpg}
                     alt=""
                     loading="lazy"

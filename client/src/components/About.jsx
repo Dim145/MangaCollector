@@ -151,7 +151,7 @@ export default function About() {
                     }}
                   >
                     {m.img && (
-                      <img
+                      <img referrerPolicy="no-referrer"
                         src={m.img}
                         alt=""
                         loading="lazy"

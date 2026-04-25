@@ -77,7 +77,7 @@ export default function ProfileButton() {
         }`}
       >
         {avatarUrl ? (
-          <img
+          <img referrerPolicy="no-referrer"
             src={avatarUrl}
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
@@ -109,7 +109,7 @@ export default function ProfileButton() {
               }`}
             >
               {avatarUrl ? (
-                <img
+                <img referrerPolicy="no-referrer"
                   src={avatarUrl}
                   alt=""
                   className="h-full w-full object-cover"

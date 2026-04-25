@@ -54,6 +54,16 @@ export default function CoverImage({
         alt={alt}
         loading={loading}
         draggable={draggable}
+        // No-referrer for external CDN compatibility.
+        // MangaDex (uploads.mangadex.org) and a couple of other
+        // image hosts implement anti-hotlinking by 403'ing requests
+        // with a Referer pointing at a domain they don't recognise.
+        // Our default Referrer-Policy is `strict-origin-when-cross
+        // -origin` (strong default for security), which DOES still
+        // send the origin on cross-site image requests. Stripping it
+        // entirely on `<img>` tags fixes MangaDex without weakening
+        // the page-level policy that protects sensitive nav.
+        referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
         className={`${className} ${imgClassName} ${blur ? "blur-md" : ""}`.trim()}
       />
