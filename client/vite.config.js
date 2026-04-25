@@ -4,6 +4,22 @@ import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
+/*
+ * Vite 7 freeze (re-evaluate periodically).
+ *
+ * Vite 8 is out (rolldown-vite merge: Rollup → Rolldown bundler) and
+ * `@tailwindcss/vite` already supports it, but `vite-plugin-pwa@1.2.0`
+ * still declares peer `vite ^3 || ^4 || ^5 || ^6 || ^7` — no Vite 8.
+ * Bumping vite alone fails npm peer resolution. Bumping with
+ * `--legacy-peer-deps` would type-check but ship a build pipeline
+ * whose service-worker integration isn't validated against Rolldown.
+ *
+ * Bump trigger: `vite-plugin-pwa@2.x` with peer `vite ^8` (track
+ * vite-pwa/vite-plugin-pwa#705 / similar).
+ *
+ * `@vitejs/plugin-react` is paired: 5.x for Vite 7, 6.x for Vite 8.
+ * They move together, so no point bumping the plugin alone.
+ */
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [

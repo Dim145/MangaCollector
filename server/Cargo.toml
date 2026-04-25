@@ -8,6 +8,30 @@ name = "manga-collector-server"
 path = "src/main.rs"
 
 [dependencies]
+# ── Major-version freezes (re-evaluate periodically) ─────────────────
+#
+# Three direct deps are intentionally pinned BELOW their latest major,
+# because the upgrades are blocked by the rest of the ecosystem:
+#
+#   • reqwest @ 0.12 (latest is 0.13)
+#       Held by openidconnect 4.x, which still declares `reqwest ^0.12`.
+#       Bumping reqwest standalone breaks the OIDC stack. Re-evaluate
+#       once openidconnect 5 (or a 4.x release with reqwest 0.13) ships.
+#
+#   • sqlx @ 0.8 / sea-orm @ 1.1 (latest are 0.9-alpha / 2.0-rc)
+#       Both upstreams are pre-release at the time of this commit; we
+#       wait for the stable releases. Most importantly, sea-orm 2.0
+#       requires sqlx 0.9 in lock-step, so they ship together.
+#
+#   • tower-sessions @ 0.14 (latest is 0.15)
+#       Held by tower-sessions-sqlx-store 0.15, which still depends on
+#       tower-sessions-core ^0.14. Bumping tower-sessions alone splits
+#       the trait impls (PostgresStore implements SessionStore from
+#       core 0.14, the new SessionManagerLayer expects core 0.15).
+#       Re-evaluate once a 0.16 of sqlx-store lands.
+#
+# Every other direct dependency below is at its latest-stable version.
+
 # Web framework
 axum = { version = "0.8", features = ["multipart", "macros", "ws"] }
 axum-extra = { version = "0.12", features = ["cookie", "typed-header"] }
@@ -131,7 +155,7 @@ csv = "1"
 # middleware. We use IP-based buckets by default; operators behind a
 # reverse proxy (Traefik/Nginx) must ensure the correct X-Forwarded-For
 # handling upstream so buckets are per-client, not per-proxy.
-tower_governor = "0.7"
+tower_governor = "0.8"
 
 [profile.release]
 opt-level = 3

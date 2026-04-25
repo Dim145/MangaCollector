@@ -291,8 +291,12 @@ async fn main() -> anyhow::Result<()> {
     // zero per-request overhead and the per-IP state map never gets
     // allocated. Done as a split `let app =` rather than chained so
     // the type unification handled by Router stays trivial.
+    // tower_governor 0.8 changed `GovernorLayer` from a struct-literal
+    // constructor to `GovernorLayer::new(config)` (also added an
+    // optional error-handler builder we don't use yet). The semantics
+    // are identical to the previous `{ config }` form.
     let app = match governor_conf {
-        Some(conf) => app.layer(GovernorLayer { config: conf }),
+        Some(conf) => app.layer(GovernorLayer::new(conf)),
         None => app,
     };
 
