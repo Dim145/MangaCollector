@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DefaultBackground from "./DefaultBackground";
 import Seal from "./ui/Seal.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
+import SealCeremony from "./SealCeremony.jsx";
 import { useSeals } from "@/hooks/useSeals.js";
 import { SEALS_BY_CATEGORY, SEAL_CATALOG, TIERS } from "@/lib/sealsCatalog.js";
 import { useT } from "@/i18n/index.jsx";
@@ -34,12 +35,36 @@ export default function SealsPage() {
     [data?.newly_granted],
   );
 
+  // 儀式 · Ceremony gate — fires once per fresh `newly_granted`
+  // arrival. We capture the reference identity at the moment it
+  // first becomes non-empty and DON'T retrigger when the parent
+  // re-renders with the same array (which is what happens during
+  // the page's lifetime: the hook keeps the slice stable, but
+  // intermediate renders would otherwise re-mount the modal).
+  // Closing the ceremony flips `consumed` so the modal stays out
+  // even if `newly_granted` is still in scope.
+  const [ceremonyOpen, setCeremonyOpen] = useState(false);
+  const consumedRef = useRef(null);
+  useEffect(() => {
+    const arr = data?.newly_granted;
+    if (!Array.isArray(arr) || arr.length === 0) return;
+    if (consumedRef.current === arr) return;
+    consumedRef.current = arr;
+    setCeremonyOpen(true);
+  }, [data?.newly_granted]);
+
   const earnedCount = earnedMap.size;
   const totalCount = SEAL_CATALOG.length;
   const percent = Math.round((earnedCount / totalCount) * 100);
 
   return (
     <DefaultBackground>
+      {ceremonyOpen && (
+        <SealCeremony
+          newlyCodes={data?.newly_granted ?? []}
+          onClose={() => setCeremonyOpen(false)}
+        />
+      )}
       <div className="mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
         {/* ───── Masthead ───── */}
         <header className="mb-10 animate-fade-up">

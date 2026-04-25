@@ -962,6 +962,12 @@ export default {
     newlyGrantedOne: "A new seal has just been pressed.",
     newlyGrantedMany: "{n} new seals have just been pressed.",
     newlyGrantedHint: "Watch the ink dry on the pages below.",
+    ceremonyAria: "Seal unlocked",
+    ceremonyKicker: "Ceremony",
+    ceremonyHeadingOne: "A new seal joins the journal.",
+    ceremonyHeadingMany: "{n} new seals join the journal.",
+    ceremonyMore: "+{n} more in the journal below",
+    ceremonyDismiss: "Tap anywhere to continue",
     categories: {
       firsts: "Beginnings",
       volumes: "Progression",

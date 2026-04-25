@@ -983,6 +983,12 @@ export default {
     newlyGrantedOne: "Un nouveau sceau vient d'être apposé.",
     newlyGrantedMany: "{n} nouveaux sceaux viennent d'être apposés.",
     newlyGrantedHint: "Regardez l'encre sécher sur les pages qui suivent.",
+    ceremonyAria: "Sceau débloqué",
+    ceremonyKicker: "Cérémonie",
+    ceremonyHeadingOne: "Un nouveau sceau rejoint le carnet.",
+    ceremonyHeadingMany: "{n} nouveaux sceaux rejoignent le carnet.",
+    ceremonyMore: "+{n} autres dans le carnet ci-dessous",
+    ceremonyDismiss: "Appuyez n'importe où pour continuer",
     categories: {
       firsts: "Débuts",
       volumes: "Progression",

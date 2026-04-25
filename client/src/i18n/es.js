@@ -971,6 +971,12 @@ export default {
     newlyGrantedOne: "Un nuevo sello acaba de estamparse.",
     newlyGrantedMany: "{n} sellos nuevos acaban de estamparse.",
     newlyGrantedHint: "Observa la tinta secar en las páginas siguientes.",
+    ceremonyAria: "Sello desbloqueado",
+    ceremonyKicker: "Ceremonia",
+    ceremonyHeadingOne: "Un nuevo sello se une al cuaderno.",
+    ceremonyHeadingMany: "{n} nuevos sellos se unen al cuaderno.",
+    ceremonyMore: "+{n} más en el cuaderno",
+    ceremonyDismiss: "Toca en cualquier lugar para continuar",
     categories: {
       firsts: "Comienzos",
       volumes: "Progresión",

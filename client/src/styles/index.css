@@ -724,6 +724,102 @@
   }
 }
 
+/* 儀式 · Seal ceremony — full-screen unlock moment.
+   ─────────────────────────────────────────────────────────────────
+   Three coordinated animations:
+     1. seal-ceremony-mount  — the seal stamps in with overshoot,
+        like a hanko coming down hard then settling. Stronger than
+        the in-grid `seal-ceremony` because it owns the screen.
+     2. seal-ink-splash      — a soft radial sumi blob that blooms
+        out from centre and fades. Sets the "an ink stamp just hit
+        paper" mood without extra DOM weight.
+     3. seal-particle-rise   — small flecks of ink rising from the
+        stamp point, six per ceremony, each with its own delay so
+        the column never looks mechanical.
+   All three respect prefers-reduced-motion via the global rule
+   already in this file. */
+
+@keyframes seal-ceremony-mount {
+  0% {
+    transform: scale(2.4) rotate(-22deg) translateY(-12px);
+    opacity: 0;
+    filter: blur(6px);
+  }
+  35% {
+    transform: scale(0.78) rotate(6deg) translateY(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+  60% {
+    transform: scale(1.08) rotate(-3deg);
+  }
+  80% {
+    transform: scale(0.97) rotate(1deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+@keyframes seal-ink-splash {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+    filter: blur(8px);
+  }
+  35% {
+    opacity: 0.85;
+    transform: scale(1.05);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+    filter: blur(20px);
+  }
+}
+
+@keyframes seal-particle-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(calc(var(--rise, 140px) * -0.2)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(calc(var(--rise, 140px) * -1)) scale(0.4);
+  }
+}
+
+/* Splash — purely decorative, sized off the parent grid cell so the
+   blob fills ~22rem regardless of viewport. Mix-blend pinch keeps the
+   centre saturated even when the overlay sits over a busy background. */
+.seal-ink-splash {
+  width: 22rem;
+  height: 22rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--hanko) 0%,
+    var(--hanko-deep) 35%,
+    transparent 70%
+  );
+  mix-blend-mode: screen;
+  animation: seal-ink-splash 2.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.seal-particle {
+  filter: blur(1px);
+  animation-name: seal-particle-rise;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
+}
+
 /* ─── Tier system ───────────────────────────────────────────────────
    Each seal carries a tier (1..5) that determines its ink lineage:
      1 · 墨 sumi     — common ink (grey washi on dim ink)
