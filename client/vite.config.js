@@ -35,6 +35,13 @@ export default defineConfig({
         "pwa-512x512.png",
         "pwa-maskable.png",
         "apple-touch-icon.png",
+        // App-shortcut icons — referenced by the manifest's `shortcuts`
+        // entries and need to be in the precache so the launcher menu
+        // works even when the user is offline at the moment of long-
+        // press. Kept as SVGs (~400 B each) rather than PNG sprites.
+        "shortcut-scan.svg",
+        "shortcut-add.svg",
+        "shortcut-profile.svg",
       ],
       manifest: {
         name: "MangaCollector",
@@ -65,6 +72,47 @@ export default defineConfig({
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
+          },
+        ],
+        // App shortcuts — surfaced by the OS launcher when the user
+        // long-presses the installed PWA icon (Android Chrome / Edge,
+        // Windows Edge). iOS Safari ignores this field; Apple gates
+        // shortcuts behind the App Store review pipeline.
+        //
+        // Each `url` opens the SPA at a route that knows how to honour
+        // a `shortcut=…` query param: AddPage opens the camera scanner
+        // for `scan`, autofocuses the search input for `library`, and
+        // ProfilePage routes plainly. Keeping the param in the URL (vs
+        // sessionStorage) means the destination page can react during
+        // its very first render — there's no welcome modal in the
+        // shortcut flow to relay the intent.
+        shortcuts: [
+          {
+            name: "Scan an ISBN",
+            short_name: "Scan",
+            description: "Open the barcode scanner",
+            url: "/addmanga?shortcut=scan",
+            icons: [
+              { src: "/shortcut-scan.svg", sizes: "96x96", type: "image/svg+xml" },
+            ],
+          },
+          {
+            name: "Add a series",
+            short_name: "Add",
+            description: "Search MyAnimeList and add a new series",
+            url: "/addmanga?shortcut=library",
+            icons: [
+              { src: "/shortcut-add.svg", sizes: "96x96", type: "image/svg+xml" },
+            ],
+          },
+          {
+            name: "My profile",
+            short_name: "Profile",
+            description: "Open the statistics dashboard",
+            url: "/profile",
+            icons: [
+              { src: "/shortcut-profile.svg", sizes: "96x96", type: "image/svg+xml" },
+            ],
           },
         ],
       },

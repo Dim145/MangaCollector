@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  探 · sagasu (seek) — App-shortcut icon for the barcode scanner.
+  Kanji rendered with the OS-provided serif fallback so the launcher
+  produces a legible glyph on Android even when Noto Serif JP isn't
+  installed. The 12 px outer padding and 20 px corner radius match the
+  Android adaptive-icon safe zone for 96 × 96 source assets.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <rect width="96" height="96" rx="20" fill="#c91d1d"/>
+  <text x="48" y="68" text-anchor="middle"
+        font-family="'Noto Serif JP', 'Hiragino Mincho ProN', 'YuMincho', serif"
+        font-size="60" font-weight="700" fill="#faf6e9">探</text>
+</svg>

@@ -72,23 +72,49 @@ export default function AddPage() {
   const online = useOnline();
   const t = useT();
 
-  // 始 · Welcome-tour handoff. Reads the step once at mount and clears
-  // it in the same call (consume semantics). LIBRARY autofocuses the
-  // search bar below; SCAN opens the camera scanner immediately. The
-  // MangaSearchBar's own useEffect on `autoFocus` reacts when this
-  // state flips from false → true, so an effect-driven flow works
-  // even though React renders before our effect runs.
+  // 始 · Welcome-tour AND PWA-shortcut handoff.
+  // Two entry points feed the same choreography: (1) a tour step
+  // stashed in sessionStorage by WelcomeTour, (2) a `shortcut=…` query
+  // param the launcher passes when the user long-presses the installed
+  // PWA icon. Both surface as the same intent here, so the rest of the
+  // page reacts identically.
+  //
+  // Order matters: the URL param wins over the session step so a user
+  // who explicitly tapped "Scan ISBN" in the launcher menu can't be
+  // silently overridden by a stale tour flag. consumeTourStep() still
+  // runs unconditionally so the session entry is cleared either way.
   const [tourFocusSearch, setTourFocusSearch] = useState(false);
   useEffect(() => {
-    const step = consumeTourStep();
-    if (step === TOUR_STEPS.SCAN) {
+    let intent = null;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("shortcut");
+      if (raw === "scan") intent = TOUR_STEPS.SCAN;
+      else if (raw === "library") intent = TOUR_STEPS.LIBRARY;
+      // Strip the param so a manual reload doesn't re-fire the
+      // scanner / focus side-effect ad infinitum. `replaceState`
+      // keeps the route stable and avoids polluting the history stack.
+      if (intent) {
+        params.delete("shortcut");
+        const qs = params.toString();
+        const url = window.location.pathname + (qs ? `?${qs}` : "");
+        window.history.replaceState(null, "", url);
+      }
+    } catch {
+      /* URL parsing failure — silent, fall through to the session step */
+    }
+
+    const sessionStep = consumeTourStep();
+    if (!intent) intent = sessionStep;
+
+    if (intent === TOUR_STEPS.SCAN) {
       // Defer one frame so the AddPage layout is mounted before we open
       // the scanner overlay — getUserMedia rejects on some browsers if
       // requested before the route transition settles.
       const raf = requestAnimationFrame(() => setScannerOpen(true));
       return () => cancelAnimationFrame(raf);
     }
-    if (step === TOUR_STEPS.LIBRARY) {
+    if (intent === TOUR_STEPS.LIBRARY) {
       setTourFocusSearch(true);
     }
   }, []);
