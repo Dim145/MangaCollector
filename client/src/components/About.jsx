@@ -348,6 +348,10 @@ export default function About({ googleUser } = {}) {
             <a className="hover:text-washi" href="/dashboard">
               Dashboard
             </a>
+            <a className="hover:text-washi" href="/glossary">
+              <span aria-hidden="true" className="font-jp text-xs">字典</span>
+              <span className="ml-1.5">{t("about.footerGlossary")}</span>
+            </a>
             <a className="hover:text-washi" href="/log-in">
               Sign in
             </a>

@@ -1050,19 +1050,37 @@ function OnboardingSection() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={replay}
-          className="group inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-4 py-2 text-sm font-semibold text-washi transition hover:border-hanko hover:bg-hanko/20"
-        >
-          <span
-            aria-hidden="true"
-            className="font-jp text-base font-bold leading-none text-hanko-bright transition-transform group-hover:scale-110"
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={replay}
+            className="group inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-4 py-2 text-sm font-semibold text-washi transition hover:border-hanko hover:bg-hanko/20"
           >
-            始
-          </span>
-          {t("settings.replayTour")}
-        </button>
+            <span
+              aria-hidden="true"
+              className="font-jp text-base font-bold leading-none text-hanko-bright transition-transform group-hover:scale-110"
+            >
+              始
+            </span>
+            {t("settings.replayTour")}
+          </button>
+
+          {/* 字典 · Quiet outline link to the public kanji glossary —
+              same visual weight as a secondary action so it doesn't
+              compete with the replay CTA but stays a step away. */}
+          <a
+            href="/glossary"
+            className="group inline-flex items-center gap-2 rounded-full border border-border bg-ink-2/40 px-4 py-2 text-sm font-semibold text-washi-muted transition hover:border-hanko/40 hover:text-washi"
+          >
+            <span
+              aria-hidden="true"
+              className="font-jp text-base font-bold leading-none text-washi-dim transition-colors group-hover:text-hanko"
+            >
+              字典
+            </span>
+            {t("settings.openGlossary")}
+          </a>
+        </div>
       </section>
     </>
   );

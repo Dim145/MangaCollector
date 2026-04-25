@@ -412,6 +412,105 @@ export default {
     comingSoon: "Activity feed & personalized recommendations coming soon.",
     tooltipSpent: "Spent",
   },
+  glossary: {
+    kicker: "Reference · 字典",
+    headingPre: "An alphabet of",
+    headingAccent: "ink",
+    intro:
+      "MangaCollector borrows a small set of Japanese characters across the interface — filters, badges, supertitles, even the colour palette names. Each one is here on purpose. Below, what they mean and where they live in the app.",
+    backHome: "Back to landing",
+    tapToCopy: "tap to copy",
+    copied: "copied",
+    copyAria: "Copy {token} to clipboard",
+    sec_states_kicker: "Library states",
+    sec_states_title: "States",
+    sec_actions_kicker: "Verbs",
+    sec_actions_title: "Actions",
+    sec_places_kicker: "Pages and surfaces",
+    sec_places_title: "Places",
+    sec_vessels_kicker: "Things you collect",
+    sec_vessels_title: "Vessels",
+    sec_palette_kicker: "Colour names",
+    sec_palette_title: "Palette",
+
+    "states_全_literal": "all, entirety",
+    "states_全_usage":
+      "Filter showing every series in your library, regardless of state.",
+    "states_進_literal": "advance, progress",
+    "states_進_usage":
+      "Series you're actively collecting — at least one volume owned, but not all.",
+    "states_願_literal": "wish, desire",
+    "states_願_usage":
+      "Series you're tracking but haven't started owning yet — the public profile hides them on purpose.",
+    "states_完_literal": "completion, end",
+    "states_完_usage":
+      "Series whose every published volume is on your shelf.",
+    "states_積読_literal": "the joy of unread piles",
+    "states_積読_usage":
+      "Series with at least one owned-but-unread volume — the gentle pile you keep meaning to get to.",
+    "states_限_literal": "limit, bound",
+    "states_限_usage":
+      "Limited / collector edition. Appears as a small 限 seal pinned to the corner of marked volumes.",
+
+    "actions_始_literal": "begin, start",
+    "actions_始_usage":
+      "The welcome tour and the first-step prompt for a new archive.",
+    "actions_探_literal": "to seek, to search",
+    "actions_探_usage":
+      "The barcode scanner — point a camera at an ISBN, find a match against MAL.",
+    "actions_印_literal": "seal, stamp, mark",
+    "actions_印_usage":
+      "Your hanko avatar — the personal seal you imprint across the app.",
+    "actions_追加_literal": "addition, supplement",
+    "actions_追加_usage":
+      "Add a new series or a new volume to your collection.",
+    "actions_編集_literal": "to edit, to compile",
+    "actions_編集_usage": "Edit a series or volume's details.",
+
+    "places_本棚_literal": "bookshelf",
+    "places_本棚_usage":
+      "Your private library dashboard. Combined 本 (book) + 棚 (shelf).",
+    "places_蔵書_literal": "the held collection",
+    "places_蔵書_usage":
+      "Your public-profile gallery — what's actually on your shelf, on display.",
+    "places_統計_literal": "statistics",
+    "places_統計_usage":
+      "Your profile's analytics — completion, spend, top series, milestones.",
+    "places_設定_literal": "setting, configuration",
+    "places_設定_usage": "The settings page — preferences, themes, account.",
+    "places_読破_literal": "to read all the way through",
+    "places_読破_usage":
+      "Reading log — volumes you've finished, with timestamps and monthly cadence.",
+
+    "vessels_巻_literal": "scroll, volume",
+    "vessels_巻_usage":
+      "A single tankōbon (numbered volume) in a series.",
+    "vessels_盒_literal": "small box, casket",
+    "vessels_盒_usage":
+      "A coffret — limited box-set that ships several volumes together with collector packaging.",
+    "vessels_印鑑帳_literal": "seal book, register of stamps",
+    "vessels_印鑑帳_usage":
+      "Your seal collection — milestone trophies you unlock through volumes, series and reading streaks.",
+    "vessels_あと少し_literal": "a little more to go",
+    "vessels_あと少し_usage":
+      "Near-completion shelf — series only a few volumes away from being finished.",
+
+    "palette_漆黒_literal": "lacquer black, jet ink",
+    "palette_漆黒_usage":
+      "The deep ink background carried by the dark theme — every page sits on this layer.",
+    "palette_印_literal": "stamp red, hanko ink",
+    "palette_印_usage":
+      "The signature accent — CTAs, current-rate stats, every state highlight that needs to feel decisive.",
+    "palette_金_literal": "gold leaf",
+    "palette_金_usage":
+      "Achievement accent — completed series count, lifetime spend, collector badges.",
+    "palette_萌葱_literal": "spring shoot green",
+    "palette_萌葱_usage":
+      "Reading axis and complete-series badges — quiet, alive.",
+    "palette_桜_literal": "cherry blossom",
+    "palette_桜_usage":
+      "Wishlist accent — anticipation without arrival yet.",
+  },
   tour: {
     kicker: "Welcome",
     headingPre: "Begin your",
@@ -469,8 +568,9 @@ export default {
     titleEnglish: "English",
     titleJapanese: "Japanese",
     onboardingSection: "Onboarding",
-    onboardingBody: "Replay the three-step welcome tour at any time.",
+    onboardingBody: "Replay the three-step welcome tour at any time, or open the kanji glossary.",
     replayTour: "Replay welcome tour",
+    openGlossary: "Open kanji glossary",
     barcodeScanner: "Barcode scanner",
     scannerBody:
       "Scanning looks up each ISBN on Google Books. An optional API key lifts the anonymous per-IP rate limit — without it, scanning several volumes in a row can hit a 429.",
@@ -649,6 +749,7 @@ export default {
     ctaBody: "Sign in, search a title, and start the quiet joy of cataloguing.",
     startCollecting: "Start collecting",
     footerYear: "© {year} MangaCollector",
+    footerGlossary: "Glossary",
   },
   offline: {
     offline: "Offline",

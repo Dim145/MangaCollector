@@ -426,6 +426,105 @@ export default {
     comingSoon: "Fil d'activité et recommandations personnalisées à venir.",
     tooltipSpent: "Dépensé",
   },
+  glossary: {
+    kicker: "Référence · 字典",
+    headingPre: "Un alphabet",
+    headingAccent: "d'encre",
+    intro:
+      "MangaCollector emprunte une poignée de caractères japonais qui parsèment l'interface — filtres, badges, supertitres, jusqu'aux noms du palette. Chacun est là pour une raison. Voici ce qu'ils signifient et où ils vivent dans l'app.",
+    backHome: "Retour à l'accueil",
+    tapToCopy: "appuyer pour copier",
+    copied: "copié",
+    copyAria: "Copier {token} dans le presse-papiers",
+    sec_states_kicker: "États de la bibliothèque",
+    sec_states_title: "États",
+    sec_actions_kicker: "Verbes",
+    sec_actions_title: "Actions",
+    sec_places_kicker: "Pages et surfaces",
+    sec_places_title: "Lieux",
+    sec_vessels_kicker: "Ce que l'on collectionne",
+    sec_vessels_title: "Contenants",
+    sec_palette_kicker: "Noms des couleurs",
+    sec_palette_title: "Palette",
+
+    "states_全_literal": "tout, intégralité",
+    "states_全_usage":
+      "Filtre montrant toutes les séries de votre bibliothèque, sans distinction.",
+    "states_進_literal": "avancer, progresser",
+    "states_進_usage":
+      "Séries en cours de collection — au moins un tome possédé, mais pas tous.",
+    "states_願_literal": "souhait, désir",
+    "states_願_usage":
+      "Séries que vous suivez mais dont vous n'avez encore aucun tome — le profil public les masque volontairement.",
+    "states_完_literal": "complétion, fin",
+    "states_完_usage": "Séries dont chaque tome publié est sur l'étagère.",
+    "states_積読_literal": "le plaisir des piles non lues",
+    "states_積読_usage":
+      "Séries avec au moins un tome possédé mais non lu — la pile tranquille qu'on se promet de finir.",
+    "states_限_literal": "limite, contour",
+    "states_限_usage":
+      "Édition limitée / collector. Apparaît en petit sceau 限 dans le coin des tomes marqués.",
+
+    "actions_始_literal": "commencer, débuter",
+    "actions_始_usage":
+      "Le tour de bienvenue et la première étape d'une nouvelle archive.",
+    "actions_探_literal": "chercher, explorer",
+    "actions_探_usage":
+      "Le scanner de code-barres — pointez l'appareil photo vers un ISBN, trouvez une correspondance MAL.",
+    "actions_印_literal": "sceau, marque",
+    "actions_印_usage":
+      "Votre avatar hanko — le sceau personnel apposé partout dans l'app.",
+    "actions_追加_literal": "ajout, supplément",
+    "actions_追加_usage":
+      "Ajouter une nouvelle série ou un nouveau tome à la collection.",
+    "actions_編集_literal": "éditer, compiler",
+    "actions_編集_usage": "Modifier les détails d'une série ou d'un tome.",
+
+    "places_本棚_literal": "bibliothèque, étagère à livres",
+    "places_本棚_usage":
+      "Votre tableau de bord privé. Composé de 本 (livre) + 棚 (étagère).",
+    "places_蔵書_literal": "la collection détenue",
+    "places_蔵書_usage":
+      "Galerie du profil public — ce qui est réellement sur votre étagère, exposé.",
+    "places_統計_literal": "statistiques",
+    "places_統計_usage":
+      "Les analyses de votre profil — complétion, dépenses, top séries, paliers.",
+    "places_設定_literal": "réglages, configuration",
+    "places_設定_usage":
+      "La page de réglages — préférences, thèmes, compte.",
+    "places_読破_literal": "lire jusqu'au bout",
+    "places_読破_usage":
+      "Journal de lecture — tomes terminés, avec dates et cadence mensuelle.",
+
+    "vessels_巻_literal": "rouleau, tome",
+    "vessels_巻_usage":
+      "Un tankōbon individuel (tome numéroté) d'une série.",
+    "vessels_盒_literal": "petite boîte, écrin",
+    "vessels_盒_usage":
+      "Un coffret — édition limitée regroupant plusieurs tomes dans un emballage collector.",
+    "vessels_印鑑帳_literal": "carnet de sceaux",
+    "vessels_印鑑帳_usage":
+      "Votre collection de sceaux — trophées de paliers débloqués par tomes, séries et séries de lectures.",
+    "vessels_あと少し_literal": "encore un peu",
+    "vessels_あと少し_usage":
+      "Étagère bientôt complète — séries à seulement quelques tomes de la fin.",
+
+    "palette_漆黒_literal": "noir laqué, encre de Chine",
+    "palette_漆黒_usage":
+      "Le fond d'encre profonde du thème sombre — chaque page repose sur cette couche.",
+    "palette_印_literal": "rouge hanko, encre de sceau",
+    "palette_印_usage":
+      "L'accent signature — CTA, taux courants, chaque état qui doit être décisif.",
+    "palette_金_literal": "feuille d'or",
+    "palette_金_usage":
+      "Accent d'accomplissement — séries terminées, dépense à vie, badges collector.",
+    "palette_萌葱_literal": "vert pousse de printemps",
+    "palette_萌葱_usage":
+      "Axe lecture et badges des séries terminées — discret, vivant.",
+    "palette_桜_literal": "fleur de cerisier",
+    "palette_桜_usage":
+      "Accent wishlist — l'anticipation avant l'arrivée.",
+  },
   tour: {
     kicker: "Bienvenue",
     headingPre: "Commencez votre",
@@ -485,8 +584,9 @@ export default {
     titleEnglish: "Anglais",
     titleJapanese: "Japonais",
     onboardingSection: "Découverte",
-    onboardingBody: "Rejouez le tour de bienvenue en trois étapes à tout moment.",
+    onboardingBody: "Rejouez le tour de bienvenue à tout moment, ou ouvrez le glossaire des kanji.",
     replayTour: "Rejouer le tour de bienvenue",
+    openGlossary: "Ouvrir le glossaire des kanji",
     barcodeScanner: "Scanner de code-barres",
     scannerBody:
       "Le scan interroge Google Books pour chaque ISBN. Une clé API facultative lève la limite anonyme par IP — sans elle, plusieurs scans de suite peuvent déclencher un 429.",
@@ -667,6 +767,7 @@ export default {
       "Connectez-vous, cherchez un titre, et commencez la joie tranquille du catalogage.",
     startCollecting: "Commencer la collection",
     footerYear: "© {year} MangaCollector",
+    footerGlossary: "Glossaire",
   },
   offline: {
     offline: "Hors ligne",
