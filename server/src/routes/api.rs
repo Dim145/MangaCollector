@@ -18,6 +18,17 @@ pub fn api_router() -> Router<AppState> {
         // Nested under /api by the main router but carries no session
         // logic at the handler level so it's trivially cacheable later.
         .route("/public/u/{slug}", get(public::get_public_profile))
+        // Companion endpoint for the gallery's custom-uploaded covers:
+        // the private `/storage/poster/{mal_id}` route resolves the
+        // blob against the CALLER's library, which 404s for cross-user
+        // or anonymous visitors of a public profile / compare page.
+        // This route scopes the lookup to the target user (by slug) and
+        // reuses the exact same visibility rules as the profile payload
+        // (public_slug still active + adult-content filter).
+        .route(
+            "/public/u/{slug}/poster/{mal_id}",
+            get(public::get_public_poster),
+        )
         // 同期 — Realtime sync WebSocket. Authenticates via the same
         // session cookie as the REST endpoints and streams invalidation
         // events scoped to the user. Anonymous visitors get 401.

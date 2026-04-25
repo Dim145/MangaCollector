@@ -73,6 +73,33 @@ fn to_entry(entry: &LibraryEntry) -> CompareEntry {
     }
 }
 
+/// Serialise a library entry that belongs to the OTHER user (i.e. ends
+/// up in the `their_only` bucket) with its custom-upload URL rewritten
+/// to the slug-scoped public endpoint. Without this, the caller's
+/// browser would hit `/api/user/storage/poster/{mal_id}` against its
+/// own session and see either a 404 or (worse) its own cover for the
+/// same mal_id. Entries with external CDN URLs pass through untouched.
+fn to_entry_public(entry: &LibraryEntry, other_slug: &str) -> CompareEntry {
+    let image_url_jpg = match entry.image_url_jpg.as_deref() {
+        Some(url)
+            if !url.is_empty()
+                && !crate::services::library::is_external_http_url(url) =>
+        {
+            entry
+                .mal_id
+                .map(|id| format!("/api/public/u/{}/poster/{}", other_slug, id))
+        }
+        _ => entry.image_url_jpg.clone(),
+    };
+    CompareEntry {
+        mal_id: entry.mal_id,
+        name: entry.name.clone(),
+        image_url_jpg,
+        volumes: entry.volumes,
+        genres: entry.genres.clone(),
+    }
+}
+
 pub async fn compare_users(
     db: &Db,
     me: &User,
@@ -122,12 +149,22 @@ pub async fn compare_users(
             _ => mine_only.push(to_entry(entry)),
         }
     }
+    // Pre-compute the other user's slug here — `compare_users` is only
+    // reachable when `find_by_public_slug` already resolved it, so this
+    // is always Some. The empty-string fallback is purely defensive
+    // (the resulting public URLs would 404 on that branch, which is
+    // the correct behaviour if we ever call this without a slug).
+    let their_slug_for_urls = other.public_slug.as_deref().unwrap_or("");
     for entry in &theirs {
         match entry.mal_id {
             Some(mal) if my_mal_set.contains(&mal) => {
                 // Already in `shared` via my version — skip.
             }
-            _ => their_only.push(to_entry(entry)),
+            // Their-only bucket: rewrite custom-upload URLs to the
+            // slug-scoped public form so the caller's browser can
+            // actually fetch them without auth against the other
+            // user's library.
+            _ => their_only.push(to_entry_public(entry, their_slug_for_urls)),
         }
     }
 
