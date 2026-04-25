@@ -17,7 +17,41 @@ export default function ProfileButton() {
   const navigate = useNavigate();
   const t = useT();
   const { data: settings } = useUserSettings();
-  const avatarUrl = !avatarFailed ? (settings?.avatarUrl ?? null) : null;
+  const savedAvatar = settings?.avatarUrl ?? null;
+
+  // Avatar-failure self-healing.
+  //
+  // `avatarFailed` used to be a one-way latch: an `<img onError>` fire
+  // (transient CDN hiccup, slow cold start, MAL 429, SW caching a bad
+  // response) would set it true forever because ProfileButton lives
+  // inside Header and Header mounts once per session — no remount,
+  // no reset. The initials fallback would stick until the user did a
+  // full page reload, producing the "mon avatar disparaît parfois"
+  // bug.
+  //
+  // Two recovery paths now:
+  //   1. URL change  — picking a different character in AvatarPicker
+  //      bumps `savedAvatar`; we reset so the new image gets a real
+  //      load attempt.
+  //   2. Same-URL retry — even with an unchanged URL, we give the
+  //      browser a fresh attempt 30s after a failure. Covers the
+  //      transient-network case where the URL is valid but the
+  //      first load raced a hiccup. Harmless if still failing — the
+  //      `<img>` just re-invokes onError and we wait another 30s.
+  useEffect(() => {
+    // Any URL change (including swap to a new character, or logout
+    // → login as another user whose settings arrive in Dexie) gets
+    // a fresh shot.
+    setAvatarFailed(false);
+  }, [savedAvatar]);
+
+  useEffect(() => {
+    if (!avatarFailed) return;
+    const id = setTimeout(() => setAvatarFailed(false), 30_000);
+    return () => clearTimeout(id);
+  }, [avatarFailed]);
+
+  const avatarUrl = !avatarFailed ? savedAvatar : null;
 
   useEffect(() => {
     const handleClickOutside = (event) => {

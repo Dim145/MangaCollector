@@ -1,4 +1,14 @@
 import Dexie from "dexie";
+// Static import instead of a previous `await import("@/lib/queryClient.js")`:
+// `queryClient.js` only depends on `@tanstack/react-query` (no import
+// back into `db.js`), so the circular-dep worry that motivated the
+// lazy import turned out to be unfounded. The static form silences the
+// Vite build warning:
+//   "dynamically imported by db.js but also statically imported by …,
+//    dynamic import will not move module into another chunk"
+// which happened because every TanStack consumer imports queryClient
+// statically anyway.
+import { queryClient } from "@/lib/queryClient.js";
 
 /*
  * Local database — two roles:
@@ -82,6 +92,27 @@ db.version(5).stores({
   mangaCharacters: "mal_id, ts",
 });
 
+// v6 — seals cache. Single row keyed by "user" holding the earned-seals
+// list (just `{ code, earned_at }` tuples — the catalog itself lives in
+// `lib/sealsCatalog.js` and is bundled at build time). `newly_granted`
+// is NOT persisted here: it's a transient "what got unlocked this exact
+// request" signal that drives the ceremony animation, and replaying it
+// from cache would fire the same ceremony every mount after an unlock.
+// See `useSeals` for the strip-before-cache discipline.
+db.version(6).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+});
+
 export const SETTINGS_KEY = "user";
 
 /** Replace the entire library cache. */
@@ -155,6 +186,7 @@ export async function clearAllUserData() {
         db.activity,
         db.malRecommendations,
         db.mangaCharacters,
+        db.seals,
       ],
       async () => {
         await db.library.clear();
@@ -166,6 +198,7 @@ export async function clearAllUserData() {
         await db.activity.clear();
         await db.malRecommendations.clear();
         await db.mangaCharacters.clear();
+        await db.seals.clear();
       },
     );
   } catch (err) {
@@ -186,10 +219,9 @@ export async function clearAllUserData() {
     console.warn("[db] clearAllUserData (caches) failed:", err?.message);
   }
 
-  // 3) TanStack Query cache. Import lazily to avoid a circular dep
-  //    (`queryClient.js` imports `db.js` for some mutations).
+  // 3) TanStack Query cache — see the static import at the top of the
+  //    file for why this is no longer a `await import(...)`.
   try {
-    const { queryClient } = await import("@/lib/queryClient.js");
     queryClient.clear();
   } catch (err) {
     console.warn("[db] clearAllUserData (query cache) failed:", err?.message);

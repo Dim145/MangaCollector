@@ -8,13 +8,16 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM rust:alpine AS builder
 
-RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static ca-certificates
+# `musl-dev` + `pkgconfig` for the static link, `ca-certificates` so we
+# can copy the CA bundle into the scratch runtime stage. `openssl-dev`
+# and `openssl-libs-static` used to live here but were retired once the
+# Rust deps dropped the `openssl` crate entirely — reqwest now rides on
+# `rustls-tls` (aws-lc-rs backend), and sqlx / aws-sdk-s3 already used
+# rustls. Net effect: ~15 MB shaved off the build image and 5 RUSTSEC
+# advisories in the `openssl`/`openssl-sys` family can no longer apply.
+RUN apk add --no-cache musl-dev pkgconfig ca-certificates
 
 WORKDIR /build
-
-# musl targets link statically by default; only OpenSSL needs an explicit opt-in
-# so the runtime image can be FROM scratch without libssl.
-ENV OPENSSL_STATIC=1
 
 # Two-layer caching strategy for Rust builds:
 #

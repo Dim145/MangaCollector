@@ -1,5 +1,7 @@
 import { useState } from "react";
 import Modal from "@/components/ui/Modal.jsx";
+import { useOnline } from "@/hooks/useOnline.js";
+import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -10,6 +12,7 @@ import { useT } from "@/i18n/index.jsx";
  */
 export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
   const t = useT();
+  const online = useOnline();
   const [volumes, setVolumes] = useState(result?.volumes ?? 1);
   const [submitting, setSubmitting] = useState(false);
 
@@ -18,6 +21,13 @@ export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
   const submit = async () => {
     const n = parseInt(volumes, 10);
     if (!Number.isFinite(n) || n < 0) return;
+    if (!online) {
+      // MangaDex-add needs a server round-trip to mint a negative
+      // mal_id and create the volume rows. Not currently outbox-
+      // queueable (would need temp-id reconciliation like coffrets).
+      notifySyncError(t("mangadexPrefill.offlineRequired"), "mangadex-add");
+      return;
+    }
     setSubmitting(true);
     try {
       await onConfirm({
@@ -85,6 +95,21 @@ export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
           </span>
         </label>
 
+        {!online && (
+          <div
+            role="status"
+            className="mt-5 flex items-start gap-2 rounded-md border border-hanko/30 bg-hanko/5 px-3 py-2 text-[11px] text-hanko-bright"
+          >
+            <span
+              aria-hidden="true"
+              className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center font-mono text-[10px]"
+            >
+              ⚡
+            </span>
+            <span>{t("mangadexPrefill.offlineRequired")}</span>
+          </div>
+        )}
+
         <div className="mt-6 flex justify-end gap-2">
           <button
             onClick={onClose}
@@ -95,8 +120,9 @@ export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
           </button>
           <button
             onClick={submit}
-            disabled={submitting}
-            className="rounded-full bg-hanko px-5 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50"
+            disabled={submitting || !online}
+            title={!online ? t("mangadexPrefill.offlineRequired") : undefined}
+            className="rounded-full bg-hanko px-5 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? (
               <span className="inline-flex h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />

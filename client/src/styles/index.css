@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
-@plugin "tailwindcss-animate";
+/* `tailwindcss-animate` plugin used to live here, but the maintenance
+ * audit (2026-04) confirmed every animation in the project comes from
+ * a custom `@keyframes` defined later in this file — none of the
+ * plugin's `animate-in`/`slide-in-from-*`/`fade-in-N` utilities are
+ * used anywhere in the JSX. Last release of the plugin was 2023-08
+ * and it was authored against Tailwind v3 conventions; dropping it
+ * removes ~30 KB of unused CSS in the dev build and one slow-moving
+ * dep from package.json. */
 
 @custom-variant dark (&:is(.dark *));
 

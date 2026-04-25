@@ -195,6 +195,8 @@ export default {
     editAria: "Modifier le coffret",
     editingLabel: "MODIFICATION · 編集",
     notACoffret: "Pas un coffret ? Revenir au tome classique",
+    offlineRequired:
+      "Les modifications de coffret nécessitent une connexion — le serveur les applique en une transaction atomique sur le coffret et chacun de ses tomes.",
   },
   add: {
     eyebrow: "AJOUTER · 追加",
@@ -302,6 +304,8 @@ export default {
     volumesLabel: "Nombre total de tomes",
     volumesHint: "Tu pourras le modifier plus tard depuis la fiche série.",
     confirm: "Ajouter",
+    offlineRequired:
+      "L'ajout depuis MangaDex nécessite une connexion — le serveur génère l'identifiant interne et crée les entrées de tomes.",
   },
   scan: {
     opening: "Ouverture…",
@@ -570,7 +574,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.6.0 · Archivez votre collection",
+    version: "v2.6.2 · Archivez votre collection",
     heroStart: "Chaque",
     heroAccent: "tome",
     heroEnd1: ",",

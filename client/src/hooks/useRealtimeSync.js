@@ -48,6 +48,17 @@ export function useRealtimeSync({ enabled = true } = {}) {
     if (!enabled) return;
     stoppedRef.current = false;
 
+    // Snapshot the ref's current object into a local at effect-setup
+    // time so the cleanup captures the same backoff record (same
+    // object, not just a `.current` read) that the connect/schedule
+    // closures mutate. `retryRef.current` is only ever mutated in
+    // place (`{ delay, timer }` fields assigned), never reassigned,
+    // so `retry` and `retryRef.current` always point at the same
+    // object — but the React Hooks lint warns on `ref.current` in
+    // cleanup because it CAN'T know that in general, and this local
+    // capture satisfies it without changing semantics.
+    const retry = retryRef.current;
+
     const wsUrl = () => {
       const { protocol, host } = window.location;
       const scheme = protocol === "https:" ? "wss:" : "ws:";
@@ -150,9 +161,9 @@ export function useRealtimeSync({ enabled = true } = {}) {
     return () => {
       stoppedRef.current = true;
       document.removeEventListener("visibilitychange", onVisibility);
-      if (retryRef.current.timer) {
-        clearTimeout(retryRef.current.timer);
-        retryRef.current.timer = null;
+      if (retry.timer) {
+        clearTimeout(retry.timer);
+        retry.timer = null;
       }
       if (socketRef.current) {
         try {

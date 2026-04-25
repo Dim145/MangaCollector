@@ -152,7 +152,12 @@ fn is_adult_genre(g: &str) -> bool {
 }
 
 /// Does ANY genre of the entry qualify as adult?
-fn entry_is_adult(genres: &[String]) -> bool {
+///
+/// `pub(crate)` so the public poster handler can enforce the exact
+/// same adult filter as `build_public_profile` and `compare_users` —
+/// we don't want a series hidden from the gallery but its cover
+/// reachable via direct URL.
+pub(crate) fn entry_is_adult(genres: &[String]) -> bool {
     genres.iter().any(|g| is_adult_genre(g))
 }
 
@@ -282,10 +287,28 @@ pub async fn build_public_profile(
         if is_adult {
             has_adult_content = true;
         }
+        // Rewrite custom-upload URLs to the public form. The raw
+        // value stored in `image_url_jpg` for a custom upload is
+        // `/api/user/storage/poster/{mal_id}`, which resolves against
+        // the CALLER's library when hit — fine when the owner views
+        // their own page, broken for anonymous visitors. The public
+        // endpoint takes the slug + mal_id explicitly, so the URL is
+        // unambiguous and cacheable across all visitors.
+        //
+        // External URLs (MAL CDN, MangaDex CDN) pass through unchanged.
+        let image_url_jpg = match row.image_url_jpg {
+            Some(url) if !crate::services::library::is_external_http_url(&url) => {
+                row.mal_id.map(|id| {
+                    format!("/api/public/u/{}/poster/{}", slug, id)
+                })
+            }
+            other => other,
+        };
+
         entries.push(PublicLibraryEntry {
             mal_id: row.mal_id,
             name: row.name,
-            image_url_jpg: row.image_url_jpg,
+            image_url_jpg,
             volumes: row.volumes,
             volumes_owned: row.volumes_owned,
             genres: row.genres,

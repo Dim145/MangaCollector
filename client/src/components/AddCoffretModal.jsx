@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Modal from "./ui/Modal.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useCreateCoffret } from "@/hooks/useCoffrets.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -29,6 +30,7 @@ export default function AddCoffretModal({
   onSwitchToVolume = null,
 }) {
   const t = useT();
+  const online = useOnline();
   const [volStart, setVolStart] = useState(1);
   const [volEnd, setVolEnd] = useState(Math.min(5, totalVolumes || 5));
   const [price, setPrice] = useState("");
@@ -79,6 +81,16 @@ export default function AddCoffretModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (rangeInvalid || volumesCount === 0) return;
+    if (!online) {
+      // Coffret creation is online-only for now: the server atomically
+      // inserts the coffret row AND re-links every volume in the range
+      // (owned, price split, collector propagation). Queueing it would
+      // need a temp client-side coffret id and a full reconciliation
+      // pass on sync — deferred. Surface a clear message instead of
+      // letting the POST 0-hang-retry.
+      notifySyncError(t("coffret.offlineRequired"), "coffret-create");
+      return;
+    }
     try {
       await createCoffret.mutateAsync({
         name: effectiveName.trim() || autoName,
@@ -320,6 +332,37 @@ export default function AddCoffretModal({
               </button>
             </div>
           )}
+          {/* Offline notice — coffret creation is online-only (server
+              atomic transaction over coffret row + N volume rows, not
+              currently outbox-queueable without a temp-id reconciliation
+              pass). Explain rather than fail silently. */}
+          {!online && (
+            <div
+              role="status"
+              className="mb-3 flex items-start gap-2 rounded-md border border-hanko/30 bg-hanko/5 px-3 py-2 text-[11px] text-hanko-bright"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              >
+                <path d="M1 1l22 22" />
+                <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+                <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+                <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+                <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <line x1="12" y1="20" x2="12.01" y2="20" />
+              </svg>
+              <span>{t("coffret.offlineRequired")}</span>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
               type="button"
@@ -333,9 +376,13 @@ export default function AddCoffretModal({
             <button
               type="submit"
               disabled={
-                createCoffret.isPending || rangeInvalid || volumesCount === 0
+                createCoffret.isPending ||
+                rangeInvalid ||
+                volumesCount === 0 ||
+                !online
               }
-              className="relative flex-1 overflow-hidden rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi shadow-md transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+              title={!online ? t("coffret.offlineRequired") : undefined}
+              className="relative flex-1 overflow-hidden rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi shadow-md transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {createCoffret.isPending
                 ? t("common.saving")

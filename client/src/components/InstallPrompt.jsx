@@ -36,7 +36,11 @@ export default function InstallPrompt() {
   const t = useT();
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showIosSheet, setShowIosSheet] = useState(false);
-  const [dismissed, setDismissed] = useState(() => {
+  // Read once at mount — nothing mutates this during the session
+  // anymore (the explicit `dismiss` action was removed along with its
+  // UI affordance). A plain value replaces the previous useState setup
+  // so we don't carry an unused setter.
+  const [dismissed] = useState(() => {
     try {
       return sessionStorage.getItem(DISMISS_KEY) === "1";
     } catch {
@@ -61,16 +65,6 @@ export default function InstallPrompt() {
       window.removeEventListener("appinstalled", onInstalled);
     };
   }, []);
-
-  const dismiss = () => {
-    try {
-      sessionStorage.setItem(DISMISS_KEY, "1");
-    } catch {
-      /* noop */
-    }
-    setDismissed(true);
-    setShowIosSheet(false);
-  };
 
   const closeSheet = () => setShowIosSheet(false);
 
