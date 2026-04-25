@@ -194,6 +194,8 @@ export default {
     editAria: "Editar caja",
     editingLabel: "EDITANDO · 編集",
     notACoffret: "¿No es una caja? Volver al tomo simple",
+    offlineRequired:
+      "Los cambios de caja requieren conexión — el servidor los aplica en una transacción atómica sobre la caja y todos sus tomos.",
   },
   add: {
     eyebrow: "AÑADIR · 追加",
@@ -296,6 +298,8 @@ export default {
     volumesLabel: "Tomos totales",
     volumesHint: "Puedes cambiarlo luego desde la ficha de la serie.",
     confirm: "Añadir",
+    offlineRequired:
+      "Añadir desde MangaDex requiere conexión — el servidor genera el identificador interno y crea las entradas de tomos.",
   },
   scan: {
     opening: "Abriendo…",

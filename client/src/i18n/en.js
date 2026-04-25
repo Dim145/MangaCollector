@@ -193,6 +193,8 @@ export default {
     editAria: "Edit box set",
     editingLabel: "EDITING · 編集",
     notACoffret: "Not a box set? Back to single volume",
+    offlineRequired:
+      "Box set changes need a connection — the server applies them as one atomic transaction across the box + every volume inside.",
   },
   add: {
     eyebrow: "ADD · 追加",
@@ -292,6 +294,8 @@ export default {
     volumesLabel: "Total volumes",
     volumesHint: "You can change it later from the series page.",
     confirm: "Add",
+    offlineRequired:
+      "Adding from MangaDex needs a connection — the server mints the internal id and creates the volume rows.",
   },
   scan: {
     opening: "Opening…",

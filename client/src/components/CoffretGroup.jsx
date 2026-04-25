@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useDeleteCoffret, useUpdateCoffret } from "@/hooks/useCoffrets.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import { notifySyncError } from "@/lib/sync.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -17,6 +18,7 @@ import { useT } from "@/i18n/index.jsx";
  */
 export default function CoffretGroup({ coffret, currencySetting, children }) {
   const t = useT();
+  const online = useOnline();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [name, setName] = useState(coffret.name ?? "");
@@ -85,6 +87,10 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
       return;
     }
 
+    if (!online) {
+      notifySyncError(t("coffret.offlineRequired"), "coffret-update");
+      return;
+    }
     try {
       await updateCoffret.mutateAsync(patch);
       setEditing(false);
@@ -95,6 +101,11 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
   };
 
   const handleDelete = async () => {
+    if (!online) {
+      notifySyncError(t("coffret.offlineRequired"), "coffret-delete");
+      setConfirming(false);
+      return;
+    }
     try {
       await deleteCoffret.mutateAsync(coffret.id);
     } finally {
@@ -202,9 +213,14 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
               <button
                 type="button"
                 onClick={enterEdit}
+                disabled={!online}
                 aria-label={t("coffret.editAria")}
-                title={t("coffret.editAria")}
-                className="grid h-7 w-7 place-items-center rounded-md text-washi-dim transition hover:bg-washi/10 hover:text-washi"
+                title={
+                  !online
+                    ? t("coffret.offlineRequired")
+                    : t("coffret.editAria")
+                }
+                className="grid h-7 w-7 place-items-center rounded-md text-washi-dim transition hover:bg-washi/10 hover:text-washi disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-washi-dim"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -221,8 +237,14 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
               <button
                 type="button"
                 onClick={() => setConfirming(true)}
+                disabled={!online}
                 aria-label={t("coffret.deleteAria")}
-                className="grid h-7 w-7 place-items-center rounded-md text-washi-dim transition hover:bg-hanko/10 hover:text-hanko-bright"
+                title={
+                  !online
+                    ? t("coffret.offlineRequired")
+                    : t("coffret.deleteAria")
+                }
+                className="grid h-7 w-7 place-items-center rounded-md text-washi-dim transition hover:bg-hanko/10 hover:text-hanko-bright disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-washi-dim"
               >
                 <svg
                   viewBox="0 0 24 24"
