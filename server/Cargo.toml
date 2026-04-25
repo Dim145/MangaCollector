@@ -48,10 +48,40 @@ sea-orm = { version = "1.1", features = ["sqlx-postgres", "runtime-tokio-rustls"
 openidconnect = { version = "4", features = ["reqwest"] }
 
 # HTTP client (MAL API, OIDC)
-reqwest = { version = "0.12", features = ["json"] }
+#
+# `default-features = false` + `rustls-tls` drops the native-tls /
+# OpenSSL transitive chain entirely. Prior state (default features)
+# pulled `openssl 0.10.x` and `openssl-sys`, each carrying a rotating
+# collection of RUSTSEC advisories (PSK/cookie OOB read, Deriver
+# buffer overflows, PEM password callback OOB, AES key-wrap bounds,
+# MdCtxRef::digest_final buffer overrun — five open at audit time).
+# Every outbound request in the app (MAL, MangaDex, AniList, OIDC
+# discovery, Google Books) now goes through the rustls stack that
+# sqlx and the aws SDK already link, so there's no second TLS
+# implementation to ship or audit.
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+    "http2",
+    "charset",
+    "macos-system-configuration",
+] }
 
 # S3 / MinIO
-aws-sdk-s3 = "1.129"
+# `default-features = false` drops the `rustls` feature alias, which
+# under the hood enables `aws-smithy-http-client/legacy-rustls-ring` —
+# that's the OLD `rustls 0.21` + `rustls-webpki 0.101.x` path. The
+# replacement `default-https-client` feature (kept below) already
+# provides a modern `rustls 0.23` + `rustls-webpki 0.103.x` stack via
+# aws-lc-rs. Net effect: RUSTSEC-2024-0436 (rustls-webpki panic) and
+# GHSA-3drh-mv85-qj73 (webpki wildcard name-constraint) can't hit us
+# because the vulnerable `0.101.x` ladder never gets compiled in.
+aws-sdk-s3 = { version = "1.129", default-features = false, features = [
+    "sigv4a",
+    "http-1x",
+    "default-https-client",
+    "rt-tokio",
+] }
 aws-credential-types = { version = "1.2", features = ["hardcoded-credentials"] }
 
 # Serialization
