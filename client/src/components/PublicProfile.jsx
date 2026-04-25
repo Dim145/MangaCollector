@@ -89,23 +89,33 @@ export default function PublicProfile() {
               <span className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-border" />
             </div>
 
-            {/* ─── Gallery grid ─── */}
-            {isLoading ? (
-              <GallerySkeleton />
-            ) : data?.library?.length === 0 ? (
-              <EmptyGallery />
-            ) : (
-              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                {data?.library?.map((entry, i) => (
-                  <PublicCard
-                    key={entry.mal_id ?? `custom-${i}`}
-                    entry={entry}
-                    index={i}
-                    blurAdult={!adultRevealed}
-                  />
-                ))}
-              </div>
-            )}
+            {/* ─── Gallery grid ───
+                Wishlist filter — series the owner is *tracking* but doesn't
+                actually own a single volume of (`volumes_owned === 0`) are
+                excluded from the public museum. The public profile is a
+                showcase of what's on the shelf, not a registry of intent;
+                exposing wishlist entries here would leak future-purchase
+                signals to anyone with the slug. The owner still sees these
+                series on their private dashboard via the WISHLIST tab. */}
+            {(() => {
+              const visibleLibrary = (data?.library ?? []).filter(
+                (e) => (e.volumes_owned ?? 0) > 0,
+              );
+              if (isLoading) return <GallerySkeleton />;
+              if (visibleLibrary.length === 0) return <EmptyGallery />;
+              return (
+                <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  {visibleLibrary.map((entry, i) => (
+                    <PublicCard
+                      key={entry.mal_id ?? `custom-${i}`}
+                      entry={entry}
+                      index={i}
+                      blurAdult={!adultRevealed}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* ─── Footer ─── */}
             <footer className="mt-16 flex flex-col items-center gap-2 text-center">

@@ -14,7 +14,15 @@ import { useT } from "@/i18n/index.jsx";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all"); // all | complete | inprogress
+  const [filter, setFilter] = useState("all");
+  // filter ∈ "all" | "inprogress" | "wishlist" | "complete" | "tsundoku"
+  //   inprogress → at least one owned volume but not all (vraiment "en cours")
+  //   wishlist   → tracked but zero volumes acquired (願 · negai)
+  //   complete   → every tracked volume owned
+  //   tsundoku   → at least one owned-but-unread volume
+  // The filters are mutually exclusive; "inprogress" used to also catch
+  // wishlist series (owned === 0), which made the ladder ambiguous. The
+  // new contract gives wishlist its own bucket.
   // Genre filter — Set<string>. Multi-select with AND intersection (series
   // must carry every selected tag to remain visible). Kept as Set for O(1)
   // membership checks in the hot filter path below.
@@ -93,8 +101,21 @@ export default function Dashboard() {
         (m) => (m.volumes ?? 0) > 0 && (m.volumes_owned ?? 0) >= m.volumes,
       );
     } else if (filter === "inprogress") {
+      // Genuinely in flight: at least one owned volume, but not all of
+      // them. Series with no published total (volumes === 0) also count
+      // here as long as the user owns something — they're objectively
+      // "being collected".
+      result = result.filter((m) => {
+        const o = m.volumes_owned ?? 0;
+        const tot = m.volumes ?? 0;
+        return o > 0 && (tot === 0 || o < tot);
+      });
+    } else if (filter === "wishlist") {
+      // 願 · tracked, none owned yet. Requires a known total so we never
+      // confuse a freshly-imported custom series (no published count) with
+      // a deliberate wishlist intent.
       result = result.filter(
-        (m) => (m.volumes ?? 0) === 0 || (m.volumes_owned ?? 0) < m.volumes,
+        (m) => (m.volumes_owned ?? 0) === 0 && (m.volumes ?? 0) > 0,
       );
     } else if (filter === "tsundoku") {
       // Tsundoku (積読) = series with ≥1 owned-but-unread volume.
@@ -203,31 +224,68 @@ export default function Dashboard() {
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Filter rail — kanji-first navigation.
+                Each filter carries a Japanese glyph that's always visible,
+                with the romaji label revealed from `sm:` upwards. On mobile
+                the pill collapses to a single character framed by a
+                ≥44 px touch target — no overflow, no truncation, and the
+                glyph stays in the same typographic family as the rest of
+                the project (限 collector / 積 tsundoku / 完 complete).
+
+                  全 zen      → all
+                  進 shin     → in progress
+                  願 negai    → wishlist (wanted, not yet acquired)
+                  完 kan      → complete (finished collection)
+                  積 tsumu    → tsundoku (owned but unread)
+
+                Selected colour follows the state grammar already used by
+                the Manga card badges. */}
             <div
               className="inline-flex rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur"
               role="tablist"
-              aria-label={t("common.search")}
+              aria-label={t("dashboard.filterTablistLabel")}
             >
               {[
-                { id: "all", label: t("dashboard.tabAll") },
-                { id: "inprogress", label: t("dashboard.tabOngoing") },
-                { id: "complete", label: t("dashboard.tabComplete") },
-                { id: "tsundoku", label: t("dashboard.tabTsundoku") },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  role="tab"
-                  aria-selected={filter === tab.id}
-                  onClick={() => setFilter(tab.id)}
-                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition ${
-                    filter === tab.id
-                      ? "bg-hanko text-washi shadow-md"
-                      : "text-washi-muted hover:text-washi"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+                { id: "all", glyph: "全", label: t("dashboard.tabAll") },
+                { id: "inprogress", glyph: "進", label: t("dashboard.tabOngoing") },
+                { id: "wishlist", glyph: "願", label: t("dashboard.tabWishlist") },
+                { id: "complete", glyph: "完", label: t("dashboard.tabComplete") },
+                { id: "tsundoku", glyph: "積", label: t("dashboard.tabTsundoku") },
+              ].map((tab) => {
+                const active = filter === tab.id;
+                const activeBg =
+                  tab.id === "wishlist"
+                    ? "bg-sakura text-ink-0 shadow-md"
+                    : tab.id === "tsundoku"
+                      ? "bg-moegi text-ink-0 shadow-md"
+                      : "bg-hanko text-washi shadow-md";
+                return (
+                  <button
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={active}
+                    aria-label={tab.label}
+                    title={tab.label}
+                    onClick={() => setFilter(tab.id)}
+                    className={`group/tab inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold uppercase tracking-wider transition sm:min-h-0 sm:py-1.5 ${
+                      active ? activeBg : "text-washi-muted hover:text-washi"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`font-jp text-base font-bold leading-none transition-transform sm:text-sm ${
+                        active ? "scale-110" : "opacity-80 group-hover/tab:opacity-100"
+                      }`}
+                    >
+                      {tab.glyph}
+                    </span>
+                    {/* Label appears from sm: up. On mobile, the glyph + the
+                        aria-label / native tooltip carry the meaning, and the
+                        whole row stops fighting for horizontal space. */}
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             <button
