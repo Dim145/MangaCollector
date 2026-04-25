@@ -1,11 +1,14 @@
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
 import CoffretGroup from "./CoffretGroup";
-import AddCoffretModal from "./AddCoffretModal";
-import CoverPickerModal from "./CoverPickerModal.jsx";
+// Heavy overlay modals that only mount on user action — lazy so a
+// reader who's just consulting a series doesn't pay for the coffret
+// builder or the cover picker bundle. Combined ~900 lines of code.
+const AddCoffretModal = lazy(() => import("./AddCoffretModal"));
+const CoverPickerModal = lazy(() => import("./CoverPickerModal.jsx"));
 import Skeleton from "./ui/Skeleton.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import Modal from "@/components/ui/Modal.jsx";
@@ -1058,13 +1061,20 @@ export default function MangaPage({ manga, adult_content_level }) {
         </section>
       </div>
 
-      <AddCoffretModal
-        open={coffretModalOpen}
-        onClose={() => setCoffretModalOpen(false)}
-        mal_id={manga.mal_id}
-        totalVolumes={totalVolumes}
-        currencySetting={currencySetting}
-      />
+      {/* 盒 · Coffret builder — lazy chunk. Outer guard ensures the
+          chunk fetch only fires on the first time the user opens the
+          flow. */}
+      {coffretModalOpen && (
+        <Suspense fallback={null}>
+          <AddCoffretModal
+            open
+            onClose={() => setCoffretModalOpen(false)}
+            mal_id={manga.mal_id}
+            totalVolumes={totalVolumes}
+            currencySetting={currencySetting}
+          />
+        </Suspense>
+      )}
 
       <Modal popupOpen={posterPopUp} handleClose={() => setPosterPopUp(false)}>
         <img referrerPolicy="no-referrer"
@@ -1074,11 +1084,15 @@ export default function MangaPage({ manga, adult_content_level }) {
         />
       </Modal>
 
-      <CoverPickerModal
-        open={coverPickerOpen}
-        onClose={() => setCoverPickerOpen(false)}
-        mal_id={manga.mal_id}
-        currentUrl={poster}
+      {/* 絵 · Cover picker — same lazy pattern; only fired when
+          the user enters edit mode AND opens the picker. */}
+      {coverPickerOpen && (
+        <Suspense fallback={null}>
+          <CoverPickerModal
+            open
+            onClose={() => setCoverPickerOpen(false)}
+            mal_id={manga.mal_id}
+            currentUrl={poster}
         onConfirm={async (url) => {
           // Offline-safe: enqueue via Dexie + outbox instead of a direct
           // axios call. Local state (Dexie → useLiveQuery → liveLibraryRow)
@@ -1092,7 +1106,9 @@ export default function MangaPage({ manga, adult_content_level }) {
           setPoster(url);
           setCoverPickerOpen(false);
         }}
-      />
+          />
+        </Suspense>
+      )}
 
       {/* Sync-actions dropdown, portaled to body so it escapes every
           ancestor stacking context (the Total-dépensé card uses

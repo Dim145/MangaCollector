@@ -1,13 +1,26 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
-import BarcodeScanner from "@/components/BarcodeScanner.jsx";
 import ScanLoadingView from "@/components/ScanLoadingView.jsx";
 import Modal from "@/components/ui/Modal.jsx";
-import AddCoffretModal from "@/components/AddCoffretModal.jsx";
-import MangadexPrefillModal from "@/components/MangadexPrefillModal.jsx";
+
+// 既読 · Lazy-imported overlays. Each of these mounts only when the
+// user opens its specific flow — the scanner camera, the coffret
+// confirm sheet, the MangaDex pre-fill prompt — so we hold the code
+// off the wire until that branch fires. The combined source weight is
+// ~1100 lines that today shipped with every /addmanga visit; lazy
+// imports defer the cost to the click that actually needs it.
+const BarcodeScanner = lazy(() =>
+  import("@/components/BarcodeScanner.jsx"),
+);
+const AddCoffretModal = lazy(() =>
+  import("@/components/AddCoffretModal.jsx"),
+);
+const MangadexPrefillModal = lazy(() =>
+  import("@/components/MangadexPrefillModal.jsx"),
+);
 import SettingsContext from "@/SettingsContext.js";
 import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
@@ -733,14 +746,20 @@ export default function AddPage() {
         </section>
       )}
 
-      {/* ─── Scanner (active detection only) ─── */}
+      {/* ─── Scanner (active detection only) ───
+          Suspense fallback={null} keeps the page silent during the
+          first chunk fetch — the user gets a brief pause after their
+          tap, then the camera viewport appears. Subsequent opens are
+          instant (chunk cached). */}
       {scannerOpen && scanPhase === "scanning" && (
-        <BarcodeScanner
-          onDetect={onBarcodeDetected}
-          onClose={closeScanner}
-          statusMessage="Point the camera at the barcode"
-          recentCount={recentScans.length}
-        />
+        <Suspense fallback={null}>
+          <BarcodeScanner
+            onDetect={onBarcodeDetected}
+            onClose={closeScanner}
+            statusMessage="Point the camera at the barcode"
+            recentCount={recentScans.length}
+          />
+        </Suspense>
       )}
 
       {/* ─── Loading view (replaces scanner while Google Books / MAL resolves) ─── */}
@@ -842,40 +861,55 @@ export default function AddPage() {
         </div>
       </Modal>
 
-      {/* ─── Coffret modal opened by the scanner when a box-set is detected ── */}
-      <AddCoffretModal
-        open={Boolean(scanCoffret)}
-        onClose={() => setScanCoffret(null)}
-        mal_id={scanCoffret?.mal_id}
-        totalVolumes={scanCoffret?.totalVolumes}
-        currencySetting={currencySetting}
-        prefill={scanCoffret?.prefill}
-        onSwitchToVolume={() => {
-          // False positive on coffret detection — fall back to the regular
-          // single-volume confirmation card inside the scanner overlay.
-          const fallback = scanCoffret;
-          if (!fallback) return;
-          setScanCoffret(null);
-          setScanResult({
-            isbn: fallback.isbn,
-            book: fallback.book,
-            candidates: fallback.candidates,
-            volume: fallback.book?.volume ?? 1,
-            price: pickDefaultPrice(fallback.book, currencyCodeRef.current),
-          });
-          setScanCandidateIdx(0);
-          setScanPhase("positive");
-          setScanStatus("");
-          setScannerOpen(true);
-        }}
-      />
+      {/* ─── Coffret modal opened by the scanner when a box-set is detected ──
+          Outer guard on `Boolean(scanCoffret)` so React doesn't
+          encounter the lazy component (and trigger its chunk fetch)
+          until the user actually scans a coffret — saves the modal's
+          ~10 kB on the typical "scan a single tankōbon" flow. */}
+      {Boolean(scanCoffret) && (
+        <Suspense fallback={null}>
+          <AddCoffretModal
+            open
+            onClose={() => setScanCoffret(null)}
+            mal_id={scanCoffret?.mal_id}
+            totalVolumes={scanCoffret?.totalVolumes}
+            currencySetting={currencySetting}
+            prefill={scanCoffret?.prefill}
+            onSwitchToVolume={() => {
+              // False positive on coffret detection — fall back to the regular
+              // single-volume confirmation card inside the scanner overlay.
+              const fallback = scanCoffret;
+              if (!fallback) return;
+              setScanCoffret(null);
+              setScanResult({
+                isbn: fallback.isbn,
+                book: fallback.book,
+                candidates: fallback.candidates,
+                volume: fallback.book?.volume ?? 1,
+                price: pickDefaultPrice(fallback.book, currencyCodeRef.current),
+              });
+              setScanCandidateIdx(0);
+              setScanPhase("positive");
+              setScanStatus("");
+              setScannerOpen(true);
+            }}
+          />
+        </Suspense>
+      )}
 
-      {/* ─── MangaDex prefill modal — asks for volume count ─── */}
-      <MangadexPrefillModal
-        result={mangadexPrefill}
-        onClose={() => setMangadexPrefill(null)}
-        onConfirm={confirmMangadexAdd}
-      />
+      {/* ─── MangaDex prefill modal — asks for volume count ───
+          Same guard pattern as the coffret modal: only render when
+          we have a result to prefill, so the chunk doesn't ride on
+          every /addmanga visit. */}
+      {mangadexPrefill && (
+        <Suspense fallback={null}>
+          <MangadexPrefillModal
+            result={mangadexPrefill}
+            onClose={() => setMangadexPrefill(null)}
+            onConfirm={confirmMangadexAdd}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

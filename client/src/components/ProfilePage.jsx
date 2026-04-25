@@ -1,24 +1,25 @@
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { consumeTourStep, TOUR_STEPS } from "@/lib/tour.js";
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import CoverImage from "./ui/CoverImage.jsx";
 import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
 import ActivityFeed from "./ActivityFeed.jsx";
 import MalRecommendations from "./MalRecommendations.jsx";
-import SpendingChart from "./analytics/SpendingChart.jsx";
-import ReadingChart from "./analytics/ReadingChart.jsx";
-import CompositionPies from "./analytics/CompositionPies.jsx";
 import InsightCards from "./analytics/InsightCards.jsx";
 import ActionableLists from "./analytics/ActionableLists.jsx";
+
+// 金 · Recharts is heavy (380 KB / 110 KB gzipped). Every component
+// in this app that touches it lives behind a `lazy()` boundary so
+// /profile lands instantly with stat cards + the closest-to-completion
+// list, then streams the chart bundle alongside the first chart's
+// own skeleton. The Suspense fallback below mirrors each card's
+// idle-loading visuals so the layout doesn't jank when the chunk
+// finishes downloading.
+const MostValuedChart = lazy(() => import("./analytics/MostValuedChart.jsx"));
+const SpendingChart = lazy(() => import("./analytics/SpendingChart.jsx"));
+const ReadingChart = lazy(() => import("./analytics/ReadingChart.jsx"));
+const CompositionPies = lazy(() => import("./analytics/CompositionPies.jsx"));
 // Modal — only needed on click, deferred so it doesn't bloat the profile chunk.
 const AvatarPicker = lazy(() => import("./AvatarPicker.jsx"));
 import SettingsContext from "@/SettingsContext.js";
@@ -424,70 +425,13 @@ export default function ProfilePage({ googleUser }) {
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-              {t("profile.topSpend")}
-            </p>
-            <h2 className="mt-1 font-display text-xl font-semibold text-washi">
-              {t("profile.mostValued")}
-            </h2>
-
-            <div className="mt-4 h-64">
-              {loading ? (
-                <Skeleton.Bars count={5} maxHeight={230} />
-              ) : seriesByCost.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-washi-muted">
-                  {t("profile.startAdding")}
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={seriesByCost}>
-                    <defs>
-                      <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--hanko-bright)" />
-                        <stop offset="100%" stopColor="var(--hanko-deep)" />
-                      </linearGradient>
-                    </defs>
-                    <XAxis
-                      dataKey="title"
-                      stroke="var(--washi-dim)"
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      stroke="var(--washi-dim)"
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip
-                      cursor={{ fill: "var(--ink-2)", fillOpacity: 0.6 }}
-                      contentStyle={{
-                        background: "var(--ink-1)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "0.5rem",
-                        fontSize: 12,
-                        color: "var(--washi)",
-                      }}
-                      formatter={(value) => [
-                        formatCurrency(value, currencySetting),
-                        t("profile.tooltipSpent"),
-                      ]}
-                      labelFormatter={(_, pl) =>
-                        pl?.[0]?.payload?.fullTitle ?? ""
-                      }
-                    />
-                    <Bar
-                      dataKey="totalCost"
-                      fill="url(#bar-grad)"
-                      radius={[6, 6, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
+          <Suspense fallback={<ChartSkeletonCard kind="bars" />}>
+            <MostValuedChart
+              data={seriesByCost}
+              loading={loading}
+              currencySetting={currencySetting}
+            />
+          </Suspense>
         </section>
 
         <section
@@ -522,7 +466,9 @@ export default function ProfilePage({ googleUser }) {
           className="mt-8 animate-fade-up"
           style={{ animationDelay: "400ms" }}
         >
-          <SpendingChart data={analytics.monthly.spending} loading={loading} />
+          <Suspense fallback={<ChartSkeletonCard kind="bars" />}>
+            <SpendingChart data={analytics.monthly.spending} loading={loading} />
+          </Suspense>
         </section>
 
         {/* 読破 · Reading cadence — sibling of SpendingChart, moegi-tinted,
@@ -531,18 +477,22 @@ export default function ProfilePage({ googleUser }) {
           className="mt-6 animate-fade-up"
           style={{ animationDelay: "430ms" }}
         >
-          <ReadingChart reading={analytics.reading} loading={loading} />
+          <Suspense fallback={<ChartSkeletonCard kind="bars" />}>
+            <ReadingChart reading={analytics.reading} loading={loading} />
+          </Suspense>
         </section>
 
         <section
           className="mt-6 animate-fade-up"
           style={{ animationDelay: "470ms" }}
         >
-          <CompositionPies
-            stores={analytics.composition.stores}
-            genres={analytics.composition.genres}
-            loading={loading}
-          />
+          <Suspense fallback={<ChartSkeletonCard kind="pie" />}>
+            <CompositionPies
+              stores={analytics.composition.stores}
+              genres={analytics.composition.genres}
+              loading={loading}
+            />
+          </Suspense>
         </section>
 
         <section
@@ -617,6 +567,35 @@ function HeroStat({ label, value, sub, hint, accent, loading }) {
       </p>
       {hint && <p className="mt-1 text-[11px] text-washi-muted">{hint}</p>}
       <div className="pointer-events-none absolute -bottom-6 -right-6 h-16 w-16 rounded-full bg-hanko/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
+    </div>
+  );
+}
+
+/**
+ * 金 · Suspense fallback for the lazy-loaded chart cards.
+ *
+ * Mirrors the inner skeleton each chart shows during its own
+ * `loading` branch, so the layout stays put when the recharts
+ * chunk arrives — no jank, no card flicker. `kind` switches
+ * between bar-chart and pie-chart skeletons; both occupy the same
+ * 16rem card height the live components do.
+ */
+function ChartSkeletonCard({ kind }) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-5 w-40" />
+      </div>
+      <div className="mt-4 h-64">
+        {kind === "pie" ? (
+          <div className="flex h-full items-center justify-center">
+            <Skeleton.Circle size={180} thickness={28} />
+          </div>
+        ) : (
+          <Skeleton.Bars count={6} maxHeight={230} />
+        )}
+      </div>
     </div>
   );
 }

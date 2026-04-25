@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Modal from "@/components/ui/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
-import DeleteAccountFlow from "@/components/DeleteAccountFlow.jsx";
+// 削除 · The two-step GDPR erasure flow is a 550-line modal that
+// only ever appears on a deliberate destructive action. Lazy-loading
+// it keeps it off the wire on every Settings visit; the chunk fetch
+// fires only the very first time the user clicks the danger button.
+const DeleteAccountFlow = lazy(() =>
+  import("@/components/DeleteAccountFlow.jsx"),
+);
 import PublicProfileSection from "@/components/PublicProfileSection.jsx";
 import BirthdayModeSection from "@/components/BirthdayModeSection.jsx";
 import ArchiveSection from "@/components/ArchiveSection.jsx";
@@ -928,12 +934,15 @@ export default function SettingsPage() {
         </div>
       </Modal>
 
-      {/* Two-step GDPR erasure flow — lives in its own component because
-          the ceremony is substantial enough to avoid bloating this page. */}
-      <DeleteAccountFlow
-        open={deleteFlowOpen}
-        onClose={() => setDeleteFlowOpen(false)}
-      />
+      {/* Two-step GDPR erasure flow — lives in its own component
+          because the ceremony is substantial enough to avoid
+          bloating this page. Outer guard keeps the lazy chunk off
+          the wire until the user actually opens the danger flow. */}
+      {deleteFlowOpen && (
+        <Suspense fallback={null}>
+          <DeleteAccountFlow open onClose={() => setDeleteFlowOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
