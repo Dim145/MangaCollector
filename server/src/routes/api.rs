@@ -109,6 +109,12 @@ fn user_router() -> Router<AppState> {
         .route("/public-slug", get(user_profile::get_public_slug))
         .route("/public-slug", patch(user_profile::update_public_slug))
         .route("/public-adult", patch(user_profile::update_public_adult))
+        // 祝 · birthday mode — open the wishlist publicly for N days
+        // (server clamps to 365d max; days<=0 disables).
+        .route(
+            "/wishlist-public",
+            patch(user_profile::update_wishlist_public),
+        )
         // 写本 · Archive — portable export / merge-import.
         .route("/export.json", get(archive::export_json))
         .route("/export.csv", get(archive::export_csv))

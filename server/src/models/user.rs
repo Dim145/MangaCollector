@@ -22,6 +22,13 @@ pub struct Model {
     /// never exposes adult content by accident.
     #[sea_orm(default)]
     pub public_show_adult: bool,
+    /// 祝 · Birthday-mode horizon. When `Some(t)` AND `t > now()`,
+    /// the public profile additionally surfaces wishlist entries
+    /// (`volumes_owned = 0`). Lapses automatically when the comparison
+    /// goes false; the row stays in the DB until the next mutation —
+    /// the application layer treats expired-or-NULL as "feature off".
+    #[sea_orm(default)]
+    pub wishlist_public_until: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -47,15 +54,27 @@ pub struct AuthUserResponse {
     pub name: Option<String>,
     pub public_slug: Option<String>,
     pub public_show_adult: bool,
+    /// 祝 · Birthday-mode horizon — only emitted when *still active*
+    /// (i.e. > now). The Settings panel uses this to decide whether
+    /// the toggle should render the "active until …" / "expired" copy
+    /// vs. the inert "activate" CTA.
+    pub wishlist_public_until: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl From<&Model> for AuthUserResponse {
     fn from(u: &Model) -> Self {
+        // Strip an expired horizon so the SPA never thinks the feature
+        // is on when it actually isn't. Keeps the client-side state
+        // logic trivial: `Some(_)` ⇒ active.
+        let wishlist_public_until = u
+            .wishlist_public_until
+            .filter(|t| *t > chrono::Utc::now());
         Self {
             id: u.id,
             name: u.name.clone(),
             public_slug: u.public_slug.clone(),
             public_show_adult: u.public_show_adult,
+            wishlist_public_until,
         }
     }
 }
@@ -74,6 +93,24 @@ pub struct UpdatePublicSlugRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdatePublicAdultRequest {
     pub show_adult: bool,
+}
+
+/// Request body for `PATCH /api/user/wishlist-public`.
+///
+/// Activation is duration-based rather than open-ended: a single field
+/// `days` lets the client pick the window (capped server-side). Sending
+/// `0` or omitting both fields disables the feature outright.
+///
+/// Why not a hard date? Because the use case is "I want this open for
+/// 30 days from now"; a date field would push timezone semantics onto
+/// the client. The server stamps `now() + days` so there's a single
+/// time source.
+#[derive(Debug, Deserialize)]
+pub struct UpdateWishlistPublicRequest {
+    /// Number of days to keep the wishlist publicly visible. `0` (or
+    /// omitted) disables the feature.
+    #[serde(default)]
+    pub days: i64,
 }
 
 /// API response for the private "my public profile state" endpoint.
@@ -107,6 +144,12 @@ pub struct PublicProfileResponse {
     /// The client uses this to decide whether to render the warning
     /// banner + blur-by-default cards for anonymous visitors.
     pub has_adult_content: bool,
+    /// 祝 · When `Some(t)`, the owner has opened their wishlist for
+    /// public viewing until `t`. The SPA renders a friendly banner and
+    /// keeps `volumes_owned == 0` rows visible. Stripped to `None` once
+    /// the timestamp lapses — visitors never see a stale "active until
+    /// 1999" row.
+    pub wishlist_open_until: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Serialize)]

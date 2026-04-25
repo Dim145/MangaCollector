@@ -645,6 +645,15 @@ export default {
     publicProfileAdultBody:
       "Publie également les séries taguées 18+. Les visiteurs verront un avertissement et les couvertures restent floutées par défaut jusqu'à confirmation explicite.",
     publicProfileAdultToggleAria: "Activer le contenu adulte sur le profil public",
+    birthdayHeading: "Mode anniversaire · 祝",
+    birthdayBody:
+      "Ouvrez votre liste de souhaits sur le profil public pour une durée déterminée. Idéal avant un anniversaire ou un mariage : vos invités choisissent un cadeau sans deviner ce que vous avez déjà.",
+    birthdayRequiresPublic:
+      "Activez d'abord le profil public ci-dessus — sans slug, votre liste de souhaits n'a nulle part où vivre publiquement.",
+    birthdayActive: "Actif",
+    birthdayUntil: "Public jusqu'au {date} · {days} jours restants",
+    birthdayStop: "Fermer la fenêtre",
+    birthdayArm: "Ouvrir pour {days} jours",
     archiveTitle: "Archive & portabilité · 写本",
     archiveBody:
       "Exportez votre collection pour l'archiver ou importez un rouleau reçu d'ailleurs. Merge uniquement : les séries déjà présentes (même mal_id) sont ignorées.",
@@ -1151,6 +1160,10 @@ export default {
       "Aucune archive n'existe sous le handle « {slug} ». Il a peut-être été renommé ou retiré.",
     backHome: "Retour à l'accueil",
     footerPoweredBy: "Archive propulsée par",
+    birthdayKicker: "Liste de souhaits temporairement ouverte · 祝",
+    birthdayBody:
+      "Certaines séries ici sont souhaitées, pas encore sur l'étagère — n'hésitez pas à en offrir une. La fenêtre se referme le {date} (dans {days} jours).",
+    seriesWishlist: "Souhaitée — pas encore sur l'étagère",
     seriesAdult: "Contenu pour adulte",
     // 'seriesAdult' used above — placeholder to preserve key order.
     adultHidden: "Flouté",

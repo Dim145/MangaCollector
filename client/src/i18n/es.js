@@ -632,6 +632,15 @@ export default {
     publicProfileAdultBody:
       "Publica también las series marcadas 18+. Los visitantes verán un aviso y las portadas se mantienen difuminadas por defecto hasta confirmar explícitamente.",
     publicProfileAdultToggleAria: "Activar contenido adulto en el perfil público",
+    birthdayHeading: "Modo cumpleaños · 祝",
+    birthdayBody:
+      "Abre tu lista de deseos en el perfil público durante una ventana fija. Ideal antes de un cumpleaños o una boda — los visitantes eligen un regalo sin adivinar lo que ya tienes.",
+    birthdayRequiresPublic:
+      "Activa primero el perfil público de arriba — sin slug, tu lista de deseos no tiene dónde vivir públicamente.",
+    birthdayActive: "Activo",
+    birthdayUntil: "Público hasta el {date} · quedan {days} días",
+    birthdayStop: "Cerrar ahora",
+    birthdayArm: "Abrir durante {days} días",
     archiveTitle: "Archivo y portabilidad · 写本",
     archiveBody:
       "Exporta tu colección para archivarla o importa un rollo recibido. Solo fusión: las series ya presentes (mismo mal_id) se ignoran.",
@@ -1139,6 +1148,10 @@ export default {
       "No existe ningún archivo bajo el identificador \u00AB{slug}\u00BB. Puede haber sido renombrado o retirado.",
     backHome: "Volver al inicio",
     footerPoweredBy: "Archivo impulsado por",
+    birthdayKicker: "Lista de deseos temporalmente abierta · 祝",
+    birthdayBody:
+      "Algunas series aquí son deseadas, todavía no están en el estante — no dudes en regalar una. La ventana se cierra el {date} (en {days} días).",
+    seriesWishlist: "Deseada — aún no está en el estante",
     seriesAdult: "Contenido adulto",
     adultHidden: "Difuminado",
     adultBannerEyebrow: "CONTENIDO ADULTO · 成人向け",

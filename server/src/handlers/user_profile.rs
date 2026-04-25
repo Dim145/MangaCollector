@@ -10,7 +10,9 @@ use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::models::user::{
     PublicSlugResponse, UpdatePublicAdultRequest, UpdatePublicSlugRequest,
+    UpdateWishlistPublicRequest,
 };
+use serde_json::json;
 use crate::services::users;
 use crate::state::AppState;
 
@@ -64,4 +66,23 @@ pub async fn update_public_adult(
         slug: fresh.public_slug,
         show_adult,
     }))
+}
+
+/// PATCH /api/user/wishlist-public — 祝 birthday-mode toggle.
+///
+/// Body: `{ "days": <integer> }`. Days > 0 sets the horizon to
+/// `now() + days` (clamped server-side); days <= 0 clears it. Returns
+/// the resolved horizon (or `null` when cleared) so the client can
+/// hydrate its countdown from the canonical value rather than its
+/// own clock.
+///
+/// Auth required (the toggle changes what anonymous visitors see at
+/// `/u/{slug}`, but only the owner may flip it).
+pub async fn update_wishlist_public(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Json(body): Json<UpdateWishlistPublicRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let until = users::set_wishlist_public_until(&state.db, user.id, body.days).await?;
+    Ok(Json(json!({ "wishlist_public_until": until })))
 }

@@ -89,18 +89,31 @@ export default function PublicProfile() {
               <span className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-border" />
             </div>
 
+            {/* ─── 祝 Birthday-mode banner ───
+                Surfaced only when the owner has armed the wishlist
+                exposure window. Sits above the gallery so a visitor
+                browsing for a gift idea immediately understands which
+                entries are wished-for vs. owned. */}
+            {data?.wishlist_open_until && (
+              <BirthdayBanner until={data.wishlist_open_until} />
+            )}
+
             {/* ─── Gallery grid ───
                 Wishlist filter — series the owner is *tracking* but doesn't
                 actually own a single volume of (`volumes_owned === 0`) are
-                excluded from the public museum. The public profile is a
-                showcase of what's on the shelf, not a registry of intent;
-                exposing wishlist entries here would leak future-purchase
-                signals to anyone with the slug. The owner still sees these
-                series on their private dashboard via the WISHLIST tab. */}
+                normally excluded from the public museum (a registry of
+                intent would leak future-purchase signals). When the owner
+                opens the 祝 birthday window, that filter is lifted: the
+                wishlist appears alongside the rest of the shelf, exactly
+                so visitors can pick a gift. The window is server-clamped
+                and self-expires; once it lapses, this branch reverts to
+                the normal hide-wishlist behaviour automatically. */}
             {(() => {
-              const visibleLibrary = (data?.library ?? []).filter(
-                (e) => (e.volumes_owned ?? 0) > 0,
-              );
+              const wishlistOpen = Boolean(data?.wishlist_open_until);
+              const visibleLibrary = (data?.library ?? []).filter((e) => {
+                if (wishlistOpen) return true;
+                return (e.volumes_owned ?? 0) > 0;
+              });
               if (isLoading) return <GallerySkeleton />;
               if (visibleLibrary.length === 0) return <EmptyGallery />;
               return (
@@ -298,6 +311,12 @@ function PublicCard({ entry, index, blurAdult }) {
   const owned = entry.volumes_owned ?? 0;
   const total = entry.volumes ?? 0;
   const complete = total > 0 && owned >= total;
+  // 願 Wishlist surfaces only when the owner has armed the birthday
+  // window — the parent gallery already filters out wishlist rows in
+  // the closed state, so reaching this branch implies "open window".
+  // We still gate the visual on `total > 0` so a custom-imported
+  // series with an unknown total isn't misclassified as wishlist.
+  const isWishlist = total > 0 && owned === 0;
   const isMuted = entry.is_adult && blurAdult;
 
   return (
@@ -306,12 +325,21 @@ function PublicCard({ entry, index, blurAdult }) {
       style={{ animationDelay: `${Math.min(index * 40, 600)}ms` }}
     >
       <div
-        className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-border bg-ink-2 shadow-lg transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl ${
+        className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-ink-2 shadow-lg transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl ${
+          // Idle border picks up the wishlist state — same dashed
+          // sakura ring used on the dashboard's Manga card so a
+          // visitor who's seen one immediately recognises the other.
+          isWishlist
+            ? "border border-dashed border-sakura/40"
+            : "border border-border"
+        } ${
           entry.all_collector
             ? "group-hover:border-gold/60"
             : complete
               ? "group-hover:border-moegi/60"
-              : "group-hover:border-hanko/50"
+              : isWishlist
+                ? "group-hover:border-sakura/70"
+                : "group-hover:border-hanko/50"
         }`}
       >
         {/* CoverImage handles both the "no URL" and "URL dead" cases
@@ -392,6 +420,29 @@ function PublicCard({ entry, index, blurAdult }) {
           </span>
         )}
 
+        {/* 願 Wishlist marker — the only top-right tag in the gallery
+            (everything else uses the discreet 4×4 corner seals). The
+            larger pill makes the wishlist rows reads as "tap me to
+            give a gift" without the visitor having to compare counters
+            across cards. Mutually exclusive with the 読 fully-read seal
+            (a fully-read series owns volumes, so it can never be a
+            wishlist), so no positional conflict on top-right. */}
+        {isWishlist && !isMuted && (
+          <div
+            className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full border border-sakura/55 bg-ink-0/65 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sakura shadow-[0_1px_3px_rgba(10,9,8,0.4)] backdrop-blur"
+            aria-label={t("publicProfile.seriesWishlist")}
+            title={t("publicProfile.seriesWishlist")}
+          >
+            <span
+              aria-hidden="true"
+              className="font-jp text-[11px] font-bold leading-none"
+            >
+              願
+            </span>
+            {t("manga.wishlist")}
+          </div>
+        )}
+
         {/* Bottom caption — hidden when the card is muted so the title
             doesn't defeat the blur. The adult sigil overlay above gives
             the visitor enough context to know why. */}
@@ -402,30 +453,56 @@ function PublicCard({ entry, index, blurAdult }) {
             </h3>
             <div className="mt-1.5 flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider">
               <span>
-                <span className="text-hanko-bright tabular-nums">{owned}</span>
+                {/* Counter colour follows the state ladder: sakura
+                    when the shelf is still empty (wishlist), hanko
+                    otherwise. Keeps "0" from reading as a danger-red
+                    signal on the wishlist branch. */}
+                <span
+                  className={`tabular-nums ${
+                    isWishlist ? "text-sakura" : "text-hanko-bright"
+                  }`}
+                >
+                  {owned}
+                </span>
                 <span className="text-washi-dim tabular-nums">
                   {" "}
                   / {total || "?"}
                 </span>
               </span>
-              <span className="text-moegi-muted tabular-nums">
-                {entry.read_percent}% 読
-              </span>
+              {!isWishlist && (
+                <span className="text-moegi-muted tabular-nums">
+                  {entry.read_percent}% 読
+                </span>
+              )}
             </div>
             {total > 0 && (
               <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-washi/15">
-                <div className="flex h-full w-full">
+                {isWishlist ? (
+                  /* Wishlist progress bar — dashed sakura at full
+                     width, signalling intent without pretending
+                     progress. Mirrors the dashboard's Manga card. */
                   <div
-                    className="h-full bg-moegi"
-                    style={{ width: `${entry.read_percent}%` }}
-                  />
-                  <div
-                    className="h-full bg-hanko/60"
+                    className="h-full w-full opacity-50"
                     style={{
-                      width: `${Math.max(0, Math.round((owned / total) * 100) - entry.read_percent)}%`,
+                      backgroundImage:
+                        "repeating-linear-gradient(90deg, var(--sakura) 0 4px, transparent 4px 8px)",
                     }}
+                    aria-hidden="true"
                   />
-                </div>
+                ) : (
+                  <div className="flex h-full w-full">
+                    <div
+                      className="h-full bg-moegi"
+                      style={{ width: `${entry.read_percent}%` }}
+                    />
+                    <div
+                      className="h-full bg-hanko/60"
+                      style={{
+                        width: `${Math.max(0, Math.round((owned / total) * 100) - entry.read_percent)}%`,
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -548,4 +625,57 @@ function formatSince(iso) {
   } catch {
     return iso;
   }
+}
+
+/**
+ * 祝 · Birthday-mode banner — quiet, celebratory ribbon shown when the
+ * owner has armed the wishlist-exposure window. Sets the visitor's
+ * expectations: some entries on the page are wished-for, not owned.
+ *
+ * Stays a single horizontal strip with sakura accent + countdown so it
+ * communicates the temporary nature of the state without dominating
+ * the gallery below.
+ */
+function BirthdayBanner({ until }) {
+  const t = useT();
+  const date = new Date(until);
+  const remaining = Math.max(
+    0,
+    Math.ceil((date.getTime() - Date.now()) / (24 * 60 * 60 * 1000)),
+  );
+  if (remaining <= 0) return null;
+  const formatted = (() => {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        day: "numeric",
+        month: "long",
+      }).format(date);
+    } catch {
+      return date.toISOString().slice(0, 10);
+    }
+  })();
+  return (
+    <div
+      role="status"
+      className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-sakura/45 bg-sakura/10 px-4 py-3 backdrop-blur animate-fade-up"
+    >
+      <span
+        aria-hidden="true"
+        className="font-jp text-2xl font-bold leading-none text-sakura"
+      >
+        祝
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim">
+          {t("publicProfile.birthdayKicker")}
+        </p>
+        <p className="mt-0.5 font-display text-sm italic text-washi md:text-base">
+          {t("publicProfile.birthdayBody", {
+            date: formatted,
+            days: remaining,
+          })}
+        </p>
+      </div>
+    </div>
+  );
 }

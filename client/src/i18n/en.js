@@ -626,6 +626,15 @@ export default {
     publicProfileAdultBody:
       "Also publishes 18+ tagged series. Visitors see a warning and covers stay blurred by default until they explicitly confirm.",
     publicProfileAdultToggleAria: "Enable adult content on public profile",
+    birthdayHeading: "Birthday mode · 祝",
+    birthdayBody:
+      "Open your wishlist on the public profile for a fixed window. Useful before a birthday or wedding so visitors can pick a gift without guessing what you already own.",
+    birthdayRequiresPublic:
+      "Activate the public profile above first — there's nowhere for the wishlist to live publicly without a slug.",
+    birthdayActive: "Active",
+    birthdayUntil: "Public until {date} · {days} days remaining",
+    birthdayStop: "Close window now",
+    birthdayArm: "Open for {days} days",
     archiveTitle: "Archive & portability · 写本",
     archiveBody:
       "Export your collection to archive it, or import a scroll received from elsewhere. Merge-only: series already present (same mal_id) are skipped.",
@@ -1130,6 +1139,10 @@ export default {
       "No archive exists under the handle \u201C{slug}\u201D. It may have been renamed or removed.",
     backHome: "Back home",
     footerPoweredBy: "Archive powered by",
+    birthdayKicker: "Wishlist temporarily open · 祝",
+    birthdayBody:
+      "Some series here are wished-for, not yet on the shelf — feel free to gift one. Window closes on {date} (in {days} days).",
+    seriesWishlist: "Wished for — not yet on the shelf",
     seriesAdult: "Adult content",
     adultHidden: "Blurred",
     adultBannerEyebrow: "ADULT CONTENT · 成人向け",

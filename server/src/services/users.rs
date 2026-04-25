@@ -330,6 +330,15 @@ pub async fn build_public_profile(
         user.created_on.format("%m").to_string().parse::<i32>().unwrap_or(1)
     );
 
+    // 祝 · Birthday-mode horizon — emit only when still in the future.
+    // The client renders the public-banner + keeps wishlist (0-owned)
+    // entries visible *only* when this is `Some`, so the server is the
+    // sole authority. Stripping expired horizons here means a stale
+    // row in the DB never accidentally leaks the wishlist.
+    let wishlist_open_until = user
+        .wishlist_public_until
+        .filter(|t| *t > chrono::Utc::now());
+
     Ok(PublicProfileResponse {
         slug: slug.clone(),
         hanko: derive_hanko(&display_name, &slug),
@@ -343,7 +352,47 @@ pub async fn build_public_profile(
         },
         library: entries,
         has_adult_content,
+        wishlist_open_until,
     })
+}
+
+/// 祝 · Set the wishlist-public horizon.
+///
+/// Positive `days` arms the toggle to `now() + days` (clamped to a
+/// reasonable upper bound to defang adversarial values like `i64::MAX`,
+/// which would overflow the timestamp arithmetic). Zero or negative
+/// disables the feature outright. Returns the resolved horizon so the
+/// client can hydrate from a canonical value.
+pub async fn set_wishlist_public_until(
+    db: &Db,
+    user_id: i32,
+    days: i64,
+) -> Result<Option<chrono::DateTime<chrono::Utc>>, AppError> {
+    // Cap the lifetime so a malformed client (or a JSON injection)
+    // can't pin the wishlist open for centuries. 365 days is plenty
+    // for the documented use case (birthday / wedding / housewarming);
+    // the server-side cap means we don't trust the SPA's value blindly.
+    const MAX_DAYS: i64 = 365;
+    let now = chrono::Utc::now();
+    let until = if days <= 0 {
+        None
+    } else {
+        let clamped = days.min(MAX_DAYS);
+        Some(now + chrono::Duration::days(clamped))
+    };
+
+    let mut active: ActiveModel = match UserEntity::find_by_id(user_id)
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+    {
+        Some(u) => u.into(),
+        None => return Err(AppError::Unauthorized),
+    };
+    active.wishlist_public_until = Set(until);
+    active.modified_on = Set(now);
+    active.update(db).await.map_err(AppError::from)?;
+    Ok(until)
 }
 
 /// Toggle the "include adult content in public profile" opt-in. Takes

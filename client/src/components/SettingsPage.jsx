@@ -3,6 +3,7 @@ import Modal from "@/components/ui/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
 import DeleteAccountFlow from "@/components/DeleteAccountFlow.jsx";
 import PublicProfileSection from "@/components/PublicProfileSection.jsx";
+import BirthdayModeSection from "@/components/BirthdayModeSection.jsx";
 import ArchiveSection from "@/components/ArchiveSection.jsx";
 import SeasonSection from "@/components/SeasonSection.jsx";
 import WelcomeTour from "@/components/WelcomeTour.jsx";
@@ -712,6 +713,14 @@ export default function SettingsPage() {
             in a natural progression: Account → Preferences → Sharing →
             Data management. */}
         <PublicProfileSection />
+
+        {/* ─── 祝 Birthday mode — temporary wishlist exposure.
+            Adjacent to the public-profile toggle because they're the
+            same conceptual surface (what visitors see at /u/{slug}).
+            The section is gated visually when the public profile is
+            disabled — there's nowhere for the wishlist to live without
+            a slug. */}
+        <BirthdayModeSection />
 
         {/* ─── Archive (export / import) — sits alongside public
             profile as another "what can I do with my data" feature. */}

@@ -94,6 +94,19 @@ function clearLogoutPending() {
 }
 
 export const getCachedUser = readCachedUser;
+
+/**
+ * Shallow-merge `patch` into the cached `/auth/user` blob. Lets feature
+ * hooks (e.g. wishlist-public toggle) write back the new field value
+ * without re-fetching the whole user. Silently no-ops when no cache
+ * exists or storage is read-only (Safari private mode, etc.).
+ */
+export function mergeCachedUser(patch) {
+  if (!patch || typeof patch !== "object") return;
+  const current = readCachedUser();
+  if (!current) return;
+  writeCachedUser({ ...current, ...patch });
+}
 export const hasPendingLogout = isLogoutPending;
 
 /**
