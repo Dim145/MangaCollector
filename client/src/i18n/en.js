@@ -968,6 +968,7 @@ export default {
     ceremonyHeadingMany: "{n} new seals join the journal.",
     ceremonyMore: "+{n} more in the journal below",
     ceremonyDismiss: "Tap anywhere to continue",
+    ceremonySkip: "Skip ceremony",
     categories: {
       firsts: "Beginnings",
       volumes: "Progression",

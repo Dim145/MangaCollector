@@ -977,6 +977,7 @@ export default {
     ceremonyHeadingMany: "{n} nuevos sellos se unen al cuaderno.",
     ceremonyMore: "+{n} más en el cuaderno",
     ceremonyDismiss: "Toca en cualquier lugar para continuar",
+    ceremonySkip: "Saltar la ceremonia",
     categories: {
       firsts: "Comienzos",
       volumes: "Progresión",

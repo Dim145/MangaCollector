@@ -989,6 +989,7 @@ export default {
     ceremonyHeadingMany: "{n} nouveaux sceaux rejoignent le carnet.",
     ceremonyMore: "+{n} autres dans le carnet ci-dessous",
     ceremonyDismiss: "Appuyez n'importe où pour continuer",
+    ceremonySkip: "Passer la cérémonie",
     categories: {
       firsts: "Débuts",
       volumes: "Progression",
