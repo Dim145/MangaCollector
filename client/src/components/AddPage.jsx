@@ -13,6 +13,7 @@ import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { consumeTourStep, TOUR_STEPS } from "@/lib/tour.js";
+import { pickShareQuery } from "@/lib/share.js";
 import {
   addCustomEntryToUserLibrary,
   addFromMangadexToUserLibrary,
@@ -86,16 +87,34 @@ export default function AddPage() {
   const [tourFocusSearch, setTourFocusSearch] = useState(false);
   useEffect(() => {
     let intent = null;
+    let shareQuery = null;
     try {
       const params = new URLSearchParams(window.location.search);
       const raw = params.get("shortcut");
       if (raw === "scan") intent = TOUR_STEPS.SCAN;
       else if (raw === "library") intent = TOUR_STEPS.LIBRARY;
-      // Strip the param so a manual reload doesn't re-fire the
-      // scanner / focus side-effect ad infinitum. `replaceState`
-      // keeps the route stable and avoids polluting the history stack.
-      if (intent) {
-        params.delete("shortcut");
+
+      // 共有 · Web Share Target payload. Three params, any subset may
+      // be present. lib/share.js condenses them into a single search
+      // candidate; null means the share carried no usable signal.
+      shareQuery = pickShareQuery({
+        title: params.get("share_title"),
+        text: params.get("share_text"),
+        url: params.get("share_url"),
+      });
+
+      // Strip every param we consumed so a manual reload doesn't re-
+      // fire the scanner / focus / search side-effects ad infinitum.
+      // replaceState keeps the route stable and out of history.
+      const consumed = ["shortcut", "share_title", "share_text", "share_url"];
+      let mutated = false;
+      for (const key of consumed) {
+        if (params.has(key)) {
+          params.delete(key);
+          mutated = true;
+        }
+      }
+      if (mutated) {
         const qs = params.toString();
         const url = window.location.pathname + (qs ? `?${qs}` : "");
         window.history.replaceState(null, "", url);
@@ -117,6 +136,22 @@ export default function AddPage() {
     if (intent === TOUR_STEPS.LIBRARY) {
       setTourFocusSearch(true);
     }
+
+    // Share-target arrival — pre-fill the search bar with the
+    // extracted candidate and auto-run the MAL/MangaDex search so the
+    // user lands on a result list with zero taps. Skipped silently if
+    // we already routed to the scanner (mutually exclusive with SCAN).
+    if (shareQuery && intent !== TOUR_STEPS.SCAN) {
+      setQuery(shareQuery);
+      // Run the search after this microtask so React has flushed the
+      // setQuery — keeps the input visibly filled before the network
+      // request (perceived responsiveness).
+      queueMicrotask(() => {
+        runSearch(shareQuery);
+      });
+      // Force-focus the search bar even when no tour step asked for it.
+      setTourFocusSearch(true);
+    }
   }, []);
 
   // onBarcodeDetected is a stable useCallback([]) — expose the current
@@ -130,12 +165,17 @@ export default function AddPage() {
   const addManga = useAddManga();
   const commitScan = useScanCommit();
 
-  const searchManga = async () => {
-    if (!query.trim() || !online) return;
+  // `runSearch` accepts an explicit query so external triggers (the
+  // share-target handoff below) can fire it without going through a
+  // setQuery → re-render → searchManga round-trip. The button-driven
+  // path is just a thin closure over `query` for backwards compat.
+  const runSearch = async (q) => {
+    const trimmed = (q ?? "").trim();
+    if (!trimmed || !online) return;
     try {
       setLoading(true);
       setSearched(true);
-      const data = await searchExternal(query);
+      const data = await searchExternal(trimmed);
       setResults(data);
     } catch (err) {
       console.error("Search error:", err);
@@ -143,6 +183,7 @@ export default function AddPage() {
       setLoading(false);
     }
   };
+  const searchManga = () => runSearch(query);
 
   // Entries already in the user's library — checked by either id so MAL
   // results and MangaDex results both get the "owned" badge when applicable.

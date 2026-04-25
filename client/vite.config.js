@@ -74,6 +74,26 @@ export default defineConfig({
             purpose: "maskable",
           },
         ],
+        // 共有 · Web Share Target — registers MangaCollector as a
+        // recipient in the OS share sheet. When the user shares a URL
+        // or text from any other app (browser, Twitter, Mangadex,
+        // Amazon, Vinted, …) MangaCollector appears in the menu and,
+        // on tap, lands on /addmanga with the share carried in query
+        // params. lib/share.js picks the best candidate and pre-fills
+        // the search bar; the destination page also auto-runs the
+        // MAL/MangaDex search if the user is online.
+        //
+        // GET method keeps the integration server-less — the SPA reads
+        // window.location at first render, no POST body to handle.
+        share_target: {
+          action: "/addmanga",
+          method: "GET",
+          params: {
+            title: "share_title",
+            text: "share_text",
+            url: "share_url",
+          },
+        },
         // App shortcuts — surfaced by the OS launcher when the user
         // long-presses the installed PWA icon (Android Chrome / Edge,
         // Windows Edge). iOS Safari ignores this field; Apple gates
