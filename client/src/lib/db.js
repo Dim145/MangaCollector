@@ -1,4 +1,14 @@
 import Dexie from "dexie";
+// Static import instead of a previous `await import("@/lib/queryClient.js")`:
+// `queryClient.js` only depends on `@tanstack/react-query` (no import
+// back into `db.js`), so the circular-dep worry that motivated the
+// lazy import turned out to be unfounded. The static form silences the
+// Vite build warning:
+//   "dynamically imported by db.js but also statically imported by …,
+//    dynamic import will not move module into another chunk"
+// which happened because every TanStack consumer imports queryClient
+// statically anyway.
+import { queryClient } from "@/lib/queryClient.js";
 
 /*
  * Local database — two roles:
@@ -209,10 +219,9 @@ export async function clearAllUserData() {
     console.warn("[db] clearAllUserData (caches) failed:", err?.message);
   }
 
-  // 3) TanStack Query cache. Import lazily to avoid a circular dep
-  //    (`queryClient.js` imports `db.js` for some mutations).
+  // 3) TanStack Query cache — see the static import at the top of the
+  //    file for why this is no longer a `await import(...)`.
   try {
-    const { queryClient } = await import("@/lib/queryClient.js");
     queryClient.clear();
   } catch (err) {
     console.warn("[db] clearAllUserData (query cache) failed:", err?.message);

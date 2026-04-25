@@ -190,9 +190,9 @@ export default function Modal({
       lastFocusedBeforeOpenRef.current = null;
     };
     // Deps intentionally exclude `handleClose` — see the
-    // `handleCloseRef` block above. Only `mounted` gates the
-    // install/teardown of scroll-lock + focus-trap + listeners.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // `handleCloseRef` block above. The effect reads
+    // `handleCloseRef.current` (not `handleClose` directly), so
+    // exhaustive-deps has nothing to flag.
   }, [mounted]);
 
   if (!mounted) return null;

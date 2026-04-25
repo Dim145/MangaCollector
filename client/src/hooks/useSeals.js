@@ -50,9 +50,9 @@ export function useSeals() {
     queryKey: ["seals"],
     queryFn: async () => {
       const { data } = await axios.get("/api/user/seals");
-      // Strip the transient signal BEFORE persisting. The cache mirrors
-      // server-stable state only.
-      // eslint-disable-next-line no-unused-vars
+      // Strip the transient signal BEFORE persisting: `stable` is
+      // cached (without newly_granted), `newly_granted` flows to
+      // component-local state below to drive the one-shot ceremony.
       const { newly_granted, ...stable } = data ?? {};
       await db.seals.put({ key: "user", ...stable });
       setNewlyGranted(Array.isArray(newly_granted) ? newly_granted : []);

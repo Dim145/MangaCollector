@@ -1,3 +1,19 @@
+/* eslint-disable react-refresh/only-export-components --
+ * This module is the app's i18n hub. It co-locates on purpose:
+ *   • the `I18nProvider` component
+ *   • the `useT` / `useLang` hooks (consumed by every translated
+ *     component)
+ *   • the `LANGUAGES` constant (used by the Settings picker)
+ *   • the `bootstrap*` / `remember*` helpers (used at app init
+ *     before React mounts, to pick the right bundle without FOUC)
+ *
+ * react-refresh/only-export-components flags this file because it
+ * exports non-component values alongside a component — that breaks
+ * HMR for this specific file in dev. Splitting into 4 files would
+ * fix the warning but fragment a tight, cohesive API. HMR impact
+ * is development-only; the runtime behaviour is identical. The
+ * trade-off is worth it for readability.
+ */
 import { createContext, useContext, useMemo } from "react";
 import en from "./en.js";
 import fr from "./fr.js";

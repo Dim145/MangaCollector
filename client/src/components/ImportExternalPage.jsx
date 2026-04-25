@@ -223,6 +223,7 @@ function ServiceCard({ id, onClick, kanji, title, inputLabel, blurb, accent, ord
   return (
     <button
       type="button"
+      id={id ? `import-service-${id}` : undefined}
       onClick={onClick}
       className={`group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 text-left backdrop-blur transition-all duration-300 animate-fade-up hover:-translate-y-1 ${accentCls}`}
       style={{ animationDelay: `${order * 80}ms` }}

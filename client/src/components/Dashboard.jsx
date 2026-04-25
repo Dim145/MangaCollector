@@ -114,7 +114,10 @@ export default function Dashboard() {
       });
     }
     return result;
-  }, [library, filter, query, activeTags]);
+    // `tsundokuByMal` is a memoised Map; including it as a dep lets
+    // the filter recompute when the tsundoku slice changes (a volume
+    // flip toggles a row in/out of the "積" bucket).
+  }, [library, filter, query, activeTags, tsundokuByMal]);
 
   return (
     <DefaultBackground>
