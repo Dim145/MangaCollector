@@ -248,9 +248,19 @@ export default function Dashboard() {
               {[
                 { id: "all", glyph: "全", label: t("dashboard.tabAll") },
                 { id: "inprogress", glyph: "進", label: t("dashboard.tabOngoing") },
-                { id: "wishlist", glyph: "願", label: t("dashboard.tabWishlist") },
+                {
+                  id: "wishlist",
+                  glyph: "願",
+                  label: t("dashboard.tabWishlist"),
+                  tooltip: `${t("dashboard.tabWishlist")} · ${t("dashboard.tabHintWishlist")}`,
+                },
                 { id: "complete", glyph: "完", label: t("dashboard.tabComplete") },
-                { id: "tsundoku", glyph: "積", label: t("dashboard.tabTsundoku") },
+                {
+                  id: "tsundoku",
+                  glyph: "積",
+                  label: t("dashboard.tabTsundoku"),
+                  tooltip: `${t("dashboard.tabTsundoku")} · ${t("dashboard.tabHintTsundoku")}`,
+                },
               ].map((tab) => {
                 const active = filter === tab.id;
                 const activeBg =
@@ -265,7 +275,7 @@ export default function Dashboard() {
                     role="tab"
                     aria-selected={active}
                     aria-label={tab.label}
-                    title={tab.label}
+                    title={tab.tooltip ?? tab.label}
                     onClick={() => setFilter(tab.id)}
                     className={`group/tab inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold uppercase tracking-wider transition sm:min-h-0 sm:py-1.5 ${
                       active ? activeBg : "text-washi-muted hover:text-washi"
@@ -307,6 +317,41 @@ export default function Dashboard() {
             </button>
           </div>
 
+          {/* Editorial gloss — only rendered for filters whose name carries
+              cultural baggage (the Japanese terms 願 / 積読). Sits in a
+              `min-h` reserve so the grid below doesn't jump when switching
+              between glossed and unglossed filters. The `key={filter}`
+              re-mounts the line on every change, replaying the fade-up
+              animation as a subtle "you just changed lens" cue.
+              `aria-live="polite"` lets screen readers hear the definition
+              after a filter switch without interrupting the user. */}
+          <div className="min-h-[1.5rem] px-1" aria-live="polite">
+            {(() => {
+              if (filter !== "wishlist" && filter !== "tsundoku") return null;
+              const isWishlist = filter === "wishlist";
+              const romaji = isWishlist ? "願 negai" : "積読 tsundoku";
+              const text = isWishlist
+                ? t("dashboard.tabHintWishlist")
+                : t("dashboard.tabHintTsundoku");
+              const tone = isWishlist ? "text-sakura" : "text-moegi";
+              return (
+                <p
+                  key={filter}
+                  className="animate-fade-up flex flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-snug"
+                  style={{ animationDuration: "0.4s" }}
+                >
+                  <span
+                    className={`font-jp text-[11px] font-semibold tracking-[0.15em] ${tone}`}
+                  >
+                    {romaji}
+                  </span>
+                  <span className="font-display text-[11px] italic text-washi-muted">
+                    {text}
+                  </span>
+                </p>
+              );
+            })()}
+          </div>
         </section>
 
         {/* Active tag chips — discreet "Filtré par: [shōnen ×] [drame ×]"

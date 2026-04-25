@@ -49,6 +49,8 @@ export default {
     tabComplete: "Complete",
     tabTsundoku: "Tsundoku",
     filterTablistLabel: "Filter library by status",
+    tabHintWishlist: "series you're tracking but haven't started owning yet",
+    tabHintTsundoku: "the quiet joy of unread piles — series with at least one acquired-but-unread volume",
     searchPlaceholder: "Search your library…",
     clearFilter: "Clear",
     addManga: "Add manga",

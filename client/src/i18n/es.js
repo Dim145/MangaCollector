@@ -49,6 +49,8 @@ export default {
     tabComplete: "Completos",
     tabTsundoku: "Tsundoku",
     filterTablistLabel: "Filtrar biblioteca por estado",
+    tabHintWishlist: "series que sigues sin haber adquirido todavía ningún tomo",
+    tabHintTsundoku: "el placer tranquilo de las pilas sin leer — series con al menos un tomo en posesión pero aún sin leer",
     searchPlaceholder: "Busca en tu biblioteca…",
     clearFilter: "Limpiar",
     addManga: "Añadir manga",
