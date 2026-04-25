@@ -212,6 +212,10 @@ export async function lookupISBN(rawIsbn) {
     volume,
     authors: info.authors ?? [],
     publisher: info.publisher,
+    // Best-effort guess at the edition variant — Google Books has no
+    // structured field for it, so we read the raw title for marker
+    // words. Non-matches stay null and the user fills them in later.
+    edition: detectEditionFromTitle(fullTitle),
     pageCount: typeof info.pageCount === "number" ? info.pageCount : null,
     thumbnail:
       info.imageLinks?.extraLarge ??
@@ -226,6 +230,42 @@ export async function lookupISBN(rawIsbn) {
 
   await writeCached(isbn, result);
   return result;
+}
+
+/**
+ * Sniff the edition variant out of a Google Books title. Returns a
+ * canonical label drawn from the same vocabulary the manual edit form
+ * exposes, or `null` when nothing matches.
+ *
+ * Order matters: more specific markers come first so "Perfect Edition"
+ * isn't shadowed by a generic "edition" hit. Match is case-insensitive
+ * and word-bounded enough to skip false positives ("Standardize").
+ *
+ * Conservative on purpose — it's better to leave the field blank than
+ * to mis-tag a series; the user always has the final say in the edit
+ * form. This is a best-effort prefill, not a classifier.
+ */
+function detectEditionFromTitle(rawTitle) {
+  if (!rawTitle) return null;
+  const t = rawTitle.toLowerCase();
+  // [pattern, canonical label] — patterns are word-level so we don't
+  // catch substrings (e.g. "starlight" wouldn't trip "ultimate").
+  const RULES = [
+    [/\bperfect\s+edition\b/i, "Perfect Edition"],
+    [/\bultimate\s+edition\b/i, "Ultimate"],
+    [/\bdeluxe(\s+edition)?\b/i, "Deluxe"],
+    [/\bkanzenban\b/i, "Kanzenban"],
+    [/\bbunkoban\b/i, "Pocket / Bunkoban"],
+    [/\b(édition\s+collector|collector'?s?\s+edition)\b/i, "Anniversary"],
+    [/\b(édition\s+anniversaire|anniversary\s+edition)\b/i, "Anniversary"],
+    [/\b(édition\s+couleur|colou?r\s+edition)\b/i, "Colour edition"],
+    [/\bédition\s+originale\b/i, "Original"],
+    [/\b(double\s+edition|tomes?\s+doubles?)\b/i, "Double volumes"],
+  ];
+  for (const [re, label] of RULES) {
+    if (re.test(t)) return label;
+  }
+  return null;
 }
 
 // Words that unambiguously mark a multi-volume pack on the product title.

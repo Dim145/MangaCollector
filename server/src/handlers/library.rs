@@ -8,7 +8,7 @@ use serde_json::json;
 use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::models::library::{
-    AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, UpdateVolumesRequest,
+    AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, UpdateLibraryRequest,
 };
 use crate::services::realtime::SyncKind;
 use crate::services::{cover_pool, library};
@@ -269,16 +269,24 @@ pub async fn add_custom_entry(
     })))
 }
 
-/// PATCH /api/user/library/:mal_id  — update volume count
+/// PATCH /api/user/library/:mal_id  — partial update of a library row.
+///
+/// Accepts any subset of `volumes`, `publisher`, `edition`. Each field
+/// is honoured only when present in the request body. The volumes path
+/// (which mutates `user_volumes` alongside the count) runs first so the
+/// publisher / edition write lands on the freshly-rebuilt row.
 pub async fn update_manga(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
-    Json(body): Json<UpdateVolumesRequest>,
+    Json(body): Json<UpdateLibraryRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    library::update_manga_volumes(&state.db, mal_id, user.id, body.volumes).await?;
+    let touches_volumes = body.volumes.is_some();
+    library::apply_library_patch(&state.db, mal_id, user.id, body).await?;
     state.broker.publish(user.id, SyncKind::Library).await;
-    state.broker.publish(user.id, SyncKind::Volumes).await;
+    if touches_volumes {
+        state.broker.publish(user.id, SyncKind::Volumes).await;
+    }
     Ok(Json(json!({
         "success": true,
         "message": "Updated manga in library successfully"

@@ -10,7 +10,8 @@ use crate::errors::AppError;
 use crate::models::activity::event_types;
 use crate::models::library::{
     self, ActiveModel, AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest,
-    Entity as LibraryEntity, LibraryEntry,
+    EDITION_MAX_LEN, Entity as LibraryEntity, LibraryEntry, PUBLISHER_MAX_LEN,
+    UpdateLibraryRequest, sanitize_label,
 };
 use crate::services::cache::CacheStore;
 use crate::services::{activity, mangadex_api, settings, volume};
@@ -222,6 +223,12 @@ pub async fn add_to_user_library(
         }
     }
 
+    // Pre-sanitize the editorial metadata coming in from the request.
+    // Trim + clamp + empty-to-None so the column never holds whitespace
+    // or a runaway-length value. Same contract as the PATCH path.
+    let publisher = sanitize_label(req.publisher, PUBLISHER_MAX_LEN);
+    let edition = sanitize_label(req.edition, EDITION_MAX_LEN);
+
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),
@@ -233,6 +240,8 @@ pub async fn add_to_user_library(
         image_url_jpg: Set(image_url_final),
         genres: Set(Some(genres_str)),
         mangadex_id: Set(req.mangadex_id.clone()),
+        publisher: Set(publisher),
+        edition: Set(edition),
         ..Default::default()
     };
 
@@ -300,6 +309,11 @@ pub async fn add_from_mangadex(
             image_url_jpg: req.image_url_jpg,
             genres: req.genres,
             mangadex_id: Some(req.mangadex_id),
+            // MangaDex doesn't expose imprint metadata reliably, so we
+            // leave these empty here. The user can fill them in later
+            // from the series-detail edit form.
+            publisher: None,
+            edition: None,
         },
     )
     .await
@@ -538,6 +552,12 @@ pub async fn copy_series_from_other_user(
                 Some(source_entry.genres)
             },
             mangadex_id: source_entry.mangadex_id,
+            // Don't carry the source user's publisher / edition over —
+            // the destination user may collect a different imprint of
+            // the same MAL series. Leaving these blank is the safer
+            // default; they can be set later via the edit form.
+            publisher: None,
+            edition: None,
         },
     )
     .await
@@ -565,6 +585,10 @@ pub async fn add_custom_entry(
             image_url_jpg: None,
             genres: req.genres,
             mangadex_id: None,
+            // Custom entries have no external metadata to mine; the
+            // user fills in publisher / edition from the edit form.
+            publisher: None,
+            edition: None,
         },
     )
     .await
@@ -616,6 +640,63 @@ pub async fn get_total_volumes(
         .await
         .map_err(AppError::from)?;
     Ok(row.map(|r| r.volumes))
+}
+
+/// Apply a partial update to a library row. Each field of the request
+/// is honoured only when present:
+///   - `volumes`   → routes to `update_manga_volumes` (which mutates
+///                   user_volumes alongside the count)
+///   - `publisher` → trims, clamps, persists via ActiveModel
+///   - `edition`   → same contract as publisher
+///
+/// All three may be sent in the same request; the volume mutation runs
+/// first so the publisher / edition update can ride on the freshly
+/// rebuilt row. Errors short-circuit — a malformed `volumes` won't let
+/// the metadata fields slip through unsynced.
+pub async fn apply_library_patch(
+    db: &Db,
+    mal_id: i32,
+    user_id: i32,
+    body: UpdateLibraryRequest,
+) -> Result<(), AppError> {
+    if let Some(new_volumes) = body.volumes {
+        update_manga_volumes(db, mal_id, user_id, new_volumes).await?;
+    }
+
+    // publisher / edition are independent of the volumes path. Skip the
+    // round-trip if neither field is present (the common case for a
+    // pure volumes PATCH).
+    if body.publisher.is_none() && body.edition.is_none() {
+        return Ok(());
+    }
+
+    let row = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+
+    let Some(existing) = row else {
+        // No row to update — silently OK (matches the volumes path's
+        // behaviour). The client may have just deleted the series.
+        return Ok(());
+    };
+
+    let mut active: ActiveModel = existing.into();
+
+    // `Some(value)` means the client wants to set or clear the column.
+    // sanitize_label folds `None`, `Some("")` and whitespace-only into
+    // `None` (the "clear" outcome) and applies the length clamp.
+    if let Some(raw) = body.publisher {
+        active.publisher = Set(sanitize_label(raw, PUBLISHER_MAX_LEN));
+    }
+    if let Some(raw) = body.edition {
+        active.edition = Set(sanitize_label(raw, EDITION_MAX_LEN));
+    }
+    active.modified_on = Set(Utc::now());
+    active.update(db).await.map_err(AppError::from)?;
+    Ok(())
 }
 
 pub async fn update_manga_volumes(

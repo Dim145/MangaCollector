@@ -12,6 +12,7 @@ import Modal from "@/components/ui/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import {
   useDeleteManga,
+  useUpdateMangaMeta,
   useLibrary,
   useSetPoster,
   useUpdateManga,
@@ -65,6 +66,18 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [poster, setPoster] = useState(manga.image_url_jpg);
   const [genres, setGenres] = useState(manga.genres ?? []);
   const [name, setName] = useState(manga.name || t("manga.unknownTitle"));
+  // 出版社 · Edition / publisher metadata. Free-text by design — the
+  // datalist below offers common imprints as suggestions but the user
+  // can type anything (or wipe the field by leaving it empty). Hard
+  // length cap mirrors the server clamp so the UI fails fast rather
+  // than letting a 10 KB paste through.
+  //
+  // Seeded to "" here (NOT from `liveLibraryRow` which is declared
+  // further down — TDZ would crash the first render). The effect a
+  // few hooks below repopulates from the live row as soon as Dexie
+  // resolves, then keeps it synced through realtime pushes.
+  const [publisher, setPublisher] = useState("");
+  const [edition, setEdition] = useState("");
 
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [addAvgPrice, setAddAvgPrice] = useState("");
@@ -91,6 +104,7 @@ export default function MangaPage({ manga, adult_content_level }) {
   const liveVolumeCount = liveLibraryRow?.volumes ?? (manga.volumes ?? 0);
   const liveMangadexId = liveLibraryRow?.mangadex_id ?? manga.mangadex_id ?? null;
   const updateManga = useUpdateManga();
+  const updateMangaMeta = useUpdateMangaMeta();
   const deleteManga = useDeleteManga();
   const updateVolumesOwned = useUpdateVolumesOwned();
   const setPosterMutation = useSetPoster();
@@ -182,6 +196,16 @@ export default function MangaPage({ manga, adult_content_level }) {
   }, [liveLibraryRow?.genres, isEditing]);
 
   useEffect(() => {
+    // Sync publisher / edition from the live row when not editing — same
+    // pattern as name / genres above, so an outbox flush or another tab's
+    // realtime push updates the read-only display immediately.
+    if (!isEditing) {
+      setPublisher(liveLibraryRow?.publisher ?? "");
+      setEdition(liveLibraryRow?.edition ?? "");
+    }
+  }, [liveLibraryRow?.publisher, liveLibraryRow?.edition, isEditing]);
+
+  useEffect(() => {
     if (liveLibraryRow?.image_url_jpg != null && !isEditing) {
       setPoster(liveLibraryRow.image_url_jpg);
     }
@@ -227,6 +251,21 @@ export default function MangaPage({ manga, adult_content_level }) {
         mal_id: manga.mal_id,
         volumes: newTotal,
       });
+
+      // 出版社 · Persist publisher / edition only when one of them
+      // actually changed. Empty string is the canonical "clear this
+      // column" value (sync.js trims and folds it to null before the
+      // outbox enqueue; the server's sanitize_label finishes the job).
+      const prevPublisher = liveLibraryRow?.publisher ?? "";
+      const prevEdition = liveLibraryRow?.edition ?? "";
+      const nextPublisher = publisher.trim();
+      const nextEdition = edition.trim();
+      const metaPatch = {};
+      if (nextPublisher !== prevPublisher) metaPatch.publisher = nextPublisher;
+      if (nextEdition !== prevEdition) metaPatch.edition = nextEdition;
+      if (Object.keys(metaPatch).length > 0) {
+        await updateMangaMeta.mutateAsync({ mal_id: manga.mal_id, ...metaPatch });
+      }
 
       // Poster upload is online-only (file payloads can't be queued)
       if (selectedImage && online) {
@@ -596,6 +635,52 @@ export default function MangaPage({ manga, adult_content_level }) {
                       {genre}
                     </span>
                   ))}
+                </div>
+              )}
+
+              {/* 出版社 · Publisher / edition strip.
+                  Read mode: a single quiet line "Glénat · Édition deluxe"
+                  in mono micro — only rendered when at least one field is
+                  set, so an unedited series stays clean.
+                  Edit mode: two text inputs paired with a shared datalist
+                  of common imprints so the user gets autocompletion
+                  without any custom popup component. */}
+              {!isEditing && (publisher || edition) && (
+                <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+                  <span aria-hidden="true" className="font-jp text-xs text-hanko/70">
+                    出版
+                  </span>
+                  {publisher && <span className="text-washi-muted">{publisher}</span>}
+                  {publisher && edition && (
+                    <span aria-hidden="true" className="text-washi-dim">
+                      ·
+                    </span>
+                  )}
+                  {edition && <span className="text-washi-muted italic">{edition}</span>}
+                </div>
+              )}
+              {isEditing && (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <PublisherEditionField
+                    id="manga-publisher"
+                    label={t("manga.publisherLabel")}
+                    placeholder={t("manga.publisherPlaceholder")}
+                    value={publisher}
+                    onChange={setPublisher}
+                    listId="mc-publisher-list"
+                    maxLength={80}
+                    options={PUBLISHER_PRESETS}
+                  />
+                  <PublisherEditionField
+                    id="manga-edition"
+                    label={t("manga.editionLabel")}
+                    placeholder={t("manga.editionPlaceholder")}
+                    value={edition}
+                    onChange={setEdition}
+                    listId="mc-edition-list"
+                    maxLength={60}
+                    options={EDITION_PRESETS.map((key) => t(`manga.editionPreset_${key}`))}
+                  />
                 </div>
               )}
 
@@ -1499,6 +1584,103 @@ function LibraryChip({ kanji, label, value, total, percent, accent }) {
     </div>
   );
 }
+
+/**
+ * 出版社 · Datalist-backed text input used by the publisher / edition
+ * fields. Keeps the markup a single shared atom so the two inputs stay
+ * in lockstep on padding, focus ring, and length cap. The browser's
+ * native `<datalist>` handles the autocomplete dropdown — zero JS, zero
+ * custom popover, fully accessible by default, free mobile suggestions.
+ */
+function PublisherEditionField({
+  id,
+  label,
+  placeholder,
+  value,
+  onChange,
+  listId,
+  maxLength,
+  options,
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+        {label}
+      </span>
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        list={listId}
+        maxLength={maxLength}
+        autoComplete="off"
+        spellCheck={false}
+        className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+      />
+      <datalist id={listId}>
+        {options.map((opt) => (
+          <option key={opt} value={opt} />
+        ))}
+      </datalist>
+    </label>
+  );
+}
+
+/** Common imprints across markets — surfaced as suggestions in the
+ *  publisher field. Trim to the most-collected names so the dropdown
+ *  stays scannable; users can always type anything not on the list. */
+const PUBLISHER_PRESETS = [
+  // FR
+  "Glénat",
+  "Kana",
+  "Pika",
+  "Ki-oon",
+  "Kurokawa",
+  "Akata",
+  "Soleil",
+  "Doki-Doki",
+  "Delcourt / Tonkam",
+  "Mangetsu",
+  "Vega",
+  "Casterman / Sakka",
+  "Noeve Grafx",
+  "Black Box",
+  "Crunchyroll Manga",
+  "Panini Manga",
+  // EN
+  "Viz Media",
+  "Yen Press",
+  "Kodansha USA",
+  "Seven Seas",
+  "Square Enix Manga",
+  "Dark Horse",
+  "Vertical",
+  "Tokyopop",
+  // ES
+  "Norma Editorial",
+  "Panini Cómics",
+  "Editorial Ivréa",
+  "Planeta Cómic",
+  "ECC Ediciones",
+];
+
+/** Edition variants — keys; the resolved labels live in i18n so the
+ *  suggestions show in the user's current language. Free-text input
+ *  remains the source of truth. */
+const EDITION_PRESETS = [
+  "standard",
+  "kanzenban",
+  "perfect",
+  "deluxe",
+  "ultimate",
+  "original",
+  "color",
+  "anniversary",
+  "doubleVolumes",
+  "pocket",
+];
 
 function SummaryCard({ label, value, hint, loading, skeletonWidth }) {
   return (

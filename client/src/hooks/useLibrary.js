@@ -4,6 +4,7 @@ import axios from "@/utils/axios.js";
 import { cacheLibrary, db } from "@/lib/db.js";
 import {
   enqueueLibraryDelete,
+  enqueueLibraryPatch,
   enqueueLibraryPoster,
   enqueueLibraryUpdateVolumes,
   enqueueLibraryUpsert,
@@ -109,6 +110,29 @@ export function useUpdateVolumesOwned() {
     mutationFn: async ({ mal_id, nbOwned }) => {
       await enqueueLibraryVolumesOwned(mal_id, nbOwned);
       return { mal_id, nbOwned };
+    },
+  });
+}
+
+/**
+ * 出版社 · Update the publisher / edition metadata on a library row.
+ *
+ * Same offline-first contract as the other library mutations — the
+ * write lands in Dexie immediately and an outbox PATCH coalesces with
+ * any pending op for the same series. Pass either field as `null` (or
+ * empty string) to clear it.
+ *
+ * Both fields can be sent in the same call so a "switch from Glénat
+ * standard to Glénat Perfect" is a single PATCH.
+ */
+export function useUpdateMangaMeta() {
+  return useMutation({
+    mutationFn: async ({ mal_id, publisher, edition }) => {
+      const fields = {};
+      if (publisher !== undefined) fields.publisher = publisher;
+      if (edition !== undefined) fields.edition = edition;
+      await enqueueLibraryPatch(mal_id, fields);
+      return { mal_id, ...fields };
     },
   });
 }

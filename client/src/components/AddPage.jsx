@@ -375,6 +375,10 @@ export default function AddPage() {
         volumeNumbers,
         scannedVolume: volume,
         price,
+        // Google Books payload — useScanCommit reads its `publisher` /
+        // `edition` to pre-fill the new library row's editorial
+        // metadata (only when the series is freshly added).
+        book: scanResult.book,
       });
       setRecentScans((prev) =>
         [

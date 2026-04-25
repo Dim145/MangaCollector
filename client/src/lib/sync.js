@@ -121,16 +121,55 @@ export async function enqueueLibraryDelete(mal_id) {
 }
 
 export async function enqueueLibraryUpdateVolumes(mal_id, volumes) {
+  await enqueueLibraryPatch(mal_id, { volumes });
+}
+
+/**
+ * Generic optimistic library-row patch — mirrors any subset of fields
+ * (`volumes`, `publisher`, `edition`, `image_url_jpg`) into Dexie and
+ * queues a single coalesced outbox op for the same mal_id. The flush
+ * handler walks the payload and fires one HTTP request per server
+ * endpoint that knows the field.
+ *
+ * Any string field is normalised:
+ *   - leading/trailing whitespace stripped
+ *   - empty string after trim → `null` (the "clear this column" intent)
+ * Length clamping is the server's job; we don't echo the cap here so
+ * the two stay in sync via a single source of truth.
+ */
+export async function enqueueLibraryPatch(mal_id, fields) {
+  // Normalise text fields once. `volumes` and `image_url_jpg` ride
+  // through unchanged.
+  const next = {};
+  if ("volumes" in fields) next.volumes = fields.volumes;
+  if ("image_url_jpg" in fields) next.image_url_jpg = fields.image_url_jpg;
+  for (const key of ["publisher", "edition"]) {
+    if (!(key in fields)) continue;
+    const raw = fields[key];
+    if (raw == null) {
+      next[key] = null;
+    } else {
+      const trimmed = String(raw).trim();
+      next[key] = trimmed === "" ? null : trimmed;
+    }
+  }
+  if (Object.keys(next).length === 0) return;
+
   await db.transaction("rw", db.library, db.outboxLibrary, async () => {
     const existing = await db.library.get(mal_id);
-    if (existing) await db.library.put({ ...existing, volumes });
+    if (existing) {
+      await db.library.put({ ...existing, ...next });
+    }
     const current = (await db.outboxLibrary.get(mal_id)) ?? {
       mal_id,
       op: "patch",
       payload: {},
       ts: Date.now(),
     };
-    current.payload = { ...current.payload, volumes };
+    current.payload = { ...current.payload, ...next };
+    // Preserve an in-flight `upsert` op (the row is being created),
+    // otherwise this becomes a `patch` op so the flush handler treats
+    // each field independently.
     current.op = current.op === "upsert" ? "upsert" : "patch";
     current.ts = Date.now();
     await db.outboxLibrary.put(current);
@@ -323,17 +362,23 @@ async function flushLibrary() {
           });
         }
       } else if (op.op === "patch") {
-        // A "patch" op is a bag of pending field updates. Fire one request
-        // per field, since the server splits volumes vs poster across two
-        // endpoints.
-        if (op.payload?.volumes != null) {
-          await axios.patch(`/api/user/library/${op.mal_id}`, {
-            volumes: op.payload.volumes,
-          });
-          // Volume count changes (re)create or drop rows in user_volumes on
-          // the server — without a refetch, the new rows are invisible
-          // until the next manual refresh.
-          await refetchVolumes(op.mal_id).catch(() => {});
+        // A "patch" op is a bag of pending field updates. We split the
+        // payload across two endpoints because the server keeps poster
+        // changes on a dedicated route. Library-row metadata
+        // (volumes / publisher / edition) all goes through one request
+        // so a multi-field edit only burns one round trip.
+        const meta = {};
+        if (op.payload?.volumes != null) meta.volumes = op.payload.volumes;
+        if ("publisher" in (op.payload ?? {})) meta.publisher = op.payload.publisher;
+        if ("edition" in (op.payload ?? {})) meta.edition = op.payload.edition;
+        if (Object.keys(meta).length > 0) {
+          await axios.patch(`/api/user/library/${op.mal_id}`, meta);
+          // A volumes change rebuilds rows in user_volumes server-side;
+          // refetch so the new rows surface in Dexie. Skip when only
+          // metadata changed — no volume table mutation involved.
+          if (meta.volumes != null) {
+            await refetchVolumes(op.mal_id).catch(() => {});
+          }
         }
         if (op.payload?.image_url_jpg) {
           await axios.patch(`/api/user/storage/poster/${op.mal_id}`, {
