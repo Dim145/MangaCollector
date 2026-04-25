@@ -82,6 +82,27 @@ db.version(5).stores({
   mangaCharacters: "mal_id, ts",
 });
 
+// v6 — seals cache. Single row keyed by "user" holding the earned-seals
+// list (just `{ code, earned_at }` tuples — the catalog itself lives in
+// `lib/sealsCatalog.js` and is bundled at build time). `newly_granted`
+// is NOT persisted here: it's a transient "what got unlocked this exact
+// request" signal that drives the ceremony animation, and replaying it
+// from cache would fire the same ceremony every mount after an unlock.
+// See `useSeals` for the strip-before-cache discipline.
+db.version(6).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+});
+
 export const SETTINGS_KEY = "user";
 
 /** Replace the entire library cache. */
@@ -155,6 +176,7 @@ export async function clearAllUserData() {
         db.activity,
         db.malRecommendations,
         db.mangaCharacters,
+        db.seals,
       ],
       async () => {
         await db.library.clear();
@@ -166,6 +188,7 @@ export async function clearAllUserData() {
         await db.activity.clear();
         await db.malRecommendations.clear();
         await db.mangaCharacters.clear();
+        await db.seals.clear();
       },
     );
   } catch (err) {
