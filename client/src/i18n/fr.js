@@ -426,6 +426,28 @@ export default {
     comingSoon: "Fil d'activité et recommandations personnalisées à venir.",
     tooltipSpent: "Dépensé",
   },
+  tour: {
+    kicker: "Bienvenue",
+    headingPre: "Commencez votre",
+    headingAccent: "archive",
+    intro:
+      "Trois manières de débuter votre collection — choisissez celle qui vous parle. Vous pourrez passer de l'une à l'autre à tout moment.",
+    s1Title: "Ajouter votre première série",
+    s1Body:
+      "Cherchez sur MyAnimeList, on remplit tomes, couvertures et genres d'un clic.",
+    s1Cta: "Parcourir le catalogue",
+    s2Title: "Scanner un tankōbon",
+    s2Body:
+      "Pointez l'appareil photo vers l'ISBN — on matche avec MAL et on classe le tome au bon endroit.",
+    s2Cta: "Ouvrir le scanner",
+    s3Title: "Choisir votre hanko",
+    s3Body:
+      "Adoptez l'avatar d'un personnage des séries que vous possédez — votre sceau partout dans l'app.",
+    s3Cta: "Voir mon profil",
+    skip: "Plus tard",
+    replayHint: "Vous pouvez rejouer ce tour depuis les Réglages.",
+    spotlightAvatar: "Cliquez ici",
+  },
   settings: {
     heading: "PARAMÈTRES · 設定",
     preferences: "Préférences",
@@ -462,6 +484,9 @@ export default {
     titleDefault: "Par défaut (MAL)",
     titleEnglish: "Anglais",
     titleJapanese: "Japonais",
+    onboardingSection: "Découverte",
+    onboardingBody: "Rejouez le tour de bienvenue en trois étapes à tout moment.",
+    replayTour: "Rejouer le tour de bienvenue",
     barcodeScanner: "Scanner de code-barres",
     scannerBody:
       "Le scan interroge Google Books pour chaque ISBN. Une clé API facultative lève la limite anonyme par IP — sans elle, plusieurs scans de suite peuvent déclencher un 429.",

@@ -642,6 +642,42 @@
   }
 }
 
+/* 印 · Welcome-tour spotlight pulse — concentric hanko-coloured rings
+   that bloom outward and fade. Layered against an inset ring so the
+   "rest" frame still has a visible halo, while the bloom phase reads
+   as "click here". `cubic-bezier(0.4, 0, 0.6, 1)` tames the easing
+   so the second beat doesn't feel like a strobe. */
+@keyframes tour-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 var(--hanko-glow),
+      0 0 0 0 var(--hanko-glow);
+  }
+  60% {
+    box-shadow:
+      0 0 0 12px transparent,
+      0 0 0 22px transparent;
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 transparent,
+      0 0 0 0 transparent;
+  }
+}
+
+/* 印 · Tiny horizontal bob for the spotlight caption. The arrow needs
+   to feel like it's tugging the eye toward the avatar without crossing
+   into "anxious dancing". 4 px amplitude, ease-in-out, infinite. */
+@keyframes tour-bob {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+}
+
 /* Seal ceremony — heavier than plain stamp. Used ONCE on newly-earned
    seals in the 印鑑帳 journal, so it's an emphatic motion: the sceau
    drops from scale 1.6 with a bigger tilt, overshoots into a reverse
@@ -1513,6 +1549,18 @@
 }
 .animate-seal-glow {
   animation: seal-glow 2.4s ease-out both;
+}
+
+/* Welcome-tour spotlight — repeats the bloom every 1.6 s so the user
+   spots it on a peripheral glance, but caps the iteration count so the
+   ring doesn't pulse forever if they ignore it. The parent component
+   also turns the class off after its own timer (~7 s). */
+.tour-pulse {
+  animation: tour-pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) 4;
+}
+.animate-tour-bob {
+  animation: tour-bob 1.6s ease-in-out infinite;
+  display: inline-block;
 }
 
 /* Motion preferences */

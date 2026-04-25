@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 export default function MangaSearchBar({
   query,
   setQuery,
@@ -8,7 +10,36 @@ export default function MangaSearchBar({
   placeholder,
   clearText,
   additionalButtons,
+  // Tour-friendly opt-in: when true, the input receives focus on mount.
+  // Used by the welcome tour's "Add your first series" step so the
+  // user lands ready-to-type instead of having to find the input first.
+  autoFocus = false,
 }) {
+  const inputRef = useRef(null);
+
+  // Effect-based focus rather than the native `autoFocus` attribute —
+  // gives us a stable timing handle (we run after layout) and lets us
+  // pair it with `scrollIntoView` so the input is also visible, not just
+  // focused under a sticky header.
+  useEffect(() => {
+    if (!autoFocus) return;
+    const el = inputRef.current;
+    if (!el) return;
+    // RAF defers focus by one frame so any route-transition layout
+    // settles first (otherwise mobile browsers occasionally miss the
+    // focus and never raise the soft keyboard).
+    const raf = requestAnimationFrame(() => {
+      try {
+        el.focus({ preventScroll: true });
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      } catch {
+        /* old browsers without preventScroll — fall back to plain focus */
+        el.focus();
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [autoFocus]);
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -35,6 +66,7 @@ export default function MangaSearchBar({
           </svg>
         </span>
         <input
+          ref={inputRef}
           type="text"
           placeholder={placeholder || "Search manga…"}
           value={query}

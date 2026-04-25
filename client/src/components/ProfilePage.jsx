@@ -1,5 +1,6 @@
-import { lazy, Suspense, useContext, useMemo, useState } from "react";
+import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { consumeTourStep, TOUR_STEPS } from "@/lib/tour.js";
 import {
   Bar,
   BarChart,
@@ -38,6 +39,36 @@ export default function ProfilePage({ googleUser }) {
   const [avatarFailed, setAvatarFailed] = useState(false);
   const navigate = useNavigate();
   const t = useT();
+
+  // 印 · Welcome-tour spotlight on the avatar button.
+  // When the user lands here from the tour, we light up the avatar
+  // (ring pulse + floating caption) for ~7s, OR until they click — at
+  // which point the natural picker open closes the spotlight in one
+  // gesture. We DON'T auto-open the picker: the goal is to teach where
+  // to click, not to skip the click; otherwise the user never builds
+  // the muscle memory for next time.
+  const avatarRef = useRef(null);
+  const [tourSpotlight, setTourSpotlight] = useState(false);
+  useEffect(() => {
+    if (consumeTourStep() !== TOUR_STEPS.AVATAR) return;
+    setTourSpotlight(true);
+    // Bring the button into view in case the page was scrolled when
+    // the user came back to the tab. `block: 'center'` keeps the
+    // caption above the button visible too.
+    const raf = requestAnimationFrame(() => {
+      avatarRef.current?.scrollIntoView({
+        block: "center",
+        behavior: "smooth",
+      });
+    });
+    // Auto-dismiss the spotlight after the user has had a chance to
+    // notice the pulse. Click-dismissal lives in the button's onClick.
+    const timer = setTimeout(() => setTourSpotlight(false), 7000);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, []);
 
   const loading = loadingLib || loadingVol;
 
@@ -136,16 +167,25 @@ export default function ProfilePage({ googleUser }) {
           </div>
 
           <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-center">
-            {/* Avatar — click to open picker */}
-            <button
-              onClick={() => setPickerOpen(true)}
-              aria-label={t("avatar.changeAria")}
-              className={`group relative h-20 w-20 shrink-0 overflow-hidden rounded-full ring-1 ring-border transition-all hover:ring-hanko hover:shadow-[0_0_32px_rgba(220,38,38,0.35)] md:h-24 md:w-24 ${
-                avatarUrl
-                  ? "bg-ink-2"
-                  : "bg-gradient-to-br from-gold to-gold-muted"
-              }`}
-            >
+            {/* Avatar — click to open picker. Wrapped in a relative
+                container so the welcome-tour spotlight (caption + ring)
+                can be positioned absolutely against the same anchor. */}
+            <div className="relative shrink-0">
+              <button
+                ref={avatarRef}
+                onClick={() => {
+                  setTourSpotlight(false);
+                  setPickerOpen(true);
+                }}
+                aria-label={t("avatar.changeAria")}
+                className={`group relative h-20 w-20 shrink-0 overflow-hidden rounded-full ring-1 ring-border transition-all hover:ring-hanko hover:shadow-[0_0_32px_rgba(220,38,38,0.35)] md:h-24 md:w-24 ${
+                  tourSpotlight ? "tour-pulse ring-hanko" : ""
+                } ${
+                  avatarUrl
+                    ? "bg-ink-2"
+                    : "bg-gradient-to-br from-gold to-gold-muted"
+                }`}
+              >
               {avatarUrl ? (
                 <img referrerPolicy="no-referrer"
                   src={avatarUrl}
@@ -172,7 +212,35 @@ export default function ProfilePage({ googleUser }) {
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
               </span>
-            </button>
+              </button>
+
+              {/* Welcome-tour spotlight caption — anchors to the avatar
+                  via the relative wrapper above. The kanji + arrow point
+                  at the button so a brand-new user immediately knows
+                  "this is the thing to click". Auto-dismisses after 7s
+                  or on click of the avatar; the parent state flip turns
+                  the entire span off, so once the user has acted it
+                  doesn't linger. */}
+              {tourSpotlight && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="pointer-events-none absolute left-full top-1/2 z-10 ml-4 -translate-y-1/2 animate-fade-in"
+                >
+                  <div className="relative whitespace-nowrap rounded-full border border-hanko/60 bg-ink-0/90 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.25em] text-hanko-bright shadow-[0_4px_20px_rgba(220,38,38,0.35)] backdrop-blur">
+                    <span
+                      className="font-jp text-sm tracking-normal"
+                      aria-hidden="true"
+                    >
+                      印
+                    </span>
+                    <span className="ml-2 inline-block animate-tour-bob">
+                      ← {t("tour.spotlightAvatar")}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="min-w-0 flex-1">
               <h1 className="font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">

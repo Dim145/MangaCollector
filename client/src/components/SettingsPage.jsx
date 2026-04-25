@@ -5,6 +5,8 @@ import DeleteAccountFlow from "@/components/DeleteAccountFlow.jsx";
 import PublicProfileSection from "@/components/PublicProfileSection.jsx";
 import ArchiveSection from "@/components/ArchiveSection.jsx";
 import SeasonSection from "@/components/SeasonSection.jsx";
+import WelcomeTour from "@/components/WelcomeTour.jsx";
+import { resetTourSeen } from "@/lib/tour.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
@@ -698,6 +700,13 @@ export default function SettingsPage() {
             settings. */}
         <SeasonSection />
 
+        {/* ─── Onboarding · re-trigger the welcome tour on demand.
+            The tour auto-shows on the first visit to an empty library;
+            this section lets a returning user replay it (e.g. after
+            recommending the app to a friend, or to remind themselves
+            what the kanji ladder means). */}
+        <OnboardingSection />
+
         {/* ─── Public profile section — toggle + slug editor.
             Sits before the Data/danger section so users see the feature
             in a natural progression: Account → Preferences → Sharing →
@@ -1002,5 +1011,59 @@ function ThemeSwatch({ value }) {
         }}
       />
     </span>
+  );
+}
+
+/**
+ * 始 · Onboarding section — replay-the-welcome-tour entry.
+ * Stored as its own sub-component so the tour state lives close to the
+ * button that triggers it; SettingsPage already has plenty of state of
+ * its own. Re-rendered through the shared `<WelcomeTour>` modal so the
+ * replay behaves identically to the auto-open path on the dashboard.
+ */
+function OnboardingSection() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+
+  const replay = () => {
+    // Wipe the seen flag so the auto-open path on the dashboard would
+    // also fire on the next visit. The user explicitly asked to revisit
+    // the tour, so it's reasonable that they may want it elsewhere too.
+    resetTourSeen();
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <WelcomeTour open={open} onClose={() => setOpen(false)} />
+
+      <section
+        className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+        style={{ animationDelay: "260ms" }}
+      >
+        <div className="mb-4">
+          <h2 className="font-display text-lg font-semibold text-washi">
+            {t("settings.onboardingSection")}
+          </h2>
+          <p className="mt-1 text-xs text-washi-muted">
+            {t("settings.onboardingBody")}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={replay}
+          className="group inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-4 py-2 text-sm font-semibold text-washi transition hover:border-hanko hover:bg-hanko/20"
+        >
+          <span
+            aria-hidden="true"
+            className="font-jp text-base font-bold leading-none text-hanko-bright transition-transform group-hover:scale-110"
+          >
+            始
+          </span>
+          {t("settings.replayTour")}
+        </button>
+      </section>
+    </>
   );
 }

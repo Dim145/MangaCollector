@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
@@ -6,6 +6,8 @@ import MangaSearchBar from "./MangaSearchBar";
 import GapSuggestions from "./GapSuggestions.jsx";
 import { FilterButton, ActiveChips } from "./TagFilter.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
+import WelcomeTour from "./WelcomeTour.jsx";
+import { hasSeenTour } from "@/lib/tour.js";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
@@ -44,6 +46,21 @@ export default function Dashboard() {
 
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const { data: allVolumes } = useAllVolumes();
+
+  // 始 · Welcome tour gating.
+  // Auto-open on the first dashboard visit when the archive is genuinely
+  // empty AND the user hasn't seen (or dismissed) the tour. We wait for
+  // the library hook to finish its initial fetch before deciding —
+  // surfacing the tour against a cached library that's still loading
+  // would be misleading. The tour itself persists the seen flag on
+  // close, so the auto-open path fires at most once.
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (isInitialLoad) return;
+    if (!isEmpty) return;
+    if (hasSeenTour()) return;
+    setTourOpen(true);
+  }, [isInitialLoad, isEmpty]);
   const library = useMemo(
     () => filterAdultGenreIfNeeded(adult_content_level, rawLibrary ?? []),
     [adult_content_level, rawLibrary],
@@ -142,6 +159,7 @@ export default function Dashboard() {
 
   return (
     <DefaultBackground>
+      <WelcomeTour open={tourOpen} onClose={() => setTourOpen(false)} />
       <div className="mx-auto max-w-7xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
         {/* Masthead */}
         <header className="mb-8 animate-fade-up">

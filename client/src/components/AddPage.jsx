@@ -12,6 +12,7 @@ import SettingsContext from "@/SettingsContext.js";
 import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useScanCommit } from "@/hooks/useScanCommit.js";
+import { consumeTourStep, TOUR_STEPS } from "@/lib/tour.js";
 import {
   addCustomEntryToUserLibrary,
   addFromMangadexToUserLibrary,
@@ -70,6 +71,27 @@ export default function AddPage() {
   const navigate = useNavigate();
   const online = useOnline();
   const t = useT();
+
+  // 始 · Welcome-tour handoff. Reads the step once at mount and clears
+  // it in the same call (consume semantics). LIBRARY autofocuses the
+  // search bar below; SCAN opens the camera scanner immediately. The
+  // MangaSearchBar's own useEffect on `autoFocus` reacts when this
+  // state flips from false → true, so an effect-driven flow works
+  // even though React renders before our effect runs.
+  const [tourFocusSearch, setTourFocusSearch] = useState(false);
+  useEffect(() => {
+    const step = consumeTourStep();
+    if (step === TOUR_STEPS.SCAN) {
+      // Defer one frame so the AddPage layout is mounted before we open
+      // the scanner overlay — getUserMedia rejects on some browsers if
+      // requested before the route transition settles.
+      const raf = requestAnimationFrame(() => setScannerOpen(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    if (step === TOUR_STEPS.LIBRARY) {
+      setTourFocusSearch(true);
+    }
+  }, []);
 
   // onBarcodeDetected is a stable useCallback([]) — expose the current
   // currency code through a ref so prefill stays in sync with settings.
@@ -584,6 +606,7 @@ export default function AddPage() {
             clearResults={clearResults}
             loading={loading}
             hasResults={results.length > 0}
+            autoFocus={tourFocusSearch}
             placeholder={
               online ? t("add.searchPlaceholder") : t("add.offlinePlaceholder")
             }

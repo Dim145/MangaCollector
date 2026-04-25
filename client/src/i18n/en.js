@@ -412,6 +412,28 @@ export default {
     comingSoon: "Activity feed & personalized recommendations coming soon.",
     tooltipSpent: "Spent",
   },
+  tour: {
+    kicker: "Welcome",
+    headingPre: "Begin your",
+    headingAccent: "archive",
+    intro:
+      "Three ways to start curating your collection — pick whichever feels closest. You can switch between them at any time.",
+    s1Title: "Add your first series",
+    s1Body:
+      "Search MyAnimeList, auto-fill volumes, covers and genres in one click.",
+    s1Cta: "Browse the catalogue",
+    s2Title: "Scan a tankōbon",
+    s2Body:
+      "Point your camera at the ISBN — we match it to MAL and slot it into the right volume.",
+    s2Cta: "Open the scanner",
+    s3Title: "Pick your hanko",
+    s3Body:
+      "Choose an avatar from any character in the series you own — your seal across the app.",
+    s3Cta: "Visit your profile",
+    skip: "Maybe later",
+    replayHint: "You can replay this anytime from Settings.",
+    spotlightAvatar: "Click here",
+  },
   settings: {
     heading: "SETTINGS · 設定",
     preferences: "Preferences",
@@ -446,6 +468,9 @@ export default {
     titleDefault: "Default (MAL)",
     titleEnglish: "English",
     titleJapanese: "Japanese",
+    onboardingSection: "Onboarding",
+    onboardingBody: "Replay the three-step welcome tour at any time.",
+    replayTour: "Replay welcome tour",
     barcodeScanner: "Barcode scanner",
     scannerBody:
       "Scanning looks up each ISBN on Google Books. An optional API key lifts the anonymous per-IP rate limit — without it, scanning several volumes in a row can hit a 429.",
