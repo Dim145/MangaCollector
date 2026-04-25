@@ -126,7 +126,7 @@ export default function ProfilePage({ googleUser }) {
               }`}
             >
               {avatarUrl ? (
-                <img
+                <img referrerPolicy="no-referrer"
                   src={avatarUrl}
                   alt=""
                   className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"

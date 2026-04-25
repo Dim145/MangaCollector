@@ -74,7 +74,7 @@ function GapCard({ manga, missing, gap, t, onOpen, blurred }) {
       className="group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-border bg-ink-1/50 p-3 text-left backdrop-blur transition hover:border-gold/40 hover:-translate-y-0.5"
     >
       {manga.image_url_jpg ? (
-        <img
+        <img referrerPolicy="no-referrer"
           src={manga.image_url_jpg}
           alt=""
           loading="lazy"

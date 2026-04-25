@@ -180,7 +180,7 @@ function GroupSection({ group, currentAvatar, onSelect }) {
                     : "ring-border group-hover:ring-hanko/70 group-hover:shadow-[0_0_16px_rgba(220,38,38,0.25)]"
                 }`}
               >
-                <img
+                <img referrerPolicy="no-referrer"
                   src={c.imageUrl}
                   alt=""
                   loading="lazy"

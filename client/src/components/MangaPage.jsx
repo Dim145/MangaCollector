@@ -404,7 +404,7 @@ export default function MangaPage({ manga, adult_content_level }) {
               className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
               aria-hidden="true"
             >
-              <img
+              <img referrerPolicy="no-referrer"
                 src={displayPoster}
                 alt=""
                 className="h-full w-full scale-150 object-cover opacity-30 blur-3xl"
@@ -425,7 +425,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 }`}
               >
                 {displayPoster ? (
-                  <img
+                  <img referrerPolicy="no-referrer"
                     src={displayPoster}
                     alt={name}
                     onClick={() => {
@@ -982,7 +982,7 @@ export default function MangaPage({ manga, adult_content_level }) {
       />
 
       <Modal popupOpen={posterPopUp} handleClose={() => setPosterPopUp(false)}>
-        <img
+        <img referrerPolicy="no-referrer"
           src={poster}
           alt={name}
           className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
@@ -1121,7 +1121,7 @@ export default function MangaPage({ manga, adult_content_level }) {
         handleClose={previewCtl.hide}
       >
         {previewCtl.url && (
-          <img
+          <img referrerPolicy="no-referrer"
             src={previewCtl.url}
             alt=""
             className={`max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl ${

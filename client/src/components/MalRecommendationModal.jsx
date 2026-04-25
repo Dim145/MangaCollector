@@ -182,7 +182,7 @@ export default function MalRecommendationModal({
         {/* Cover + title */}
         <div className="flex gap-3 p-4">
           {candidate?.images?.jpg?.image_url ? (
-            <img
+            <img referrerPolicy="no-referrer"
               src={candidate.images.jpg.image_url}
               alt=""
               className="h-32 w-24 shrink-0 rounded-md border border-border object-cover shadow-lg"

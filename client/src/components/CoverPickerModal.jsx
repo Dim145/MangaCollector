@@ -213,7 +213,7 @@ export default function CoverPickerModal({
               unmask the red ambient wash behind and produce a brief red
               flash before the overlay fade-out completes. */}
           {selected ? (
-            <img
+            <img referrerPolicy="no-referrer"
               key={selected}
               src={selected}
               alt=""
@@ -308,7 +308,7 @@ export default function CoverPickerModal({
                             : "border-transparent opacity-70 hover:opacity-100 hover:-translate-y-0.5"
                       }`}
                     >
-                      <img
+                      <img referrerPolicy="no-referrer"
                         src={url}
                         alt=""
                         loading="lazy"

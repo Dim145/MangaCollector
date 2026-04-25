@@ -50,7 +50,7 @@ export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
 
         <div className="mt-4 flex gap-3">
           {result.image_url && (
-            <img
+            <img referrerPolicy="no-referrer"
               src={result.image_url}
               alt=""
               className="h-28 w-20 shrink-0 rounded-md border border-border object-cover shadow"

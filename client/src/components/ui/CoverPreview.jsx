@@ -86,7 +86,7 @@ export default function CoverPreview({
         }`}
         style={{ transform: "rotate(-1deg)" }}
       >
-        <img
+        <img referrerPolicy="no-referrer"
           src={url}
           alt=""
           draggable={false}

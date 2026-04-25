@@ -58,7 +58,7 @@ export default function MalRecommendations() {
                 className="group relative block w-full overflow-hidden rounded-lg border border-border bg-ink-2 text-left transition hover:-translate-y-0.5 hover:border-hanko/40 focus-visible:border-hanko"
               >
                 {rec.image_url ? (
-                  <img
+                  <img referrerPolicy="no-referrer"
                     src={rec.image_url}
                     alt=""
                     loading="lazy"

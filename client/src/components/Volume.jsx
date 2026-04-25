@@ -261,7 +261,7 @@ export default function Volume({
                   : "border-border"
             } ${locked ? "cursor-not-allowed" : "hover:-translate-y-0.5"} ${isEditing ? "opacity-60" : ""}`}
           >
-            <img
+            <img referrerPolicy="no-referrer"
               src={coverUrl}
               alt=""
               loading="lazy"

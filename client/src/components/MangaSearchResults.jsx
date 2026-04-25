@@ -69,7 +69,7 @@ export default function MangaSearchResults({
                   className="relative flex-shrink-0 overflow-hidden rounded-md border border-border shadow-md"
                 >
                   {result.image_url ? (
-                    <img
+                    <img referrerPolicy="no-referrer"
                       src={result.image_url}
                       alt=""
                       loading="lazy"
@@ -168,7 +168,7 @@ export default function MangaSearchResults({
         handleClose={() => setImgUrl(undefined)}
         additionalClasses=""
       >
-        <img
+        <img referrerPolicy="no-referrer"
           src={imgUrl}
           alt="poster"
           className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
