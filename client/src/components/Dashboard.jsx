@@ -7,6 +7,7 @@ import GapSuggestions from "./GapSuggestions.jsx";
 import { FilterButton, ActiveChips } from "./TagFilter.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import WelcomeTour from "./WelcomeTour.jsx";
+import SeasonGreeting from "./SeasonGreeting.jsx";
 import { hasSeenTour } from "@/lib/tour.js";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
@@ -161,6 +162,11 @@ export default function Dashboard() {
     <DefaultBackground>
       <WelcomeTour open={tourOpen} onClose={() => setTourOpen(false)} />
       <div className="mx-auto max-w-7xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+        {/* 季節 · Once-per-season banner. Self-renders nothing when
+            the current season has already been greeted; sits above
+            the masthead so it reads as a foreword to the page rather
+            than another stat row. */}
+        <SeasonGreeting />
         {/* Masthead */}
         <header className="mb-8 animate-fade-up">
           <div className="flex items-baseline gap-3">

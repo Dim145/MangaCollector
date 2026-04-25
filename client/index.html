@@ -42,10 +42,18 @@
     <!--
       季節 Season bootstrap — runs alongside the theme bootstrap so the
       ambient-glows are tinted correctly on the very first paint.
-      "auto" (the default) resolves to the current Japanese season from
-      the month; an explicit choice ("spring"/"summer"/"autumn"/"winter"
-      /"neutral") takes precedence. "neutral" leaves no attribute, which
-      falls back to the base palette in index.css.
+      "auto" (the default) resolves to the current astronomical season
+      from the actual equinox / solstice dates, taking the user's
+      hemisphere into account — so a Buenos Aires visitor's "spring"
+      tint kicks in late September, not late March. An explicit choice
+      ("spring"/"summer"/"autumn"/"winter"/"neutral") takes precedence.
+      "neutral" leaves no attribute, which falls back to the base
+      palette in index.css.
+
+      The astronomical computation here mirrors `client/src/lib/season.js`
+      so the inline bootstrap (which runs before any JS chunk loads) and
+      the runtime helper agree on the same boundary date — no flash where
+      the page first renders winter but flips to spring two seconds later.
     -->
     <script>
       (function () {
@@ -62,16 +70,45 @@
           ) {
             season = pref;
           } else {
-            // auto / unset — month 1..12 → season
-            var m = new Date().getMonth() + 1;
-            season =
-              m >= 3 && m <= 5
-                ? "spring"
-                : m >= 6 && m <= 8
-                  ? "summer"
-                  : m >= 9 && m <= 11
-                    ? "autumn"
-                    : "winter";
+            // Auto / unset — astronomical equinox / solstice via Meeus
+            // mean coefficients (precision ±20 min, far enough below
+            // day resolution).
+            var COEFS = {
+              march: [2451623.80984, 365242.37404, 0.05169, -0.00411, -0.00057],
+              june: [2451716.56767, 365241.62603, 0.00325, 0.00888, -0.0003],
+              september: [2451810.21715, 365242.01767, -0.11575, 0.00337, 0.00078],
+              december: [2451900.05952, 365242.74049, -0.06223, -0.00823, 0.00032],
+            };
+            var jdeMs = function (event, year) {
+              var c = COEFS[event];
+              var Y = (year - 2000) / 1000;
+              var jde = c[0] + c[1] * Y + c[2] * Y * Y + c[3] * Y * Y * Y + c[4] * Y * Y * Y * Y;
+              return (jde - 2440587.5) * 86400000;
+            };
+            var now = new Date();
+            var t = now.getTime();
+            var y = now.getUTCFullYear();
+            var nh;
+            if (t < jdeMs("march", y)) nh = "winter";
+            else if (t < jdeMs("june", y)) nh = "spring";
+            else if (t < jdeMs("september", y)) nh = "summer";
+            else if (t < jdeMs("december", y)) nh = "autumn";
+            else nh = "winter";
+
+            // Hemisphere — keep the inline pattern list short; the JS
+            // module has a richer set, the bootstrap only needs to nail
+            // the major populated southern zones.
+            var south = false;
+            try {
+              var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+              south = /^(Antarctica|Australia|Pacific\/(Auckland|Chatham|Easter|Fiji|Tahiti|Tongatapu|Norfolk|Apia)|America\/(Argentina|Asuncion|La_Paz|Lima|Manaus|Montevideo|Punta_Arenas|Santiago|Sao_Paulo|Bahia|Recife|Maceio|Fortaleza|Belem|Cuiaba|Campo_Grande|Boa_Vista|Rio_Branco)|Africa\/(Antananarivo|Blantyre|Bujumbura|Gaborone|Harare|Johannesburg|Kigali|Lubumbashi|Lusaka|Maputo|Maseru|Mbabane|Windhoek)|Atlantic\/(Stanley|St_Helena)|Indian\/(Antananarivo|Mauritius|Mahe|Reunion))(\/|$)/.test(
+                tz,
+              );
+            } catch (_) {
+              south = false;
+            }
+            var FLIP = { spring: "autumn", summer: "winter", autumn: "spring", winter: "summer" };
+            season = south ? FLIP[nh] : nh;
           }
           if (season) {
             document.documentElement.setAttribute("data-season", season);

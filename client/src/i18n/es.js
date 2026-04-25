@@ -531,6 +531,21 @@ export default {
     "palette_桜_usage":
       "Acento wishlist — anticipación antes de la llegada.",
   },
+  season: {
+    dismissAria: "Cerrar la pancarta de temporada",
+    poetic_spring: "El archivo abre sus flores.",
+    subtle_spring:
+      "Rosas suaves y brotes nuevos — las páginas giran bajo la luz de los cerezos.",
+    poetic_summer: "La tinta bebe la larga luz del verano.",
+    subtle_summer:
+      "Verdes más profundos, acentos más vivos — tu estante al mediodía.",
+    poetic_autumn: "Las páginas adoptan el oro de las hojas.",
+    subtle_autumn:
+      "Bordes ámbar, ritmo más lento — el cuaderno bajo la luz baja.",
+    poetic_winter: "El cuaderno se repliega en silencio.",
+    subtle_winter:
+      "Tinta fría y papel desnudo — el archivo en reposo.",
+  },
   tour: {
     kicker: "Bienvenida",
     headingPre: "Comienza tu",

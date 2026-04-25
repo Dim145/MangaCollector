@@ -525,6 +525,21 @@ export default {
     "palette_桜_usage":
       "Wishlist accent — anticipation without arrival yet.",
   },
+  season: {
+    dismissAria: "Dismiss the season banner",
+    poetic_spring: "The archive opens its blossoms.",
+    subtle_spring:
+      "Soft pinks and new growth — pages turn under cherry light.",
+    poetic_summer: "The ink drinks the long summer light.",
+    subtle_summer:
+      "Deeper greens, brighter accents — your shelf at noon.",
+    poetic_autumn: "The pages take on the gold of leaves.",
+    subtle_autumn:
+      "Amber edges, slower turning — the journal in low sun.",
+    poetic_winter: "The journal folds quietly inward.",
+    subtle_winter:
+      "Cold ink and bare paper — the archive at rest.",
+  },
   tour: {
     kicker: "Welcome",
     headingPre: "Begin your",
