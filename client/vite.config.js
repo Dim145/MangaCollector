@@ -163,31 +163,80 @@ export default defineConfig({
               },
             },
           },
-          // Jikan (MAL) API — read-only metadata, cache aggressively
+          // Jikan (MAL) API — read-only metadata, cache aggressively.
+          // Bumped from 100 to 250 entries: a power user with a 200-
+          // series library was evicting fresh entries on every refresh
+          // because Jikan responses include character lookups that
+          // count against the same bucket.
           {
             urlPattern: /^https:\/\/api\.jikan\.moe\/.*/i,
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "jikan-api",
               expiration: {
-                maxEntries: 100,
+                maxEntries: 250,
                 maxAgeSeconds: 60 * 60 * 24 * 7,
               },
             },
           },
-          // MAL / Jikan cover images
+          // MAL CDN covers — switched from CacheFirst to SWR so a
+          // cover that gets refreshed on MAL's side eventually
+          // propagates here. Users still see the cached image
+          // instantly (no flash), the network revalidate runs in the
+          // background, and the next mount picks up the new bytes.
+          // 30-day expiration is the floor — the bucket otherwise
+          // grows unbounded as the user explores new series.
           {
-            urlPattern: /^https:\/\/cdn\.myanimelist\.net\/.*/i,
-            handler: "CacheFirst",
+            urlPattern: /^https:\/\/cdn\.myanimelist\.net\/.*\.(?:jpg|jpeg|png|webp|gif)$/i,
+            handler: "StaleWhileRevalidate",
             options: {
               cacheName: "mal-covers",
               expiration: {
-                maxEntries: 500,
+                maxEntries: 800,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
               },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // User-uploaded posters via backend — cache so covers stay visible offline
+          // MangaDex covers — `uploads.mangadex.org/covers/...` URLs
+          // include the per-cover UUID and filename. A change of cover
+          // mints a new URL, so we never need to revalidate; CacheFirst
+          // with a 1-year horizon is correct here. Only the image
+          // suffixes are matched so MD's other endpoints don't pollute
+          // the bucket.
+          {
+            urlPattern:
+              /^https:\/\/uploads\.mangadex\.org\/covers\/.*\.(?:jpg|jpeg|png|webp|gif)(?:\.\d+\.jpg)?$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "mangadex-covers",
+              expiration: {
+                maxEntries: 800,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // Google Books — ISBN-scan flow embeds these thumbnails for
+          // a brief recognition step. Cache so re-scans of the same
+          // ISBN don't burn the daily quota; SWR is the right call
+          // because Google occasionally re-encodes existing thumbnails.
+          {
+            urlPattern:
+              /^https:\/\/books\.google\.com\/books\/content\?.*/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "google-books-thumbnails",
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // User-uploaded posters via backend — cache so covers stay
+          // visible offline. Same bucket name as before so existing
+          // installs don't lose their cached covers on update.
           {
             urlPattern: /\/api\/user\/storage\/poster\/.*/i,
             handler: "StaleWhileRevalidate",
@@ -197,6 +246,24 @@ export default defineConfig({
                 maxEntries: 500,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
               },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // Public-profile posters — anonymous visitors of /u/{slug}
+          // hit `/api/public/u/{slug}/poster/{mal_id}` for each user-
+          // uploaded cover. Separate bucket from `user-posters` so the
+          // owner's private cache and the public one don't fight for
+          // entry budget on a viewer browsing many profiles.
+          {
+            urlPattern: /\/api\/public\/u\/[^/]+\/poster\/.*/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "public-posters",
+              expiration: {
+                maxEntries: 300,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
