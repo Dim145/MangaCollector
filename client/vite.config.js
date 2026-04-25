@@ -5,20 +5,22 @@ import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
 /*
- * Vite 7 freeze (re-evaluate periodically).
+ * Vite 8 + vite-plugin-pwa override.
  *
- * Vite 8 is out (rolldown-vite merge: Rollup → Rolldown bundler) and
- * `@tailwindcss/vite` already supports it, but `vite-plugin-pwa@1.2.0`
- * still declares peer `vite ^3 || ^4 || ^5 || ^6 || ^7` — no Vite 8.
- * Bumping vite alone fails npm peer resolution. Bumping with
- * `--legacy-peer-deps` would type-check but ship a build pipeline
- * whose service-worker integration isn't validated against Rolldown.
+ * Vite 8 ships the rolldown-vite merge (Rollup → Rolldown bundler).
+ * `vite-plugin-pwa@1.2.0` already works with it in practice (community
+ * confirmed in vite-pwa/vite-plugin-pwa#918) — only its
+ * `peerDependencies.vite` declaration still caps at `^7`. PR #924
+ * (approved by 5 reviewers, 2026-04) adds `^8` and is awaiting a
+ * batched 1.3.0 release. Until then we use an `npm overrides` block
+ * in package.json to relax the peer dep at install time.
  *
- * Bump trigger: `vite-plugin-pwa@2.x` with peer `vite ^8` (track
- * vite-pwa/vite-plugin-pwa#705 / similar).
+ * When `vite-plugin-pwa@1.3.0` lands: drop the `overrides` field
+ * from package.json — the peer dep declaration will be honest, no
+ * workaround needed.
  *
- * `@vitejs/plugin-react` is paired: 5.x for Vite 7, 6.x for Vite 8.
- * They move together, so no point bumping the plugin alone.
+ * `@vitejs/plugin-react` is paired with the bundler: 5.x for Vite 7,
+ * 6.x for Vite 8. We're on the 6.x line.
  */
 // https://vite.dev/config/
 export default defineConfig({
@@ -145,13 +147,41 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Split heavy, stable-API libraries into their own chunks so their
-        // hashes don't churn on every app-code change — better long-term
-        // browser cache hit rate, faster repeat visits.
-        manualChunks: {
-          "react-vendor": ["react", "react-dom", "react-router-dom"],
-          charts: ["recharts"],
-          storage: ["dexie", "dexie-react-hooks", "@tanstack/react-query"],
+        // Split heavy, stable-API libraries into their own chunks so
+        // their hashes don't churn on every app-code change — better
+        // long-term browser cache hit rate, faster repeat visits.
+        //
+        // Function form (vs the previous object form) is required by
+        // Vite 8 / Rolldown. Same buckets as before, just expressed as
+        // a `module-id → chunk-name` lookup. The `id` argument is the
+        // resolved path of the module — we match by `node_modules/...`
+        // to avoid colliding with our own files that happen to share
+        // a name with a dep.
+        manualChunks(id) {
+          if (id.includes("/node_modules/")) {
+            if (
+              id.includes("/react/") ||
+              id.includes("/react-dom/") ||
+              id.includes("/react-router-dom/") ||
+              id.includes("/react-router/") ||
+              id.includes("/scheduler/")
+            ) {
+              return "react-vendor";
+            }
+            if (id.includes("/recharts/") || id.includes("/d3-")) {
+              return "charts";
+            }
+            if (
+              id.includes("/dexie/") ||
+              id.includes("/dexie-react-hooks/") ||
+              id.includes("/@tanstack/react-query")
+            ) {
+              return "storage";
+            }
+          }
+          // Anything else falls into the default per-route chunks
+          // produced by lazy imports in App.jsx.
+          return undefined;
         },
       },
     },
