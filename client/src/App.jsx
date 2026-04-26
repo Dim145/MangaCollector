@@ -39,6 +39,9 @@ const ImportExternalPage = lazy(() =>
   import("./components/ImportExternalPage"),
 );
 const ComparePage = lazy(() => import("./components/ComparePage"));
+// 収 — year-in-review poster page; lazy because it's only visited
+// occasionally (typically a few times in December / January).
+const YearInReviewPage = lazy(() => import("./components/YearInReviewPage"));
 // 字典 — public reference page; no auth needed.
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
 // 暦 — upcoming-release calendar.
@@ -251,6 +254,25 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <ComparePage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 収 · Year-in-review poster — authenticated. The :year
+                segment is optional via the second route; default
+                resolution to current year happens in the page. */}
+            <Route
+              path="/year-in-review"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <YearInReviewPage googleUser={googleUser} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/year-in-review/:year"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <YearInReviewPage googleUser={googleUser} />
                 </ProtectedRoute>
               }
             />

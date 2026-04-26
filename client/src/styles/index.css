@@ -2042,3 +2042,60 @@
     opacity: 0;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   収 · Year-in-review poster styling.
+   The page surface mounts this set of utilities to render as a
+   poster — grain overlay for printed-paper feel, per-season accent
+   palette tying the page tint to the user's busiest month, and a
+   `@media print` block that strips the chrome and forces a clean
+   single-page layout suitable for "Save as PDF" or "Share to
+   stories" workflows.
+   ───────────────────────────────────────────────────────────────── */
+
+.yir-grain {
+  /* Same noise texture as `.grain::before` but mounted as a real
+     child element so the poster can sit at any z-index without
+     fighting `isolation` rules. Slightly higher opacity than the
+     ambient grain because the poster is a *foreground* surface. */
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  mix-blend-mode: overlay;
+}
+
+/* Per-season accent halos. Each variant places one or two large
+   radial gradients behind the poster body, tinted in the season's
+   signature colour. Tied to the user's busiest month so two users
+   reviewing the same year see different tones if their patterns
+   differ. */
+.yir-accent-spring {
+  background-image:
+    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-sakura) 22%, transparent), transparent 55%),
+    radial-gradient(circle at 100% 100%, color-mix(in oklch, var(--scene-sakura) 14%, transparent), transparent 50%);
+}
+.yir-accent-summer {
+  background-image:
+    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-gold) 20%, transparent), transparent 55%),
+    radial-gradient(circle at 0% 100%, color-mix(in oklch, var(--scene-gold) 14%, transparent), transparent 50%);
+}
+.yir-accent-autumn {
+  background-image:
+    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-gold) 22%, transparent), transparent 55%),
+    radial-gradient(circle at 100% 100%, color-mix(in oklch, var(--scene-red) 14%, transparent), transparent 50%);
+}
+.yir-accent-winter {
+  background-image:
+    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--washi) 16%, transparent), transparent 55%),
+    radial-gradient(circle at 0% 100%, color-mix(in oklch, var(--scene-red) 12%, transparent), transparent 50%);
+}
+.yir-accent-neutral {
+  background-image:
+    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-red) 18%, transparent), transparent 55%);
+}
+
+/* The poster is exported as a PNG via `html-to-image` (see
+   `YearInReviewPage.jsx`). We deliberately do NOT ship `@media print`
+   rules here — paginated print of a tall vertical poster produced
+   blank-front-page artefacts and split the headline across pages.
+   PNG capture renders the same DOM at 2× pixel ratio in a single
+   image the user can share or save, which is the canonical UX for
+   "I made a poster, send it somewhere". */
