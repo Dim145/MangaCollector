@@ -222,12 +222,7 @@ function KanjiCard({ entry, sectionId, t }) {
       />
 
       <div className="flex items-baseline gap-3">
-        <span
-          className="font-jp text-5xl font-bold leading-none text-washi transition-transform duration-500 group-hover:scale-110 md:text-6xl"
-          aria-hidden="true"
-        >
-          {entry.char}
-        </span>
+        <KanjiCopyButton char={entry.char} t={t} />
         <div className="min-w-0">
           <p className="font-display text-base italic text-hanko-bright">
             {entry.romaji}
@@ -243,6 +238,119 @@ function KanjiCard({ entry, sectionId, t }) {
       {/* Optional palette swatch — only rendered for the 色 section. */}
       {entry.swatch && <ColourSwatch token={entry.swatch} t={t} />}
     </div>
+  );
+}
+
+/**
+ * 印 · Tap-to-copy kanji button.
+ *
+ * Each kanji on the glossary page used to render as a static `<span>` —
+ * which left a slightly leaky affordance: hovering it slightly scaled
+ * (signalling interactivity), but clicking did nothing. This component
+ * makes the kanji **the** interactive element. A tap copies the
+ * character to the clipboard, plays a one-shot stamp-press animation
+ * (red ink-blot fading over the glyph, evoking a freshly-pressed
+ * hanko), and surfaces a brief inline toast confirming the copy.
+ *
+ * Why this is the right place to add the affordance: users who reach
+ * `/glossary` are typically there to read it, not to act on it. Pulling
+ * a kanji into a Slack message or a piece of writing they're composing
+ * is the single most useful action surface this page can offer — and
+ * it's the action `tapToCopy` (already in the i18n bundle) was
+ * obviously written for, but never wired up to anything until now.
+ *
+ * Security:
+ *   - The copied value is *only* the entry's `char` field (string from
+ *     the in-code SECTIONS catalogue). Never user input.
+ *   - The clipboard write goes through `navigator.clipboard.writeText`
+ *     when available (secure-context only). The legacy `execCommand`
+ *     fallback uses a transient textarea kept off-screen and removed
+ *     synchronously after the copy.
+ *   - `aria-label` is composed via the existing i18n template, no
+ *     interpolation of HTML.
+ */
+function KanjiCopyButton({ char, t }) {
+  const [stamping, setStamping] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(char);
+      } else {
+        // Legacy fallback for browsers without the async clipboard
+        // API. Same pattern MDN recommends — invisible textarea that
+        // exists for a single tick. Kept consistent with the
+        // ColourSwatch fallback below.
+        const ta = document.createElement("textarea");
+        ta.value = char;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      // Trigger the press animation + toast.
+      setStamping(true);
+      setCopied(true);
+      window.setTimeout(() => setStamping(false), 600);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* Clipboard denied (permissions, sandbox) — fail silently
+         rather than surfacing a permission error on a glossary page. */
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={t("glossary.copyAria", { token: char })}
+      title={t("glossary.tapToCopy")}
+      className="group/k relative -m-2 cursor-pointer rounded-md p-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko/50"
+    >
+      <span className="relative inline-block">
+        {/* The kanji itself — same typography it had as a static span,
+            keyed by the active state so reflexive scale/colour
+            transitions still respond to hover and tap. */}
+        <span
+          aria-hidden="true"
+          className="block font-jp text-5xl font-bold leading-none text-washi transition-transform duration-500 group-hover/k:scale-110 group-active/k:scale-95 md:text-6xl"
+        >
+          {char}
+        </span>
+        {/* Stamp-press splash — a hanko-coloured square overlay that
+            blooms over the kanji at the moment of copy and fades into
+            the page. Keyed by `stamping`: the `key={stamping}` trick
+            forces React to remount the element, restarting the CSS
+            animation cleanly even on rapid repeat-clicks. */}
+        {stamping && (
+          <span
+            key={Date.now()}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -m-1 animate-stamp-press rounded-sm bg-hanko/50 mix-blend-screen"
+          />
+        )}
+      </span>
+      {/* Confirmation toast — surfaces just below the kanji.
+          `印 copié` (or its English / Spanish counterpart): the kanji
+          is the icon, the verb completes the sentence. Kept absolute
+          so it doesn't push the romaji caption to the right when it
+          appears. */}
+      {copied && (
+        <span
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none absolute left-2 top-full z-10 mt-1 inline-flex animate-fade-in items-center gap-1.5 whitespace-nowrap rounded-md border border-hanko/40 bg-ink-1/95 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.25em] text-hanko-bright shadow-md backdrop-blur"
+        >
+          <span aria-hidden="true" className="font-jp text-[11px] leading-none">
+            印
+          </span>
+          {t("glossary.copied")}
+        </span>
+      )}
+    </button>
   );
 }
 
