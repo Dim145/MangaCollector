@@ -208,6 +208,10 @@ export default {
     readTitle: "Lu · 読 · {date}",
     markRead: "Marquer comme lu",
     markUnread: "Marquer comme non lu",
+    editDrawerEyebrow: "Détails du tome · 巻",
+    editDrawerTitle: "Modifier le tome {n}",
+    editDrawerLead:
+      "Ajustez possession, édition et lecture sans quitter la grille.",
   },
   coffret: {
     label: "COFFRET · 盒",

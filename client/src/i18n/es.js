@@ -207,6 +207,10 @@ export default {
     readTitle: "Leído · 読 · {date}",
     markRead: "Marcar como leído",
     markUnread: "Marcar como no leído",
+    editDrawerEyebrow: "Detalles del tomo · 巻",
+    editDrawerTitle: "Editar el tomo {n}",
+    editDrawerLead:
+      "Ajusta posesión, edición y lectura sin salir de la cuadrícula.",
   },
   coffret: {
     label: "CAJA · 盒",

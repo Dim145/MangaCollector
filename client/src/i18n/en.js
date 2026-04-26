@@ -206,6 +206,10 @@ export default {
     readTitle: "Read · 読 · {date}",
     markRead: "Mark as read",
     markUnread: "Mark as unread",
+    editDrawerEyebrow: "Volume Details · 巻",
+    editDrawerTitle: "Edit volume {n}",
+    editDrawerLead:
+      "Tweak ownership, edition, and reading state without leaving the grid.",
   },
   coffret: {
     label: "BOX SET · 盒",

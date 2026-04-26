@@ -1616,6 +1616,35 @@
   animation: fade-out 0.22s ease-in both;
 }
 
+/* Side-drawer (Volume detail panel) — slides in from the right edge over
+   the live grid behind. The fade-in/out backdrop animations above are
+   reused for the dim layer; only the panel itself needs translate-X
+   keyframes. We keep the panel opaque during motion (no opacity ramp)
+   so the underlying grid never bleeds through the chrome — that would
+   read as a weak modal rather than a confident drawer. */
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes drawer-slide-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.animate-drawer-in {
+  animation: drawer-slide-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-drawer-out {
+  animation: drawer-slide-out 0.24s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
 /* Cover-preview (Volume hover/long-press) — polaroid float-in effect */
 @keyframes cover-preview-in {
   from {
