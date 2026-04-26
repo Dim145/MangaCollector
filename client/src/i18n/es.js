@@ -1353,6 +1353,31 @@ export default {
     adultBannerHide: "Ocultar de nuevo",
     compareCta: "Comparar nuestras bibliotecas",
   },
+  shelfStickers: {
+    eyebrow: "ETIQUETAS · 札",
+    heading: "Etiquetas de estante",
+    body:
+      "Imprime pequeñas etiquetas QR para tus estantes. Escanéalas con el móvil y la serie se abre en la app.",
+    pickerTitle: "Selección",
+    pickerHint: "{selected} de {total} seleccionadas",
+    selectAll: "Seleccionar todo",
+    selectNone: "Limpiar",
+    searchPlaceholder: "Filtrar biblioteca…",
+    noMatch: "Ninguna serie coincide.",
+    summarySelected: "{n} etiquetas listas para imprimir",
+    summarySheets:
+      "{pages} hoja(s) A4 · {template} (21 etiquetas por hoja)",
+    printCta: "Imprimir",
+    previewLabel: "Vista previa de la lámina",
+    previewTitle: "Vista previa",
+    previewCaption: "Avery L7160 · A4",
+    pageNum: "Hoja {n}",
+    qrAria: "Código QR hacia la serie",
+    settingsTitle: "Etiquetas de estante · 札",
+    settingsBody:
+      "Imprime etiquetas QR para tus estantes. Un escaneo → la serie se abre en la app.",
+    settingsCta: "Abrir la impresora",
+  },
   yearReview: {
     eyebrow: "RETROSPECTIVA · 収",
     headlineCaption: "tomos adquiridos este año",

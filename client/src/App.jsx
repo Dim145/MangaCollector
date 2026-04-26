@@ -6,13 +6,20 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useSearchParams,
+} from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   bootstrapLanguage,
   I18nProvider,
   rememberLanguage,
 } from "@/i18n/index.jsx";
+import { useLibrary } from "@/hooks/useLibrary.js";
 
 // Eager — always on screen, no point code-splitting these
 import Header from "./components/Header";
@@ -42,6 +49,11 @@ const ComparePage = lazy(() => import("./components/ComparePage"));
 // 収 — year-in-review poster page; lazy because it's only visited
 // occasionally (typically a few times in December / January).
 const YearInReviewPage = lazy(() => import("./components/YearInReviewPage"));
+// 札 — shelf-sticker printer; lazy because it's a one-off setup tool,
+// not a daily-use surface. Pulls qrcode.react with it.
+const ShelfStickersPage = lazy(() =>
+  import("./components/ShelfStickersPage"),
+);
 // 字典 — public reference page; no auth needed.
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
 // 暦 — upcoming-release calendar.
@@ -135,6 +147,62 @@ function I18nBoundary({ children }) {
   return <I18nProvider lang={lang}>{children}</I18nProvider>;
 }
 
+/**
+ * 巻 · MangaPage hydration shim.
+ *
+ * The `/mangapage` route historically receives its `manga` row through
+ * React Router's `location.state` (set by Dashboard / Library cards on
+ * navigation). That works for in-app links but BREAKS for any deep
+ * link — refreshes, bookmarks, and most importantly QR codes scanned
+ * off printed shelf stickers — because external entry points carry no
+ * router state.
+ *
+ * This shim layers a fallback path: when `location.state.manga` is
+ * absent, we read `?mal_id=` from the URL and resolve the row from the
+ * Dexie-backed library cache. Three branches:
+ *   1. state has the row     → render immediately (existing path).
+ *   2. state empty + mal_id  → look up; render once Dexie answers.
+ *   3. state empty + no mal_id OR not in library → redirect to
+ *      `/dashboard` (a deep link to a series the user doesn't own
+ *      isn't actionable here).
+ *
+ * Keeping this as a thin wrapper means MangaPage itself stays unaware
+ * of routing concerns and can keep its `manga` prop contract.
+ */
+function MangaPageRoute({ stateManga, adult_content_level }) {
+  const [searchParams] = useSearchParams();
+  const malIdParam = searchParams.get("mal_id");
+  const malId = malIdParam ? Number.parseInt(malIdParam, 10) : null;
+
+  const { data: library, isInitialLoad: libLoading } = useLibrary();
+
+  // Fast path — the in-app navigation case where state was populated.
+  if (stateManga) {
+    return (
+      <MangaPage manga={stateManga} adult_content_level={adult_content_level} />
+    );
+  }
+
+  // No state, no query → nowhere to go.
+  if (!Number.isFinite(malId)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Wait for Dexie before deciding to redirect — a fresh tab opening
+  // the deep link races library hydration against this render.
+  if (libLoading) {
+    return null; // PageLoader from outer Suspense covers visual gap
+  }
+
+  const resolved = library?.find((m) => m.mal_id === malId);
+  if (!resolved) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return (
+    <MangaPage manga={resolved} adult_content_level={adult_content_level} />
+  );
+}
+
 function AppShell() {
   const location = useLocation();
   const { manga, adult_content_level } = location.state || {};
@@ -186,8 +254,8 @@ function AppShell() {
               path="/mangapage"
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <MangaPage
-                    manga={manga}
+                  <MangaPageRoute
+                    stateManga={manga}
                     adult_content_level={adult_content_level}
                   />
                 </ProtectedRoute>
@@ -273,6 +341,17 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <YearInReviewPage googleUser={googleUser} />
+                </ProtectedRoute>
+              }
+            />
+            {/* 札 · Shelf stickers — print sheet of QR-coded series
+                labels for the user's physical bookshelf. Authenticated
+                because it lists the user's library. */}
+            <Route
+              path="/settings/shelf-stickers"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <ShelfStickersPage />
                 </ProtectedRoute>
               }
             />

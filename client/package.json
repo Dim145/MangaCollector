@@ -22,6 +22,7 @@
     "dexie": "^4.4.2",
     "dexie-react-hooks": "^4.4.0",
     "html-to-image": "^1.11.13",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2",

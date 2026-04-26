@@ -1366,6 +1366,31 @@ export default {
     adultBannerHide: "Masquer à nouveau",
     compareCta: "Comparer nos bibliothèques",
   },
+  shelfStickers: {
+    eyebrow: "ÉTIQUETTES · 札",
+    heading: "Étiquettes d'étagère",
+    body:
+      "Imprimez de petites étiquettes QR à coller sur vos étagères. Scannez-les avec votre téléphone pour ouvrir la série dans l'app.",
+    pickerTitle: "Sélection",
+    pickerHint: "{selected} sélectionnées sur {total}",
+    selectAll: "Tout cocher",
+    selectNone: "Tout décocher",
+    searchPlaceholder: "Filtrer la bibliothèque…",
+    noMatch: "Aucune série ne correspond.",
+    summarySelected: "{n} étiquettes prêtes à imprimer",
+    summarySheets:
+      "{pages} feuille(s) A4 · format {template} (21 étiquettes par feuille)",
+    printCta: "Imprimer",
+    previewLabel: "Aperçu de la planche",
+    previewTitle: "Aperçu",
+    previewCaption: "Format Avery L7160 · A4",
+    pageNum: "Feuille {n}",
+    qrAria: "Code QR vers la série",
+    settingsTitle: "Étiquettes d'étagère · 札",
+    settingsBody:
+      "Imprimez des étiquettes QR pour étiqueter vos rayonnages. Un scan → la série s'ouvre dans l'app.",
+    settingsCta: "Ouvrir l'imprimante",
+  },
   yearReview: {
     eyebrow: "RÉTROSPECTIVE · 収",
     headlineCaption: "tomes acquis cette année",

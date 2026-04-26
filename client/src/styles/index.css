@@ -2099,3 +2099,243 @@
    PNG capture renders the same DOM at 2× pixel ratio in a single
    image the user can share or save, which is the canonical UX for
    "I made a poster, send it somewhere". */
+
+/* ─────────────────────────────────────────────────────────────────
+   札 · Shelf-sticker printer.
+   The user prints small QR-coded labels onto Avery L7160 sheets
+   (A4, 21 stickers per page, 63.5 × 38.1 mm each, 3 cols × 7 rows
+   with a 2.5 mm horizontal gutter and 0 mm vertical gutter). The
+   layout is mm-precise on print and approximated at ~1.55× scale
+   on screen so the user can preview before committing paper.
+   ───────────────────────────────────────────────────────────────── */
+
+/* Screen preview — uses inches/pixels close to the printed size so
+   the user reads labels at roughly the on-paper density. The mm-
+   precise layout takes over inside `@media print` below. */
+.sticker-sheet {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 4px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto 1.5rem;
+  padding: 12px;
+  border: 1px dashed var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sticker {
+  display: grid;
+  grid-template-columns: 32px 1fr 56px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  /* Aspect ratio matches the L7160 cell (63.5 / 38.1 ≈ 1.667). */
+  aspect-ratio: 63.5 / 38.1;
+  overflow: hidden;
+  background: #ffffff;
+  color: #0a0908;
+  border-radius: 4px;
+  /* Soft frame for screen preview only; print zeroes it out below. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.sticker-blank {
+  aspect-ratio: 63.5 / 38.1;
+  border: 1px dashed rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+}
+
+.sticker-cover {
+  /* Fill the cover cell of the sticker grid — no aspect-ratio
+     constraint here because the cell is shorter than 2:3 (the
+     sticker is wider than tall). The image inside uses
+     `object-cover` so the cover artwork crops vertically rather
+     than letterboxing dead space at the top and bottom. */
+  display: block;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 2px;
+  background: #1a1816;
+}
+
+.sticker-body {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sticker-title {
+  font-family: "Noto Serif JP", "EB Garamond", serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 10px;
+  line-height: 1.15;
+  color: #0a0908;
+  /* Two-line clamp so a long title doesn't crash into the QR code. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+
+.sticker-meta {
+  margin-top: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 7.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(10, 9, 8, 0.6);
+}
+
+.sticker-qr {
+  display: grid;
+  place-items: center;
+  height: 56px;
+  width: 56px;
+  background: #ffffff;
+}
+.sticker-qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Print rules — mm-precise to land each sticker on its L7160
+   adhesive cell. Tested against Avery's official L7160 spec:
+     · A4 (210 × 297 mm)
+     · 7 mm top + bottom margin
+     · 7.21 mm left + right margin
+     · 21 cells: 3 cols × 7 rows
+     · 63.5 × 38.1 mm per cell
+     · 2.5 mm horizontal gutter, 0 mm vertical gutter
+   The user picks "Avery L7160" in their printer settings (or
+   plain A4 with no scaling) and the cells line up.
+
+   ## Why the visibility-isolation pattern (and not `display: none`)
+   The first iteration tried `body > *:not(:has(.sticker-sheet-wrapper))
+   { display: none }` to hide the chrome. That FAILED in the wild —
+   the global Header component sits as a sibling of the page route
+   inside `#root`, so `body > *` was `#root` (which DOES contain the
+   sticker wrapper, so `:has()` matched and `:not()` un-matched). The
+   Header rendered, and the print job became a single page of branding
+   over an empty canvas.
+
+   The robust pattern: hide EVERYTHING via `visibility: hidden` on the
+   body, then re-show only the sticker subtree by re-applying
+   `visibility: visible` to it and its descendants. Layout is
+   preserved (so the sheet sizes correctly), but only the labels are
+   inked. We then absolutely-position the sheet so it starts at the
+   page origin instead of wherever the rest of the layout pushed it. */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0a0908 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide every painted pixel by default. */
+  body * {
+    visibility: hidden !important;
+  }
+  /* Re-show ONLY the sticker subtree — the wrapper, the per-page
+     sheet, every sticker and every sub-element inside them. */
+  .sticker-sheet-wrapper,
+  .sticker-sheet-wrapper * {
+    visibility: visible !important;
+  }
+  /* Anchor the wrapper to the page origin so the first sheet starts
+     at (0, 0) on paper instead of inheriting the on-screen offset
+     from the parent layout (header, picker, action bar — all of
+     which are still part of the in-flow layout under
+     `visibility: hidden`, just invisible). We pin top-left and let
+     the wrapper grow downward without a height ceiling so multi-page
+     stickers still paginate via `page-break-after` on each
+     `.sticker-sheet`. `inset: 0` would clip to the viewport box and
+     drop pages 2+, which is the wrong tradeoff. */
+  .sticker-sheet-wrapper {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .sticker-sheet {
+    /* Full A4 page, mm-precise grid. The padding doubles as the
+       Avery margin so cells start at exactly (7.21mm, 7mm). */
+    display: grid !important;
+    grid-template-columns: 63.5mm 63.5mm 63.5mm !important;
+    grid-template-rows: repeat(7, 38.1mm) !important;
+    column-gap: 2.5mm !important;
+    row-gap: 0mm !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 7mm 7.21mm 7mm 7.21mm !important;
+    box-sizing: border-box !important;
+    border: none !important;
+    background: #ffffff !important;
+    border-radius: 0 !important;
+    page-break-after: always;
+  }
+  .sticker-sheet:last-child {
+    page-break-after: auto;
+  }
+
+  .sticker {
+    aspect-ratio: auto !important;
+    width: 63.5mm !important;
+    height: 38.1mm !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 2mm !important;
+    grid-template-columns: 11mm 1fr 16mm !important;
+    gap: 1.5mm !important;
+    overflow: hidden !important;
+    page-break-inside: avoid;
+    background: #ffffff !important;
+    color: #0a0908 !important;
+  }
+
+  .sticker-blank {
+    aspect-ratio: auto !important;
+    width: 63.5mm !important;
+    height: 38.1mm !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .sticker-cover {
+    width: 11mm !important;
+    height: 16.5mm !important;
+    border-radius: 0.5mm !important;
+  }
+  .sticker-title {
+    font-size: 8pt !important;
+    line-height: 1.15 !important;
+    color: #0a0908 !important;
+  }
+  .sticker-meta {
+    font-size: 6pt !important;
+    color: rgba(10, 9, 8, 0.7) !important;
+  }
+  .sticker-qr {
+    width: 16mm !important;
+    height: 16mm !important;
+  }
+}

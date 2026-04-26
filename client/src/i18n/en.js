@@ -1344,6 +1344,31 @@ export default {
     adultBannerHide: "Hide again",
     compareCta: "Compare our libraries",
   },
+  shelfStickers: {
+    eyebrow: "LABELS · 札",
+    heading: "Shelf labels",
+    body:
+      "Print small QR labels for your physical shelves. Scan one with your phone and the matching series opens in the app.",
+    pickerTitle: "Selection",
+    pickerHint: "{selected} of {total} selected",
+    selectAll: "Select all",
+    selectNone: "Clear",
+    searchPlaceholder: "Filter library…",
+    noMatch: "No series match.",
+    summarySelected: "{n} labels ready to print",
+    summarySheets:
+      "{pages} A4 sheet(s) · {template} (21 labels per sheet)",
+    printCta: "Print",
+    previewLabel: "Sheet preview",
+    previewTitle: "Preview",
+    previewCaption: "Avery L7160 · A4",
+    pageNum: "Sheet {n}",
+    qrAria: "QR code to the series",
+    settingsTitle: "Shelf labels · 札",
+    settingsBody:
+      "Print QR labels for your physical shelves. A scan → the series opens in the app.",
+    settingsCta: "Open printer",
+  },
   yearReview: {
     eyebrow: "YEAR IN REVIEW · 収",
     headlineCaption: "volumes acquired this year",
