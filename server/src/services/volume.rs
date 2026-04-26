@@ -8,8 +8,33 @@ use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity::event_types;
 use crate::models::library::{self as library_mod, Entity as LibraryEntity};
-use crate::models::volume::{self, ActiveModel, Entity as VolumeEntity, Volume};
+use crate::models::volume::{
+    self, ActiveModel, Entity as VolumeEntity, Volume, NOTE_MAX_CHARS,
+};
 use crate::services::activity;
+
+/// Normalise a personal note for persistence:
+///   - `None`         → leave column untouched (caller should branch
+///                      on this — we encode the policy at the call
+///                      site, this helper only handles `Some` values).
+///   - `Some(empty)`  → store NULL (an empty-after-trim note is a
+///                      "cleared" note, not a present-but-blank one).
+///   - `Some(text)`   → trim, truncate to NOTE_MAX_CHARS, store.
+///
+/// Truncation is silent. The client enforces the cap with a live
+/// counter, so a payload arriving over the limit is either a stale
+/// outbox replay or a misbehaving caller — neither warrants a 400 in
+/// production traffic.
+fn normalise_note(input: String) -> Option<String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        None
+    } else if trimmed.chars().count() > NOTE_MAX_CHARS {
+        Some(trimmed.chars().take(NOTE_MAX_CHARS).collect())
+    } else {
+        Some(trimmed.to_string())
+    }
+}
 
 pub async fn get_all_for_user(db: &Db, user_id: i32) -> Result<Vec<Volume>, AppError> {
     VolumeEntity::find()
@@ -41,6 +66,10 @@ pub async fn update_by_id(
     store: Option<String>,
     collector: bool,
     read: Option<bool>,
+    // 記 · `None` leaves the existing note untouched. `Some(raw)` is
+    // passed through `normalise_note` — empty-after-trim clears the
+    // row, otherwise the trimmed/truncated text is persisted.
+    notes: Option<String>,
 ) -> Result<(), AppError> {
     // Note: the update is idempotent on two axes — a row that no longer
     // exists (e.g. offline outbox replay after deletion) and a row that
@@ -112,6 +141,28 @@ pub async fn update_by_id(
         )
         .col_expr(volume::Column::Collector, collector.into())
         .col_expr(volume::Column::ModifiedOn, now.into());
+
+    // 記 · Personal note — three-way like `read`:
+    //  • None          → leave column untouched (no client intent
+    //                    to update notes; the caller may have only
+    //                    been editing price/store/etc.).
+    //  • Some(text)    → normalise (trim + truncate at NOTE_MAX_CHARS)
+    //                    and write. Empty-after-trim collapses to NULL.
+    //
+    // Conditional rather than always-write so the common "user toggled
+    // owned only" path doesn't read+rewrite an unchanged 2 KB blob,
+    // and so an outbox replay of a stale partial PATCH can't accidentally
+    // wipe a note set in a later (already-applied) request.
+    if let Some(raw_note) = notes {
+        let normalised = normalise_note(raw_note);
+        query = query.col_expr(
+            volume::Column::Notes,
+            normalised.map_or_else(
+                || sea_orm::sea_query::Expr::value(Option::<String>::None),
+                sea_orm::sea_query::Expr::value,
+            ),
+        );
+    }
 
     // Reading status — three-way behaviour to preserve the first-read
     // timestamp across toggles:

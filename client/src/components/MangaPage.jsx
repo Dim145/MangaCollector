@@ -1091,6 +1091,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           releaseDate={vol.release_date}
                           coverUrl={volumeCoverMap?.[vol.vol_num]}
                           blurImage={isBlurred}
+                          note={vol.notes}
                           locked
                         />
                       ) : (
@@ -1104,6 +1105,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           store={vol.store}
                           collector={vol.collector}
                           readAt={vol.read_at}
+                          note={vol.notes}
                           releaseDate={vol.release_date}
                           releaseIsbn={vol.release_isbn}
                           releaseUrl={vol.release_url}
@@ -1152,6 +1154,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           store={vol.store}
                           collector={vol.collector}
                           readAt={vol.read_at}
+                          note={vol.notes}
                           releaseDate={vol.release_date}
                           releaseIsbn={vol.release_isbn}
                           releaseUrl={vol.release_url}

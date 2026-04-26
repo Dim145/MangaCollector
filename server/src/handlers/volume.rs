@@ -45,6 +45,7 @@ pub async fn update_volume(
         body.store,
         body.collector,
         body.read,
+        body.notes,
     )
     .await?;
     state.broker.publish(user.id, SyncKind::Volumes).await;

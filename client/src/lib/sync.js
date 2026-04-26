@@ -286,6 +286,10 @@ export async function enqueueVolumeUpdate(volume) {
   // a `read_at: iso|null` that matches the server row shape, so Dexie's
   // live-query readers see the optimistic badge update immediately. The
   // server mapping is mirrored in `services/volume.rs::update_by_id`.
+  //
+  // 記 · The personal note ALSO carries through unchanged — the server
+  // column is `notes`, the local Dexie row column is `notes`, the PATCH
+  // field is `notes`. No translation needed here, only forwarding.
   const { read, ...rest } = volume;
   const local = { ...rest };
   if (read !== undefined) {
@@ -327,6 +331,10 @@ export async function enqueueVolumeUpdate(volume) {
       // `read` is the boolean the flusher translates into the PATCH
       // field. `undefined` means "don't touch" — keep the prior value.
       read: read !== undefined ? read : prev.read,
+      // 記 · Personal note. `undefined` means "this PATCH did not touch
+      // the note" — same don't-touch policy as `read`. The flusher only
+      // forwards a `notes` field on the wire when it's not undefined.
+      notes: local.notes !== undefined ? local.notes : prev.notes,
     };
 
     await db.outboxVolumes.put({
@@ -456,6 +464,13 @@ async function flushVolumes() {
         // sending undefined leaves the server-side read_at untouched.
         ...(op.payload.read !== undefined
           ? { read: Boolean(op.payload.read) }
+          : {}),
+        // 記 · Same don't-touch contract as `read`: omit the field when
+        // the merged payload didn't carry an explicit edit so unrelated
+        // outbox replays (e.g. a price-only change) can't accidentally
+        // clear or rewrite the note.
+        ...(op.payload.notes !== undefined
+          ? { notes: String(op.payload.notes ?? "") }
           : {}),
       });
       await db.outboxVolumes.delete(op.id);

@@ -233,6 +233,7 @@ export default {
     shelfBadgeUpcoming: "Upcoming",
     shelfBadgeCollector: "Collector edition",
     shelfBadgeLocked: "Inside a slipcase",
+    shelfBadgeNote: "Personal note inscribed",
     upcomingRefresh: "Refresh upcoming · 来",
     upcomingRefreshing: "Refreshing…",
     upcomingRefreshHint:
@@ -284,6 +285,15 @@ export default {
     collectorTitle: "Collector edition — 限定",
     lockedAria: "Managed by its box set",
     lockedTitle: "Managed by its box set — edit the coffret header to change.",
+    noteLabel: "Personal note",
+    notePlaceholder:
+      "A thought, a reminder, a quote, the story of the purchase…",
+    noteHint:
+      "Visible only to you. Preserved on export and restored on import.",
+    noteCounter: "{n} / {max}",
+    noteIndicatorChip: "Note",
+    noteIndicatorTooltip: "A personal note is inscribed on this volume.",
+    noteIndicatorAria: "Open the note for this volume",
     readingLabel: "Reading",
     readOption: "Read",
     unreadOption: "Unread",

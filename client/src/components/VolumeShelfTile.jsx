@@ -36,6 +36,7 @@ export default function VolumeShelfTile({
   coverUrl,
   blurImage = false,
   locked = false,
+  note = null,
 }) {
   const t = useT();
 
@@ -50,6 +51,7 @@ export default function VolumeShelfTile({
 
   const isRead = Boolean(readAt);
   const isCollector = Boolean(collector);
+  const hasNote = Boolean(note && String(note).trim());
 
   const altText = t("manga.coverAlt", { n: volNum });
 
@@ -129,13 +131,34 @@ export default function VolumeShelfTile({
       )}
 
       {/* 鎖 · Coffret-locked tile — tiny corner mark so users know why
-          the tile won't react to ledger edits. Bottom-right, neutral. */}
+          the tile won't react to ledger edits. Bottom-right, neutral.
+          Shifts to bottom-right-with-offset when a note indicator
+          claims the same corner so the two glyphs sit side-by-side
+          rather than stacked. */}
       {locked && owned && (
         <span
           aria-label={t("manga.shelfBadgeLocked")}
-          className="absolute bottom-1 right-1 grid h-4 w-4 place-items-center rounded-sm bg-ink-0/70 font-jp text-[9px] font-bold leading-none text-washi-dim"
+          className={`absolute bottom-1 grid h-4 w-4 place-items-center rounded-sm bg-ink-0/70 font-jp text-[9px] font-bold leading-none text-washi-dim ${
+            hasNote ? "right-6" : "right-1"
+          }`}
         >
           盒
+        </span>
+      )}
+
+      {/* 記 · Personal-note indicator — bottom-right corner stamp in
+          moegi (different tier than 限/読 to read as "annotation"
+          rather than "state of the volume"). Surfaces only when the
+          tile carries a note; absent note → absent glyph, no visual
+          weight wasted. */}
+      {hasNote && (
+        <span
+          aria-label={t("manga.shelfBadgeNote")}
+          title={t("manga.shelfBadgeNote")}
+          className="absolute bottom-1 right-1 grid h-4 w-4 place-items-center rounded-sm bg-moegi/85 font-jp text-[9px] font-bold leading-none text-ink-0 shadow-sm"
+          style={{ transform: "rotate(4deg)" }}
+        >
+          記
         </span>
       )}
 

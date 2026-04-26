@@ -28,6 +28,11 @@ export default function Volume({
   // (borrowed / library copy) and owned without being read (classic
   // tsundoku 積読 — the pile of acquired-but-unread books).
   readAt,
+  // 記 · Personal collector note — free-text the user inscribed
+  // against this volume. May be null/empty when never written. The
+  // mere presence of a non-empty value surfaces a discrete kanji
+  // marker on the card; the content itself only shows in the drawer.
+  note = null,
   // 来 · Upcoming-volume metadata. A row whose `releaseDate` is in the
   // future is announced-but-not-yet-shipped — visual treatment is
   // distinct (moegi tier + kanji 来) and every "I have this" axis is
@@ -60,6 +65,7 @@ export default function Volume({
   const [purchaseLocation, setPurchaseLocation] = useState(store ?? "");
   const [collectorStatus, setCollectorStatus] = useState(Boolean(collector));
   const [readStatus, setReadStatus] = useState(Boolean(readAt));
+  const [noteDraft, setNoteDraft] = useState(note ?? "");
 
   const updateVolume = useUpdateVolume();
   const isLoading = updateVolume.isPending;
@@ -84,6 +90,11 @@ export default function Volume({
     nextCollector,
     ownedChanged,
     nextRead,
+    // 記 · `nextNote === undefined` → leave the note untouched (the
+    // common path for ownership / read-flag toggles). A `string`
+    // (incl. "") triggers the dedicated note write — the server
+    // collapses empty-after-trim back to NULL.
+    nextNote,
   ) {
     // `nextRead === undefined` → leave read_at untouched (used when
     // only owned / price / store / collector change). When set, we send
@@ -97,6 +108,7 @@ export default function Volume({
       store: nextStore ?? "",
       collector: Boolean(nextCollector),
       ...(nextRead !== undefined ? { read: Boolean(nextRead) } : {}),
+      ...(nextNote !== undefined ? { notes: String(nextNote) } : {}),
     });
     onUpdate?.({ ownedChanged });
   }
@@ -161,6 +173,12 @@ export default function Volume({
     setIsEditing(false);
     const ownedChanged = ownedStatus !== owned;
     const readChanged = readStatus !== Boolean(readAt);
+    // 記 · Only write the note when the draft actually diverges from
+    // the saved value — preserves the "leave field untouched" contract
+    // for non-note saves and avoids re-stamping `modified_on` for nothing.
+    const savedNote = note ?? "";
+    const draftNote = noteDraft ?? "";
+    const noteChanged = draftNote.trim() !== savedNote.trim();
     await persist(
       ownedStatus,
       price,
@@ -168,6 +186,7 @@ export default function Volume({
       collectorStatus,
       ownedChanged,
       readChanged ? readStatus : undefined,
+      noteChanged ? draftNote : undefined,
     );
   };
 
@@ -178,6 +197,7 @@ export default function Volume({
     setPurchaseLocation(store ?? "");
     setCollectorStatus(Boolean(collector));
     setReadStatus(Boolean(readAt));
+    setNoteDraft(note ?? "");
   };
 
   // Seed local state from server props, BUT only when the user isn't
@@ -199,7 +219,8 @@ export default function Volume({
     setPurchaseLocation(store ?? "");
     setCollectorStatus(Boolean(collector));
     setReadStatus(Boolean(readAt));
-  }, [owned, paid, store, collector, readAt, isEditing]);
+    setNoteDraft(note ?? "");
+  }, [owned, paid, store, collector, readAt, note, isEditing]);
 
   // If a volume becomes locked while the edit form is open (e.g. the user
   // adds it to a coffret from elsewhere), collapse the form automatically.
@@ -753,6 +774,8 @@ export default function Volume({
         setPrice={setPrice}
         purchaseLocation={purchaseLocation}
         setPurchaseLocation={setPurchaseLocation}
+        note={noteDraft}
+        setNote={setNoteDraft}
         isLoading={isLoading}
         onSave={handleSave}
         onCancel={handleCancel}
@@ -768,22 +791,58 @@ export default function Volume({
         daysUntilRelease={daysUntilRelease}
       />
 
-      {!isEditing && ownedStatus && purchaseLocation && (
-        <div className="flex items-center gap-1.5 border-t border-border/50 px-4 py-2 text-[11px] text-washi-muted">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-3 w-3 text-washi-dim"
-          >
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-          </svg>
-          <span className="truncate">{purchaseLocation}</span>
-        </div>
-      )}
+      {!isEditing &&
+        (ownedStatus && purchaseLocation || (note && note.trim())) && (
+          <div className="flex items-center gap-1.5 border-t border-border/50 px-4 py-2 text-[11px] text-washi-muted">
+            {ownedStatus && purchaseLocation && (
+              <>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-3 w-3 shrink-0 text-washi-dim"
+                >
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+                </svg>
+                <span className="truncate">{purchaseLocation}</span>
+              </>
+            )}
+
+            {/* 記 · Personal-note indicator. Discreet, ledger-row level —
+                signals "there's a note here" without surfacing the text
+                itself. Clicking opens the drawer with the note section
+                ready to edit. The kanji rotates -3° to read as a stamp
+                rather than a typeset glyph. */}
+            {note && note.trim() && (
+              <Tooltip
+                text={t("volume.noteIndicatorTooltip")}
+                placement="top"
+              >
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  disabled={locked}
+                  aria-label={t("volume.noteIndicatorAria")}
+                  className={`ml-auto inline-flex items-center gap-1 rounded-full border border-hanko/20 bg-hanko/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-hanko-bright/80 transition hover:border-hanko/45 hover:bg-hanko/10 hover:text-hanko-bright ${
+                    locked ? "cursor-default opacity-60 hover:bg-hanko/5" : ""
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="font-jp text-[11px] font-bold leading-none"
+                    style={{ transform: "rotate(-3deg)" }}
+                  >
+                    記
+                  </span>
+                  {t("volume.noteIndicatorChip")}
+                </button>
+              </Tooltip>
+            )}
+          </div>
+        )}
     </div>
   );
 }

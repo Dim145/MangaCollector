@@ -233,6 +233,7 @@ export default {
     shelfBadgeUpcoming: "Próximo",
     shelfBadgeCollector: "Edición coleccionista",
     shelfBadgeLocked: "Incluido en un estuche",
+    shelfBadgeNote: "Nota personal inscrita",
     upcomingRefresh: "Refrescar próximos · 来",
     upcomingRefreshing: "Buscando…",
     upcomingRefreshHint:
@@ -285,6 +286,15 @@ export default {
     collectorTitle: "Edición coleccionista — 限定",
     lockedAria: "Gestionado por su caja",
     lockedTitle: "Gestionado por su caja — edita el encabezado de la caja para cambiar.",
+    noteLabel: "Nota personal",
+    notePlaceholder:
+      "Una idea, un recordatorio, una cita, la historia de la compra…",
+    noteHint:
+      "Solo visible para ti. Se conserva al exportar y se restaura al importar.",
+    noteCounter: "{n} / {max}",
+    noteIndicatorChip: "Nota",
+    noteIndicatorTooltip: "Hay una nota personal inscrita en este tomo.",
+    noteIndicatorAria: "Abrir la nota de este tomo",
     readingLabel: "Lectura",
     readOption: "Leído",
     unreadOption: "No leído",

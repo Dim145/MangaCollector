@@ -61,6 +61,14 @@ pub struct Model {
     /// (a stale upcoming row past its date by 14d gets removed).
     #[sea_orm(default)]
     pub announced_at: Option<chrono::DateTime<chrono::Utc>>,
+
+    /// 記 · Personal collector note. Free-text the user inscribes on
+    /// a per-volume basis — a thought, a quote, the acquisition
+    /// story, a private rating. Capped at 2000 chars in the service
+    /// layer; NULL means no note (distinct from `Some("")` which the
+    /// service collapses to NULL on write).
+    #[sea_orm(default)]
+    pub notes: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -89,4 +97,17 @@ pub struct UpdateVolumeRequest {
     /// leaves the field untouched. Defaults to None for partial updates.
     #[serde(default)]
     pub read: Option<bool>,
+    /// 記 · Personal note for this volume. `Some(text)` overwrites,
+    /// `Some("")` clears (server normalises to NULL), `None` leaves
+    /// the field untouched. Mirrors the same `Option<Option<_>>`-free
+    /// shape as the other PATCH fields — every payload the SPA sends
+    /// represents the desired state.
+    #[serde(default)]
+    pub notes: Option<String>,
 }
+
+/// Maximum length of the personal note. Tuned generous enough for a
+/// quote + a paragraph + a date (≈400 words), stingy enough that the
+/// table doesn't accumulate copy-pasted essays from clients with bugs
+/// or malicious actors. Truncation, not refusal — see service layer.
+pub const NOTE_MAX_CHARS: usize = 2000;

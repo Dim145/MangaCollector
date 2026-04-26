@@ -86,6 +86,12 @@ export default function VolumeDetailDrawer({
   setPrice,
   purchaseLocation,
   setPurchaseLocation,
+  // 記 · Personal note — controlled by the parent like every other
+  // field. Drawer renders a textarea with a live counter; the parent
+  // owns the truncation logic at save time (and the server enforces
+  // its own cap as a defence-in-depth).
+  note = "",
+  setNote = () => {},
   // ── Lifecycle ─────────────────────────────────────────────────────────
   isLoading,
   onSave,
@@ -749,6 +755,19 @@ export default function VolumeDetailDrawer({
               className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
             />
           </div>
+
+          {/* 記 · Personal note. Sits at the bottom of the form, after
+              the accountancy fields, because it's reflective rather
+              than transactional — the kind of thing you write *after*
+              you've recorded that you bought it and where. The kanji
+              top-left of the label doubles as a visual anchor for the
+              indicator that surfaces on the volume row. */}
+          <NoteField
+            fieldId={fieldId}
+            value={note ?? ""}
+            onChange={setNote}
+            t={t}
+          />
           </div>
         )}
 
@@ -793,6 +812,78 @@ export default function VolumeDetailDrawer({
   );
 
   return createPortal(overlay, document.body);
+}
+
+/**
+ * 記 · NoteField — personal-note textarea with live character counter.
+ *
+ * The cap is the same NOTE_MAX_CHARS the server enforces (2000); the
+ * counter shifts to the warning tone in the last 5% so users notice
+ * before they hit the limit. Above the cap we soft-truncate on the
+ * controlled `value` so the textarea cannot grow past the limit even
+ * if a paste lands a 3 KB blob.
+ *
+ * The kanji 記 in the label header is the same glyph that surfaces as
+ * the indicator on the volume row when a note exists — the visual
+ * thread between "place where I write the note" and "place where the
+ * note has been written" is explicit, not implicit.
+ */
+const NOTE_MAX_CHARS_CLIENT = 2000;
+function NoteField({ fieldId, value, onChange, t }) {
+  const safe = String(value ?? "");
+  const overSoftLimit = safe.length >= NOTE_MAX_CHARS_CLIENT * 0.95;
+
+  const handleChange = (event) => {
+    const next = event.target.value ?? "";
+    // Soft truncate — paste of a giant blob lands the value at the cap
+    // rather than growing past it. The server also caps as a defence
+    // in depth; this is purely about a smooth typing experience.
+    if (next.length > NOTE_MAX_CHARS_CLIENT) {
+      onChange(next.slice(0, NOTE_MAX_CHARS_CLIENT));
+    } else {
+      onChange(next);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <label
+          htmlFor={`${fieldId}-note`}
+          className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+        >
+          <span aria-hidden="true" className="font-jp text-base font-bold leading-none text-hanko-bright/70">
+            記
+          </span>
+          {t("volume.noteLabel")}
+        </label>
+        <span
+          aria-live="polite"
+          className={`font-mono text-[10px] tabular-nums tracking-wider transition ${
+            overSoftLimit ? "text-hanko-bright" : "text-washi-dim"
+          }`}
+        >
+          {t("volume.noteCounter", {
+            n: safe.length,
+            max: NOTE_MAX_CHARS_CLIENT,
+          })}
+        </span>
+      </div>
+      <textarea
+        id={`${fieldId}-note`}
+        value={safe}
+        onChange={handleChange}
+        rows={6}
+        maxLength={NOTE_MAX_CHARS_CLIENT}
+        placeholder={t("volume.notePlaceholder")}
+        spellCheck
+        className="block w-full resize-y rounded-lg border border-border bg-ink-1 px-3 py-2 font-serif text-sm leading-relaxed text-washi placeholder:italic placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+      />
+      <p className="mt-1.5 text-[10px] italic text-washi-muted">
+        {t("volume.noteHint")}
+      </p>
+    </div>
+  );
 }
 
 /** Format an ISO release_date for upcoming-volume captions in the

@@ -234,6 +234,7 @@ export default {
     shelfBadgeUpcoming: "À paraître",
     shelfBadgeCollector: "Édition collector",
     shelfBadgeLocked: "Inclus dans un coffret",
+    shelfBadgeNote: "Note personnelle inscrite",
     upcomingRefresh: "Rafraîchir à venir · 来",
     upcomingRefreshing: "Recherche en cours…",
     upcomingRefreshHint:
@@ -286,6 +287,15 @@ export default {
     collectorTitle: "Édition collector — 限定",
     lockedAria: "Géré par le coffret",
     lockedTitle: "Géré par son coffret — modifiez l'en-tête du coffret pour changer.",
+    noteLabel: "Note personnelle",
+    notePlaceholder:
+      "Une pensée, un rappel, une citation, le contexte de l'achat…",
+    noteHint:
+      "Visible uniquement par vous. Conservé lors d'un export et restauré à l'import.",
+    noteCounter: "{n} / {max}",
+    noteIndicatorChip: "Note",
+    noteIndicatorTooltip: "Une note personnelle est inscrite sur ce tome.",
+    noteIndicatorAria: "Ouvrir la note de ce tome",
     readingLabel: "Lecture",
     readOption: "Lu",
     unreadOption: "Non lu",

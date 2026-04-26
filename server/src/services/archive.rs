@@ -84,6 +84,7 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
                 store: v.store,
                 collector: v.collector,
                 read_at: v.read_at,
+                notes: v.notes,
                 in_coffret: v.coffret_id.is_some(),
             })
             .collect();
@@ -143,7 +144,7 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
 pub fn build_export_csv(bundle: &ExportBundle) -> String {
     let mut out = String::new();
     out.push_str(
-        "mal_id,series,vol_num,owned,collector,read_at,price,store,genres\n",
+        "mal_id,series,vol_num,owned,collector,read_at,price,store,notes,genres\n",
     );
     for series in &bundle.library {
         let mal = series
@@ -156,7 +157,7 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
             // No per-volume detail — emit a single summary row so the
             // series still appears in the CSV.
             out.push_str(&format!(
-                "{mal},{name},,,,,,,{genres}\n"
+                "{mal},{name},,,,,,,,{genres}\n"
             ));
             continue;
         }
@@ -170,8 +171,13 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
                 .read_at
                 .map(|t| t.to_rfc3339())
                 .unwrap_or_default();
+            // 記 · Notes are escaped through the same helper; embedded
+            // newlines / commas / quotes are handled by RFC 4180-style
+            // double-quoting. Long notes are emitted in full — the cap
+            // (2000 chars) keeps the field benign for spreadsheet imports.
+            let notes = csv_escape(v.notes.as_deref().unwrap_or(""));
             out.push_str(&format!(
-                "{mal},{name},{vol},{owned},{collector},{read},{price},{store},{genres}\n",
+                "{mal},{name},{vol},{owned},{collector},{read},{price},{store},{notes},{genres}\n",
                 vol = v.vol_num,
                 owned = v.owned,
                 collector = v.collector,
@@ -381,6 +387,7 @@ pub async fn apply_import_merge(
                     store: Set(v.store.clone()),
                     collector: Set(v.collector),
                     read_at: Set(v.read_at),
+                    notes: Set(v.notes.clone()),
                     created_on: Set(now),
                     modified_on: Set(now),
                     ..Default::default()
