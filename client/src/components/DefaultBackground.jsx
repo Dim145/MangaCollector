@@ -1,6 +1,17 @@
+import SeasonAtmosphere from "./SeasonAtmosphere.jsx";
+
 export default function DefaultBackground({ children }) {
   return (
     <div className="relative isolate grain min-h-[calc(100svh-4rem)] overflow-hidden">
+      {/* 季節 · Ambient season layer.
+          Renders behind every other background detail — sits between
+          the page colour and the radial gradients, so the gradients
+          and the grain texture continue to do their work over the
+          drifting particles. The component self-mutes when the user
+          has `prefers-reduced-motion: reduce`, so vestibular-sensitive
+          users see the same chrome as today. */}
+      <SeasonAtmosphere />
+
       {/* Ambient radial gradients — colours resolve from theme tokens so
           light mode gets pastel hints, dark mode keeps the deep hanko glow. */}
       <div

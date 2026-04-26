@@ -12,6 +12,7 @@ import PublicProfileSection from "@/components/PublicProfileSection.jsx";
 import BirthdayModeSection from "@/components/BirthdayModeSection.jsx";
 import ArchiveSection from "@/components/ArchiveSection.jsx";
 import SeasonSection from "@/components/SeasonSection.jsx";
+import AtmosphereSection from "@/components/AtmosphereSection.jsx";
 import WelcomeTour from "@/components/WelcomeTour.jsx";
 import { resetTourSeen } from "@/lib/tour.js";
 import { useOnline } from "@/hooks/useOnline.js";
@@ -706,6 +707,12 @@ export default function SettingsPage() {
             season. Purely aesthetic, near the other look-and-feel
             settings. */}
         <SeasonSection />
+
+        {/* ─── 風 Seasonal atmosphere — opt-out toggle for the drifting
+            particle layer. Sits right after the season-palette picker
+            because it's the same visual surface, just a different knob:
+            "what palette" vs "do I want particles drifting through it". */}
+        <AtmosphereSection />
 
         {/* ─── Onboarding · re-trigger the welcome tour on demand.
             The tour auto-shows on the first visit to an empty library;

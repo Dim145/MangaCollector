@@ -1837,4 +1837,208 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* The seasonal atmosphere is decorative; for users with vestibular
+     sensitivity we hide it entirely rather than freezing the scene
+     to a still frame (which would just show a row of dots clinging
+     to the top of the viewport — visually confusing). */
+  .atmo-particle {
+    display: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   季節 · Seasonal atmosphere — ambient particle layer keyed by the
+   real-world season returned by `lib/season.js`. Each particle is a
+   single absolutely-positioned `<span>` driven by per-particle CSS
+   variables (`--scale`, `--delay`, `--duration`, `--rot`) supplied
+   from React. The animations are pure transforms + opacity so they
+   stay on the GPU compositor.
+   ───────────────────────────────────────────────────────────────── */
+
+/* Shared positional + transform-baseline rule. Per-season variants
+   below override `background`, `border-radius`, animation name, and
+   sometimes box-shadow for the firefly glow. */
+.atmo-particle {
+  position: absolute;
+  top: 0;
+  /* `--scale`, `--rot`, `--delay`, `--duration` are injected per-
+     particle from JSX. Defaults guarantee the rule never breaks if
+     a particle is rendered without them. */
+  --scale: 1;
+  --rot: 0deg;
+  --delay: 0s;
+  --duration: 18s;
+  width: calc(0.6rem * var(--scale));
+  height: calc(0.6rem * var(--scale));
+  opacity: 0;
+  /* Same animation-name + duration applied to every particle in a
+     season; the `--delay` per-particle stagger plus the per-particle
+     start position is what makes the swarm feel organic. */
+  animation-duration: var(--duration);
+  animation-delay: calc(var(--delay) * -1);
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+  /* Keep transforms on a separate compositor layer — avoids
+     repaints during scroll on long pages. */
+  will-change: transform, opacity;
+  transform: translate3d(0, -10vh, 0) rotate(var(--rot)) scale(var(--scale));
+}
+
+/* 春 · Spring — sakura petals.
+   Petal silhouette via asymmetric `border-radius`; the radial
+   gradient gives the slightly translucent centre. V1 used a
+   `filter: blur(0.4px)` for softness — removed in V2 because the
+   filter triggered a separate compositor pass per particle per
+   frame. The radial gradient already gives a soft edge falloff. */
+.atmo-spring .atmo-particle {
+  background: radial-gradient(
+    circle at 30% 30%,
+    var(--sakura) 0%,
+    rgba(244, 194, 208, 0.55) 55%,
+    transparent 100%
+  );
+  border-radius: 100% 0 100% 0;
+  animation-name: atmo-fall-sway;
+  width: calc(0.7rem * var(--scale));
+  height: calc(0.7rem * var(--scale));
+}
+
+/* 夏 · Summer — fireflies. V1 used a double box-shadow (8px + 16px)
+   for a wide glow halo. V2 keeps a single 12px ring — perceptually
+   identical at the small size we render at, but one fewer GPU pass
+   per particle per frame. */
+.atmo-summer .atmo-particle {
+  background: var(--gold);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.45);
+  animation-name: atmo-firefly;
+  width: calc(0.4rem * var(--scale));
+  height: calc(0.4rem * var(--scale));
+}
+
+/* 秋 · Autumn — golden leaves. Same shape language as V1; blur
+   filter removed (the gradient softens the edge enough). */
+.atmo-autumn .atmo-particle {
+  background: radial-gradient(
+    ellipse at 40% 30%,
+    rgba(212, 175, 55, 0.85) 0%,
+    rgba(184, 115, 51, 0.65) 60%,
+    transparent 100%
+  );
+  border-radius: 50% 10% 50% 10%;
+  animation-name: atmo-fall-spin;
+  width: calc(0.85rem * var(--scale));
+  height: calc(0.5rem * var(--scale));
+}
+
+/* 冬 · Winter — snow. Cream dots; the radial gradient takes the
+   place of the V1 blur for the softness cue. */
+.atmo-winter .atmo-particle {
+  background: radial-gradient(
+    circle at 50% 50%,
+    var(--washi) 0%,
+    rgba(244, 240, 232, 0.6) 50%,
+    transparent 100%
+  );
+  border-radius: 50%;
+  animation-name: atmo-fall-snow;
+  width: calc(0.45rem * var(--scale));
+  height: calc(0.45rem * var(--scale));
+}
+
+/* Shared fall + sway — petals and other "falling with breeze" motion.
+   The horizontal `translateX` deltas are small (±2vw) so the
+   particle stays roughly in its column, but the eye reads the path
+   as a meandering descent rather than a straight drop. */
+@keyframes atmo-fall-sway {
+  0% {
+    transform: translate3d(0, -10vh, 0) rotate(var(--rot)) scale(var(--scale));
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate3d(2vw, 50vh, 0) rotate(calc(var(--rot) + 180deg)) scale(var(--scale));
+  }
+  90% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate3d(-1vw, 110vh, 0) rotate(calc(var(--rot) + 360deg)) scale(var(--scale));
+    opacity: 0;
+  }
+}
+
+/* Autumn leaves spin more aggressively than spring petals, which
+   reads as gravity tugging on a wider, flatter object — a leaf
+   tumbles, a petal drifts. */
+@keyframes atmo-fall-spin {
+  0% {
+    transform: translate3d(0, -10vh, 0) rotate(var(--rot)) scale(var(--scale));
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.65;
+  }
+  50% {
+    transform: translate3d(-3vw, 50vh, 0) rotate(calc(var(--rot) + 540deg)) scale(var(--scale));
+  }
+  88% {
+    opacity: 0.65;
+  }
+  100% {
+    transform: translate3d(2vw, 110vh, 0) rotate(calc(var(--rot) + 1080deg)) scale(var(--scale));
+    opacity: 0;
+  }
+}
+
+/* Winter snow — slowest, near-vertical, opacity ceiling at 0.4 so
+   the layer reads as ambient texture, not weather. */
+@keyframes atmo-fall-snow {
+  0% {
+    transform: translate3d(0, -10vh, 0) scale(var(--scale));
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.4;
+  }
+  85% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate3d(0.5vw, 110vh, 0) scale(var(--scale));
+    opacity: 0;
+  }
+}
+
+/* Summer firefly — drifts laterally rather than falls, with an
+   independent opacity pulse so the "breath" of the glow is decoupled
+   from the position cycle (firefly visibly blinks even when staying
+   in roughly the same area). */
+@keyframes atmo-firefly {
+  0% {
+    transform: translate3d(0, 70vh, 0) scale(var(--scale));
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.7;
+  }
+  35% {
+    opacity: 0.25;
+  }
+  50% {
+    transform: translate3d(8vw, 30vh, 0) scale(var(--scale));
+    opacity: 0.8;
+  }
+  65% {
+    opacity: 0.3;
+  }
+  80% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(15vw, 5vh, 0) scale(var(--scale));
+    opacity: 0;
+  }
 }

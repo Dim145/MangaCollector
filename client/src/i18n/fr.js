@@ -774,6 +774,13 @@ export default {
       winter: "Hiver",
       neutral: "Neutre",
     },
+    atmosphereTitle: "Atmosphère saisonnière · 風",
+    atmosphereBody:
+      "Pétales, feuilles, lucioles ou flocons dérivent doucement en arrière-plan, dans la teinte de la saison en cours.",
+    atmosphereToggleAria: "Activer l'atmosphère saisonnière",
+    atmosphereGatingLabel: "Quand ?",
+    atmosphereGatingDetail:
+      "Pour ménager votre batterie, l'effet n'apparaît que sur l'accueil public, ou pendant les 3 jours qui précèdent et suivent un équinoxe ou un solstice — soit ~28 jours par an. Le reste du temps, la page reste statique.",
     publicProfileTitle: "Profil public · 蔵書公開",
     publicProfileBody:
       "Partagez une galerie en lecture seule de votre archive via un lien public. Les prix, dates d'achat et contenus adulte sont exclus.",

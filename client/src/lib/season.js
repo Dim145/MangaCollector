@@ -114,6 +114,55 @@ const HEMISPHERE_FLIP = {
 };
 
 /**
+ * Returns the calendar dates of the four seasonal events that bracket
+ * `now` (the most recent past one and the next upcoming one). Used by
+ * `isInSeasonTransition` below to decide whether we're inside the
+ * "the season is changing" window that justifies running the ambient
+ * atmosphere layer.
+ */
+function nearestSeasonalEvents(now = new Date()) {
+  const year = now.getUTCFullYear();
+  const events = [
+    ...Object.values(seasonalDates(year - 1)),
+    ...Object.values(seasonalDates(year)),
+    ...Object.values(seasonalDates(year + 1)),
+  ].sort((a, b) => a - b);
+  const t = now.getTime();
+  // Closest past event.
+  let past = null;
+  let future = null;
+  for (const ev of events) {
+    if (ev.getTime() <= t) past = ev;
+    else if (!future) future = ev;
+  }
+  return { past, future };
+}
+
+/**
+ * Is `now` within `windowDays` (default 3) of an equinox or solstice?
+ *
+ * The seasonal atmosphere layer only fires inside this window — the
+ * idea being that the visual "the season is turning" cue is strongest
+ * when the season is *actually* turning, not as a constant year-round
+ * background hum. Outside the window the page reverts to its normal
+ * non-animated atmosphere.
+ *
+ * Returns `true` for the 7-day band centred on each event (J-3 → J+3
+ * inclusive). With four events per year, that's 28 days × Math.max(GPU)
+ * vs 365 — a ~92% reduction in compositor pressure for the typical
+ * user, while keeping the magic intact during the moments when the
+ * page should feel alive.
+ */
+export function isInSeasonTransition(now = new Date(), windowDays = 3) {
+  const { past, future } = nearestSeasonalEvents(now);
+  const dayMs = 86_400_000;
+  const t = now.getTime();
+  const inPast = past && t - past.getTime() <= windowDays * dayMs;
+  const inFuture = future && future.getTime() - t <= windowDays * dayMs;
+  return Boolean(inPast || inFuture);
+}
+
+/**
  * Returns the current astronomical season as one of the four ids.
  * The result already accounts for the user's hemisphere — a March
  * equinox is `spring` in Paris and `autumn` in Buenos Aires.

@@ -755,6 +755,13 @@ export default {
       winter: "Winter",
       neutral: "Neutral",
     },
+    atmosphereTitle: "Seasonal atmosphere · 風",
+    atmosphereBody:
+      "Petals, leaves, fireflies or snowflakes drift gently in the background, tinted to match the current season.",
+    atmosphereToggleAria: "Enable seasonal atmosphere",
+    atmosphereGatingLabel: "When?",
+    atmosphereGatingDetail:
+      "To spare your battery, the effect only appears on the public landing page, or during the 3 days before and after an equinox or solstice — about 28 days per year. The rest of the time the page stays static.",
     publicProfileTitle: "Public profile · 蔵書公開",
     publicProfileBody:
       "Share a read-only gallery of your archive via a public link. Prices, purchase dates and adult content are excluded.",

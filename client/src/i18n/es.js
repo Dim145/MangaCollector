@@ -761,6 +761,13 @@ export default {
       winter: "Invierno",
       neutral: "Neutro",
     },
+    atmosphereTitle: "Atmósfera estacional · 風",
+    atmosphereBody:
+      "Pétalos, hojas, luciérnagas o copos se deslizan suavemente al fondo, con el matiz de la estación actual.",
+    atmosphereToggleAria: "Activar la atmósfera estacional",
+    atmosphereGatingLabel: "¿Cuándo?",
+    atmosphereGatingDetail:
+      "Para ahorrar batería, el efecto solo aparece en la página pública de inicio, o durante los 3 días previos y posteriores a un equinoccio o solsticio — unos 28 días al año. El resto del tiempo la página queda estática.",
     publicProfileTitle: "Perfil público · 蔵書公開",
     publicProfileBody:
       "Comparte una galería de sólo lectura de tu archivo vía un enlace público. Precios, fechas de compra y contenido adulto quedan excluidos.",
