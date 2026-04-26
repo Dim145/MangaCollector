@@ -52,7 +52,11 @@ export default function Manga({
       onClick={() =>
         navigate("/mangapage", { state: { manga, adult_content_level } })
       }
-      className="group relative flex flex-col text-left tap-none focus-visible:outline-none"
+      // `contain: layout paint` — the Library grid renders many of these
+      // (now also lazy-paginated by 30s). Containment keeps any class
+      // change on one card (hover, ownership flip) from rippling layout
+      // / paint through the rest of the grid.
+      className="group relative flex flex-col text-left tap-none focus-visible:outline-none [contain:layout_paint]"
     >
       {/* Cover — tall aspect like a real manga volume */}
       <div

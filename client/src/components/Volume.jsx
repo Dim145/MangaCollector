@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import Tooltip from "./ui/Tooltip.jsx";
 import VolumeDetailDrawer from "./VolumeDetailDrawer.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
@@ -15,7 +15,7 @@ import { useT } from "@/i18n/index.jsx";
  * owned / price / store / collector state — editing them inline would create
  * a split-brain with the coffret totals.
  */
-export default function Volume({
+function VolumeImpl({
   id,
   mal_id,
   owned,
@@ -281,7 +281,13 @@ export default function Volume({
 
   return (
     <div
-      className={`group relative rounded-xl border transition-all duration-300 ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
+      // `contain: layout paint` isolates this card as its own painting
+      // and layout boundary. A re-render or class change on a sibling
+      // Volume can no longer trigger a reflow that ripples through the
+      // bucket — the browser confines work to the changed card only.
+      // The tradeoff (no overflowing content escapes the box) matches
+      // what the card already does visually.
+      className={`group relative rounded-xl border transition-all duration-300 [contain:layout_paint] ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
     >
       {/* Collector hanko seal — pinned like a wax seal at the card's top-right corner.
           Wrapped in <Tooltip> for a reliable CSS-only hover label; the native
@@ -877,3 +883,19 @@ function formatReleaseDate(iso) {
     return "";
   }
 }
+
+/**
+ * Memoised export — when one volume in a bucket flips its owned state,
+ * MangaPage re-renders, which would otherwise re-run every sibling
+ * Volume's full body (200+ lines of derived classNames + JSX). Most
+ * sibling props (volNum, owned, paid, store, …) are primitives that
+ * shallow-equal across the re-render, so the default `memo` skip
+ * applies and the unchanged Volumes bail out before doing any work.
+ *
+ * Caveat: callbacks (`onUpdate`, `onPreviewShow`, `onPreviewRelease`)
+ * and the `currencySetting` object are referentially stable only if
+ * the parent wraps them in `useCallback` / `useMemo`. The wins from
+ * memo are proportional to that stability — worst case it's a no-op
+ * with a tiny shallow-equal cost, never a regression.
+ */
+export default memo(VolumeImpl);

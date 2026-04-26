@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import CoverImage from "@/components/ui/CoverImage.jsx";
 import { useT } from "@/i18n/index.jsx";
 
@@ -27,7 +27,7 @@ import { useT } from "@/i18n/index.jsx";
  * in 帳 (ledger) mode. The user switches modes when they want to
  * accountancy-edit; this surface is for browsing.
  */
-export default function VolumeShelfTile({
+function VolumeShelfTileImpl({
   volNum,
   owned,
   collector,
@@ -57,7 +57,11 @@ export default function VolumeShelfTile({
 
   return (
     <div
-      className={`group relative aspect-[2/3] overflow-hidden rounded-md transition will-change-transform ${
+      // `contain: layout paint` confines reflow + repaint to this tile.
+      // In a 6-column shelf grid with 24+ tiles, a class change on one
+      // tile would otherwise force the browser to reconsider the whole
+      // grid; with containment it stays local.
+      className={`group relative aspect-[2/3] overflow-hidden rounded-md transition will-change-transform [contain:layout_paint] ${
         owned
           ? "shadow-[0_2px_8px_rgba(0,0,0,0.35)] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(0,0,0,0.45)]"
           : "border border-dashed border-sakura/30 bg-ink-1/40 hover:border-sakura/60"
@@ -171,3 +175,12 @@ export default function VolumeShelfTile({
     </div>
   );
 }
+
+/**
+ * Memoised export — same rationale as Volume's default-memo: when one
+ * tile in the shelf flips state, every other tile would otherwise re-
+ * render its full body (cover, badges, hover handlers). Every prop is
+ * a primitive or a stable string, so shallow-equal hits reliably and
+ * the unchanged tiles bail out instantly.
+ */
+export default memo(VolumeShelfTileImpl);

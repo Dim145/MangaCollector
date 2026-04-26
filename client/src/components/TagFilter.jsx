@@ -190,7 +190,7 @@ export function FilterButton({
               zIndex: 2147483620,
               width: "min(calc(100vw - 16px), 340px)",
             }}
-            className="animate-slide-down flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl backdrop-blur"
+            className="animate-slide-down flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl"
           >
             {/* Decorative watermark kanji — sits behind content, top-right */}
             <span

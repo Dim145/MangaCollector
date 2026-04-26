@@ -80,7 +80,7 @@ No test framework is currently configured.
 - Frontend: ESLint + Prettier (configured via `eslint.config.js`)
 - Backend: Prettier
 - Editor: `.editorconfig` defines indentation/formatting rules
-- Tailwind CSS utility-first styling; use `tailwind-merge` (twMerge) for conditional classes
+- Tailwind CSS utility-first styling; conditional classes assembled inline via template strings or `${cond ? "a" : "b"}` ternaries (no `clsx`/`twMerge` helpers)
 
 ## API Routes
 

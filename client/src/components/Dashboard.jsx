@@ -1,4 +1,11 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
@@ -15,9 +22,61 @@ import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
 import { useT } from "@/i18n/index.jsx";
 
+// 段 · Library pagination — paint up to 30 cards on first render and
+// extend by another 30 each time the bottom-of-grid sentinel scrolls
+// into view. A flat library of 200+ series otherwise renders 200 DOM
+// nodes + 200 cover images on mount, which on low-end mobile causes a
+// visible scroll lag and ~150 MB of RAM held by decoded image bitmaps.
+// At the 30-page step the eye barely registers the load — by the time
+// the sentinel's intersection callback fires, React already has 30
+// fresh cards painted.
+const LIBRARY_PAGE_SIZE = 30;
+
+// 巻戻し · sessionStorage key for the dashboard's transient state
+// (filter / query / activeTags / visibleCount). Persisted so a back-
+// navigation from MangaPage lands the user on the same view they
+// left — same filter, same scroll-loaded cards, same tag selection.
+// sessionStorage (not localStorage) on purpose: the state is per-tab
+// and shouldn't leak across browser sessions.
+const DASHBOARD_STATE_KEY = "mc:dashboard:view";
+
+function readPersistedDashboardState() {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(DASHBOARD_STATE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return {
+      query: typeof parsed.query === "string" ? parsed.query : "",
+      filter: typeof parsed.filter === "string" ? parsed.filter : "all",
+      activeTags: Array.isArray(parsed.activeTags) ? parsed.activeTags : [],
+      visibleCount:
+        Number.isFinite(parsed.visibleCount) && parsed.visibleCount > 0
+          ? parsed.visibleCount
+          : LIBRARY_PAGE_SIZE,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedDashboardState(state) {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.setItem(DASHBOARD_STATE_KEY, JSON.stringify(state));
+  } catch {
+    /* quota / private mode — non-fatal */
+  }
+}
+
 export default function Dashboard() {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
+  // Single read of the persisted state at mount time — used to seed
+  // every piece of view state below. Subsequent state changes are
+  // each individually persisted in their own effect.
+  const persisted = useMemo(() => readPersistedDashboardState(), []);
+
+  const [query, setQuery] = useState(() => persisted?.query ?? "");
+  const [filter, setFilter] = useState(() => persisted?.filter ?? "all");
   // filter ∈ "all" | "inprogress" | "wishlist" | "complete" | "tsundoku"
   //   inprogress → at least one owned volume but not all (vraiment "en cours")
   //   wishlist   → tracked but zero volumes acquired (願 · negai)
@@ -29,7 +88,9 @@ export default function Dashboard() {
   // Genre filter — Set<string>. Multi-select with AND intersection (series
   // must carry every selected tag to remain visible). Kept as Set for O(1)
   // membership checks in the hot filter path below.
-  const [activeTags, setActiveTags] = useState(() => new Set());
+  const [activeTags, setActiveTags] = useState(
+    () => new Set(persisted?.activeTags ?? []),
+  );
   const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
   const t = useT();
@@ -200,6 +261,82 @@ export default function Dashboard() {
     // the filter recompute when the tsundoku slice changes (a volume
     // flip toggles a row in/out of the "積" bucket).
   }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal]);
+
+  // 段 · Pagination state — only `visibleCount` cards are mounted at a
+  // given time. `sentinelRef` points at a sentinel element after the
+  // grid; its intersection with the viewport extends `visibleCount`.
+  // Seeded from the persisted view so a back-navigation lands on a
+  // page that's already as tall as it was when we left — otherwise
+  // the scroll-restoration target would land outside the (too-short)
+  // initial 30-card document and clamp to the bottom.
+  const [visibleCount, setVisibleCount] = useState(
+    () => persisted?.visibleCount ?? LIBRARY_PAGE_SIZE,
+  );
+  const sentinelRef = useRef(null);
+
+  // Reset pagination on any filter / search / tag change so the user
+  // who flips from "Complete" to "All" doesn't keep an artificially
+  // truncated view from the previous filter's bucket size. The
+  // initial-mount tick is suppressed via `firstResetRef` so seeding
+  // visibleCount from sessionStorage isn't immediately wiped by this
+  // effect firing on its first run with the dependencies' initial
+  // values.
+  const firstResetRef = useRef(true);
+  useEffect(() => {
+    if (firstResetRef.current) {
+      firstResetRef.current = false;
+      return;
+    }
+    setVisibleCount(LIBRARY_PAGE_SIZE);
+  }, [filter, query, activeTags]);
+
+  // Persist the view state (filter / query / tags / pagination) so a
+  // back-nav from MangaPage restores the exact same shelf. We avoid
+  // a per-keystroke storage write for `query` by relying on React's
+  // batching — within a single render, all four values are written
+  // once when any of them flips.
+  useEffect(() => {
+    writePersistedDashboardState({
+      query,
+      filter,
+      activeTags: Array.from(activeTags),
+      visibleCount,
+    });
+  }, [query, filter, activeTags, visibleCount]);
+
+  // Slice the result to the current page. `useMemo` avoids re-computing
+  // the slice when nothing relevant changed (e.g. a sibling re-render).
+  const visibleSlice = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount],
+  );
+  const hasMore = visibleCount < filtered.length;
+
+  // IntersectionObserver — bumps `visibleCount` by another page when
+  // the sentinel scrolls into view. `rootMargin: 200px` triggers the
+  // load slightly before the sentinel hits the viewport so the next
+  // batch is already painted by the time the user scrolls there. The
+  // observer only mounts when there IS more to show, and tears down
+  // when we've exhausted the filtered list.
+  useEffect(() => {
+    if (!hasMore) return undefined;
+    const node = sentinelRef.current;
+    if (!node) return undefined;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setVisibleCount((prev) =>
+              Math.min(prev + LIBRARY_PAGE_SIZE, filtered.length),
+            );
+          }
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [hasMore, filtered.length]);
 
   return (
     <DefaultBackground>
@@ -468,31 +605,59 @@ export default function Dashboard() {
               onClearTags={clearTags}
             />
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {filtered.map((manga, i) => (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                {visibleSlice.map((manga, i) => (
+                  <div
+                    // Use the Dexie row `id` as a stable, unique key.
+                    // `mal_id` collides when multiple custom series with
+                    // `mal_id = null` coexist (a legitimate state before
+                    // a server-side negative id is minted), triggering
+                    // React key-collision warnings and mis-mounted DOM
+                    // between sibling Manga cards. Falling back through
+                    // `mal_id` → `index` preserves keying for legacy
+                    // rows that may lack a Dexie primary key in hand.
+                    key={manga.id ?? manga.mal_id ?? `idx-${i}`}
+                    // Cap the staggered fade-up delay at 500 ms so a
+                    // 30th card doesn't take 1.2 s before appearing —
+                    // pagination keeps `i` bounded already, but the
+                    // cap is defensive against future page-size bumps.
+                    style={{ animationDelay: `${Math.min(i * 40, 500)}ms` }}
+                    className="animate-fade-up"
+                  >
+                    <Manga
+                      manga={manga}
+                      adult_content_level={adult_content_level}
+                      allCollector={allCollectorSet.has(manga.mal_id)}
+                      tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
+                      nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* 段 · Sentinel — IntersectionObserver target. The
+                  observer's rootMargin pulls the trigger ~200 px before
+                  the sentinel scrolls into view so the next page lands
+                  before the user sees the gap. The visible kanji 段
+                  (dan, "step / level") is intentionally dim so it reads
+                  as a quiet step-marker, not a CTA — the load is
+                  automatic. Hidden once the full list is mounted. */}
+              {hasMore && (
                 <div
-                  // Use the Dexie row `id` as a stable, unique key.
-                  // `mal_id` collides when multiple custom series with
-                  // `mal_id = null` coexist (a legitimate state before
-                  // a server-side negative id is minted), triggering
-                  // React key-collision warnings and mis-mounted DOM
-                  // between sibling Manga cards. Falling back through
-                  // `mal_id` → `index` preserves keying for legacy
-                  // rows that may lack a Dexie primary key in hand.
-                  key={manga.id ?? manga.mal_id ?? `idx-${i}`}
-                  style={{ animationDelay: `${Math.min(i * 40, 500)}ms` }}
-                  className="animate-fade-up"
+                  ref={sentinelRef}
+                  className="mt-8 flex flex-col items-center gap-2 text-washi-dim"
+                  aria-hidden="true"
                 >
-                  <Manga
-                    manga={manga}
-                    adult_content_level={adult_content_level}
-                    allCollector={allCollectorSet.has(manga.mal_id)}
-                    tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
-                    nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
-                  />
+                  <span className="font-jp text-2xl font-bold leading-none opacity-30">
+                    段
+                  </span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.3em] opacity-50">
+                    {visibleCount} / {filtered.length}
+                  </span>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </section>
 

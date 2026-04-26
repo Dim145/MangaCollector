@@ -137,10 +137,10 @@ export default function ProfileButton() {
         <div
           role="menu"
           // Dropdown sits over raw page content, so it DOES need its
-          // own blur. `md` (12px) is plenty frosted for a small
-          // surface; `xl` (24px) was a GPU tax with no visual win at
-          // this scale. Opacity bumped /95 → /96 to compensate.
-          className="absolute right-0 mt-3 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2/96 shadow-2xl backdrop-blur-md animate-slide-down"
+          // bg at /96 is opaque enough that a `backdrop-blur` is
+          // imperceptible — dropped entirely so the dropdown doesn't
+          // claim a compositor pass for an effect the eye can't see.
+          className="absolute right-0 mt-3 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2/96 shadow-2xl animate-slide-down"
         >
           <div className="flex items-center gap-3 border-b border-border p-3">
             <div

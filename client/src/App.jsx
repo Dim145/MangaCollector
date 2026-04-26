@@ -11,9 +11,11 @@ import {
   Route,
   Routes,
   useLocation,
+  useNavigationType,
   useSearchParams,
 } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { readScroll, saveScroll } from "@/lib/scrollStore.js";
 import {
   bootstrapLanguage,
   I18nProvider,
@@ -205,12 +207,141 @@ function MangaPageRoute({ stateManga, adult_content_level }) {
 
 function AppShell() {
   const location = useLocation();
+  const navType = useNavigationType();
   const { manga, adult_content_level } = location.state || {};
   const [googleUser, setGoogleUser] = useState(null);
 
+  // 巻戻し · Smart scroll handling on navigation.
+  //
+  //   PUSH / REPLACE (forward navigation, e.g. clicking a card)
+  //     → scroll to top of the new page, the canonical SPA behaviour.
+  //
+  //   POP (back / forward via the browser's history controls)
+  //     → restore the position saved for that history entry, so the
+  //       user lands exactly where they were before they navigated
+  //       away. Falls back to top when there's no recorded position
+  //       (first POP after a hard reload, key never seen before).
+  //
+  // We disable the browser's auto scroll-restoration once on mount so
+  // it doesn't race our own restore. The `location.key` is the stable
+  // identifier React Router mints per history entry.
   useLayoutEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [location.pathname]);
+    if (typeof window === "undefined" || !window.history) return;
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (navType !== "POP") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      return undefined;
+    }
+
+    const targetY = readScroll(location.key);
+    if (!targetY || targetY <= 0) {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      return undefined;
+    }
+
+    // 巻戻し · Restore loop with content-grown observer.
+    //
+    // The naive "rAF then scrollTo" pattern fights an async data race:
+    // pages like Dashboard read their data via Dexie's `useLiveQuery`,
+    // which returns `undefined` on the first render and resolves a few
+    // dozen ms later. At first paint the document is short (header
+    // only), so a `scrollTo(savedY)` to a position deep inside the
+    // (eventual) library grid is clamped to the bottom of the still-
+    // empty page.
+    //
+    // The remedy: try once now, and keep retrying as `<body>` grows
+    // — every time the document gets taller, ResizeObserver fires and
+    // we re-attempt the scroll. We bail when:
+    //   - the document is finally tall enough that `targetY` lands
+    //     inside it (no more clamping), OR
+    //   - 2 seconds elapse (safety net for pages that genuinely never
+    //     reach that height — e.g. the user's library shrank since
+    //     they left).
+    const isTallEnough = () =>
+      document.documentElement.scrollHeight - window.innerHeight >= targetY;
+
+    let restored = false;
+    const tryRestore = () => {
+      if (restored) return true;
+      window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
+      // Sample post-scroll: if Y stuck at the requested value, the
+      // document was tall enough and we're done. Otherwise keep the
+      // observer alive for the next resize.
+      if (window.scrollY >= targetY - 4 || isTallEnough()) {
+        restored = true;
+        return true;
+      }
+      return false;
+    };
+
+    // First attempt on the very next paint.
+    let raf = requestAnimationFrame(tryRestore);
+
+    const ro = new ResizeObserver(() => {
+      if (!restored) tryRestore();
+    });
+    ro.observe(document.documentElement);
+
+    const giveUpTimer = setTimeout(() => {
+      if (!restored) {
+        // Last-chance scroll. We may still clamp short — that's
+        // acceptable as a fallback (e.g. the underlying list is now
+        // empty). 2 s is generous for typical Dexie + lazy-chunk
+        // hydration without being noticeable to the user.
+        window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
+        restored = true;
+      }
+      ro.disconnect();
+    }, 2000);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      clearTimeout(giveUpTimer);
+    };
+  }, [location.key, navType]);
+
+  // Save the current scroll position against the current history
+  // entry's key — throttled via rAF so a heavy scroll doesn't write
+  // hundreds of times per second. The store is in-memory only
+  // (see lib/scrollStore.js), so no storage I/O cost.
+  //
+  // ## Why useLayoutEffect (not useEffect)
+  //
+  // React runs ALL layout-effect cleanups (reverse declaration order)
+  // BEFORE running new layout effects (declaration order). The
+  // restoration effect above is a layout effect that calls
+  // `window.scrollTo(0, 0)` on PUSH navigation. If the save effect
+  // were a regular `useEffect`, its cleanup would fire AFTER the
+  // restoration effect — at which point `window.scrollY` is already
+  // 0, and we'd persist that 0 under the outgoing page's key,
+  // wiping the user's actual scroll position. As a sibling layout
+  // effect, the save cleanup runs in the same synchronous phase
+  // BEFORE the restore, capturing the user's still-intact scroll.
+  useLayoutEffect(() => {
+    let pending = false;
+    const onScroll = () => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        saveScroll(location.key, window.scrollY);
+        pending = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      // Captures the outgoing page's final scroll position — runs
+      // synchronously before the new layout effects (including the
+      // restore above) overwrite `scrollY`.
+      saveScroll(location.key, window.scrollY);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [location.key]);
 
   // 同期 · Realtime sync — opens a WebSocket as soon as we're auth'd
   // and invalidates TanStack queries on incoming events so changes

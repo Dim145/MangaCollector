@@ -117,8 +117,9 @@ export default function SyncToaster() {
  *
  * The Japanese-paper feel is reinforced by:
  *
- *   - `backdrop-blur-md` over `bg-ink-1/96` so the slip floats with
- *     a subtle depth instead of sitting flat on the page
+ *   - `bg-ink-1/96` (no `backdrop-blur` — at 96 % opacity the blur
+ *     would only re-composite for an effect the eye can't see, so we
+ *     spend the GPU on the toaster's slide-in animation instead)
  *   - a **left rule** at the leading edge — like the seal margin on
  *     handwritten letterhead — colored per tone
  *   - a soft inner ring on the glyph badge, nodding to a stamp's
@@ -167,7 +168,7 @@ function ToastRow({ toast, onDismiss }) {
     <div
       role={role}
       // The `before:` pseudo creates the seal-margin left rule.
-      className={`pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-xl border ${palette.border} bg-ink-1/96 p-3 pl-4 shadow-2xl backdrop-blur-md animate-fade-up before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] ${palette.edge}`}
+      className={`pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-xl border ${palette.border} bg-ink-1/96 p-3 pl-4 shadow-2xl animate-fade-up before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] ${palette.edge}`}
     >
       <span
         aria-hidden="true"

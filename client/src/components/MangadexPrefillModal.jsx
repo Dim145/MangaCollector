@@ -45,7 +45,7 @@ export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
 
   return (
     <Modal popupOpen={Boolean(result)} handleClose={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-border bg-ink-1/95 p-6 shadow-2xl backdrop-blur">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-ink-1/95 p-6 shadow-2xl">
         <div className="flex items-baseline gap-2">
           <span className="rounded-full bg-gold/15 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-gold">
             MangaDex

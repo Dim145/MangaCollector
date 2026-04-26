@@ -777,7 +777,7 @@ export default function VolumeDetailDrawer({
             nothing to save on a not-yet-released volume, and the
             two-button layout would invite a Save tap that the server
             would silently coerce. Cleaner UI, fewer surprises. */}
-        <div className="relative z-10 mt-auto flex gap-2 border-t border-border bg-ink-1/95 p-4 backdrop-blur">
+        <div className="relative z-10 mt-auto flex gap-2 border-t border-border bg-ink-1/95 p-4">
           {isUpcoming ? (
             <button
               type="button"

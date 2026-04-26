@@ -210,7 +210,7 @@ export default function Header() {
             // the app (it sits over scrolling content and on every
             // page). `shadow-2xl` already contributes a GPU cost so
             // we don't stack a heavy blur on top of it.
-            className="relative mx-3 mb-3 flex items-center justify-around gap-1 rounded-2xl border border-border bg-ink-1/92 p-1.5 backdrop-blur-md shadow-2xl"
+            className="relative mx-3 mb-3 flex items-center justify-around gap-1 rounded-2xl border border-border bg-ink-1/92 p-1.5 shadow-2xl"
             style={{
               paddingBottom: `calc(0.375rem + env(safe-area-inset-bottom))`,
             }}

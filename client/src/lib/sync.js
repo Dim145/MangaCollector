@@ -652,6 +652,19 @@ async function onServerRecover() {
 let _syncRunnerInstalled = false;
 let _syncRunnerInterval = null;
 let _syncRunnerUnsubscribe = null;
+// Resolved in `installSyncRunner` so `removeEventListener` can match
+// the same function reference on uninstall — anonymous arrow handlers
+// would leak the listener across hot-reload cycles.
+function _syncRunnerVisibilityHandler() {
+  if (typeof document === "undefined") return;
+  if (document.visibilityState !== "visible") return;
+  if (!isFullyOnline()) return;
+  // Catch-up: fire one immediate pass instead of waiting for the
+  // next interval tick. The async chain mirrors the interval body.
+  pendingCount().then((n) => {
+    if (n > 0) syncOutbox();
+  });
+}
 
 /**
  * Install sync runner.
@@ -678,7 +691,14 @@ export function installSyncRunner() {
   // Slow safety-net for stuck ops: only do real work if there's actually
   // something pending. A bare interval that fires GETs every minute would
   // pile up on top of the React Query refetches and delay initial render.
+  //
+  // Skipped while the tab is hidden — a backgrounded tab has no user
+  // looking at the result, so the wakeup wastes battery on mobile and
+  // CPU on desktop. The visibility listener below force-runs a single
+  // pass when focus returns, so a long-backgrounded tab catches up
+  // instantly instead of waiting for the next 60-second tick.
   _syncRunnerInterval = setInterval(async () => {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     if (!isFullyOnline()) return;
     if (hasPendingLogout()) {
       flushPendingLogout();
@@ -687,6 +707,14 @@ export function installSyncRunner() {
     const n = await pendingCount();
     if (n > 0) syncOutbox();
   }, 60_000);
+
+  // Catch-up trigger on focus regain. Without this, a tab backgrounded
+  // for hours waits up to 60 s for the interval to fire after the user
+  // refocuses — a visible delay if they expected the local edit to
+  // already be on the server.
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", _syncRunnerVisibilityHandler);
+  }
 
   // Deferred startup check — only schedules work if there IS work. Uses
   // requestIdleCallback so it never competes with the initial data render.
@@ -716,6 +744,12 @@ export function uninstallSyncRunner() {
   if (typeof _syncRunnerUnsubscribe === "function") {
     _syncRunnerUnsubscribe();
     _syncRunnerUnsubscribe = null;
+  }
+  if (typeof document !== "undefined") {
+    document.removeEventListener(
+      "visibilitychange",
+      _syncRunnerVisibilityHandler,
+    );
   }
   _syncRunnerInstalled = false;
 }

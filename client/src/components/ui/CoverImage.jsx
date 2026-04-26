@@ -34,6 +34,13 @@ export default function CoverImage({
   fallbackKanji = "巻",
   fallbackClassName = "",
   loading = "lazy",
+  // 優先 · `fetchpriority` exposes the HTML standard hint to the
+  // browser scheduler. Default `auto` lets the browser decide; pages
+  // that paint many covers at once (Dashboard, ShelfStickers, the
+  // year-in-review thumb-grid) can pass `"low"` so the first viewport
+  // claims the bandwidth and the off-screen rest queues behind it.
+  // Above-the-fold hero covers can pass `"high"` to skip the queue.
+  fetchPriority = "auto",
   draggable,
 }) {
   const [failed, setFailed] = useState(false);
@@ -53,6 +60,16 @@ export default function CoverImage({
         src={src}
         alt={alt}
         loading={loading}
+        // `decoding="async"` lets the browser rasterise the cover off
+        // the main thread — a long list of covers no longer stalls
+        // scroll for the few hundred ms it takes to decode each JPEG.
+        decoding="async"
+        // `fetchpriority` is supported in Chromium 102+, Safari 17.2+,
+        // Firefox 132+. Older browsers ignore it gracefully — the
+        // attribute name is forwarded as-is so React keeps it on the
+        // element regardless. Lower-priority covers wait their turn
+        // behind anything tagged `auto` / `high`.
+        fetchpriority={fetchPriority}
         draggable={draggable}
         // No-referrer for external CDN compatibility.
         // MangaDex (uploads.mangadex.org) and a couple of other
