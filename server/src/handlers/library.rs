@@ -109,8 +109,35 @@ pub async fn add_from_mangadex(
     AuthenticatedUser(user): AuthenticatedUser,
     Json(body): Json<AddFromMangadexRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if body.mangadex_id.trim().is_empty() {
+    let trimmed_id = body.mangadex_id.trim();
+    if trimmed_id.is_empty() {
         return Err(AppError::BadRequest("Invalid MangaDex id".into()));
+    }
+    // 印 · MangaDex ids are UUIDs in the canonical 8-4-4-4-12 hex
+    // format. Without this gate, garbage strings (e.g. an injected
+    // path traversal, a randomly-typed search query) would land in
+    // the DB and later get fed to `refresh_from_mangadex` →
+    // arbitrary outbound HTTP path. We accept lowercase hex only;
+    // both UUID v4 and v5 round-trip through this regex.
+    fn looks_like_uuid(s: &str) -> bool {
+        if s.len() != 36 {
+            return false;
+        }
+        let bytes = s.as_bytes();
+        for (i, b) in bytes.iter().enumerate() {
+            let expect_hyphen = matches!(i, 8 | 13 | 18 | 23);
+            if expect_hyphen {
+                if *b != b'-' {
+                    return false;
+                }
+            } else if !b.is_ascii_hexdigit() {
+                return false;
+            }
+        }
+        true
+    }
+    if !looks_like_uuid(trimmed_id) {
+        return Err(AppError::BadRequest("MangaDex id must be a UUID".into()));
     }
     let entry = library::add_from_mangadex(
         &state.db,
@@ -282,10 +309,21 @@ pub async fn update_manga(
     Json(body): Json<UpdateLibraryRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let touches_volumes = body.volumes.is_some();
+    // 静 · Compute "is this PATCH a no-op?" up-front so we don't
+    // emit a SyncKind::Library WebSocket event on a body that
+    // carries nothing actionable. The audit flagged that an empty
+    // PATCH (every field None) currently fires a useless event,
+    // forcing every connected device to refetch the library for
+    // no reason.
+    let is_noop = body.volumes.is_none()
+        && body.publisher.is_none()
+        && body.edition.is_none();
     library::apply_library_patch(&state.db, mal_id, user.id, body).await?;
-    state.broker.publish(user.id, SyncKind::Library).await;
-    if touches_volumes {
-        state.broker.publish(user.id, SyncKind::Volumes).await;
+    if !is_noop {
+        state.broker.publish(user.id, SyncKind::Library).await;
+        if touches_volumes {
+            state.broker.publish(user.id, SyncKind::Volumes).await;
+        }
     }
     Ok(Json(json!({
         "success": true,

@@ -96,6 +96,21 @@ pub async fn oauth_callback(
         .await?,
     };
 
+    // 印 · Rotate the session id on authentication. Classic
+    // session-fixation defence: if the user arrived at this callback
+    // with an existing cookie (e.g. a pre-OAuth session that already
+    // held PKCE state), continuing to use that cookie would let an
+    // attacker plant their own pre-known session id on the victim
+    // and then ride the authenticated session afterwards.
+    // tower-sessions' `cycle_id()` mints a fresh id and migrates the
+    // current session payload over — the old id is invalidated. The
+    // `record_login` call below sees the NEW id, so the meta row is
+    // created against an attacker-unknown identifier.
+    session
+        .cycle_id()
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
     session
         .insert(SESSION_USER_ID, user.id)
         .await
@@ -107,13 +122,21 @@ pub async fn oauth_callback(
     // That asymmetry is what makes `revoke` stick — once a row is
     // deleted, it can only be re-created via a fresh OAuth login,
     // not by a leftover cookie hitting the extractor.
-    if let Some(session_id) = session.id().map(|id| id.to_string()) {
-        let user_agent = headers
-            .get(axum::http::header::USER_AGENT)
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
-        sessions::record_login(&state.db, &session_id, user.id, user_agent).await;
-    }
+    //
+    // Errors are propagated: a meta-row failure here means the
+    // session would be born revoked (the gate kicks them on the
+    // next request), which produces a confusing OAuth-loop UX. A
+    // 500 at the callback is the honest outcome and lets the SPA
+    // surface a "couldn't sign you in" toast.
+    let session_id = session
+        .id()
+        .map(|id| id.to_string())
+        .ok_or_else(|| AppError::Internal("session id missing post-cycle".into()))?;
+    let user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    sessions::record_login(&state.db, &session_id, user.id, user_agent).await?;
 
     Ok(Redirect::to(&state.config.frontend_url))
 }

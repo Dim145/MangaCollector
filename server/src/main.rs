@@ -181,6 +181,40 @@ async fn main() -> anyhow::Result<()> {
         start_time: Instant::now(),
     };
 
+    // 機 · Periodic pruning of stale `user_session_meta` rows.
+    //
+    // The FK + ON DELETE CASCADE that used to bind meta rows to
+    // `"tower_sessions"."session"` was dropped (cf. migration
+    // `20260426150000_drop_session_meta_fk.sql`) because tower-
+    // sessions cycles ids on record-not-found recovery, which made
+    // the constraint reject perfectly valid meta inserts.
+    //
+    // Without that cascade, meta rows whose corresponding session is
+    // GC'd by tower-sessions stick around indefinitely. The
+    // `last_seen_at`-based filter on `list_for_user` keeps them
+    // *invisible*, but the table grows unbounded — a power user
+    // logging in from many devices, or any kind of session churn
+    // (incognito tabs, device wipes), accumulates rows linearly.
+    //
+    // Run every 6 h, deleting rows whose `last_seen_at` is more than
+    // 60 days old (= 2× the visibility window). Best-effort: errors
+    // are logged but never escalated, the next tick will retry.
+    {
+        let cleanup_db = state.db.clone();
+        tokio::spawn(async move {
+            let interval = std::time::Duration::from_secs(60 * 60 * 6);
+            // First run waits one tick — no point hammering the DB at boot.
+            loop {
+                tokio::time::sleep(interval).await;
+                match crate::services::sessions::prune_stale_meta(&cleanup_db).await {
+                    Ok(0) => {}
+                    Ok(n) => tracing::info!(rows = n, "session_meta cleanup"),
+                    Err(err) => tracing::warn!(%err, "session_meta cleanup failed"),
+                }
+            }
+        });
+    }
+
     // CORS
     let origin: HeaderValue = frontend_url
         .parse()
