@@ -19,8 +19,11 @@ import { useT } from "@/i18n/index.jsx";
 
 // Each entry resolves its translatable strings via i18n keys, but the
 // kanji themselves stay co-located here as constants — they're identity,
-// not copy. Categories deliberately keep small (4-6 entries) so the
-// page reads as a series of breathable plates rather than a wall.
+// not copy. Categories aim for 4-6 entries so the page reads as a series
+// of breathable plates rather than a wall — `states` runs at 7 because
+// 来 (announced volume) earned a place in the structural vocabulary
+// after surfacing across the dashboard ribbon, the calendar page, and
+// the upcoming-volume refresh menu.
 const SECTIONS = [
   {
     id: "states",
@@ -31,6 +34,12 @@ const SECTIONS = [
       { char: "進", romaji: "shin" },
       { char: "願", romaji: "negai" },
       { char: "完", romaji: "kan" },
+      // 来 sits right after 完 because the state it names is the
+      // direct sequel to completion: "you've caught up — and here's
+      // what arrives next." The reader's eye rolls naturally from
+      // 完 (done so far) into 来 (incoming) before reaching the
+      // collector-side ladder of 積読 / 限.
+      { char: "来", romaji: "rai" },
       { char: "積読", romaji: "tsundoku" },
       { char: "限", romaji: "gen" },
     ],

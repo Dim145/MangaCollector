@@ -591,6 +591,9 @@ export default {
       "Series que sigues pero de las que aún no posees ningún tomo — el perfil público las oculta a propósito.",
     "states_完_literal": "completitud, fin",
     "states_完_usage": "Series cuyos tomos publicados están todos en tu estante.",
+    "states_来_literal": "venir, llegar",
+    "states_来_usage":
+      "Tomo anunciado para una fecha futura — la promesa de la continuación. Aparece dondequiera que la app surface el calendario de lanzamientos: página Calendario, banda del dashboard cuando estás al día, menú Refrescar próximos.",
     "states_積読_literal": "el placer de las pilas sin leer",
     "states_積読_usage":
       "Series con al menos un tomo en posesión pero sin leer — la pila tranquila que un día terminarás.",

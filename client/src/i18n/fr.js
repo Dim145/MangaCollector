@@ -599,6 +599,9 @@ export default {
       "Séries que vous suivez mais dont vous n'avez encore aucun tome — le profil public les masque volontairement.",
     "states_完_literal": "complétion, fin",
     "states_完_usage": "Séries dont chaque tome publié est sur l'étagère.",
+    "states_来_literal": "venir, arriver",
+    "states_来_usage":
+      "Tome annoncé pour une date future — la promesse de la suite. Apparaît partout où l'app surface le calendrier des sorties : page Calendrier, ruban du dashboard quand vous êtes à jour, menu Rafraîchir à venir.",
     "states_積読_literal": "le plaisir des piles non lues",
     "states_積読_usage":
       "Séries avec au moins un tome possédé mais non lu — la pile tranquille qu'on se promet de finir.",

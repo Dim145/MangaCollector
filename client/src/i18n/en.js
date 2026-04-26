@@ -586,6 +586,9 @@ export default {
     "states_完_literal": "completion, end",
     "states_完_usage":
       "Series whose every published volume is on your shelf.",
+    "states_来_literal": "to come, to arrive",
+    "states_来_usage":
+      "An announced volume due in the future — the promise of what's next. Surfaces wherever the app references the release calendar: the Calendar page, the dashboard ribbon when you're caught up, the Refresh-upcoming menu.",
     "states_積読_literal": "the joy of unread piles",
     "states_積読_usage":
       "Series with at least one owned-but-unread volume — the gentle pile you keep meaning to get to.",
