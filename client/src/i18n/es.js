@@ -220,6 +220,19 @@ export default {
     volumesCount: "{n} entradas",
     noVolumesYet:
       "Todavía no hay tomos. Indica el total arriba y aparecerán aquí.",
+    viewToggleLabel: "Modo de visualización de tomos",
+    viewMode: {
+      ledger: "Lista",
+      shelf: "Estante",
+    },
+    coverAlt: "Portada del tomo {n}",
+    shelfTitleOwned: "Tomo {n} · en posesión",
+    shelfTitleMissing: "Tomo {n} · falta",
+    shelfTitleUpcoming: "Tomo {n} · próximo",
+    shelfBadgeRead: "Leído",
+    shelfBadgeUpcoming: "Próximo",
+    shelfBadgeCollector: "Edición coleccionista",
+    shelfBadgeLocked: "Incluido en un estuche",
     upcomingRefresh: "Refrescar próximos · 来",
     upcomingRefreshing: "Buscando…",
     upcomingRefreshHint:

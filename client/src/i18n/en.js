@@ -220,6 +220,19 @@ export default {
     volumesCount: "{n} entries",
     noVolumesYet:
       "No volumes yet. Set the total above and they'll appear here.",
+    viewToggleLabel: "Volumes view mode",
+    viewMode: {
+      ledger: "List",
+      shelf: "Shelf",
+    },
+    coverAlt: "Cover of volume {n}",
+    shelfTitleOwned: "Volume {n} · owned",
+    shelfTitleMissing: "Volume {n} · missing",
+    shelfTitleUpcoming: "Volume {n} · upcoming",
+    shelfBadgeRead: "Read",
+    shelfBadgeUpcoming: "Upcoming",
+    shelfBadgeCollector: "Collector edition",
+    shelfBadgeLocked: "Inside a slipcase",
     upcomingRefresh: "Refresh upcoming · 来",
     upcomingRefreshing: "Refreshing…",
     upcomingRefreshHint:

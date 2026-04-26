@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
+import VolumeShelfTile from "./VolumeShelfTile.jsx";
+import VolumesViewToggle from "./VolumesViewToggle.jsx";
 import CoffretGroup from "./CoffretGroup";
 // Heavy overlay modals that only mount on user action — lazy so a
 // reader who's just consulting a series doesn't pay for the coffret
@@ -23,6 +25,7 @@ import {
 } from "@/hooks/useLibrary.js";
 import { useVolumesForManga, useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
+import { useVolumesView } from "@/hooks/useVolumesView.js";
 import { useVolumeCovers } from "@/hooks/useVolumeCovers.js";
 import { useVolumePreviewController } from "@/hooks/useVolumePreviewController.js";
 import CoverPreview from "./ui/CoverPreview.jsx";
@@ -99,6 +102,11 @@ export default function MangaPage({ manga, adult_content_level }) {
   // for the whole page, cross-volume ← / → navigation, sticky mode on
   // long-press, zoom modal on tap.
   const previewCtl = useVolumePreviewController({ coverMap: volumeCoverMap });
+  // 帳 vs 棚 · Volumes view-mode preference. Drives the toggle UI in
+  // the section header and the render branch (Volume row vs Shelf
+  // tile) below. Stored client-side, persisted across visits.
+  const { mode: volumesView } = useVolumesView();
+  const isShelfMode = volumesView === "shelf";
   // `manga` comes frozen from React Router's location.state, so its volume
   // count never updates after navigation. Grab the live row from the Dexie-
   // backed library so edits (and background syncs) are reflected here.
@@ -1018,6 +1026,11 @@ export default function MangaPage({ manga, adult_content_level }) {
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {/* 帳 vs 棚 · View toggle — only meaningful once there is at
+                  least one volume to look at. Hidden on empty series so the
+                  surface stays calm. */}
+              {(volumes?.length ?? 0) > 0 && <VolumesViewToggle />}
+
               {/* Coffret CTA — washi/cream palette so it reads as "box / paper
                   slipcase", distinct from the gold reserved for collector. */}
               {manga.mal_id >= 0 && (volumes?.length ?? 0) > 0 && (
@@ -1067,61 +1080,92 @@ export default function MangaPage({ manga, adult_content_level }) {
                     coffret={seg.coffret}
                     currencySetting={currencySetting}
                   >
-                    {seg.members.map((vol) => (
-                      <Volume
-                        key={vol.id}
-                        id={vol.id}
-                        mal_id={vol.mal_id}
-                        volNum={vol.vol_num}
-                        owned={vol.owned}
-                        paid={vol.price}
-                        store={vol.store}
-                        collector={vol.collector}
-                        readAt={vol.read_at}
-                        releaseDate={vol.release_date}
-                        releaseIsbn={vol.release_isbn}
-                        releaseUrl={vol.release_url}
-                        origin={vol.origin}
-                        announcedAt={vol.announced_at}
-                        locked
-                        onUpdate={volumeUpdateCallback}
-                        currencySetting={currencySetting}
-                        coverUrl={volumeCoverMap?.[vol.vol_num]}
-                        blurImage={isBlurred}
-                        onPreviewShow={previewCtl.show}
-                        onPreviewRelease={previewCtl.release}
-                      />
-                    ))}
+                    {seg.members.map((vol) =>
+                      isShelfMode ? (
+                        <VolumeShelfTile
+                          key={vol.id}
+                          volNum={vol.vol_num}
+                          owned={vol.owned}
+                          collector={vol.collector}
+                          readAt={vol.read_at}
+                          releaseDate={vol.release_date}
+                          coverUrl={volumeCoverMap?.[vol.vol_num]}
+                          blurImage={isBlurred}
+                          locked
+                        />
+                      ) : (
+                        <Volume
+                          key={vol.id}
+                          id={vol.id}
+                          mal_id={vol.mal_id}
+                          volNum={vol.vol_num}
+                          owned={vol.owned}
+                          paid={vol.price}
+                          store={vol.store}
+                          collector={vol.collector}
+                          readAt={vol.read_at}
+                          releaseDate={vol.release_date}
+                          releaseIsbn={vol.release_isbn}
+                          releaseUrl={vol.release_url}
+                          origin={vol.origin}
+                          announcedAt={vol.announced_at}
+                          locked
+                          onUpdate={volumeUpdateCallback}
+                          currencySetting={currencySetting}
+                          coverUrl={volumeCoverMap?.[vol.vol_num]}
+                          blurImage={isBlurred}
+                          onPreviewShow={previewCtl.show}
+                          onPreviewRelease={previewCtl.release}
+                        />
+                      ),
+                    )}
                   </CoffretGroup>
                 ) : (
                   <div
                     key={`g-${idx}`}
-                    className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                    className={
+                      isShelfMode
+                        ? "grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6"
+                        : "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                    }
                   >
-                    {seg.vols.map((vol) => (
-                      <Volume
-                        key={vol.id}
-                        id={vol.id}
-                        mal_id={vol.mal_id}
-                        volNum={vol.vol_num}
-                        owned={vol.owned}
-                        paid={vol.price}
-                        store={vol.store}
-                        collector={vol.collector}
-                        readAt={vol.read_at}
-                        releaseDate={vol.release_date}
-                        releaseIsbn={vol.release_isbn}
-                        releaseUrl={vol.release_url}
-                        origin={vol.origin}
-                        announcedAt={vol.announced_at}
-                        onUpdate={volumeUpdateCallback}
-                        currencySetting={currencySetting}
-                        coverUrl={volumeCoverMap?.[vol.vol_num]}
-                        blurImage={isBlurred}
-                        onPreviewShow={previewCtl.show}
-                        onPreviewRelease={previewCtl.release}
-                      />
-                    ))}
+                    {seg.vols.map((vol) =>
+                      isShelfMode ? (
+                        <VolumeShelfTile
+                          key={vol.id}
+                          volNum={vol.vol_num}
+                          owned={vol.owned}
+                          collector={vol.collector}
+                          readAt={vol.read_at}
+                          releaseDate={vol.release_date}
+                          coverUrl={volumeCoverMap?.[vol.vol_num]}
+                          blurImage={isBlurred}
+                        />
+                      ) : (
+                        <Volume
+                          key={vol.id}
+                          id={vol.id}
+                          mal_id={vol.mal_id}
+                          volNum={vol.vol_num}
+                          owned={vol.owned}
+                          paid={vol.price}
+                          store={vol.store}
+                          collector={vol.collector}
+                          readAt={vol.read_at}
+                          releaseDate={vol.release_date}
+                          releaseIsbn={vol.release_isbn}
+                          releaseUrl={vol.release_url}
+                          origin={vol.origin}
+                          announcedAt={vol.announced_at}
+                          onUpdate={volumeUpdateCallback}
+                          currencySetting={currencySetting}
+                          coverUrl={volumeCoverMap?.[vol.vol_num]}
+                          blurImage={isBlurred}
+                          onPreviewShow={previewCtl.show}
+                          onPreviewRelease={previewCtl.release}
+                        />
+                      ),
+                    )}
                   </div>
                 ),
               )}
