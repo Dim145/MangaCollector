@@ -69,6 +69,12 @@ function clearCachedUser() {
   }
 }
 
+// Re-exported so the axios 401 interceptor can wipe the cached user
+// on session loss without going through `logout()` (which would try
+// to call the server again — pointless when the server is the one
+// telling us we're gone).
+export { clearCachedUser };
+
 function isLogoutPending() {
   try {
     return localStorage.getItem(PENDING_LOGOUT_KEY) !== null;

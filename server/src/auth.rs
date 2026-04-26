@@ -8,6 +8,7 @@ use openidconnect::{
     EndpointNotSet, EndpointSet, IssuerUrl, Nonce, PkceCodeChallenge, PkceCodeVerifier,
     RedirectUrl, Scope,
 };
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 
@@ -193,6 +194,50 @@ where
         let user_id = user_id.ok_or(AppError::Unauthorized)?;
 
         let db = Db::from_ref(state);
+
+        // 機 · Revocation gate. The `user_session_meta` row is the
+        // source of truth for "is this session still allowed to act
+        // on behalf of its user?". When the user revokes a session
+        // from another device, we delete the meta row; the upstream
+        // tower_sessions row CAN survive (because a concurrent
+        // request from the revoked browser may re-save its session
+        // through the middleware after our delete fired), so the
+        // cookie alone isn't enough to keep the session alive.
+        //
+        // Here we explicitly check the meta row at the start of
+        // every authenticated request. Missing meta → revoked.
+        // We tear down the upstream session row in the same breath
+        // so the cookie stops resolving on the very next request,
+        // and reject the current one with 401.
+        //
+        // DB-error fallback: when the SELECT itself fails (network
+        // hiccup, etc.), we default to "valid" so a transient
+        // outage doesn't kick everyone out.
+        if let Some(session_id) = session.id().map(|id| id.to_string()) {
+            let meta_exists = crate::models::session_meta::Entity::find_by_id(
+                session_id.clone(),
+            )
+            .one(&db)
+            .await
+            .map(|opt| opt.is_some())
+            .unwrap_or(true);
+
+            if !meta_exists {
+                // Burn the upstream session so the browser's cookie
+                // stops working. session.delete() removes the row
+                // from tower_sessions and clears the cookie via the
+                // middleware on the response.
+                let _ = session.delete().await;
+                return Err(AppError::Unauthorized);
+            }
+
+            // Refresh last_seen_at so the active-sessions UI shows
+            // accurate "last activity" timestamps. UPDATE-only on
+            // purpose — the creation path lives in the OAuth
+            // callback (`record_login`).
+            crate::services::sessions::touch(&db, &session_id).await;
+        }
+
         let user = users::get_by_id(&db, user_id)
             .await?
             .ok_or(AppError::Unauthorized)?;

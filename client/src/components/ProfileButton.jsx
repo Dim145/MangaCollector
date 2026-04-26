@@ -1,17 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { logout } from "../utils/auth";
 import { useAuth } from "@/hooks/useAuth.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import { useT } from "@/i18n/index.jsx";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { queryClient } from "@/lib/queryClient.js";
+
+// 機 · Active-sessions modal — only mounted when the user opens it.
+// Heavy enough (table renderer + UA-based icons) that lazy-loading
+// keeps it off every page that includes the header.
+const SessionsModal = lazy(() => import("./SessionsModal.jsx"));
 
 export default function ProfileButton() {
   // Shared auth state — same cache entry as Header/ProtectedRoute.
   // On logout we invalidate the key so the next render everywhere
   // re-reads from the server.
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const online = useOnline();
   const [isOpen, setIsOpen] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
@@ -227,6 +235,41 @@ export default function ProfileButton() {
               }
               label={t("nav.settings")}
             />
+            {/* 機 · Active sessions — opens the device-list modal. We
+                keep this OUT of /settings (already crowded) and put
+                it in the profile menu where session-related actions
+                naturally live alongside sign-out.
+                Disabled offline: the list and any revoke action both
+                require the server, so the entry is dimmed with a
+                "needs connection" hint rather than hidden — the user
+                still sees the affordance and knows it's coming back. */}
+            <MenuItem
+              onClick={
+                online
+                  ? () => {
+                      setIsOpen(false);
+                      setSessionsOpen(true);
+                    }
+                  : undefined
+              }
+              disabled={!online}
+              hint={!online ? t("sessions.offlineHint") : undefined}
+              icon={
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <rect x="2" y="4" width="20" height="14" rx="2" />
+                  <path d="M8 22h8M12 18v4" />
+                </svg>
+              }
+              label={t("nav.sessions")}
+            />
             <div className="my-1 h-px bg-border" />
             <MenuItem
               onClick={handleLogout}
@@ -251,26 +294,55 @@ export default function ProfileButton() {
           </ul>
         </div>
       )}
+
+      {/* Sessions modal — lazy-mounted only when the user actually
+          opens it; closed state keeps the chunk off the wire. */}
+      {sessionsOpen && (
+        <Suspense fallback={null}>
+          <SessionsModal
+            open
+            onClose={() => setSessionsOpen(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
 
-function MenuItem({ onClick, icon, label, danger }) {
+function MenuItem({ onClick, icon, label, danger, disabled, hint }) {
   return (
     <li role="none">
       <button
         role="menuitem"
-        onClick={onClick}
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
+        title={hint}
+        aria-disabled={disabled || undefined}
         className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
-          danger
-            ? "text-hanko-bright hover:bg-hanko/10"
-            : "text-washi hover:bg-washi/10"
+          disabled
+            ? "cursor-not-allowed text-washi-dim"
+            : danger
+              ? "text-hanko-bright hover:bg-hanko/10"
+              : "text-washi hover:bg-washi/10"
         }`}
       >
-        <span className={danger ? "text-hanko-bright" : "text-washi-muted"}>
+        <span
+          className={
+            disabled
+              ? "text-washi-dim/60"
+              : danger
+                ? "text-hanko-bright"
+                : "text-washi-muted"
+          }
+        >
           {icon}
         </span>
-        {label}
+        <span className="flex-1">{label}</span>
+        {disabled && hint && (
+          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-washi-dim/70">
+            {hint}
+          </span>
+        )}
       </button>
     </li>
   );

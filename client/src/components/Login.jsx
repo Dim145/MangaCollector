@@ -20,6 +20,19 @@ export default function Login() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("error") === "auth_failed") {
       setError(t("login.authFailed"));
+    } else if (urlParams.get("lost") === "1") {
+      // 機 · Surfaced by the axios 401 interceptor — the server told
+      // us the previous session was revoked, expired, or the account
+      // was deleted. Strip the param after one read so a refresh of
+      // the login page doesn't keep flashing the toast.
+      setError(t("login.sessionRevoked"));
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("lost");
+        window.history.replaceState(null, "", url.toString());
+      } catch {
+        /* ignore */
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);

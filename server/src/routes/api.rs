@@ -127,4 +127,13 @@ fn user_router() -> Router<AppState> {
         .route("/import/external/yamtrack", post(external_import::import_yamtrack))
         // GDPR — erase the entire account
         .route("/account", delete(auth_handlers::delete_account))
+        // 機 · Active session listing + revocation. The user can see
+        // every device currently signed in to their account and
+        // revoke any of them; the request that issued the call is
+        // flagged so the SPA can highlight (and special-case) it.
+        .route("/sessions", get(auth_handlers::list_sessions))
+        .route(
+            "/sessions/{session_id}",
+            delete(auth_handlers::revoke_session),
+        )
 }
