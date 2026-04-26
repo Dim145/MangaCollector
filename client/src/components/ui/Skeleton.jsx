@@ -23,11 +23,24 @@ export default function Skeleton({ className = "", style, ...rest }) {
   );
 }
 
-/** Number placeholder sized to line up with font-display stats. */
-function Stat({ width = "4ch", className = "" }) {
+/**
+ * Number placeholder sized to line up with font-display stats.
+ *
+ * `min-h: 1em` keeps the skeleton's box height equal to the final
+ * value's `font-size` baseline rather than collapsing to the wash's
+ * `0.85em` rule — that 0.15em gap was causing a visible vertical
+ * jitter when a stat-chip transitioned from loading to its real
+ * value (Skeleton renders centred via `align-middle`, the digits
+ * render to the baseline; combined that's a 2-3 px push).
+ *
+ * Default width bumped from 4ch → 5ch to cover the worst case
+ * `999/9999` and `100%` shapes that show up on power-user accounts —
+ * with the previous 4ch the chip widened mid-load on those rows.
+ */
+function Stat({ width = "5ch", className = "" }) {
   return (
     <Skeleton
-      className={`h-[0.85em] align-middle ${className}`}
+      className={`h-[0.85em] min-h-[1em] align-middle ${className}`}
       style={{ width }}
     />
   );

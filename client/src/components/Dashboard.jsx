@@ -218,38 +218,48 @@ export default function Dashboard() {
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
           </div>
-          <h1 className="mt-2 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl">
-            {t("dashboard.yourLibrary")}{" "}
-            <span className="text-hanko-gradient font-semibold not-italic">
-              {t("dashboard.library")}
-            </span>
-          </h1>
 
-          {/* Stat chips */}
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {/* Stat-card colour grammar (locked across Dashboard + Profile):
-                  · count   → washi    (raw counts: series, volumes-owned/total)
-                  · achievement → gold (lifetime totals: complete series, € invested)
-                  · rate    → hanko    (current rate / progression: % done)
-                The same metric uses the same colour on every page. */}
-            <StatChip
+          {/* 帯 · Stat ribbon — compressed from the previous 4-card
+              grid (≈140 px tall) to a single line read.
+              Why the change:
+                The dashboard's centre-of-gravity is the series grid.
+                Four full stat-cards stacked above the title, then a
+                gap-suggestion carousel, then a search bar, then a
+                filter rail, pushed the grid below the fold on a 1280
+                viewport — meaning users had to scroll to see what
+                they came for. The ribbon keeps the four numbers
+                accessible at a glance but reclaims ~110 px of
+                vertical real-estate; the digits remain in
+                tabular-nums so updates don't jitter the layout.
+              The colour grammar matches the previous card treatment:
+              washi for raw counts, gold for the achievement (complete
+              series), hanko for the rate (progression %). */}
+          <div
+            className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-dim sm:gap-x-6"
+            role="group"
+            aria-label={t("dashboard.archive")}
+          >
+            <RibbonStat
               label={t("dashboard.series")}
               value={stats.series}
               loading={isInitialLoad}
             />
-            <StatChip
+            <span aria-hidden="true" className="text-washi-dim/40">·</span>
+            <RibbonStat
               label={t("dashboard.volumes")}
               value={`${stats.owned}/${stats.total || "?"}`}
               loading={isInitialLoad}
               width="6ch"
             />
-            <StatChip
+            <span aria-hidden="true" className="text-washi-dim/40">·</span>
+            <RibbonStat
               label={t("dashboard.complete")}
               value={stats.complete}
               accent="gold"
               loading={isInitialLoad}
             />
-            <StatChip
+            <span aria-hidden="true" className="text-washi-dim/40">·</span>
+            <RibbonStat
               label={t("dashboard.progress")}
               value={
                 stats.total
@@ -261,10 +271,14 @@ export default function Dashboard() {
               width="5ch"
             />
           </div>
-        </header>
 
-        {/* R1 — "Complete your collection" suggestions */}
-        {!isInitialLoad && !isEmpty && <GapSuggestions />}
+          <h1 className="mt-3 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl">
+            {t("dashboard.yourLibrary")}{" "}
+            <span className="text-hanko-gradient font-semibold not-italic">
+              {t("dashboard.library")}
+            </span>
+          </h1>
+        </header>
 
         {/* Controls */}
         <section className="mb-8 space-y-4" aria-label="Controls">
@@ -481,12 +495,40 @@ export default function Dashboard() {
             </div>
           )}
         </section>
+
+        {/* R1 — "Complete your collection" suggestions.
+            Repositioned below the grid (was: between the masthead
+            and the search/filter rail). The carousel is a discovery
+            module, not a primary surface — putting it after the user
+            has scanned their actual library makes it a recommendation
+            ("here's what you could close out next") rather than a
+            prologue ("here's what we suggest before you even see your
+            shelves"). The underlying component already self-hides
+            when there's nothing to suggest, so empty libraries pay
+            zero layout cost. */}
+        {!isInitialLoad && !isEmpty && <GapSuggestions />}
       </div>
     </DefaultBackground>
   );
 }
 
-function StatChip({ label, value, accent, loading, width }) {
+/**
+ * 帯 · One stat in the masthead ribbon.
+ *
+ * Renders as label-then-value spans grouped in an `inline-flex` —
+ * keeping `whitespace-nowrap` so a stat never wraps mid-pair (the
+ * `12 series` cluster always stays glued together; only the gaps
+ * between pairs are wrap points).
+ *
+ * Accent grammar matches the previous StatChip card it replaces:
+ * washi for raw counts, gold for the achievement total
+ * (complete series), hanko for the rate (progression %).
+ *
+ * Loading state borrows `Skeleton.Stat`'s `min-h: 1em` so the
+ * baseline doesn't jitter when the placeholder swaps in for the
+ * real value.
+ */
+function RibbonStat({ label, value, accent, loading, width }) {
   const accentClass =
     accent === "hanko"
       ? "text-hanko-bright"
@@ -496,17 +538,14 @@ function StatChip({ label, value, accent, loading, width }) {
           ? "text-moegi"
           : "text-washi";
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-ink-1/50 p-4 backdrop-blur transition hover:border-hanko/30">
-      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-        {label}
-      </p>
-      <p
-        className={`mt-2 font-display text-2xl font-semibold tabular-nums md:text-3xl ${accentClass}`}
+    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+      <span className="text-washi-dim/80">{label}</span>
+      <span
+        className={`font-display text-base font-semibold not-italic tabular-nums normal-case tracking-normal ${accentClass}`}
       >
         {loading ? <Skeleton.Stat width={width} /> : value}
-      </p>
-      <div className="pointer-events-none absolute -bottom-6 -right-6 h-16 w-16 rounded-full bg-hanko/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
-    </div>
+      </span>
+    </span>
   );
 }
 
