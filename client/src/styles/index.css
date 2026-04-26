@@ -25,10 +25,18 @@
   --ink-2: oklch(0.15 0.01 28); /* raised */
   --ink-3: oklch(0.21 0.012 28); /* overlay */
 
-  /* Text */
+  /* Text — dark theme.
+     Three rungs sized to clear WCAG-AA on every surface we paint on:
+       washi      → body / display copy on ink-0 → ink-2 (~21:1 on ink-0)
+       washi-muted→ secondary copy / hints       (~12:1 on ink-0, ~9:1 on ink-2)
+       washi-dim  → captions / tracked labels    (~7:1 on ink-0, ~5.2:1 on ink-2)
+     Bumped 2026-04: previous values (0.78 / 0.58) flirted with the AA floor on
+     raised surfaces, especially for 10–11 px tracked-uppercase labels. The new
+     ladder gives every tier headroom without touching the saturation, so the
+     warm-cream cast survives. */
   --washi: oklch(0.96 0.012 85); /* cream */
-  --washi-muted: oklch(0.78 0.015 70);
-  --washi-dim: oklch(0.58 0.015 60);
+  --washi-muted: oklch(0.85 0.015 70);
+  --washi-dim: oklch(0.68 0.015 60);
 
   /* Signature */
   --hanko: oklch(0.6 0.22 25); /* stamp red */
@@ -634,6 +642,42 @@
   }
 }
 
+/* 印 · Welcome-tour spotlight pulse — concentric hanko-coloured rings
+   that bloom outward and fade. Layered against an inset ring so the
+   "rest" frame still has a visible halo, while the bloom phase reads
+   as "click here". `cubic-bezier(0.4, 0, 0.6, 1)` tames the easing
+   so the second beat doesn't feel like a strobe. */
+@keyframes tour-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 var(--hanko-glow),
+      0 0 0 0 var(--hanko-glow);
+  }
+  60% {
+    box-shadow:
+      0 0 0 12px transparent,
+      0 0 0 22px transparent;
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 transparent,
+      0 0 0 0 transparent;
+  }
+}
+
+/* 印 · Tiny horizontal bob for the spotlight caption. The arrow needs
+   to feel like it's tugging the eye toward the avatar without crossing
+   into "anxious dancing". 4 px amplitude, ease-in-out, infinite. */
+@keyframes tour-bob {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+}
+
 /* Seal ceremony — heavier than plain stamp. Used ONCE on newly-earned
    seals in the 印鑑帳 journal, so it's an emphatic motion: the sceau
    drops from scale 1.6 with a bigger tilt, overshoots into a reverse
@@ -678,6 +722,218 @@
     opacity: 0;
     transform: scale(1.8);
   }
+}
+
+/* 儀式 · Seal ceremony — in-grid spotlight loop.
+   ─────────────────────────────────────────────────────────────────
+   The page dims via a portaled fixed overlay (z-40); each newly
+   earned seal raises *itself* above the dimmer (`.seal-spotlight`
+   sets z-50) so the user sees their carnet light up cell by cell
+   rather than a separated modal. Three coordinated animations
+   accompany the spotlight:
+     1. seal-spotlight       — amplified stamp animation, replayed
+        from frame 0 via React `key` reset on the wrapper.
+     2. seal-spotlight-splash — radial sumi blob behind the cell.
+     3. seal-spotlight-particle — sumi flecks rising past the seal.
+   Outside the spotlight, the original `animate-seal-ceremony`
+   remains the in-grid reveal for newly earned seals (they stay
+   recognisable in the journal even after the loop ends).
+   ─────────────────────────────────────────────────────────────────
+   Legacy / unused:
+     1. seal-ceremony-mount  — modal-era stamp keyframe; kept
+        because some sites in the project may still reference it
+        for full-screen ceremonies (none active right now).
+     2. seal-ink-splash      — modal-era radial sumi blob.
+     3. seal-particle-rise   — small flecks of ink rising from the
+        stamp point, six per ceremony, each with its own delay so
+        the column never looks mechanical.
+   All three respect prefers-reduced-motion via the global rule
+   already in this file. */
+
+@keyframes seal-ceremony-mount {
+  0% {
+    transform: scale(2.4) rotate(-22deg) translateY(-12px);
+    opacity: 0;
+    filter: blur(6px);
+  }
+  35% {
+    transform: scale(0.78) rotate(6deg) translateY(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+  60% {
+    transform: scale(1.08) rotate(-3deg);
+  }
+  80% {
+    transform: scale(0.97) rotate(1deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+@keyframes seal-ink-splash {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+    filter: blur(8px);
+  }
+  35% {
+    opacity: 0.85;
+    transform: scale(1.05);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+    filter: blur(20px);
+  }
+}
+
+@keyframes seal-particle-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(calc(var(--rise, 140px) * -0.2)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(calc(var(--rise, 140px) * -1)) scale(0.4);
+  }
+}
+
+/* Splash — purely decorative, sized off the parent grid cell so the
+   blob fills ~22rem regardless of viewport. Mix-blend pinch keeps the
+   centre saturated even when the overlay sits over a busy background. */
+.seal-ink-splash {
+  width: 22rem;
+  height: 22rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--hanko) 0%,
+    var(--hanko-deep) 35%,
+    transparent 70%
+  );
+  mix-blend-mode: screen;
+  animation: seal-ink-splash 2.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.seal-particle {
+  filter: blur(1px);
+  animation-name: seal-particle-rise;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
+}
+
+/* In-grid spotlight wrapper. Lifts the focal seal above the page-
+   wide dimmer overlay so the dim layer affects everything *except*
+   this cell. position:relative ensures the z-index actually wins;
+   the parent `.animate-fade-up` div in SealsPage doesn't create a
+   stacking context, so the bump propagates correctly. */
+.seal-spotlight {
+  position: relative;
+  z-index: 50;
+}
+
+/* Amplified stamp keyframe used during the in-grid spotlight. The
+   curve is steeper than `seal-ceremony` (used during routine reveal)
+   so the focal seal reads as the protagonist, not just "another
+   newly earned chip on the page". */
+@keyframes seal-spotlight-mount {
+  0% {
+    transform: scale(2) rotate(-22deg) translateY(-8px);
+    opacity: 0;
+    filter: blur(5px);
+  }
+  35% {
+    transform: scale(0.82) rotate(5deg);
+    opacity: 1;
+    filter: blur(0);
+  }
+  60% {
+    transform: scale(1.12) rotate(-3deg);
+  }
+  80% {
+    transform: scale(0.97) rotate(1deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+.animate-seal-spotlight {
+  animation: seal-spotlight-mount 0.85s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Sumi splash behind the focal seal — radial hanko blob that fills
+   the spilling absolute zone around the cell, then fades. mix-blend-
+   mode keeps the centre saturated even on a dimmed backdrop. */
+@keyframes seal-spotlight-splash {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+    filter: blur(8px);
+  }
+  35% {
+    opacity: 0.95;
+    transform: scale(1);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+    filter: blur(18px);
+  }
+}
+
+.seal-spotlight-splash {
+  width: 14rem;
+  height: 14rem;
+  border-radius: 50%;
+  /* Tier-tinted halo. The wrapper component sets
+     `--seal-spotlight-glow` inline based on the seal's tier (hanko /
+     moegi / kin / sumi / shikkoku → gold). The hard-coded hanko
+     fallback is the safe default if the variable is missing. */
+  background: radial-gradient(
+    circle,
+    var(--seal-spotlight-glow, var(--hanko)) 0%,
+    var(--seal-spotlight-glow, var(--hanko-deep)) 28%,
+    transparent 72%
+  );
+  mix-blend-mode: screen;
+  animation: seal-spotlight-splash 2.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Per-particle sumi rise — the same pattern as the legacy
+   particles, sized smaller to fit the in-grid scope. */
+@keyframes seal-spotlight-particle {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.55);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(calc(var(--rise, 100px) * -0.25)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(calc(var(--rise, 100px) * -1)) scale(0.4);
+  }
+}
+
+.seal-spotlight-particle {
+  filter: blur(1px);
+  animation-name: seal-spotlight-particle;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
 }
 
 /* ─── Tier system ───────────────────────────────────────────────────
@@ -1360,6 +1616,35 @@
   animation: fade-out 0.22s ease-in both;
 }
 
+/* Side-drawer (Volume detail panel) — slides in from the right edge over
+   the live grid behind. The fade-in/out backdrop animations above are
+   reused for the dim layer; only the panel itself needs translate-X
+   keyframes. We keep the panel opaque during motion (no opacity ramp)
+   so the underlying grid never bleeds through the chrome — that would
+   read as a weak modal rather than a confident drawer. */
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes drawer-slide-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.animate-drawer-in {
+  animation: drawer-slide-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-drawer-out {
+  animation: drawer-slide-out 0.24s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
 /* Cover-preview (Volume hover/long-press) — polaroid float-in effect */
 @keyframes cover-preview-in {
   from {
@@ -1505,6 +1790,18 @@
 }
 .animate-seal-glow {
   animation: seal-glow 2.4s ease-out both;
+}
+
+/* Welcome-tour spotlight — repeats the bloom every 1.6 s so the user
+   spots it on a peripheral glance, but caps the iteration count so the
+   ring doesn't pulse forever if they ignore it. The parent component
+   also turns the class off after its own timer (~7 s). */
+.tour-pulse {
+  animation: tour-pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) 4;
+}
+.animate-tour-bob {
+  animation: tour-bob 1.6s ease-in-out infinite;
+  display: inline-block;
 }
 
 /* Motion preferences */

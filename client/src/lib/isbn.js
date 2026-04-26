@@ -71,25 +71,70 @@ const VOL_PATTERNS = [
 
 export function parseTitleVolume(fullTitle) {
   if (!fullTitle) return { title: "", volume: null };
+  // Clamp untrusted input length BEFORE running 9 regex patterns over
+  // it. Today the caller is Google Books (trusted-shape strings), but
+  // we also expose this from external code paths (Web Share Target
+  // pre-fill heuristics could route here in the future); a paranoid
+  // 500-char cap defuses any ReDoS class issue without truncating any
+  // realistic manga title.
+  const safeTitle =
+    fullTitle.length > 500 ? fullTitle.slice(0, 500) : fullTitle;
   for (const pattern of VOL_PATTERNS) {
-    const match = fullTitle.match(pattern);
+    const match = safeTitle.match(pattern);
     if (match) {
       const volume = parseInt(match[1], 10);
       if (Number.isNaN(volume)) continue;
-      const title = fullTitle
+      const title = safeTitle
         .replace(pattern, "")
         .trim()
         .replace(/[,:;\-–—]+$/, "")
         .trim();
-      return { title: title || fullTitle, volume };
+      return { title: title || safeTitle, volume };
     }
   }
-  return { title: fullTitle.trim(), volume: null };
+  return { title: safeTitle.trim(), volume: null };
+}
+
+/**
+ * Validate an ISBN-10 / ISBN-13 checksum. Catches deeply malformed
+ * inputs that would still pass the digit-count regex (e.g. all-9s,
+ * scanner glitch returning a partially-decoded code). Used by
+ * `normalizeISBN` to reject garbage before it hits the network.
+ *
+ * Returns `true` for valid checksums, `false` otherwise. Doesn't
+ * throw — bad input simply means "not an ISBN".
+ */
+function isValidIsbnChecksum(digits) {
+  if (digits.length === 10) {
+    // Each digit i (0..8) is multiplied by (10 - i); the 10th digit
+    // can be 0..9 OR 'X' (=10). Sum must be ≡ 0 (mod 11).
+    let sum = 0;
+    for (let i = 0; i < 9; i++) sum += parseInt(digits[i], 10) * (10 - i);
+    const last = digits[9];
+    sum += last === "X" || last === "x" ? 10 : parseInt(last, 10);
+    return sum % 11 === 0;
+  }
+  if (digits.length === 13) {
+    // Alternating weights of 1 and 3; sum must be ≡ 0 (mod 10).
+    let sum = 0;
+    for (let i = 0; i < 13; i++) {
+      const d = parseInt(digits[i], 10);
+      sum += i % 2 === 0 ? d : d * 3;
+    }
+    return sum % 10 === 0;
+  }
+  return false;
 }
 
 export function normalizeISBN(raw) {
   const clean = String(raw || "").replace(/[-\s]/g, "");
-  if (!/^(\d{10}|\d{13})$/.test(clean)) return null;
+  if (!/^(\d{10}|\d{13}|\d{9}[Xx])$/.test(clean)) return null;
+  // 印 · Reject inputs whose checksum is invalid. A scanner that
+  // half-decoded a barcode can produce 13 plausible digits whose
+  // overall code is meaningless — we'd burn a Google Books quota
+  // call on each. Refusing them upfront keeps the rate-limit
+  // budget for real codes only.
+  if (!isValidIsbnChecksum(clean)) return null;
   return clean;
 }
 
@@ -212,6 +257,10 @@ export async function lookupISBN(rawIsbn) {
     volume,
     authors: info.authors ?? [],
     publisher: info.publisher,
+    // Best-effort guess at the edition variant — Google Books has no
+    // structured field for it, so we read the raw title for marker
+    // words. Non-matches stay null and the user fills them in later.
+    edition: detectEditionFromTitle(fullTitle),
     pageCount: typeof info.pageCount === "number" ? info.pageCount : null,
     thumbnail:
       info.imageLinks?.extraLarge ??
@@ -226,6 +275,42 @@ export async function lookupISBN(rawIsbn) {
 
   await writeCached(isbn, result);
   return result;
+}
+
+/**
+ * Sniff the edition variant out of a Google Books title. Returns a
+ * canonical label drawn from the same vocabulary the manual edit form
+ * exposes, or `null` when nothing matches.
+ *
+ * Order matters: more specific markers come first so "Perfect Edition"
+ * isn't shadowed by a generic "edition" hit. Match is case-insensitive
+ * and word-bounded enough to skip false positives ("Standardize").
+ *
+ * Conservative on purpose — it's better to leave the field blank than
+ * to mis-tag a series; the user always has the final say in the edit
+ * form. This is a best-effort prefill, not a classifier.
+ */
+function detectEditionFromTitle(rawTitle) {
+  if (!rawTitle) return null;
+  const t = rawTitle.toLowerCase();
+  // [pattern, canonical label] — patterns are word-level so we don't
+  // catch substrings (e.g. "starlight" wouldn't trip "ultimate").
+  const RULES = [
+    [/\bperfect\s+edition\b/i, "Perfect Edition"],
+    [/\bultimate\s+edition\b/i, "Ultimate"],
+    [/\bdeluxe(\s+edition)?\b/i, "Deluxe"],
+    [/\bkanzenban\b/i, "Kanzenban"],
+    [/\bbunkoban\b/i, "Pocket / Bunkoban"],
+    [/\b(édition\s+collector|collector'?s?\s+edition)\b/i, "Anniversary"],
+    [/\b(édition\s+anniversaire|anniversary\s+edition)\b/i, "Anniversary"],
+    [/\b(édition\s+couleur|colou?r\s+edition)\b/i, "Colour edition"],
+    [/\bédition\s+originale\b/i, "Original"],
+    [/\b(double\s+edition|tomes?\s+doubles?)\b/i, "Double volumes"],
+  ];
+  for (const [re, label] of RULES) {
+    if (re.test(t)) return label;
+  }
+  return null;
 }
 
 // Words that unambiguously mark a multi-volume pack on the product title.

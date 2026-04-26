@@ -1,17 +1,39 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
-import BarcodeScanner from "@/components/BarcodeScanner.jsx";
 import ScanLoadingView from "@/components/ScanLoadingView.jsx";
 import Modal from "@/components/ui/Modal.jsx";
-import AddCoffretModal from "@/components/AddCoffretModal.jsx";
-import MangadexPrefillModal from "@/components/MangadexPrefillModal.jsx";
+
+// 既読 · Lazy-imported overlays. Each of these mounts only when the
+// user opens its specific flow — the scanner camera, the coffret
+// confirm sheet, the MangaDex pre-fill prompt — so we hold the code
+// off the wire until that branch fires. The combined source weight is
+// ~1100 lines that today shipped with every /addmanga visit; lazy
+// imports defer the cost to the click that actually needs it.
+const BarcodeScanner = lazy(() =>
+  import("@/components/BarcodeScanner.jsx"),
+);
+const AddCoffretModal = lazy(() =>
+  import("@/components/AddCoffretModal.jsx"),
+);
+const MangadexPrefillModal = lazy(() =>
+  import("@/components/MangadexPrefillModal.jsx"),
+);
 import SettingsContext from "@/SettingsContext.js";
 import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useScanCommit } from "@/hooks/useScanCommit.js";
+import { consumeTourStep, TOUR_STEPS } from "@/lib/tour.js";
+import { pickShareQuery } from "@/lib/share.js";
+import {
+  consumeShortcutIntent,
+  consumeShareIntent,
+  peekShareIntent,
+  discardShareIntent,
+} from "@/lib/deepLinks.js";
+import { getCachedUser } from "@/utils/auth.js";
 import {
   addCustomEntryToUserLibrary,
   addFromMangadexToUserLibrary,
@@ -71,6 +93,96 @@ export default function AddPage() {
   const online = useOnline();
   const t = useT();
 
+  // 始 · Welcome-tour, PWA-shortcut, and Web Share Target handoff.
+  // Three entry points feed the same destination page:
+  //   1. WelcomeTour stashes a step id in sessionStorage when the user
+  //      taps a tour bullet.
+  //   2. The launcher menu hits `/addmanga?shortcut=scan|library` when
+  //      the user long-presses the installed PWA icon.
+  //   3. The OS share sheet hits `/addmanga?share_*=...` when the user
+  //      picks MangaCollector as a share target from another app.
+  //
+  // Cases (2) and (3) are now captured pre-React in `main.jsx`
+  // (`captureDeepLinkIntentFromUrl`) and stashed to sessionStorage.
+  // That guarantees the intent survives an OAuth round-trip if the
+  // user wasn't authenticated when the deep link landed; it also
+  // strips the URL params before any subsequent navigation, defusing
+  // a Referer leak of untrusted share data.
+  //
+  // Defensive: even though <ProtectedRoute> won't render this page
+  // without a cached user, we double-check `getCachedUser()` before
+  // opening the camera. Belt-and-braces against any future routing
+  // refactor that loosens the gate.
+  const [tourFocusSearch, setTourFocusSearch] = useState(false);
+  // 共有 · Pending share import — populated when a share intent is
+  // present at mount. We DON'T auto-fire `runSearch` from a share
+  // (that would let any third-party app trigger a server search via
+  // navigator.share()); the user gets a confirmation card instead.
+  const [pendingShareIntent, setPendingShareIntent] = useState(null);
+  useEffect(() => {
+    // 1. Shortcut from the PWA launcher (sessionStorage-backed).
+    let shortcut = consumeShortcutIntent();
+    let intent = null;
+    if (shortcut === "scan") intent = TOUR_STEPS.SCAN;
+    else if (shortcut === "library") intent = TOUR_STEPS.LIBRARY;
+
+    // 2. Tour step from the welcome modal — only consulted if no
+    //    explicit shortcut was set, so an explicit user action via
+    //    the launcher menu can't be overridden by a stale tour flag.
+    const sessionStep = consumeTourStep();
+    if (!intent) intent = sessionStep;
+
+    // 3. Share intent — peek (don't consume yet) so the banner can
+    //    render with the original payload. The user's "Import" /
+    //    "Discard" tap consumes it.
+    const sharePeek = peekShareIntent();
+
+    if (intent === TOUR_STEPS.SCAN) {
+      // Defensive auth gate: if for any reason the cached user is gone
+      // by the time we'd open the camera (concurrent logout in another
+      // tab, race during ProtectedRoute settle), skip the camera open
+      // — the user will get bounced to login on the next request.
+      if (!getCachedUser()) return;
+      // Defer one frame so the AddPage layout is mounted before we
+      // open the scanner overlay — getUserMedia rejects on some
+      // browsers if requested before the route transition settles.
+      const raf = requestAnimationFrame(() => setScannerOpen(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    if (intent === TOUR_STEPS.LIBRARY) {
+      setTourFocusSearch(true);
+    }
+
+    // Share-target arrival — show a confirmation banner instead of
+    // auto-running the search. The user opts in to import (which
+    // consumes the intent and runs the search) or discards.
+    if (sharePeek && intent !== TOUR_STEPS.SCAN) {
+      setPendingShareIntent(sharePeek);
+    }
+  }, []);
+
+  // 共有 · Confirmation banner handlers.
+  // - Accept: consume the intent, derive the best query candidate via
+  //   the existing share heuristic, fill the search bar and run the
+  //   search. The user explicitly opts in here, so auto-firing the
+  //   network request is justified.
+  // - Decline: clear the banner + drop the stashed intent so a remount
+  //   of this page (back-button) doesn't ask again.
+  const acceptShareIntent = () => {
+    const data = consumeShareIntent();
+    setPendingShareIntent(null);
+    if (!data) return;
+    const q = pickShareQuery(data);
+    if (!q) return;
+    setQuery(q);
+    setTourFocusSearch(true);
+    queueMicrotask(() => runSearch(q));
+  };
+  const declineShareIntent = () => {
+    discardShareIntent();
+    setPendingShareIntent(null);
+  };
+
   // onBarcodeDetected is a stable useCallback([]) — expose the current
   // currency code through a ref so prefill stays in sync with settings.
   const currencyCodeRef = useRef(currencySetting?.code);
@@ -82,12 +194,17 @@ export default function AddPage() {
   const addManga = useAddManga();
   const commitScan = useScanCommit();
 
-  const searchManga = async () => {
-    if (!query.trim() || !online) return;
+  // `runSearch` accepts an explicit query so external triggers (the
+  // share-target handoff below) can fire it without going through a
+  // setQuery → re-render → searchManga round-trip. The button-driven
+  // path is just a thin closure over `query` for backwards compat.
+  const runSearch = async (q) => {
+    const trimmed = (q ?? "").trim();
+    if (!trimmed || !online) return;
     try {
       setLoading(true);
       setSearched(true);
-      const data = await searchExternal(query);
+      const data = await searchExternal(trimmed);
       setResults(data);
     } catch (err) {
       console.error("Search error:", err);
@@ -95,6 +212,7 @@ export default function AddPage() {
       setLoading(false);
     }
   };
+  const searchManga = () => runSearch(query);
 
   // Entries already in the user's library — checked by either id so MAL
   // results and MangaDex results both get the "owned" badge when applicable.
@@ -353,6 +471,10 @@ export default function AddPage() {
         volumeNumbers,
         scannedVolume: volume,
         price,
+        // Google Books payload — useScanCommit reads its `publisher` /
+        // `edition` to pre-fill the new library row's editorial
+        // metadata (only when the series is freshly added).
+        book: scanResult.book,
       });
       setRecentScans((prev) =>
         [
@@ -441,6 +563,65 @@ export default function AddPage() {
           {t("add.subtitle")}
         </p>
       </header>
+
+      {/* 共有 · Share-target confirmation banner.
+          Appears only when an external app has handed us share content
+          via the Web Share Target API (banner mode, not auto-fire — see
+          the audit note in the useEffect above). The user is in control
+          of the side-effects: tapping "Import" runs the MAL/MangaDex
+          search; "Discard" drops the intent so a remount doesn't ask
+          again. The original URL/title is surfaced verbatim (truncated
+          via Tailwind's `truncate`) so the user can verify the source
+          before triggering a network request. */}
+      {pendingShareIntent && (
+        <section
+          className="mb-6 overflow-hidden rounded-2xl border border-hanko/40 bg-gradient-to-br from-hanko/15 via-ink-1/60 to-ink-1/40 backdrop-blur animate-slide-down"
+          aria-label={t("share.bannerAria")}
+        >
+          <div className="flex items-start gap-4 p-5">
+            <span
+              aria-hidden
+              className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg bg-hanko/20 font-jp text-base font-bold text-hanko-bright shadow-inner"
+              style={{ transform: "rotate(-4deg)" }}
+            >
+              共
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-hanko-bright">
+                {t("share.bannerEyebrow")}
+              </p>
+              <h2 className="mt-1 font-display text-base font-semibold italic text-washi">
+                {t("share.bannerTitle")}
+              </h2>
+              <p className="mt-1 text-[13px] leading-snug text-washi-muted">
+                {t("share.bannerBody")}
+              </p>
+              {(pendingShareIntent.title || pendingShareIntent.url) && (
+                <p className="mt-2 truncate font-mono text-[11px] text-washi-dim">
+                  {pendingShareIntent.title || pendingShareIntent.url}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={acceptShareIntent}
+                  disabled={!online}
+                  className="rounded-full bg-hanko px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t("share.bannerAccept")}
+                </button>
+                <button
+                  type="button"
+                  onClick={declineShareIntent}
+                  className="rounded-full border border-border bg-transparent px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi"
+                >
+                  {t("share.bannerDecline")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ─── Scan hero CTA ─── */}
       <section className="mb-6 animate-fade-up">
@@ -584,6 +765,7 @@ export default function AddPage() {
             clearResults={clearResults}
             loading={loading}
             hasResults={results.length > 0}
+            autoFocus={tourFocusSearch}
             placeholder={
               online ? t("add.searchPlaceholder") : t("add.offlinePlaceholder")
             }
@@ -639,14 +821,20 @@ export default function AddPage() {
         </section>
       )}
 
-      {/* ─── Scanner (active detection only) ─── */}
+      {/* ─── Scanner (active detection only) ───
+          Suspense fallback={null} keeps the page silent during the
+          first chunk fetch — the user gets a brief pause after their
+          tap, then the camera viewport appears. Subsequent opens are
+          instant (chunk cached). */}
       {scannerOpen && scanPhase === "scanning" && (
-        <BarcodeScanner
-          onDetect={onBarcodeDetected}
-          onClose={closeScanner}
-          statusMessage="Point the camera at the barcode"
-          recentCount={recentScans.length}
-        />
+        <Suspense fallback={null}>
+          <BarcodeScanner
+            onDetect={onBarcodeDetected}
+            onClose={closeScanner}
+            statusMessage="Point the camera at the barcode"
+            recentCount={recentScans.length}
+          />
+        </Suspense>
       )}
 
       {/* ─── Loading view (replaces scanner while Google Books / MAL resolves) ─── */}
@@ -748,40 +936,55 @@ export default function AddPage() {
         </div>
       </Modal>
 
-      {/* ─── Coffret modal opened by the scanner when a box-set is detected ── */}
-      <AddCoffretModal
-        open={Boolean(scanCoffret)}
-        onClose={() => setScanCoffret(null)}
-        mal_id={scanCoffret?.mal_id}
-        totalVolumes={scanCoffret?.totalVolumes}
-        currencySetting={currencySetting}
-        prefill={scanCoffret?.prefill}
-        onSwitchToVolume={() => {
-          // False positive on coffret detection — fall back to the regular
-          // single-volume confirmation card inside the scanner overlay.
-          const fallback = scanCoffret;
-          if (!fallback) return;
-          setScanCoffret(null);
-          setScanResult({
-            isbn: fallback.isbn,
-            book: fallback.book,
-            candidates: fallback.candidates,
-            volume: fallback.book?.volume ?? 1,
-            price: pickDefaultPrice(fallback.book, currencyCodeRef.current),
-          });
-          setScanCandidateIdx(0);
-          setScanPhase("positive");
-          setScanStatus("");
-          setScannerOpen(true);
-        }}
-      />
+      {/* ─── Coffret modal opened by the scanner when a box-set is detected ──
+          Outer guard on `Boolean(scanCoffret)` so React doesn't
+          encounter the lazy component (and trigger its chunk fetch)
+          until the user actually scans a coffret — saves the modal's
+          ~10 kB on the typical "scan a single tankōbon" flow. */}
+      {Boolean(scanCoffret) && (
+        <Suspense fallback={null}>
+          <AddCoffretModal
+            open
+            onClose={() => setScanCoffret(null)}
+            mal_id={scanCoffret?.mal_id}
+            totalVolumes={scanCoffret?.totalVolumes}
+            currencySetting={currencySetting}
+            prefill={scanCoffret?.prefill}
+            onSwitchToVolume={() => {
+              // False positive on coffret detection — fall back to the regular
+              // single-volume confirmation card inside the scanner overlay.
+              const fallback = scanCoffret;
+              if (!fallback) return;
+              setScanCoffret(null);
+              setScanResult({
+                isbn: fallback.isbn,
+                book: fallback.book,
+                candidates: fallback.candidates,
+                volume: fallback.book?.volume ?? 1,
+                price: pickDefaultPrice(fallback.book, currencyCodeRef.current),
+              });
+              setScanCandidateIdx(0);
+              setScanPhase("positive");
+              setScanStatus("");
+              setScannerOpen(true);
+            }}
+          />
+        </Suspense>
+      )}
 
-      {/* ─── MangaDex prefill modal — asks for volume count ─── */}
-      <MangadexPrefillModal
-        result={mangadexPrefill}
-        onClose={() => setMangadexPrefill(null)}
-        onConfirm={confirmMangadexAdd}
-      />
+      {/* ─── MangaDex prefill modal — asks for volume count ───
+          Same guard pattern as the coffret modal: only render when
+          we have a result to prefill, so the chunk doesn't ride on
+          every /addmanga visit. */}
+      {mangadexPrefill && (
+        <Suspense fallback={null}>
+          <MangadexPrefillModal
+            result={mangadexPrefill}
+            onClose={() => setMangadexPrefill(null)}
+            onConfirm={confirmMangadexAdd}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

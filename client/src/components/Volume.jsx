@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import Tooltip from "./ui/Tooltip.jsx";
+import VolumeDetailDrawer from "./VolumeDetailDrawer.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoverPreviewGesture } from "@/hooks/useCoverPreviewGesture.js";
 import { formatCurrency } from "@/utils/price.js";
@@ -350,10 +350,39 @@ export default function Volume({
           </p>
           <div className="mt-1 flex items-baseline gap-2">
             <span
-              className={`text-[10px] font-semibold uppercase tracking-wider ${
+              className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${
                 ownedStatus ? "text-gold" : "text-washi-dim"
               }`}
             >
+              {/* Non-colour state glyph — gives the row a second cue beyond
+                  the gold/dim tint, so colour-blind users can read state at
+                  a glance. ✓ for owned, ○ for missing. Inline SVG keeps the
+                  baseline aligned with the label. */}
+              {ownedStatus ? (
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-2.5 w-2.5 self-center"
+                  aria-hidden="true"
+                >
+                  <polyline points="3 8.5 7 12 13 4.5" />
+                </svg>
+              ) : (
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-2.5 w-2.5 self-center"
+                  aria-hidden="true"
+                >
+                  <circle cx="8" cy="8" r="5.5" />
+                </svg>
+              )}
               {ownedStatus ? t("volume.inCollection") : t("volume.missing")}
             </span>
             {ownedStatus && price > 0 && (
@@ -453,214 +482,39 @@ export default function Volume({
         ) : null}
       </div>
 
-      {isEditing && !locked && (
-        <div className="space-y-3 border-t border-border bg-ink-0/40 p-4 animate-fade-up">
-          <div>
-            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              {t("volume.statusLabel")}
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { v: true, label: t("volume.ownedOption") },
-                { v: false, label: t("volume.missingOption") },
-              ].map((opt) => (
-                <button
-                  key={String(opt.v)}
-                  onClick={() => setOwnedStatus(opt.v)}
-                  className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition ${
-                    ownedStatus === opt.v
-                      ? opt.v
-                        ? "border-hanko bg-hanko text-washi"
-                        : "border-border bg-ink-2 text-washi"
-                      : "border-border bg-transparent text-washi-dim hover:text-washi"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Reading toggle — the tsundoku axis. Paired with collector
-              below so the two orthogonal states (edition type + read
-              status) live side by side in the editor, visually. */}
-          <div>
-            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              {t("volume.readingLabel")}
-            </label>
-            <button
-              type="button"
-              onClick={() => setReadStatus((r) => !r)}
-              aria-pressed={readStatus}
-              className={`group flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
-                readStatus
-                  ? "border-moegi/60 bg-gradient-to-br from-moegi/10 to-transparent"
-                  : "border-border bg-ink-1 hover:border-moegi/40"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  className={`grid h-6 w-6 place-items-center rounded-full font-jp text-[12px] font-bold leading-none transition ${
-                    readStatus
-                      ? "bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow-[0_0_10px_rgba(163,201,97,0.4)]"
-                      : "bg-ink-2 text-washi-dim"
-                  }`}
-                  style={readStatus ? { transform: "rotate(5deg)" } : undefined}
-                >
-                  {readStatus ? "読" : "未"}
-                </span>
-                <span>
-                  <span
-                    className={`block text-sm font-semibold ${
-                      readStatus ? "text-moegi" : "text-washi"
-                    }`}
-                  >
-                    {readStatus
-                      ? t("volume.readOption")
-                      : t("volume.unreadOption")}
-                  </span>
-                  <span className="block text-[11px] text-washi-muted">
-                    {readStatus && readAt
-                      ? t("volume.readSince", {
-                          date: formatReadDate(readAt),
-                        })
-                      : t("volume.readingHint")}
-                  </span>
-                </span>
-              </span>
-              <span
-                className={`relative h-6 w-11 rounded-full border transition ${
-                  readStatus
-                    ? "border-moegi bg-moegi/90"
-                    : "border-border bg-ink-2"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
-                    readStatus
-                      ? "right-0.5 bg-ink-0 shadow-md"
-                      : "left-0.5 bg-washi-dim"
-                  }`}
-                />
-              </span>
-            </button>
-          </div>
-
-          {/* Collector toggle — a distinct gold-accented switch so users
-              associate it with the "rare / limited" visual language. */}
-          <div>
-            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              {t("volume.editionLabel")}
-            </label>
-            <button
-              type="button"
-              onClick={() => setCollectorStatus((c) => !c)}
-              aria-pressed={collectorStatus}
-              className={`group flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
-                collectorStatus
-                  ? "border-gold/70 bg-gradient-to-br from-gold/10 to-transparent"
-                  : "border-border bg-ink-1 hover:border-gold/40"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  className={`grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold transition ${
-                    collectorStatus
-                      ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_0_10px_rgba(201,169,97,0.5)]"
-                      : "bg-ink-2 text-washi-dim"
-                  }`}
-                  style={
-                    collectorStatus ? { transform: "rotate(-6deg)" } : undefined
-                  }
-                  title={t("badges.collector")}
-                >
-                  限
-                </span>
-                <span>
-                  <span className={`block text-sm font-semibold ${collectorStatus ? "text-gold" : "text-washi"}`}>
-                    {t("volume.collectorOption")}
-                  </span>
-                  <span className="block text-[11px] text-washi-muted">
-                    {t("volume.collectorHint")}
-                  </span>
-                </span>
-              </span>
-              <span
-                className={`relative h-6 w-11 rounded-full border transition ${
-                  collectorStatus
-                    ? "border-gold bg-gold/90"
-                    : "border-border bg-ink-2"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
-                    collectorStatus
-                      ? "right-0.5 bg-ink-0 shadow-md"
-                      : "left-0.5 bg-washi-dim"
-                  }`}
-                />
-              </span>
-            </button>
-          </div>
-
-          <div>
-            <label
-              htmlFor={`price-${id}`}
-              className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
-            >
-              {t("volume.priceLabel", {
-                symbol: currencySetting?.symbol || "$",
-              })}
-            </label>
-            <input
-              id={`price-${id}`}
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              onFocus={(e) => {
-                if (Number(e.target.value) === 0) e.target.select();
-              }}
-              placeholder="0"
-              step="0.01"
-              min="0"
-              className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor={`store-${id}`}
-              className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
-            >
-              {t("volume.storeLabel")}
-            </label>
-            <StoreAutocomplete
-              id={`store-${id}`}
-              value={purchaseLocation ?? ""}
-              onChange={(e) => setPurchaseLocation(e.target.value)}
-              placeholder={t("volume.storePlaceholder")}
-              className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
-            />
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <button
-              onClick={handleSave}
-              disabled={isLoading}
-              className="flex-1 rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
-            >
-              {isLoading ? t("common.saving") : t("common.save")}
-            </button>
-            <button
-              onClick={handleCancel}
-              disabled={isLoading}
-              className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi hover:border-border/80"
-            >
-              {t("common.cancel")}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Edit drawer — slides in from the right edge over the live grid.
+          Replaces the previous in-card inline expansion (which forced a
+          reflow of every sibling card every time a user opened a single
+          edit form). The drawer is a "controlled" component — all form
+          state still lives here on Volume, so cancel can reset cleanly
+          and an in-flight save survives a brief drawer remount.
+          We pass `isEditing && !locked` rather than gating the JSX on
+          !locked: a volume turning into a coffret member mid-edit (the
+          useEffect above flips isEditing→false too) then plays the
+          slide-out animation instead of unmounting instantly. */}
+      <VolumeDetailDrawer
+        open={isEditing && !locked}
+        onClose={handleCancel}
+        id={id}
+        volNum={volNum}
+        coverUrl={coverUrl}
+        blurImage={blurImage}
+        readAt={readAt}
+        currencySetting={currencySetting}
+        ownedStatus={ownedStatus}
+        setOwnedStatus={setOwnedStatus}
+        readStatus={readStatus}
+        setReadStatus={setReadStatus}
+        collectorStatus={collectorStatus}
+        setCollectorStatus={setCollectorStatus}
+        price={price}
+        setPrice={setPrice}
+        purchaseLocation={purchaseLocation}
+        setPurchaseLocation={setPurchaseLocation}
+        isLoading={isLoading}
+        onSave={handleSave}
+        onCancel={handleCancel}
+      />
 
       {!isEditing && ownedStatus && purchaseLocation && (
         <div className="flex items-center gap-1.5 border-t border-border/50 px-4 py-2 text-[11px] text-washi-muted">

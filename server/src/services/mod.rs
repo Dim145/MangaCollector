@@ -11,6 +11,8 @@ pub mod mal_api;
 pub mod mangadex_api;
 pub mod realtime;
 pub mod seals;
+pub mod sessions;
+pub mod sessions_cleanup;
 pub mod settings;
 pub mod users;
 pub mod volume;

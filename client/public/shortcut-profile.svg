@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  印 · in (seal / hanko) — App-shortcut icon for the profile page.
+  Inverted palette (gold on ink) to set the "you" shortcut apart from
+  the two creation actions; gold also matches the avatar background
+  used for users who haven't picked a character portrait yet.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <rect width="96" height="96" rx="20" fill="#161012"/>
+  <text x="48" y="68" text-anchor="middle"
+        font-family="'Noto Serif JP', 'Hiragino Mincho ProN', 'YuMincho', serif"
+        font-size="60" font-weight="700" fill="#d4ac56">印</text>
+</svg>

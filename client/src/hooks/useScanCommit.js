@@ -41,6 +41,11 @@ export function useScanCommit() {
       // 'all'              : price applied to every volume in `volumeNumbers`
       //                      (recommendation flow — "I paid X per volume")
       priceMode = "scanned",
+      // Optional Google Books payload — when present (barcode flow),
+      // its `publisher` and the heuristic-detected `edition` pre-fill
+      // the new library row. Only applied when the series is genuinely
+      // new; we never overwrite an existing user choice on rescan.
+      book = null,
     }) => {
       if (!Array.isArray(volumeNumbers) || volumeNumbers.length === 0) {
         throw new Error("No volume numbers to commit");
@@ -67,6 +72,15 @@ export function useScanCommit() {
             .filter(Boolean)
         : [];
 
+      // Pre-fill publisher / edition from the scan payload when we have
+      // one. Trim defensively because Google Books occasionally returns
+      // ` Glénat ` with stray whitespace. The server runs `sanitize_label`
+      // again so any survivor gets a second pass.
+      const scanPublisher =
+        typeof book?.publisher === "string" ? book.publisher.trim() : "";
+      const scanEdition =
+        typeof book?.edition === "string" ? book.edition.trim() : "";
+
       const mangaData = {
         name: resolvedName,
         mal_id: manga.mal_id,
@@ -78,6 +92,11 @@ export function useScanCommit() {
         image_url_jpg: resolvedImage,
         genres: resolvedGenres,
         mangadex_id: manga.mangadex_id ?? null,
+        // Only populate when the scan had something — empty strings are
+        // omitted so the server's `sanitize_label` lands on `None` and
+        // doesn't store an empty column.
+        ...(scanPublisher ? { publisher: scanPublisher } : {}),
+        ...(scanEdition ? { edition: scanEdition } : {}),
       };
 
       // Live read from Dexie at call time — see the useCallback

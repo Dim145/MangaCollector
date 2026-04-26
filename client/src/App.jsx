@@ -21,6 +21,7 @@ import DefaultBackground from "@/components/DefaultBackground.jsx";
 import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
+import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 
 // Lazy routes — each lands in its own JS chunk so first paint ships less.
 // Recharts rides with ProfilePage, @zxing rides with AddPage via its own
@@ -38,6 +39,8 @@ const ImportExternalPage = lazy(() =>
   import("./components/ImportExternalPage"),
 );
 const ComparePage = lazy(() => import("./components/ComparePage"));
+// 字典 — public reference page; no auth needed.
+const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -147,9 +150,16 @@ function AppShell() {
       <OfflineBanner />
       <SyncToaster />
       <main className="relative">
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<About />} />
+        {/* 災 · ErrorBoundary outside Suspense so a chunk-load failure
+            (deploy invalidated cached chunks, offline burst, …) shows
+            a graceful "couldn't load" panel instead of crashing the
+            whole tree. Same boundary catches runtime crashes inside
+            any lazy route. Boundary is reset by a hard reload, the
+            only reliable way to re-fetch a missing chunk. */}
+        <RouteErrorBoundary>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+            <Route path="/" element={<About googleUser={googleUser} />} />
             <Route path="/log-in" element={<Login />} />
             <Route
               path="/dashboard"
@@ -210,6 +220,7 @@ function AppShell() {
                 anonymous visitors can see the gallery. Server-side
                 filters adult content + sensitive fields. */}
             <Route path="/u/:slug" element={<PublicProfile />} />
+            <Route path="/glossary" element={<GlossaryPage />} />
             {/* External imports — accessed from Settings → Archive. */}
             <Route
               path="/settings/import-external"
@@ -229,8 +240,9 @@ function AppShell() {
                 </ProtectedRoute>
               }
             />
-          </Routes>
-        </Suspense>
+            </Routes>
+          </Suspense>
+        </RouteErrorBoundary>
       </main>
     </>
   );

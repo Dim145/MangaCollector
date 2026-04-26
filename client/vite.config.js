@@ -35,6 +35,13 @@ export default defineConfig({
         "pwa-512x512.png",
         "pwa-maskable.png",
         "apple-touch-icon.png",
+        // App-shortcut icons — referenced by the manifest's `shortcuts`
+        // entries and need to be in the precache so the launcher menu
+        // works even when the user is offline at the moment of long-
+        // press. Kept as SVGs (~400 B each) rather than PNG sprites.
+        "shortcut-scan.svg",
+        "shortcut-add.svg",
+        "shortcut-profile.svg",
       ],
       manifest: {
         name: "MangaCollector",
@@ -67,6 +74,67 @@ export default defineConfig({
             purpose: "maskable",
           },
         ],
+        // 共有 · Web Share Target — registers MangaCollector as a
+        // recipient in the OS share sheet. When the user shares a URL
+        // or text from any other app (browser, Twitter, Mangadex,
+        // Amazon, Vinted, …) MangaCollector appears in the menu and,
+        // on tap, lands on /addmanga with the share carried in query
+        // params. lib/share.js picks the best candidate and pre-fills
+        // the search bar; the destination page also auto-runs the
+        // MAL/MangaDex search if the user is online.
+        //
+        // GET method keeps the integration server-less — the SPA reads
+        // window.location at first render, no POST body to handle.
+        share_target: {
+          action: "/addmanga",
+          method: "GET",
+          params: {
+            title: "share_title",
+            text: "share_text",
+            url: "share_url",
+          },
+        },
+        // App shortcuts — surfaced by the OS launcher when the user
+        // long-presses the installed PWA icon (Android Chrome / Edge,
+        // Windows Edge). iOS Safari ignores this field; Apple gates
+        // shortcuts behind the App Store review pipeline.
+        //
+        // Each `url` opens the SPA at a route that knows how to honour
+        // a `shortcut=…` query param: AddPage opens the camera scanner
+        // for `scan`, autofocuses the search input for `library`, and
+        // ProfilePage routes plainly. Keeping the param in the URL (vs
+        // sessionStorage) means the destination page can react during
+        // its very first render — there's no welcome modal in the
+        // shortcut flow to relay the intent.
+        shortcuts: [
+          {
+            name: "Scan an ISBN",
+            short_name: "Scan",
+            description: "Open the barcode scanner",
+            url: "/addmanga?shortcut=scan",
+            icons: [
+              { src: "/shortcut-scan.svg", sizes: "96x96", type: "image/svg+xml" },
+            ],
+          },
+          {
+            name: "Add a series",
+            short_name: "Add",
+            description: "Search MyAnimeList and add a new series",
+            url: "/addmanga?shortcut=library",
+            icons: [
+              { src: "/shortcut-add.svg", sizes: "96x96", type: "image/svg+xml" },
+            ],
+          },
+          {
+            name: "My profile",
+            short_name: "Profile",
+            description: "Open the statistics dashboard",
+            url: "/profile",
+            icons: [
+              { src: "/shortcut-profile.svg", sizes: "96x96", type: "image/svg+xml" },
+            ],
+          },
+        ],
       },
       workbox: {
         // Precache the app shell (JS/CSS/HTML)
@@ -74,6 +142,23 @@ export default defineConfig({
         // Skip the backend — we handle offline/sync at the app layer
         navigateFallback: "index.html",
         navigateFallbackDenylist: [/^\/api/, /^\/auth/],
+        // Drop runtime caches from prior deploys whose strategy or
+        // version no longer matches this build. Without this, an old
+        // bucket (different `cacheName`, retired URL pattern…) keeps
+        // serving stale responses indefinitely until the browser quota
+        // forces eviction. Workbox handles each entry individually so
+        // there's no risk of nuking a still-valid bucket that happens
+        // to share a substring of its name with the obsolete one.
+        cleanupOutdatedCaches: true,
+        // Take control of any open tab as soon as a new SW is ready.
+        // Combined with `registerType: "autoUpdate"` above, this means
+        // a deploy doesn't wait for users to close every tab before
+        // their next request hits the new code paths. Trade-off: a
+        // request initiated mid-update is served by the new SW, so
+        // breaking changes to the runtime caching contract need a
+        // matching cleanup pass (covered by cleanupOutdatedCaches).
+        clientsClaim: true,
+        skipWaiting: true,
         runtimeCaching: [
           // Google Fonts stylesheets
           {
@@ -95,31 +180,80 @@ export default defineConfig({
               },
             },
           },
-          // Jikan (MAL) API — read-only metadata, cache aggressively
+          // Jikan (MAL) API — read-only metadata, cache aggressively.
+          // Bumped from 100 to 250 entries: a power user with a 200-
+          // series library was evicting fresh entries on every refresh
+          // because Jikan responses include character lookups that
+          // count against the same bucket.
           {
             urlPattern: /^https:\/\/api\.jikan\.moe\/.*/i,
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "jikan-api",
               expiration: {
-                maxEntries: 100,
+                maxEntries: 250,
                 maxAgeSeconds: 60 * 60 * 24 * 7,
               },
             },
           },
-          // MAL / Jikan cover images
+          // MAL CDN covers — switched from CacheFirst to SWR so a
+          // cover that gets refreshed on MAL's side eventually
+          // propagates here. Users still see the cached image
+          // instantly (no flash), the network revalidate runs in the
+          // background, and the next mount picks up the new bytes.
+          // 30-day expiration is the floor — the bucket otherwise
+          // grows unbounded as the user explores new series.
           {
-            urlPattern: /^https:\/\/cdn\.myanimelist\.net\/.*/i,
-            handler: "CacheFirst",
+            urlPattern: /^https:\/\/cdn\.myanimelist\.net\/.*\.(?:jpg|jpeg|png|webp|gif)$/i,
+            handler: "StaleWhileRevalidate",
             options: {
               cacheName: "mal-covers",
               expiration: {
-                maxEntries: 500,
+                maxEntries: 800,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
               },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // User-uploaded posters via backend — cache so covers stay visible offline
+          // MangaDex covers — `uploads.mangadex.org/covers/...` URLs
+          // include the per-cover UUID and filename. A change of cover
+          // mints a new URL, so we never need to revalidate; CacheFirst
+          // with a 1-year horizon is correct here. Only the image
+          // suffixes are matched so MD's other endpoints don't pollute
+          // the bucket.
+          {
+            urlPattern:
+              /^https:\/\/uploads\.mangadex\.org\/covers\/.*\.(?:jpg|jpeg|png|webp|gif)(?:\.\d+\.jpg)?$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "mangadex-covers",
+              expiration: {
+                maxEntries: 800,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // Google Books — ISBN-scan flow embeds these thumbnails for
+          // a brief recognition step. Cache so re-scans of the same
+          // ISBN don't burn the daily quota; SWR is the right call
+          // because Google occasionally re-encodes existing thumbnails.
+          {
+            urlPattern:
+              /^https:\/\/books\.google\.com\/books\/content\?.*/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "google-books-thumbnails",
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // User-uploaded posters via backend — cache so covers stay
+          // visible offline. Same bucket name as before so existing
+          // installs don't lose their cached covers on update.
           {
             urlPattern: /\/api\/user\/storage\/poster\/.*/i,
             handler: "StaleWhileRevalidate",
@@ -129,6 +263,24 @@ export default defineConfig({
                 maxEntries: 500,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
               },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // Public-profile posters — anonymous visitors of /u/{slug}
+          // hit `/api/public/u/{slug}/poster/{mal_id}` for each user-
+          // uploaded cover. Separate bucket from `user-posters` so the
+          // owner's private cache and the public one don't fight for
+          // entry budget on a viewer browsing many profiles.
+          {
+            urlPattern: /\/api\/public\/u\/[^/]+\/poster\/.*/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "public-posters",
+              expiration: {
+                maxEntries: 300,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],

@@ -1,10 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Modal from "@/components/ui/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
-import DeleteAccountFlow from "@/components/DeleteAccountFlow.jsx";
+// 削除 · The two-step GDPR erasure flow is a 550-line modal that
+// only ever appears on a deliberate destructive action. Lazy-loading
+// it keeps it off the wire on every Settings visit; the chunk fetch
+// fires only the very first time the user clicks the danger button.
+const DeleteAccountFlow = lazy(() =>
+  import("@/components/DeleteAccountFlow.jsx"),
+);
 import PublicProfileSection from "@/components/PublicProfileSection.jsx";
+import BirthdayModeSection from "@/components/BirthdayModeSection.jsx";
 import ArchiveSection from "@/components/ArchiveSection.jsx";
 import SeasonSection from "@/components/SeasonSection.jsx";
+import WelcomeTour from "@/components/WelcomeTour.jsx";
+import { resetTourSeen } from "@/lib/tour.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
@@ -698,11 +707,26 @@ export default function SettingsPage() {
             settings. */}
         <SeasonSection />
 
+        {/* ─── Onboarding · re-trigger the welcome tour on demand.
+            The tour auto-shows on the first visit to an empty library;
+            this section lets a returning user replay it (e.g. after
+            recommending the app to a friend, or to remind themselves
+            what the kanji ladder means). */}
+        <OnboardingSection />
+
         {/* ─── Public profile section — toggle + slug editor.
             Sits before the Data/danger section so users see the feature
             in a natural progression: Account → Preferences → Sharing →
             Data management. */}
         <PublicProfileSection />
+
+        {/* ─── 祝 Birthday mode — temporary wishlist exposure.
+            Adjacent to the public-profile toggle because they're the
+            same conceptual surface (what visitors see at /u/{slug}).
+            The section is gated visually when the public profile is
+            disabled — there's nowhere for the wishlist to live without
+            a slug. */}
+        <BirthdayModeSection />
 
         {/* ─── Archive (export / import) — sits alongside public
             profile as another "what can I do with my data" feature. */}
@@ -910,12 +934,15 @@ export default function SettingsPage() {
         </div>
       </Modal>
 
-      {/* Two-step GDPR erasure flow — lives in its own component because
-          the ceremony is substantial enough to avoid bloating this page. */}
-      <DeleteAccountFlow
-        open={deleteFlowOpen}
-        onClose={() => setDeleteFlowOpen(false)}
-      />
+      {/* Two-step GDPR erasure flow — lives in its own component
+          because the ceremony is substantial enough to avoid
+          bloating this page. Outer guard keeps the lazy chunk off
+          the wire until the user actually opens the danger flow. */}
+      {deleteFlowOpen && (
+        <Suspense fallback={null}>
+          <DeleteAccountFlow open onClose={() => setDeleteFlowOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -1002,5 +1029,77 @@ function ThemeSwatch({ value }) {
         }}
       />
     </span>
+  );
+}
+
+/**
+ * 始 · Onboarding section — replay-the-welcome-tour entry.
+ * Stored as its own sub-component so the tour state lives close to the
+ * button that triggers it; SettingsPage already has plenty of state of
+ * its own. Re-rendered through the shared `<WelcomeTour>` modal so the
+ * replay behaves identically to the auto-open path on the dashboard.
+ */
+function OnboardingSection() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+
+  const replay = () => {
+    // Wipe the seen flag so the auto-open path on the dashboard would
+    // also fire on the next visit. The user explicitly asked to revisit
+    // the tour, so it's reasonable that they may want it elsewhere too.
+    resetTourSeen();
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <WelcomeTour open={open} onClose={() => setOpen(false)} />
+
+      <section
+        className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+        style={{ animationDelay: "260ms" }}
+      >
+        <div className="mb-4">
+          <h2 className="font-display text-lg font-semibold text-washi">
+            {t("settings.onboardingSection")}
+          </h2>
+          <p className="mt-1 text-xs text-washi-muted">
+            {t("settings.onboardingBody")}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={replay}
+            className="group inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-4 py-2 text-sm font-semibold text-washi transition hover:border-hanko hover:bg-hanko/20"
+          >
+            <span
+              aria-hidden="true"
+              className="font-jp text-base font-bold leading-none text-hanko-bright transition-transform group-hover:scale-110"
+            >
+              始
+            </span>
+            {t("settings.replayTour")}
+          </button>
+
+          {/* 字典 · Quiet outline link to the public kanji glossary —
+              same visual weight as a secondary action so it doesn't
+              compete with the replay CTA but stays a step away. */}
+          <a
+            href="/glossary"
+            className="group inline-flex items-center gap-2 rounded-full border border-border bg-ink-2/40 px-4 py-2 text-sm font-semibold text-washi-muted transition hover:border-hanko/40 hover:text-washi"
+          >
+            <span
+              aria-hidden="true"
+              className="font-jp text-base font-bold leading-none text-washi-dim transition-colors group-hover:text-hanko"
+            >
+              字典
+            </span>
+            {t("settings.openGlossary")}
+          </a>
+        </div>
+      </section>
+    </>
   );
 }

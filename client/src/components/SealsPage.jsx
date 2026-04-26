@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DefaultBackground from "./DefaultBackground";
 import Seal from "./ui/Seal.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
@@ -34,12 +34,138 @@ export default function SealsPage() {
     [data?.newly_granted],
   );
 
+  // 儀式 · In-grid ceremony loop — orchestrates a sequential
+  // spotlight-and-stamp routine across every freshly-earned seal.
+  //
+  // For each code in `newly_granted`, in order:
+  //   1. scroll the matching seal into the centre of the viewport
+  //   2. dim the rest of the page with a translucent ink overlay
+  //   3. raise the focal seal above the overlay and replay an
+  //      amplified seal-ceremony animation in place
+  //   4. hold long enough to read it, then advance to the next
+  //
+  // Skipping (tap on the overlay or Escape) jumps straight to the
+  // next index; once the queue empties, the overlay fades and the
+  // page returns to its idle state. The `consumedRef` guards
+  // against re-running the loop on incidental re-renders (the hook
+  // keeps `newly_granted` reference-stable for the page's lifetime).
+  const consumedRef = useRef(null);
+  // -1 idle · 0..N-1 currently spotlighting that index in newly_granted.
+  const [ceremonyIndex, setCeremonyIndex] = useState(-1);
+  const skipRef = useRef(null);
+  const newlyList = useMemo(
+    () =>
+      Array.isArray(data?.newly_granted) ? data.newly_granted : [],
+    [data?.newly_granted],
+  );
+  const currentCode = ceremonyIndex >= 0 ? newlyList[ceremonyIndex] : null;
+
+  useEffect(() => {
+    if (newlyList.length === 0) return;
+    if (consumedRef.current === newlyList) return;
+    consumedRef.current = newlyList;
+
+    let cancelled = false;
+
+    // Helper that resolves on its timer or early when the user taps
+    // skip — the active resolver is stashed on `skipRef.current` so
+    // the click handler can fire it.
+    const interruptible = (ms) =>
+      new Promise((resolve) => {
+        const timer = window.setTimeout(() => {
+          skipRef.current = null;
+          resolve();
+        }, ms);
+        skipRef.current = () => {
+          window.clearTimeout(timer);
+          skipRef.current = null;
+          resolve();
+        };
+      });
+
+    // 探 · Resolve the seal DOM target, retrying up to ~600ms in case
+    // the category section is still in its `animate-fade-up` mount
+    // delay (`Math.min(180 + i * 40, 500)` for the staggered reveal).
+    // Without this, an early ceremony tick could find `target = null`,
+    // skip the scroll silently, and spotlight an offscreen card.
+    const findSealTarget = async (code) => {
+      const deadline = Date.now() + 600;
+      while (Date.now() < deadline) {
+        const el = document.querySelector(`[data-seal-code="${code}"]`);
+        if (el) return el;
+        // Wait one frame and retry — cheap on mount-pending DOM,
+        // immediately resolved once the section is painted.
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+      // Fallback to the last attempt; null is acceptable downstream
+      // (the ceremony just skips the scroll for this seal).
+      return document.querySelector(`[data-seal-code="${code}"]`);
+    };
+
+    (async () => {
+      for (let i = 0; i < newlyList.length; i++) {
+        if (cancelled) return;
+        const code = newlyList[i];
+        const target = await findSealTarget(code);
+        if (cancelled) return;
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        // Let the scroll settle. 700ms is a comfortable overshoot for
+        // browser-native smooth scrolling on most viewports; cancelling
+        // mid-flight stays safe because the next iteration just runs
+        // its own scrollIntoView.
+        await interruptible(700);
+        if (cancelled) return;
+
+        setCeremonyIndex(i);
+        // Hold the spotlight long enough to read the seal's name and
+        // see the stamp settle. ~2.4s feels generous without dragging.
+        try {
+          navigator.vibrate?.([18, 50, 80]);
+        } catch {
+          /* haptic unsupported — silent */
+        }
+        await interruptible(2400);
+      }
+      if (!cancelled) setCeremonyIndex(-1);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (skipRef.current) skipRef.current();
+      setCeremonyIndex(-1);
+    };
+  }, [newlyList]);
+
+  const handleOverlayClick = () => {
+    // Click anywhere on the dimmer — fast-forward through the rest.
+    skipRef.current?.();
+  };
+
   const earnedCount = earnedMap.size;
   const totalCount = SEAL_CATALOG.length;
   const percent = Math.round((earnedCount / totalCount) * 100);
 
   return (
     <DefaultBackground>
+      {/* 儀式 · Ceremony dimmer. Sits between the page (z auto) and
+          the spotlighted seal (z-50 via .seal-spotlight). Tint only —
+          no backdrop-blur — because blurring the rest of the journal
+          obscures the celebration of seeing the carnet fill in (the
+          previous draft used 2px blur, which read as a dropped focus
+          rather than a focused dim). The translucent ink is enough
+          to push the focal seal forward.
+          Pointer-events: auto so a tap fast-forwards through the
+          queue — the user is never trapped. */}
+      {ceremonyIndex >= 0 && (
+        <button
+          type="button"
+          aria-label={t("seals.ceremonySkip")}
+          onClick={handleOverlayClick}
+          className="fixed inset-0 z-40 cursor-pointer animate-fade-in bg-ink-0/40 focus:outline-none"
+        />
+      )}
       <div className="mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
         {/* ───── Masthead ───── */}
         <header className="mb-10 animate-fade-up">
@@ -170,6 +296,7 @@ export default function SealsPage() {
                   {category.seals.map((seal, i) => (
                     <div
                       key={seal.code}
+                      data-seal-code={seal.code}
                       className="animate-fade-up"
                       style={{
                         animationDelay: `${Math.min(180 + i * 40, 500)}ms`,
@@ -182,6 +309,16 @@ export default function SealsPage() {
                         earned={earnedMap.has(seal.code)}
                         earnedAt={earnedMap.get(seal.code)}
                         newly={newlySet.has(seal.code)}
+                        playing={currentCode === seal.code}
+                        // While the ceremony loop is in flight, we
+                        // don't let any other seal play its baseline
+                        // `animate-seal-ceremony` reveal. Otherwise
+                        // the seal that just left the spotlight would
+                        // pick up a fresh animation pass when its
+                        // class set changed (browser animation engines
+                        // restart on class swap), causing a phantom
+                        // re-bump every time we advance.
+                        ceremonyManaged={newlyList.length > 0}
                       />
                     </div>
                   ))}

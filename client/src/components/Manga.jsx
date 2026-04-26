@@ -17,6 +17,12 @@ export default function Manga({
   const completion = total > 0 ? Math.min(100, (owned / total) * 100) : 0;
   const blur = hasToBlurImage(manga, adult_content_level);
   const complete = total > 0 && owned >= total;
+  // Wishlist (願 · negai) — series the user has tracked but hasn't started
+  // owning yet. Distinct from "ongoing" (some volumes acquired) and from
+  // "complete". Surfaced with a sakura accent so the user can spot the gap
+  // between intent and acquisition at a glance, and so the sort/filter
+  // grammar on the dashboard can target it explicitly.
+  const wishlist = total > 0 && owned === 0;
 
   return (
     <button
@@ -27,12 +33,22 @@ export default function Manga({
     >
       {/* Cover — tall aspect like a real manga volume */}
       <div
-        className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-border bg-ink-2 shadow-lg transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-1 ${
+        className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg border bg-ink-2 shadow-lg transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-1 ${
+          // Idle border tracks the wishlist state — a faint sakura ring on
+          // an otherwise default border so the wished-for vs. owned
+          // distinction is readable even before hover. Owned/complete
+          // inherit the normal border; their accent comes from the badge.
+          wishlist
+            ? "border-dashed border-sakura/35"
+            : "border-border"
+        } ${
           allCollector
             ? "group-hover:border-gold/60"
             : complete
               ? "group-hover:border-moegi/60"
-              : "group-hover:border-hanko/50"
+              : wishlist
+                ? "group-hover:border-sakura/70"
+                : "group-hover:border-hanko/50"
         }`}
       >
         {/* CoverImage falls back to the 巻 placeholder when the URL is
@@ -98,8 +114,15 @@ export default function Manga({
           </div>
         )}
 
-        {/* Status badge (top-right) */}
-        {complete && (
+        {/* Status badge (top-right) — mutually exclusive ladder.
+            COMPLETE : solid moegi pill + ✓.   Achievement state, loud.
+            ONGOING  : hanko outline + ◐.      In-flight, neutral mid-tone.
+            WISHLIST : sakura outline + 願.    Wanted but no volume yet.
+            none     : total === 0 (custom series with unknown total).
+            Without the wishlist tier, a 0 / 14 series rendered visually
+            identical to a 1 / 14 — the only cue was the bottom counter,
+            and that's the easiest spot to overlook. */}
+        {complete ? (
           <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-gradient-to-br from-moegi to-moegi-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-0 shadow-md">
             <svg
               viewBox="0 0 24 24"
@@ -109,12 +132,57 @@ export default function Manga({
               strokeLinecap="round"
               strokeLinejoin="round"
               className="h-2.5 w-2.5"
+              aria-hidden="true"
             >
               <polyline points="20 6 9 17 4 12" />
             </svg>
             {t("manga.complete")}
           </div>
-        )}
+        ) : wishlist ? (
+          <div
+            className="absolute top-2 right-2 flex items-center gap-1 rounded-full border border-sakura/55 bg-ink-0/65 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sakura shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 backdrop-blur transition group-hover:opacity-100"
+            aria-label={t("manga.wishlist")}
+          >
+            {/* 願 · negai — "wish". The hand-painted brush kanji keeps
+                the badge in the same Japanese-typographic family as 限
+                (collector) / 積 (tsundoku) / 完 (complete) while reading
+                instantly as "wanted, not yet acquired". */}
+            <span
+              className="font-jp text-[11px] font-bold leading-none"
+              aria-hidden="true"
+            >
+              願
+            </span>
+            {t("manga.wishlist")}
+          </div>
+        ) : total > 0 ? (
+          <div
+            className="absolute top-2 right-2 flex items-center gap-1 rounded-full border border-hanko/50 bg-ink-0/65 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-hanko-bright shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 backdrop-blur transition group-hover:opacity-100"
+            aria-label={t("manga.ongoing")}
+          >
+            {/* Half-filled disc — the universal "in progress" glyph.
+                Outer circle = total target, filled half = work landed. */}
+            <svg
+              viewBox="0 0 16 16"
+              className="h-2.5 w-2.5"
+              aria-hidden="true"
+            >
+              <circle
+                cx="8"
+                cy="8"
+                r="6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              />
+              <path
+                d="M8 2.5 A5.5 5.5 0 0 1 8 13.5 Z"
+                fill="currentColor"
+              />
+            </svg>
+            {t("manga.ongoing")}
+          </div>
+        ) : null}
 
         {/* Title + meta absolute bottom */}
         <div className="absolute inset-x-0 bottom-0 p-3">
@@ -123,7 +191,13 @@ export default function Manga({
           </h3>
           <div className="mt-1.5 flex items-center justify-between gap-2">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-washi-muted">
-              <span className="text-hanko-bright">{owned}</span>
+              {/* Counter colour matches the state ladder: sakura when the
+                  shelf is still empty (wishlist), hanko otherwise. Keeps
+                  "0" from reading as a danger-red signal on the wishlist
+                  state — the rose tone is closer to "wanted" than "wrong". */}
+              <span className={wishlist ? "text-sakura" : "text-hanko-bright"}>
+                {owned}
+              </span>
               <span className="text-washi-dim"> / {total || "?"}</span>
             </span>
             <span className="text-[10px] font-medium text-washi-dim">
@@ -131,17 +205,33 @@ export default function Manga({
             </span>
           </div>
 
-          {/* Progress bar */}
+          {/* Progress bar — three flavours:
+              · complete : full moegi gradient
+              · wishlist : a faint sakura outline at full width, dashed
+                           via background-image, signalling intent without
+                           pretending progress
+              · ongoing  : hanko gradient at the actual completion %. */}
           {total > 0 && (
             <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-washi/15">
-              <div
-                className={`h-full transition-all duration-500 ${
-                  complete
-                    ? "bg-gradient-to-r from-moegi to-moegi-muted"
-                    : "bg-gradient-to-r from-hanko to-hanko-bright"
-                }`}
-                style={{ width: `${completion}%` }}
-              />
+              {wishlist ? (
+                <div
+                  className="h-full w-full opacity-50"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(90deg, var(--sakura) 0 4px, transparent 4px 8px)",
+                  }}
+                  aria-hidden="true"
+                />
+              ) : (
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    complete
+                      ? "bg-gradient-to-r from-moegi to-moegi-muted"
+                      : "bg-gradient-to-r from-hanko to-hanko-bright"
+                  }`}
+                  style={{ width: `${completion}%` }}
+                />
+              )}
             </div>
           )}
         </div>

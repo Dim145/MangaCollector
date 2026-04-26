@@ -8,6 +8,7 @@ use openidconnect::{
     EndpointNotSet, EndpointSet, IssuerUrl, Nonce, PkceCodeChallenge, PkceCodeVerifier,
     RedirectUrl, Scope,
 };
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 
@@ -193,6 +194,97 @@ where
         let user_id = user_id.ok_or(AppError::Unauthorized)?;
 
         let db = Db::from_ref(state);
+
+        // 機 · Revocation gate. The `user_session_meta` row is the
+        // source of truth for "is this session still allowed to act
+        // on behalf of its user?". When the user revokes a session
+        // from another device, we delete the meta row; the upstream
+        // tower_sessions row CAN survive (because a concurrent
+        // request from the revoked browser may re-save its session
+        // through the middleware after our delete fired), so the
+        // cookie alone isn't enough to keep the session alive.
+        //
+        // Here we explicitly check the meta row at the start of
+        // every authenticated request. Missing meta → revoked.
+        // We tear down the upstream session row in the same breath
+        // so the cookie stops resolving on the very next request,
+        // and reject the current one with 401.
+        //
+        // DB-error policy: **fail-closed**. If the SELECT itself
+        // errors (timeout, pool exhaustion, prepared-statement
+        // invalidation after a migration), we treat the session as
+        // invalid rather than valid. The audit's previous
+        // `unwrap_or(true)` was a usability call that opened a
+        // bypass: an attacker who can pressure the pool (saturate
+        // import / search endpoints, max_connections=10) could
+        // resurrect a revoked session. The downstream `users::
+        // get_by_id` already crashes the request on DB errors, so
+        // the user-visible behaviour is identical either way —
+        // closed is just safer.
+        if let Some(session_id) = session.id().map(|id| id.to_string()) {
+            let meta_exists = crate::models::session_meta::Entity::find_by_id(
+                session_id.clone(),
+            )
+            .one(&db)
+            .await
+            .map(|opt| opt.is_some())
+            .unwrap_or(false);
+
+            // 期 · Cross-check the upstream session's expiry_date in
+            // `"tower_sessions"."session"`. Meta presence answers "is
+            // this session authorised?", upstream-alive answers "is
+            // the cookie itself still valid per the store?". Either
+            // failing kills the request — and crucially, this catches
+            // the case where the meta row survived (no FK, no cascade)
+            // but the upstream session has already expired or been
+            // GC'd. Without this check, a stale meta row could keep
+            // an expired cookie usable indefinitely.
+            let upstream_alive = if meta_exists {
+                crate::services::sessions_cleanup::upstream_session_alive(
+                    &db,
+                    &session_id,
+                )
+                .await
+            } else {
+                false
+            };
+
+            if !meta_exists || !upstream_alive {
+                // Burn BOTH layers in lockstep so a concurrent
+                // request from the same cookie doesn't get the
+                // tower-sessions middleware to re-save the row
+                // after our `session.delete()`. The middleware
+                // persists at response time, but
+                // `delete_tower_session` issues a DELETE against the
+                // upstream `"tower_sessions"."session"` row directly
+                // — bypassing the middleware lifecycle entirely.
+                // Errors are swallowed: this is a best-effort
+                // cleanup, the caller always 401s afterwards.
+                //
+                // We also drop the meta row here so a meta that
+                // survived a session GC doesn't keep being checked
+                // and then re-rejected on every request — single
+                // delete, single 401, then the cookie's gone.
+                let _ = session.delete().await;
+                let _ = crate::services::sessions_cleanup::delete_tower_session(
+                    &db,
+                    &session_id,
+                )
+                .await;
+                if meta_exists {
+                    crate::services::sessions::delete_meta(&db, &session_id).await;
+                }
+                return Err(AppError::Unauthorized);
+            }
+
+            // Refresh last_seen_at so the active-sessions UI shows
+            // accurate "last activity" timestamps. UPDATE-only on
+            // purpose — the creation path lives in the OAuth
+            // callback (`record_login`). Throttled so we don't fire
+            // a write per request on an actively-polling client.
+            crate::services::sessions::touch(&db, &session_id).await;
+        }
+
         let user = users::get_by_id(&db, user_id)
             .await?
             .ok_or(AppError::Unauthorized)?;

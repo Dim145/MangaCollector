@@ -138,7 +138,29 @@ pub async fn set_public_slug(
     };
     active.public_slug = Set(normalised.clone());
     active.modified_on = Set(now);
-    active.update(db).await.map_err(AppError::from)?;
+    // 直 · Race-tight uniqueness handling. The pre-flight SELECT a
+    // few lines above closes the common case (two users picking the
+    // same slug at different times), but two requests racing the
+    // same target slug can both pass that SELECT — only the DB
+    // UNIQUE constraint catches them. Without this remap, the
+    // loser of the race got a generic 500 mapped from the SeaORM
+    // error; with it, they get the same friendly 409 as the
+    // pre-flight path so the SPA can surface a single error UX.
+    if let Err(err) = active.update(db).await {
+        // SQLSTATE 23505 = unique_violation. SeaORM hides the raw
+        // sqlx error behind `DbErr::Exec(...)`; we match on the
+        // string representation rather than reaching for the inner
+        // type because that lets the same code work across DB
+        // backends without a feature-flag gate.
+        let lowered = err.to_string().to_ascii_lowercase();
+        if lowered.contains("23505")
+            || lowered.contains("unique constraint")
+            || lowered.contains("duplicate key")
+        {
+            return Err(AppError::Conflict("That slug is already taken.".into()));
+        }
+        return Err(AppError::from(err));
+    }
     Ok(normalised)
 }
 
@@ -208,9 +230,25 @@ pub async fn build_public_profile(
         .filter(|n| !n.trim().is_empty())
         .unwrap_or_else(|| slug.clone());
 
-    // Library — load all rows; if the owner hasn't opted-in to public
-    // adult content, drop adult-tagged entries server-side so they
-    // never reach the wire.
+    // 祝 · Birthday-mode horizon — single source of truth for whether
+    // wishlist (0-owned) entries reach the wire. The frontend's
+    // `wishlist_open_until` field on the response carries the same
+    // signal, but the SERVER is the only authority here: a stale
+    // wishlist horizon in the DB never leaks the wishlist because we
+    // gate the library *array itself* on this flag. Without this
+    // gate the audit found wishlist entries leaking unconditionally,
+    // even with Birthday mode OFF or expired.
+    let now = chrono::Utc::now();
+    let wishlist_open = user
+        .wishlist_public_until
+        .map(|t| t > now)
+        .unwrap_or(false);
+
+    // Library — load all rows; apply two filters server-side so they
+    // never reach the wire:
+    //   1. adult content (if the owner hasn't opted-in publicly)
+    //   2. wishlist entries (volumes_owned == 0) when the
+    //      Birthday-mode horizon is closed
     let library_rows = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user.id))
         .all(db)
@@ -218,6 +256,8 @@ pub async fn build_public_profile(
     let library: Vec<LibraryEntry> = library_rows
         .into_iter()
         .map(LibraryEntry::from)
+        // Adult filter FIRST so we can correctly compute
+        // `has_adult_content` later from any entry that survived.
         .filter(|entry| {
             if user.public_show_adult {
                 true
@@ -225,6 +265,10 @@ pub async fn build_public_profile(
                 !entry_is_adult(&entry.genres)
             }
         })
+        // Wishlist filter — only owned (volumes_owned > 0) entries
+        // are visible when Birthday mode is closed. A wishlist entry
+        // (0 owned) only passes when the horizon is open.
+        .filter(|entry| wishlist_open || entry.volumes_owned > 0)
         .collect();
 
     // Volumes — sweep once for stats + per-series bookkeeping.
@@ -330,6 +374,15 @@ pub async fn build_public_profile(
         user.created_on.format("%m").to_string().parse::<i32>().unwrap_or(1)
     );
 
+    // 祝 · Birthday-mode horizon — emit only when still in the future.
+    // Same authority as the wishlist filter above: this is what the
+    // client uses to render the celebratory banner and the countdown.
+    // We re-check against `now` rather than reusing `wishlist_open`
+    // so a clock tick between filter and emit can't desync the two.
+    let wishlist_open_until = user
+        .wishlist_public_until
+        .filter(|t| *t > chrono::Utc::now());
+
     Ok(PublicProfileResponse {
         slug: slug.clone(),
         hanko: derive_hanko(&display_name, &slug),
@@ -343,7 +396,53 @@ pub async fn build_public_profile(
         },
         library: entries,
         has_adult_content,
+        wishlist_open_until,
     })
+}
+
+/// 祝 · Set the wishlist-public horizon.
+///
+/// Positive `days` arms the toggle to `now() + days` (clamped to a
+/// reasonable upper bound to defang adversarial values like `i64::MAX`,
+/// which would overflow the timestamp arithmetic). Zero or negative
+/// disables the feature outright. Returns the resolved horizon so the
+/// client can hydrate from a canonical value.
+pub async fn set_wishlist_public_until(
+    db: &Db,
+    user_id: i32,
+    days: i64,
+) -> Result<Option<chrono::DateTime<chrono::Utc>>, AppError> {
+    // Cap the lifetime so a malformed client (or a JSON injection)
+    // can't pin the wishlist open for centuries. 365 days is plenty
+    // for the documented use case (birthday / wedding / housewarming);
+    // the server-side cap means we don't trust the SPA's value blindly.
+    const MAX_DAYS: i64 = 365;
+    let now = chrono::Utc::now();
+    let until = if days <= 0 {
+        None
+    } else {
+        let clamped = days.min(MAX_DAYS);
+        // `checked_add_signed` instead of `+` so a future bump of
+        // MAX_DAYS to a pathological value (or a clock-skew + max
+        // accumulation) can't panic on i64 overflow. With clamped
+        // ≤ 365 today this is purely defensive — but the cost is
+        // a single branch and it removes a non-obvious panic site.
+        chrono::Duration::try_days(clamped)
+            .and_then(|d| now.checked_add_signed(d))
+    };
+
+    let mut active: ActiveModel = match UserEntity::find_by_id(user_id)
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+    {
+        Some(u) => u.into(),
+        None => return Err(AppError::Unauthorized),
+    };
+    active.wishlist_public_until = Set(until);
+    active.modified_on = Set(now);
+    active.update(db).await.map_err(AppError::from)?;
+    Ok(until)
 }
 
 /// Toggle the "include adult content in public profile" opt-in. Takes

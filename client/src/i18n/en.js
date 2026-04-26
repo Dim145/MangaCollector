@@ -34,6 +34,28 @@ export default {
     collector: "Collector",
     dashboard: "Dashboard",
     statistics: "Statistics",
+    sessions: "Active sessions",
+  },
+  sessions: {
+    kicker: "Devices",
+    heading: "Where you're signed in",
+    body:
+      "Each device with an active MangaCollector session appears below. Revoke any you don't recognise — that device will be signed out at its next request.",
+    fetchError: "Couldn't load your devices.",
+    empty: "No active sessions on record yet.",
+    thisDevice: "This device",
+    unknownDevice: "Unknown device",
+    revoke: "Revoke",
+    revokeCurrent: "Sign out this device",
+    revoking: "Revoking…",
+    signOut: "Sign out",
+    signedIn: "signed in {date}",
+    lastSeenJustNow: "Active now",
+    lastSeenMinutes: "Active {n} min ago",
+    lastSeenHours: "Active {n} h ago",
+    lastSeenDays: "Active {n} d ago",
+    lastSeenLongAgo: "Inactive for over a month",
+    offlineHint: "Offline",
   },
   dashboard: {
     archive: "ARCHIVE · 本棚",
@@ -45,8 +67,12 @@ export default {
     progress: "Progress",
     tabAll: "All",
     tabOngoing: "Ongoing",
+    tabWishlist: "Wishlist",
     tabComplete: "Complete",
-    tabTsundoku: "積読 Tsundoku",
+    tabTsundoku: "Tsundoku",
+    filterTablistLabel: "Filter library by status",
+    tabHintWishlist: "series you're tracking but haven't started owning yet",
+    tabHintTsundoku: "the quiet joy of unread piles — series with at least one acquired-but-unread volume",
     searchPlaceholder: "Search your library…",
     clearFilter: "Clear",
     addManga: "Add manga",
@@ -78,7 +104,23 @@ export default {
   manga: {
     volumesShort: "vols",
     complete: "Complete",
+    ongoing: "Ongoing",
+    wishlist: "Wishlist",
     allCollector: "All volumes are collector",
+    publisherLabel: "Publisher",
+    publisherPlaceholder: "Glénat, Viz, Kodansha…",
+    editionLabel: "Edition",
+    editionPlaceholder: "Standard, Kanzenban, Deluxe…",
+    editionPreset_standard: "Standard",
+    editionPreset_kanzenban: "Kanzenban",
+    editionPreset_perfect: "Perfect Edition",
+    editionPreset_deluxe: "Deluxe",
+    editionPreset_ultimate: "Ultimate",
+    editionPreset_original: "Original",
+    editionPreset_color: "Colour edition",
+    editionPreset_anniversary: "Anniversary",
+    editionPreset_doubleVolumes: "Double volumes",
+    editionPreset_pocket: "Pocket / Bunkoban",
     tsundokuHint: "{n} owned volume(s) unread · 積読",
     libraryLabel: "COLLECTION · 蔵書",
     ownedChip: "owned",
@@ -164,6 +206,10 @@ export default {
     readTitle: "Read · 読 · {date}",
     markRead: "Mark as read",
     markUnread: "Mark as unread",
+    editDrawerEyebrow: "Volume Details · 巻",
+    editDrawerTitle: "Edit volume {n}",
+    editDrawerLead:
+      "Tweak ownership, edition, and reading state without leaving the grid.",
   },
   coffret: {
     label: "BOX SET · 盒",
@@ -226,6 +272,15 @@ export default {
       "Reconnect to use this feature — your library is fully editable offline in the meantime.",
     customEntryLabel: "Custom entries",
     malSearchLabel: "MAL search",
+  },
+  share: {
+    bannerAria: "Imported share — confirm or discard",
+    bannerEyebrow: "Shared with you · 共",
+    bannerTitle: "Import this into your search?",
+    bannerBody:
+      "Another app handed MangaCollector a title or link. Review the source below and choose whether to run a MAL search with it.",
+    bannerAccept: "Import & search",
+    bannerDecline: "Discard",
   },
   searchResults: {
     matches: "{n} matches · 結果",
@@ -384,6 +439,12 @@ export default {
     completionRateLabel: "Completion rate",
     progression: "Progression",
     completeShort: "complete",
+    closestLabel: "On the cusp · あと少し",
+    closestHeading: "Closest to completion",
+    closestCount: "Top {n}",
+    closestRemaining: "{n} to go",
+    closestEmpty: "No series in flight — every shelf is either complete or untouched.",
+    closestAria: "{title} — {pct}% complete",
     topSpend: "Top spend",
     mostValued: "Most valued series",
     startAdding: "Start adding owned volumes with a price to see trends.",
@@ -399,6 +460,142 @@ export default {
       "Every collection starts with a single volume. You're building something special.",
     comingSoon: "Activity feed & personalized recommendations coming soon.",
     tooltipSpent: "Spent",
+  },
+  glossary: {
+    kicker: "Reference · 字典",
+    headingPre: "An alphabet of",
+    headingAccent: "ink",
+    intro:
+      "MangaCollector borrows a small set of Japanese characters across the interface — filters, badges, supertitles, even the colour palette names. Each one is here on purpose. Below, what they mean and where they live in the app.",
+    backHome: "Back to landing",
+    tapToCopy: "tap to copy",
+    copied: "copied",
+    copyAria: "Copy {token} to clipboard",
+    sec_states_kicker: "Library states",
+    sec_states_title: "States",
+    sec_actions_kicker: "Verbs",
+    sec_actions_title: "Actions",
+    sec_places_kicker: "Pages and surfaces",
+    sec_places_title: "Places",
+    sec_vessels_kicker: "Things you collect",
+    sec_vessels_title: "Vessels",
+    sec_palette_kicker: "Colour names",
+    sec_palette_title: "Palette",
+
+    "states_全_literal": "all, entirety",
+    "states_全_usage":
+      "Filter showing every series in your library, regardless of state.",
+    "states_進_literal": "advance, progress",
+    "states_進_usage":
+      "Series you're actively collecting — at least one volume owned, but not all.",
+    "states_願_literal": "wish, desire",
+    "states_願_usage":
+      "Series you're tracking but haven't started owning yet — the public profile hides them on purpose.",
+    "states_完_literal": "completion, end",
+    "states_完_usage":
+      "Series whose every published volume is on your shelf.",
+    "states_積読_literal": "the joy of unread piles",
+    "states_積読_usage":
+      "Series with at least one owned-but-unread volume — the gentle pile you keep meaning to get to.",
+    "states_限_literal": "limit, bound",
+    "states_限_usage":
+      "Limited / collector edition. Appears as a small 限 seal pinned to the corner of marked volumes.",
+
+    "actions_始_literal": "begin, start",
+    "actions_始_usage":
+      "The welcome tour and the first-step prompt for a new archive.",
+    "actions_探_literal": "to seek, to search",
+    "actions_探_usage":
+      "The barcode scanner — point a camera at an ISBN, find a match against MAL.",
+    "actions_印_literal": "seal, stamp, mark",
+    "actions_印_usage":
+      "Your hanko avatar — the personal seal you imprint across the app.",
+    "actions_追加_literal": "addition, supplement",
+    "actions_追加_usage":
+      "Add a new series or a new volume to your collection.",
+    "actions_編集_literal": "to edit, to compile",
+    "actions_編集_usage": "Edit a series or volume's details.",
+
+    "places_本棚_literal": "bookshelf",
+    "places_本棚_usage":
+      "Your private library dashboard. Combined 本 (book) + 棚 (shelf).",
+    "places_蔵書_literal": "the held collection",
+    "places_蔵書_usage":
+      "Your public-profile gallery — what's actually on your shelf, on display.",
+    "places_統計_literal": "statistics",
+    "places_統計_usage":
+      "Your profile's analytics — completion, spend, top series, milestones.",
+    "places_設定_literal": "setting, configuration",
+    "places_設定_usage": "The settings page — preferences, themes, account.",
+    "places_読破_literal": "to read all the way through",
+    "places_読破_usage":
+      "Reading log — volumes you've finished, with timestamps and monthly cadence.",
+
+    "vessels_巻_literal": "scroll, volume",
+    "vessels_巻_usage":
+      "A single tankōbon (numbered volume) in a series.",
+    "vessels_盒_literal": "small box, casket",
+    "vessels_盒_usage":
+      "A coffret — limited box-set that ships several volumes together with collector packaging.",
+    "vessels_印鑑帳_literal": "seal book, register of stamps",
+    "vessels_印鑑帳_usage":
+      "Your seal collection — milestone trophies you unlock through volumes, series and reading streaks.",
+    "vessels_あと少し_literal": "a little more to go",
+    "vessels_あと少し_usage":
+      "Near-completion shelf — series only a few volumes away from being finished.",
+
+    "palette_漆黒_literal": "lacquer black, jet ink",
+    "palette_漆黒_usage":
+      "The deep ink background carried by the dark theme — every page sits on this layer.",
+    "palette_印_literal": "stamp red, hanko ink",
+    "palette_印_usage":
+      "The signature accent — CTAs, current-rate stats, every state highlight that needs to feel decisive.",
+    "palette_金_literal": "gold leaf",
+    "palette_金_usage":
+      "Achievement accent — completed series count, lifetime spend, collector badges.",
+    "palette_萌葱_literal": "spring shoot green",
+    "palette_萌葱_usage":
+      "Reading axis and complete-series badges — quiet, alive.",
+    "palette_桜_literal": "cherry blossom",
+    "palette_桜_usage":
+      "Wishlist accent — anticipation without arrival yet.",
+  },
+  season: {
+    dismissAria: "Dismiss the season banner",
+    poetic_spring: "The archive opens its blossoms.",
+    subtle_spring:
+      "Soft pinks and new growth — pages turn under cherry light.",
+    poetic_summer: "The ink drinks the long summer light.",
+    subtle_summer:
+      "Deeper greens, brighter accents — your shelf at noon.",
+    poetic_autumn: "The pages take on the gold of leaves.",
+    subtle_autumn:
+      "Amber edges, slower turning — the journal in low sun.",
+    poetic_winter: "The journal folds quietly inward.",
+    subtle_winter:
+      "Cold ink and bare paper — the archive at rest.",
+  },
+  tour: {
+    kicker: "Welcome",
+    headingPre: "Begin your",
+    headingAccent: "archive",
+    intro:
+      "Three ways to start curating your collection — pick whichever feels closest. You can switch between them at any time.",
+    s1Title: "Add your first series",
+    s1Body:
+      "Search MyAnimeList, auto-fill volumes, covers and genres in one click.",
+    s1Cta: "Browse the catalogue",
+    s2Title: "Scan a tankōbon",
+    s2Body:
+      "Point your camera at the ISBN — we match it to MAL and slot it into the right volume.",
+    s2Cta: "Open the scanner",
+    s3Title: "Pick your hanko",
+    s3Body:
+      "Choose an avatar from any character in the series you own — your seal across the app.",
+    s3Cta: "Visit your profile",
+    skip: "Maybe later",
+    replayHint: "You can replay this anytime from Settings.",
+    spotlightAvatar: "Click here",
   },
   settings: {
     heading: "SETTINGS · 設定",
@@ -434,6 +631,10 @@ export default {
     titleDefault: "Default (MAL)",
     titleEnglish: "English",
     titleJapanese: "Japanese",
+    onboardingSection: "Onboarding",
+    onboardingBody: "Replay the three-step welcome tour at any time, or open the kanji glossary.",
+    replayTour: "Replay welcome tour",
+    openGlossary: "Open kanji glossary",
     barcodeScanner: "Barcode scanner",
     scannerBody:
       "Scanning looks up each ISBN on Google Books. An optional API key lifts the anonymous per-IP rate limit — without it, scanning several volumes in a row can hit a 429.",
@@ -475,6 +676,20 @@ export default {
     publicProfileAdultBody:
       "Also publishes 18+ tagged series. Visitors see a warning and covers stay blurred by default until they explicitly confirm.",
     publicProfileAdultToggleAria: "Enable adult content on public profile",
+    birthdayHeading: "Birthday mode · 祝",
+    birthdayBody:
+      "Open your wishlist on the public profile for a fixed window. Useful before a birthday or wedding so visitors can pick a gift without guessing what you already own.",
+    birthdayRequiresPublic:
+      "Activate the public profile above first — there's nowhere for the wishlist to live publicly without a slug.",
+    birthdayActive: "Active",
+    birthdayUntil: "Public until {date} · {days} days remaining",
+    birthdayStop: "Close window now",
+    birthdayArm: "Open for {days} days",
+    birthdayScopeHeading: "What gets exposed",
+    birthdayScopeBody:
+      "Every wishlist series in your library becomes visible on /u/{slug}, including series you add WHILE the window is open. There's no per-series opt-in — it's all-or-nothing for the duration. Adult-content filtering still applies.",
+    birthdayScopeReminder:
+      "Reminder · series you add now go live immediately on the public page.",
     archiveTitle: "Archive & portability · 写本",
     archiveBody:
       "Export your collection to archive it, or import a scroll received from elsewhere. Merge-only: series already present (same mal_id) are skipped.",
@@ -547,6 +762,7 @@ export default {
     redirecting: "Redirecting…",
     providerFallback: "your account",
     authFailed: "Authentication failed. Please try again.",
+    sessionRevoked: "Your session was ended. Please sign in again.",
     whatYouGet: "what you get",
     benefit1: "Volume-level tracking with prices & sources",
     benefit2: "MyAnimeList-powered covers and metadata",
@@ -557,7 +773,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.6.2 · Archive your collection",
+    version: "v2.7.0 · Archive your collection",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",
@@ -612,6 +828,7 @@ export default {
     ctaBody: "Sign in, search a title, and start the quiet joy of cataloguing.",
     startCollecting: "Start collecting",
     footerYear: "© {year} MangaCollector",
+    footerGlossary: "Glossary",
   },
   offline: {
     offline: "Offline",
@@ -801,6 +1018,13 @@ export default {
     newlyGrantedOne: "A new seal has just been pressed.",
     newlyGrantedMany: "{n} new seals have just been pressed.",
     newlyGrantedHint: "Watch the ink dry on the pages below.",
+    ceremonyAria: "Seal unlocked",
+    ceremonyKicker: "Ceremony",
+    ceremonyHeadingOne: "A new seal joins the journal.",
+    ceremonyHeadingMany: "{n} new seals join the journal.",
+    ceremonyMore: "+{n} more in the journal below",
+    ceremonyDismiss: "Tap anywhere to continue",
+    ceremonySkip: "Skip ceremony",
     categories: {
       firsts: "Beginnings",
       volumes: "Progression",
@@ -978,6 +1202,10 @@ export default {
       "No archive exists under the handle \u201C{slug}\u201D. It may have been renamed or removed.",
     backHome: "Back home",
     footerPoweredBy: "Archive powered by",
+    birthdayKicker: "Wishlist temporarily open · 祝",
+    birthdayBody:
+      "Some series here are wished-for, not yet on the shelf — feel free to gift one. Window closes on {date} (in {days} days).",
+    seriesWishlist: "Wished for — not yet on the shelf",
     seriesAdult: "Adult content",
     adultHidden: "Blurred",
     adultBannerEyebrow: "ADULT CONTENT · 成人向け",

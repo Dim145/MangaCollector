@@ -19,6 +19,31 @@ pub struct Model {
     /// MangaDex UUID when the entry was added from MangaDex or cross-linked
     /// during a merged search. Enables "refresh from MangaDex".
     pub mangadex_id: Option<String>,
+    /// Free-text publisher (Glénat, Viz, Kodansha…). Trimmed +
+    /// length-clamped before persistence; empty string maps to None.
+    pub publisher: Option<String>,
+    /// Free-text edition variant (Standard, Kanzenban, Deluxe…). Same
+    /// validation contract as `publisher`.
+    pub edition: Option<String>,
+}
+
+/// Maximum byte length (after trim) for `publisher` / `edition`. Picked
+/// to comfortably hold "Édition originale collector" or longest known
+/// imprint names without letting a malicious client paste a megabyte.
+pub const PUBLISHER_MAX_LEN: usize = 80;
+pub const EDITION_MAX_LEN: usize = 60;
+
+/// Trim + length-clamp + empty-to-None. Returned `None` means "unset
+/// the field"; returned `Some(_)` is guaranteed to be a non-empty
+/// string of at most `max_len` chars. Length is measured in characters
+/// (not bytes) so multi-byte UTF-8 (é, 限, …) doesn't count double.
+pub fn sanitize_label(value: Option<String>, max_len: usize) -> Option<String> {
+    let v = value?.trim().to_string();
+    if v.is_empty() {
+        return None;
+    }
+    let truncated: String = v.chars().take(max_len).collect();
+    Some(truncated)
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -40,6 +65,8 @@ pub struct LibraryEntry {
     pub image_url_jpg: Option<String>,
     pub genres: Vec<String>,
     pub mangadex_id: Option<String>,
+    pub publisher: Option<String>,
+    pub edition: Option<String>,
 }
 
 impl From<Model> for LibraryEntry {
@@ -65,6 +92,8 @@ impl From<Model> for LibraryEntry {
             image_url_jpg: row.image_url_jpg,
             genres,
             mangadex_id: row.mangadex_id,
+            publisher: row.publisher,
+            edition: row.edition,
         }
     }
 }
@@ -82,6 +111,14 @@ pub struct AddLibraryRequest {
     /// result that the merged search resolved against both sources.
     #[serde(default)]
     pub mangadex_id: Option<String>,
+    /// Optional editorial metadata (publisher / edition variant) — the
+    /// scan flow extracts these from Google Books and pre-fills them
+    /// when first registering the series. Both run through
+    /// `sanitize_label` server-side, so a pasted megabyte is clamped.
+    #[serde(default)]
+    pub publisher: Option<String>,
+    #[serde(default)]
+    pub edition: Option<String>,
 }
 
 /// Request body for adding an entry sourced from MangaDex (no MAL id).
@@ -107,8 +144,40 @@ pub struct AddCustomRequest {
     pub genres: Option<Vec<String>>,
 }
 
-/// Request body for updating volume count
+/// Request body for the `PATCH /library/:mal_id` endpoint.
+///
+/// Every field is optional and applied only when present, so a client
+/// can update a single attribute (e.g. just the publisher) without
+/// echoing back the whole row. `volumes` was the original — and only —
+/// field; we kept the route shape and grew the body.
+///
+/// `publisher` / `edition` carry an `Option<String>`:
+///   - field omitted → leave the column untouched
+///   - `Some("")`    → unset (handled by `sanitize_label` before save)
+///   - `Some(text)`  → trim + clamp to `PUBLISHER_MAX_LEN` / `EDITION_MAX_LEN`
 #[derive(Debug, Deserialize)]
-pub struct UpdateVolumesRequest {
-    pub volumes: i32,
+pub struct UpdateLibraryRequest {
+    pub volumes: Option<i32>,
+    /// Use `Option<Option<String>>` via custom serde so the client can
+    /// distinguish "field absent" from "field present and explicitly
+    /// null". In practice we treat `Some(None)` and `Some(Some(""))`
+    /// identically: clear the column. `None` means "leave alone".
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub publisher: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub edition: Option<Option<String>>,
 }
+
+/// Three-state deserializer: omitted / null / value. Lets the handler
+/// detect "the client wants to clear this column" (null) vs "the
+/// client didn't touch this column" (omitted). Without it, both
+/// collapse into `None` and we can't tell them apart.
+fn deserialize_optional_field<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<String>::deserialize(deserializer).map(Some)
+}
+

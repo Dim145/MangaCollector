@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
@@ -6,6 +6,9 @@ import MangaSearchBar from "./MangaSearchBar";
 import GapSuggestions from "./GapSuggestions.jsx";
 import { FilterButton, ActiveChips } from "./TagFilter.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
+import WelcomeTour from "./WelcomeTour.jsx";
+import SeasonGreeting from "./SeasonGreeting.jsx";
+import { hasSeenTour } from "@/lib/tour.js";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
@@ -14,7 +17,15 @@ import { useT } from "@/i18n/index.jsx";
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all"); // all | complete | inprogress
+  const [filter, setFilter] = useState("all");
+  // filter ∈ "all" | "inprogress" | "wishlist" | "complete" | "tsundoku"
+  //   inprogress → at least one owned volume but not all (vraiment "en cours")
+  //   wishlist   → tracked but zero volumes acquired (願 · negai)
+  //   complete   → every tracked volume owned
+  //   tsundoku   → at least one owned-but-unread volume
+  // The filters are mutually exclusive; "inprogress" used to also catch
+  // wishlist series (owned === 0), which made the ladder ambiguous. The
+  // new contract gives wishlist its own bucket.
   // Genre filter — Set<string>. Multi-select with AND intersection (series
   // must carry every selected tag to remain visible). Kept as Set for O(1)
   // membership checks in the hot filter path below.
@@ -36,6 +47,21 @@ export default function Dashboard() {
 
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const { data: allVolumes } = useAllVolumes();
+
+  // 始 · Welcome tour gating.
+  // Auto-open on the first dashboard visit when the archive is genuinely
+  // empty AND the user hasn't seen (or dismissed) the tour. We wait for
+  // the library hook to finish its initial fetch before deciding —
+  // surfacing the tour against a cached library that's still loading
+  // would be misleading. The tour itself persists the seen flag on
+  // close, so the auto-open path fires at most once.
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (isInitialLoad) return;
+    if (!isEmpty) return;
+    if (hasSeenTour()) return;
+    setTourOpen(true);
+  }, [isInitialLoad, isEmpty]);
   const library = useMemo(
     () => filterAdultGenreIfNeeded(adult_content_level, rawLibrary ?? []),
     [adult_content_level, rawLibrary],
@@ -93,8 +119,21 @@ export default function Dashboard() {
         (m) => (m.volumes ?? 0) > 0 && (m.volumes_owned ?? 0) >= m.volumes,
       );
     } else if (filter === "inprogress") {
+      // Genuinely in flight: at least one owned volume, but not all of
+      // them. Series with no published total (volumes === 0) also count
+      // here as long as the user owns something — they're objectively
+      // "being collected".
+      result = result.filter((m) => {
+        const o = m.volumes_owned ?? 0;
+        const tot = m.volumes ?? 0;
+        return o > 0 && (tot === 0 || o < tot);
+      });
+    } else if (filter === "wishlist") {
+      // 願 · tracked, none owned yet. Requires a known total so we never
+      // confuse a freshly-imported custom series (no published count) with
+      // a deliberate wishlist intent.
       result = result.filter(
-        (m) => (m.volumes ?? 0) === 0 || (m.volumes_owned ?? 0) < m.volumes,
+        (m) => (m.volumes_owned ?? 0) === 0 && (m.volumes ?? 0) > 0,
       );
     } else if (filter === "tsundoku") {
       // Tsundoku (積読) = series with ≥1 owned-but-unread volume.
@@ -121,7 +160,13 @@ export default function Dashboard() {
 
   return (
     <DefaultBackground>
+      <WelcomeTour open={tourOpen} onClose={() => setTourOpen(false)} />
       <div className="mx-auto max-w-7xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+        {/* 季節 · Once-per-season banner. Self-renders nothing when
+            the current season has already been greeted; sits above
+            the masthead so it reads as a foreword to the page rather
+            than another stat row. */}
+        <SeasonGreeting />
         {/* Masthead */}
         <header className="mb-8 animate-fade-up">
           <div className="flex items-baseline gap-3">
@@ -139,6 +184,11 @@ export default function Dashboard() {
 
           {/* Stat chips */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {/* Stat-card colour grammar (locked across Dashboard + Profile):
+                  · count   → washi    (raw counts: series, volumes-owned/total)
+                  · achievement → gold (lifetime totals: complete series, € invested)
+                  · rate    → hanko    (current rate / progression: % done)
+                The same metric uses the same colour on every page. */}
             <StatChip
               label={t("dashboard.series")}
               value={stats.series}
@@ -153,7 +203,7 @@ export default function Dashboard() {
             <StatChip
               label={t("dashboard.complete")}
               value={stats.complete}
-              accent="moegi"
+              accent="gold"
               loading={isInitialLoad}
             />
             <StatChip
@@ -198,31 +248,78 @@ export default function Dashboard() {
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Filter rail — kanji-first navigation.
+                Each filter carries a Japanese glyph that's always visible,
+                with the romaji label revealed from `sm:` upwards. On mobile
+                the pill collapses to a single character framed by a
+                ≥44 px touch target — no overflow, no truncation, and the
+                glyph stays in the same typographic family as the rest of
+                the project (限 collector / 積 tsundoku / 完 complete).
+
+                  全 zen      → all
+                  進 shin     → in progress
+                  願 negai    → wishlist (wanted, not yet acquired)
+                  完 kan      → complete (finished collection)
+                  積 tsumu    → tsundoku (owned but unread)
+
+                Selected colour follows the state grammar already used by
+                the Manga card badges. */}
             <div
               className="inline-flex rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur"
               role="tablist"
-              aria-label={t("common.search")}
+              aria-label={t("dashboard.filterTablistLabel")}
             >
               {[
-                { id: "all", label: t("dashboard.tabAll") },
-                { id: "inprogress", label: t("dashboard.tabOngoing") },
-                { id: "complete", label: t("dashboard.tabComplete") },
-                { id: "tsundoku", label: t("dashboard.tabTsundoku") },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  role="tab"
-                  aria-selected={filter === tab.id}
-                  onClick={() => setFilter(tab.id)}
-                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition ${
-                    filter === tab.id
-                      ? "bg-hanko text-washi shadow-md"
-                      : "text-washi-muted hover:text-washi"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+                { id: "all", glyph: "全", label: t("dashboard.tabAll") },
+                { id: "inprogress", glyph: "進", label: t("dashboard.tabOngoing") },
+                {
+                  id: "wishlist",
+                  glyph: "願",
+                  label: t("dashboard.tabWishlist"),
+                  tooltip: `${t("dashboard.tabWishlist")} · ${t("dashboard.tabHintWishlist")}`,
+                },
+                { id: "complete", glyph: "完", label: t("dashboard.tabComplete") },
+                {
+                  id: "tsundoku",
+                  glyph: "積",
+                  label: t("dashboard.tabTsundoku"),
+                  tooltip: `${t("dashboard.tabTsundoku")} · ${t("dashboard.tabHintTsundoku")}`,
+                },
+              ].map((tab) => {
+                const active = filter === tab.id;
+                const activeBg =
+                  tab.id === "wishlist"
+                    ? "bg-sakura text-ink-0 shadow-md"
+                    : tab.id === "tsundoku"
+                      ? "bg-moegi text-ink-0 shadow-md"
+                      : "bg-hanko text-washi shadow-md";
+                return (
+                  <button
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={active}
+                    aria-label={tab.label}
+                    title={tab.tooltip ?? tab.label}
+                    onClick={() => setFilter(tab.id)}
+                    className={`group/tab inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold uppercase tracking-wider transition sm:min-h-0 sm:py-1.5 ${
+                      active ? activeBg : "text-washi-muted hover:text-washi"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`font-jp text-base font-bold leading-none transition-transform sm:text-sm ${
+                        active ? "scale-110" : "opacity-80 group-hover/tab:opacity-100"
+                      }`}
+                    >
+                      {tab.glyph}
+                    </span>
+                    {/* Label appears from sm: up. On mobile, the glyph + the
+                        aria-label / native tooltip carry the meaning, and the
+                        whole row stops fighting for horizontal space. */}
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             <button
@@ -244,6 +341,41 @@ export default function Dashboard() {
             </button>
           </div>
 
+          {/* Editorial gloss — only rendered for filters whose name carries
+              cultural baggage (the Japanese terms 願 / 積読). Sits in a
+              `min-h` reserve so the grid below doesn't jump when switching
+              between glossed and unglossed filters. The `key={filter}`
+              re-mounts the line on every change, replaying the fade-up
+              animation as a subtle "you just changed lens" cue.
+              `aria-live="polite"` lets screen readers hear the definition
+              after a filter switch without interrupting the user. */}
+          <div className="min-h-[1.5rem] px-1" aria-live="polite">
+            {(() => {
+              if (filter !== "wishlist" && filter !== "tsundoku") return null;
+              const isWishlist = filter === "wishlist";
+              const romaji = isWishlist ? "願 negai" : "積読 tsundoku";
+              const text = isWishlist
+                ? t("dashboard.tabHintWishlist")
+                : t("dashboard.tabHintTsundoku");
+              const tone = isWishlist ? "text-sakura" : "text-moegi";
+              return (
+                <p
+                  key={filter}
+                  className="animate-fade-up flex flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-snug"
+                  style={{ animationDuration: "0.4s" }}
+                >
+                  <span
+                    className={`font-jp text-[11px] font-semibold tracking-[0.15em] ${tone}`}
+                  >
+                    {romaji}
+                  </span>
+                  <span className="font-display text-[11px] italic text-washi-muted">
+                    {text}
+                  </span>
+                </p>
+              );
+            })()}
+          </div>
         </section>
 
         {/* Active tag chips — discreet "Filtré par: [shōnen ×] [drame ×]"

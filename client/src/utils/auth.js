@@ -1,4 +1,4 @@
-import axios from "./axios";
+import axios, { resetSessionLostLatch } from "./axios";
 import { clearAllUserData } from "@/lib/db.js";
 
 /*
@@ -69,6 +69,36 @@ function clearCachedUser() {
   }
 }
 
+/**
+ * 始末 · Purge the Service-Worker buckets that hold *user-private*
+ * cached responses, so the next account that signs in on this device
+ * never sees the previous one's data through the cache.
+ *
+ * Limited to private buckets only — `mal-covers` / `mangadex-covers` /
+ * `jikan-api` / `google-fonts-*` are public and outliving them across
+ * a logout is a feature (the next user gets a warm cache for assets
+ * that aren't tied to anyone's identity).
+ *
+ * Idempotent and best-effort: caches API may be unavailable in tests,
+ * Safari private mode can throw, and a non-existent bucket is a quiet
+ * no-op. We swallow every error rather than failing the logout flow.
+ */
+const PRIVATE_CACHE_NAMES = ["user-posters", "public-posters"];
+async function purgePrivateCaches() {
+  if (typeof caches === "undefined") return;
+  await Promise.all(
+    PRIVATE_CACHE_NAMES.map((name) =>
+      caches.delete(name).catch(() => false),
+    ),
+  );
+}
+
+// Re-exported so the axios 401 interceptor can wipe the cached user
+// on session loss without going through `logout()` (which would try
+// to call the server again — pointless when the server is the one
+// telling us we're gone).
+export { clearCachedUser };
+
 function isLogoutPending() {
   try {
     return localStorage.getItem(PENDING_LOGOUT_KEY) !== null;
@@ -94,6 +124,19 @@ function clearLogoutPending() {
 }
 
 export const getCachedUser = readCachedUser;
+
+/**
+ * Shallow-merge `patch` into the cached `/auth/user` blob. Lets feature
+ * hooks (e.g. wishlist-public toggle) write back the new field value
+ * without re-fetching the whole user. Silently no-ops when no cache
+ * exists or storage is read-only (Safari private mode, etc.).
+ */
+export function mergeCachedUser(patch) {
+  if (!patch || typeof patch !== "object") return;
+  const current = readCachedUser();
+  if (!current) return;
+  writeCachedUser({ ...current, ...patch });
+}
 export const hasPendingLogout = isLogoutPending;
 
 /**
@@ -166,6 +209,10 @@ export const logout = async () => {
   // should never present user A's data to user B on this device.
   clearCachedUser();
   await clearAllUserData();
+  // Purge SW-cached private responses (cover thumbnails, etc.) so the
+  // next account on this device sees a clean slate. Best-effort,
+  // non-blocking errors.
+  await purgePrivateCaches();
 
   try {
     await axios.post("/auth/oauth2/logout", null, { timeout: 5000 });
@@ -183,6 +230,13 @@ export const initiateOAuth = () => {
   // Any pending logout is moot — the old cookie will be replaced by the
   // new one anyway.
   clearLogoutPending();
+  // 始 · Reset the axios session-lost latch BEFORE leaving the SPA.
+  // If the previous session was revoked (latch tripped) and the user
+  // returns from OAuth without a hard reload — happens when the IdP
+  // redirects back into the same SPA process — a future 401 from the
+  // new session would be silently swallowed. The latch must always
+  // start fresh at the boundary of a new session.
+  resetSessionLostLatch();
   window.location.href = `${axios.defaults.baseURL}/auth/oauth2`;
 };
 

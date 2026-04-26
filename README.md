@@ -28,6 +28,7 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 - **Custom entries** — add a series MAL doesn't have yet (assigned a negative `mal_id`)
 - **Per-volume tracking** — ownership flag, price paid, store of purchase, with multi-currency support (USD / EUR)
 - **Bulk volume editing** on the series page
+- **Coffrets / box sets** — group volumes that ship together (limited editions, slipcases, anniversary boxes), with cover, price and date metadata; writes are atomic and require connectivity to keep the server-side transaction consistent
 - **Custom poster upload** — replace the MAL cover with your own (stored in S3 / MinIO or local FS)
 - **Title preference** — Default / English / Japanese / Romaji per user
 - **Adult content filter** — 3 levels (off, blur, show)
@@ -40,21 +41,25 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 
 ### Offline-first PWA
 - **Installable** on Android (Chrome/Edge bannière), iOS Safari ("Sur l'écran d'accueil"), Desktop (Chrome/Edge install icon) with maskable icon for adaptive Android launchers
-- **Works offline** — Dexie (IndexedDB) caches the entire library + volumes + settings
+- **Works offline** — Dexie (IndexedDB) caches the entire library + volumes + settings, plus already-earned seals so the trophy shelf stays warm without a network
 - **Optimistic mutations** — changes apply locally instantly; an outbox flushes them to the server when reachable
+- **Cross-device live sync** — authenticated WebSocket pushes invalidations from the server, so a change made on your phone is reflected on your laptop within milliseconds (with exponential-backoff reconnect when the tab regains focus)
 - **Smart connectivity** — detects "server unreachable" not just "navigator offline"
 - **Pending logout** — queues logout when offline, fires it as soon as the server comes back
 - **Force resync** — settings entry to wipe local cache and pull fresh from the server
 
-### Personalisation
+### Personalisation & sharing
 - **3 themes** — dark / light / auto (system) with zero-flash bootstrap
 - **3 languages** — English / French / Spanish (server-stored, localStorage-cached)
 - **Custom avatar** — pick a character portrait from the series you own (live from MAL via Jikan)
+- **Seals** — unlockable milestone trophies (volume / series / streak ladders) with a one-shot ceremony animation on the moment of unlock
+- **Public profiles** — opt-in shareable read-only view at `/u/{slug}`, with a dedicated `/public/u/{slug}/poster/{mal_id}` endpoint so user-uploaded covers stay visible to anonymous visitors without leaking the rest of the library
 
 ### Security & ops
 - Hardened containers: read-only rootfs, dropped Linux capabilities, `no-new-privileges`, non-root user (uid 65532), no package manager left in the runtime image
 - OCI metadata labels documenting the security contract
-- Static binary (musl + statically-linked OpenSSL) — runs from `scratch`
+- Static binary (musl) with **Rustls (aws-lc-rs)** end-to-end — zero OpenSSL on the wire, ~15 MB lighter image, and a whole class of `RUSTSEC-*-openssl-*` advisories simply can't apply
+- Runs from `scratch` (no shell, no libc, no package manager)
 - HEALTHCHECK self-implemented as a `--health` subcommand (no curl/wget needed in the image)
 
 ---
@@ -64,33 +69,36 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 ### Frontend
 | Layer | Tooling |
 |---|---|
-| UI | **React 19.2** + **Vite 7.3** |
+| UI | **React 19.2** + **Vite 8** (Rolldown bundler — production builds in ≈400 ms) |
 | Styling | **Tailwind CSS v4** (CSS-first config), custom OKLCH palette, custom Fraunces + Instrument Sans + JetBrains Mono + Noto Serif JP type stack |
 | Routing | React Router 7 (lazy-loaded routes via `React.lazy`) |
-| Server state | **TanStack Query 5** (offline-first network mode) |
-| Local cache | **Dexie 4** (IndexedDB) + `dexie-react-hooks` |
+| Server state | **TanStack Query 5** (offline-first network mode) + WebSocket-driven invalidations |
+| Local cache | **Dexie 4** (IndexedDB) + `dexie-react-hooks` — library, volumes, settings, seals |
 | Charts | Recharts 3 |
-| Icons | lucide-react 1 |
-| PWA | `vite-plugin-pwa` + Workbox runtime caching (Google Fonts, MAL CDN, Jikan API, user posters) |
-| Barcode | Native `BarcodeDetector` API + `@zxing/browser` fallback |
+| PWA | `vite-plugin-pwa` (peer-dep override against Vite 8 until upstream 1.3.0 lands) + Workbox runtime caching (Google Fonts, MAL CDN, Jikan API, user posters) |
+| Barcode | Native `BarcodeDetector` API with the **`barcode-detector`** WASM polyfill as a unified fallback |
 | i18n | Custom `I18nProvider` + `useT` hook, 3 dictionaries |
-| Build / lint | Node 24 (via nvm), ESLint 10, Prettier 3.8 |
+| Build / lint | Node 24 (via nvm — `.nvmrc` provided), ESLint 10, Prettier 3.8 |
 
 ### Backend
 | Layer | Tooling |
 |---|---|
 | Language / runtime | **Rust 2024 edition** (rustc ≥ 1.85), Tokio async runtime |
-| Web framework | **Axum 0.8** + tower 0.5 + tower-http 0.6 |
+| Web framework | **Axum 0.8** (with `ws` feature) + tower-http 0.6 + `tower_governor` 0.8 (rate-limiting) |
 | ORM | **SeaORM 1.1** wrapping **sqlx 0.8** (PostgreSQL, rustls, with-chrono, with-rust_decimal) |
 | Sessions | tower-sessions 0.14 + tower-sessions-sqlx-store 0.15 (PostgreSQL-backed) |
+| Realtime | Axum WebSocket handler at `/api/ws` — per-user broadcast for cross-device cache invalidation |
 | Auth | **openidconnect 4** (Google OAuth 2.0 *or* generic OpenID Connect, configurable via `AUTH_MODE`) |
+| Cache (optional) | Redis 8 via `redis` 1.2 + `deadpool-redis` 0.23 — disabled at runtime if `REDIS_URL` is unset |
 | Storage | aws-sdk-s3 1.x (MinIO / S3-compatible) **or** local filesystem fallback |
-| HTTP client | reqwest 0.12 |
+| TLS | **Rustls** with `aws-lc-rs` everywhere (`reqwest`, `aws-sdk-s3`, `sqlx`, `sea-orm`) — no OpenSSL in the dependency tree |
+| HTTP client | reqwest 0.12 (rustls-tls, default features off) |
 | Errors | thiserror 2 + anyhow 1 |
 | Logging | tracing + tracing-subscriber |
 
 ### Infrastructure
 - **PostgreSQL 15** for relational data + session store
+- **Redis 8** as an optional cache (Jikan / MAL responses, hot library snapshots) — the server runs fine without it
 - **MinIO / S3** for cover uploads (optional — falls back to local FS via `STORAGE_DIR`)
 - **Traefik v2** as reverse proxy (dev + prod)
 - **Docker Compose** (dev + prod variants)
@@ -101,10 +109,10 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 
 ```
 .
-├── client/                # React 19 + Vite PWA
+├── client/                # React 19 + Vite 8 PWA
 │   ├── src/
-│   │   ├── components/    # Pages + UI primitives (PageLoader, Modal, …)
-│   │   ├── hooks/         # useLibrary, useVolumes, useSettings, useActivity, …
+│   │   ├── components/    # Pages + UI primitives (Dashboard, MangaPage, AddCoffretModal, SealsPage, PublicProfile, …)
+│   │   ├── hooks/         # useLibrary, useVolumes, useSettings, useSeals, useRealtimeSync, …
 │   │   ├── lib/           # db.js (Dexie), sync.js (outbox), connectivity.js, theme.js, barcode.js, …
 │   │   ├── i18n/          # en.js / fr.js / es.js
 │   │   └── styles/        # Tailwind v4 + Shōjo Noir palette
@@ -114,8 +122,8 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 │
 ├── server/                # Rust + Axum backend
 │   ├── src/
-│   │   ├── handlers/      # HTTP route handlers
-│   │   ├── services/      # Business logic
+│   │   ├── handlers/      # HTTP route handlers (incl. realtime.rs WebSocket)
+│   │   ├── services/      # Business logic (library, coffrets, seals, public profiles)
 │   │   ├── models/        # SeaORM entities
 │   │   ├── routes/        # Router composition
 │   │   └── auth.rs        # OIDC client + AuthenticatedUser extractor
@@ -123,7 +131,7 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 │   ├── Dockerfile         # Multi-stage → scratch runtime + OCI security labels
 │   └── Cargo.toml
 │
-├── docker-compose.yml     # Dev stack (db + traefik + server + client)
+├── docker-compose.yml     # Dev stack (db + redis + traefik + server + client)
 ├── docker-compose.prod.yml
 └── docs/screenshots/
 ```
@@ -184,6 +192,7 @@ All server config lives in environment variables (see [`server/.env.example`](se
 | `FRONTEND_URL` | Used for CORS + OAuth redirect URI |
 | `STORAGE_DIR` | If set, use local filesystem for poster uploads |
 | `S3_*` | If set instead, use S3/MinIO for poster uploads |
+| `REDIS_URL` | Optional. When set (e.g. `redis://redis:6379/1`), enables the response cache layer; otherwise the server runs cache-less |
 | `APP_UNSECURE_HEALTHCHECK` | Set to `true` to allow non-loopback `/api/health` (e.g. for Uptime Kuma) |
 
 ---
@@ -193,8 +202,8 @@ All server config lives in environment variables (see [`server/.env.example`](se
 The image story is the same in dev and prod — **multi-stage Docker builds + read-only runtime**.
 
 ### Backend
-- Built on `rust:alpine` with statically linked OpenSSL → final binary copied into `FROM scratch`
-- ~37 MB final image, no shell, no package manager
+- Built on `rust:alpine` with **Rustls (aws-lc-rs)** TLS — the whole `openssl` / `openssl-sys` chain is gone, both at build time and at runtime — and the resulting static musl binary is copied into `FROM scratch`
+- ~22 MB final image (≈15 MB lighter than the OpenSSL-linked build), no shell, no package manager
 - Runs as non-root, with `cap_drop: ALL` and `read_only: true` in Compose / k8s
 - HEALTHCHECK: the binary itself accepts a `--health` subcommand that loops back to `/api/health` and exits 0/1
 - OCI labels (`security.readonly-rootfs`, `security.tmpfs`, `security.caps.drop`, …) document the runtime contract
@@ -229,23 +238,24 @@ The supplied `docker-compose.yml` uses Traefik v2 in plain HTTP for local dev. *
 I'm a manga collector. Spreadsheets and memory don't scale to long-running series — by volume 30 of *One Piece* you've forgotten what you paid for #14 and which obi was on the limited edition #22.
 
 The project was also a chance to push on:
-- **Offline-first architecture** with optimistic mutations + a coalesced outbox (no log-replay surprises)
-- **Hardened container delivery** — scratch image, dropped capabilities, read-only rootfs, OCI security labels
+- **Offline-first architecture** with optimistic mutations + a coalesced outbox (no log-replay surprises) and Dexie-backed caches that survive a cold start
+- **Cross-device realtime** without a third-party broker — a single Axum WebSocket route with per-user broadcast, authenticated by the same session cookie the REST endpoints use
+- **Hardened container delivery** — scratch image, dropped capabilities, read-only rootfs, OCI security labels, and a fully Rustls / `aws-lc-rs` TLS stack so OpenSSL CVEs simply don't apply
 - **Distinctive visual identity** — committing to a single bold direction (Shōjo Noir) rather than the default "indigo gradient + Inter" SaaS look
 - **Full-stack Rust backend** — Axum, SeaORM, openidconnect, AWS SDK, all on the latest stable releases
+- **Modern build pipeline** — Vite 8 / Rolldown produces a complete production build (≈140 chunks + a Workbox-driven service worker precaching ~50 assets) in under half a second
 
 ---
 
 ## Roadmap
 
-- Cross-device live sync via WebSockets (right now sync is polling on focus + outbox flush)
 - Smart shelf grouping (by demographic, era, publisher)
 - Wishlist with pre-order tracking and price alerts
-- Public, shareable collection profiles (opt-in)
 - Native mobile wrapper via Capacitor (the PWA already covers the core experience)
+- Edition / coffret marketplace links (publisher pre-orders surfaced from the coffret detail view)
 
 ---
 
 ## Contact
 
-Questions, feedback or fellow-collector enthusiasm welcome — reach out on GitHub or LinkedIn (linked from my profile).
+Questions, feedback or fellow-collector enthusiasm welcome — reach out via GitHub Issues, or through the contact links on my GitHub profile.

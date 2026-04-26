@@ -16,9 +16,29 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::errors::AppError;
 use crate::models::library::{self, Entity as LibraryEntity, LibraryEntry};
-use crate::models::user::PublicProfileResponse;
 use crate::services::{library as library_svc, users};
 use crate::state::AppState;
+
+/// Headers attached to every public-profile response (JSON + poster).
+///
+/// - `X-Robots-Tag: noindex, nofollow, noarchive` — search engines
+///   must NOT index or cache these endpoints. The Birthday-mode design
+///   relies on time-bounded exposure; an indexed snapshot in Google's
+///   cache outlives the window and contradicts the contract.
+/// - `Cache-Control: private, no-store` (JSON profile) — keeps
+///   intermediate caches from holding the wishlist longer than the
+///   server's own filter intends. The poster endpoint sets its own
+///   `public, max-age=86400` because cover blobs are expensive to
+///   re-fetch and aren't time-bounded the same way.
+fn no_index_header() -> (header::HeaderName, http::HeaderValue) {
+    (
+        header::HeaderName::from_static("x-robots-tag"),
+        "noindex, nofollow, noarchive".parse().unwrap(),
+    )
+}
+fn private_no_store_header() -> (header::HeaderName, http::HeaderValue) {
+    (header::CACHE_CONTROL, "private, no-store".parse().unwrap())
+}
 
 /// GET /public/u/{slug}
 ///
@@ -29,7 +49,7 @@ use crate::state::AppState;
 pub async fn get_public_profile(
     State(state): State<AppState>,
     Path(slug): Path<String>,
-) -> Result<Json<PublicProfileResponse>, AppError> {
+) -> Result<Response, AppError> {
     let normalised = slug.trim().to_lowercase();
     if normalised.is_empty() {
         return Err(AppError::NotFound("Profile not found".into()));
@@ -38,7 +58,16 @@ pub async fn get_public_profile(
         .await?
         .ok_or_else(|| AppError::NotFound("Profile not found".into()))?;
     let payload = users::build_public_profile(&state.db, &user).await?;
-    Ok(Json(payload))
+    // Build the response manually so we can attach `X-Robots-Tag`
+    // and `Cache-Control: private, no-store` — the previous
+    // `Json(payload)` shortcut emitted neither, leaving the JSON
+    // indexable and cacheable by intermediate proxies.
+    let response = (
+        [no_index_header(), private_no_store_header()],
+        Json(payload),
+    )
+        .into_response();
+    Ok(response)
 }
 
 /// GET /public/u/{slug}/poster/{mal_id}
@@ -93,6 +122,19 @@ pub async fn get_public_poster(
         .ok_or_else(|| AppError::NotFound("Poster not found".into()))?;
     let entry = LibraryEntry::from(row);
 
+    // 祝 · Wishlist gate (mirror of `build_public_profile`). The cover
+    // of a wishlist-only series (volumes_owned == 0) must NOT be
+    // reachable via direct URL when Birthday mode is closed —
+    // otherwise the gallery filter is purely cosmetic and an attacker
+    // can iterate mal_ids to enumerate the wishlist anyway.
+    let wishlist_open = user
+        .wishlist_public_until
+        .map(|t| t > chrono::Utc::now())
+        .unwrap_or(false);
+    if !wishlist_open && entry.volumes_owned == 0 {
+        return Err(AppError::NotFound("Poster not found".into()));
+    }
+
     // Adult filter (rule 3). Uses the same helper as the gallery so
     // the two can never drift — hiding a card in the gallery while
     // leaving its cover fetchable via direct URL would be a silent
@@ -141,6 +183,11 @@ pub async fn get_public_poster(
                 header::CACHE_CONTROL,
                 "public, max-age=86400".parse().unwrap(),
             ),
+            // Same noindex policy as the JSON profile — Image Search
+            // shouldn't surface user posters either, especially while
+            // Birthday mode is open and a wishlist cover would
+            // otherwise be discoverable past its window.
+            no_index_header(),
         ],
         Body::from(data),
     )

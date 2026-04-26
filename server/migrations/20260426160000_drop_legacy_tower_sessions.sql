@@ -1,0 +1,18 @@
+-- 始末 · Drop the legacy `public.tower_sessions` table.
+--
+-- The earlier `20251009122653_sessions.sql` migration scaffolded a
+-- `public.tower_sessions(id, data, expiry_date)` table on the
+-- assumption that tower-sessions-sqlx-store would write there. It
+-- doesn't — the upstream PostgresStore creates and uses
+-- `"tower_sessions"."session"` (schema `tower_sessions`, table
+-- `session`) at boot via its own `migrate()` call. Our table sat
+-- empty for the entire life of the project and was the source of
+-- two long-standing bugs: a foreign key that never resolved and a
+-- DELETE that never matched.
+--
+-- IF EXISTS keeps this idempotent: if a fresh deploy (which never
+-- ran the legacy migration) or a hand-cleaned DB has already dropped
+-- it, the migration is a quiet no-op rather than a hard failure.
+-- We deliberately don't touch the upstream `"tower_sessions"."session"`
+-- table — that's where actual sessions live.
+DROP TABLE IF EXISTS public.tower_sessions;

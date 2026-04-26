@@ -1,8 +1,10 @@
 use axum::{
     extract::{Query, State},
+    http::HeaderMap,
     response::{IntoResponse, Redirect},
     Json,
 };
+use axum::extract::Path;
 use serde_json::json;
 use tower_sessions::Session;
 
@@ -11,7 +13,7 @@ use crate::auth::{
     SESSION_CSRF_TOKEN, SESSION_NONCE, SESSION_PKCE_VERIFIER, SESSION_USER_ID,
 };
 use crate::errors::AppError;
-use crate::services::users;
+use crate::services::{sessions, users};
 use crate::state::AppState;
 
 /// GET /auth/oauth2 — start OAuth2 / OIDC flow
@@ -42,6 +44,7 @@ pub async fn start_oauth(
 pub async fn oauth_callback(
     State(state): State<AppState>,
     Query(params): Query<CallbackQuery>,
+    headers: HeaderMap,
     session: Session,
 ) -> Result<impl IntoResponse, AppError> {
     // Verify CSRF state
@@ -93,20 +96,105 @@ pub async fn oauth_callback(
         .await?,
     };
 
+    // 印 · Rotate the session id on authentication. Classic
+    // session-fixation defence: if the user arrived at this callback
+    // with an existing cookie (e.g. a pre-OAuth session that already
+    // held PKCE state), continuing to use that cookie would let an
+    // attacker plant their own pre-known session id on the victim
+    // and then ride the authenticated session afterwards.
+    // tower-sessions' `cycle_id()` mints a fresh id and migrates the
+    // current session payload over — the old id is invalidated. The
+    // `record_login` call below sees the NEW id, so the meta row is
+    // created against an attacker-unknown identifier.
+    session
+        .cycle_id()
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
     session
         .insert(SESSION_USER_ID, user.id)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    // 機 · Record this session in our parallel `user_session_meta`
+    // table. INSERT (with ON CONFLICT update) lives ONLY here; the
+    // `AuthenticatedUser` extractor below uses an UPDATE-only `touch`.
+    // That asymmetry is what makes `revoke` stick — once a row is
+    // deleted, it can only be re-created via a fresh OAuth login,
+    // not by a leftover cookie hitting the extractor.
+    //
+    // Errors are propagated: a meta-row failure here means the
+    // session would be born revoked (the gate kicks them on the
+    // next request), which produces a confusing OAuth-loop UX. A
+    // 500 at the callback is the honest outcome and lets the SPA
+    // surface a "couldn't sign you in" toast.
+    let session_id = session
+        .id()
+        .map(|id| id.to_string())
+        .ok_or_else(|| AppError::Internal("session id missing post-cycle".into()))?;
+    let user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    sessions::record_login(&state.db, &session_id, user.id, user_agent).await?;
+
     Ok(Redirect::to(&state.config.frontend_url))
 }
 
+/// GET /api/user/sessions — list every active session for the current user.
+///
+/// Returns the most recently active first; the row that issued the
+/// request is flagged via `is_current` so the SPA can render the
+/// "this device" pill.
+pub async fn list_sessions(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    session: Session,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let current = session.id().map(|id| id.to_string()).unwrap_or_default();
+    let entries = sessions::list_for_user(&state.db, user.id, &current).await?;
+    Ok(Json(json!({ "sessions": entries })))
+}
+
+/// DELETE /api/user/sessions/{session_id} — revoke a session.
+///
+/// 404 when the session doesn't exist (already gone) or doesn't belong
+/// to the requesting user. Revoking the current session is allowed —
+/// the SPA treats it the same as logout.
+pub async fn revoke_session(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(session_id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let removed = sessions::revoke(&state.db, user.id, &session_id).await?;
+    if !removed {
+        return Err(AppError::NotFound("Session not found".into()));
+    }
+    Ok(Json(json!({ "success": true })))
+}
+
 /// POST /auth/oauth2/logout
-pub async fn logout(session: Session) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn logout(
+    State(state): State<AppState>,
+    session: Session,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Capture the id BEFORE delete: `session.delete()` resets the
+    // session-id lock once it's done, so a `session.id()` after the
+    // delete would give us None.
+    let session_id = session.id().map(|id| id.to_string());
+
     session
         .delete()
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // 機 · Drop the parallel meta row so the user's "active sessions"
+    // listing stops showing this device. Best-effort — a logout
+    // should never bounce on a meta-cleanup hiccup.
+    if let Some(id) = session_id {
+        sessions::delete_meta(&state.db, &id).await;
+    }
+
     Ok(Json(json!({ "message": "Logged out successfully" })))
 }
 

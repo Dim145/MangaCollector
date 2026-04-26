@@ -32,3 +32,27 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/*
+ * 始 · Session-loss listener.
+ *
+ * The axios 401 interceptor dispatches `mc:session-lost` on the window
+ * before redirecting to /log-in. The redirect itself force-reloads the
+ * SPA and gives us a clean cache, BUT only when the user is on an auth-
+ * required path. On a public path (`/`, `/u/<slug>`, `/glossary`) we
+ * stay put — and without this listener the React Query cache would
+ * keep the now-revoked session's private data resident in memory until
+ * the next mutation invalidated it.
+ *
+ * `clear()` drops every query atomically, including in-flight ones.
+ * Components that need data will re-fetch on their next render.
+ */
+if (typeof window !== "undefined") {
+  window.addEventListener("mc:session-lost", () => {
+    try {
+      queryClient.clear();
+    } catch {
+      /* clearing a fresh QueryClient should never throw — defensive */
+    }
+  });
+}

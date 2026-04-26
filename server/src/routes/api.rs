@@ -109,6 +109,12 @@ fn user_router() -> Router<AppState> {
         .route("/public-slug", get(user_profile::get_public_slug))
         .route("/public-slug", patch(user_profile::update_public_slug))
         .route("/public-adult", patch(user_profile::update_public_adult))
+        // 祝 · birthday mode — open the wishlist publicly for N days
+        // (server clamps to 365d max; days<=0 disables).
+        .route(
+            "/wishlist-public",
+            patch(user_profile::update_wishlist_public),
+        )
         // 写本 · Archive — portable export / merge-import.
         .route("/export.json", get(archive::export_json))
         .route("/export.csv", get(archive::export_csv))
@@ -121,4 +127,13 @@ fn user_router() -> Router<AppState> {
         .route("/import/external/yamtrack", post(external_import::import_yamtrack))
         // GDPR — erase the entire account
         .route("/account", delete(auth_handlers::delete_account))
+        // 機 · Active session listing + revocation. The user can see
+        // every device currently signed in to their account and
+        // revoke any of them; the request that issued the call is
+        // flagged so the SPA can highlight (and special-case) it.
+        .route("/sessions", get(auth_handlers::list_sessions))
+        .route(
+            "/sessions/{session_id}",
+            delete(auth_handlers::revoke_session),
+        )
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  始 · hajime (begin) — App-shortcut icon for "add a series". Same
+  hanko background as `shortcut-scan.svg`; the matching colour treats
+  shortcuts as a sibling family in the launcher's long-press menu.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <rect width="96" height="96" rx="20" fill="#c91d1d"/>
+  <text x="48" y="68" text-anchor="middle"
+        font-family="'Noto Serif JP', 'Hiragino Mincho ProN', 'YuMincho', serif"
+        font-size="60" font-weight="700" fill="#faf6e9">始</text>
+</svg>
