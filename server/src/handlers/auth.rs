@@ -102,17 +102,43 @@ pub async fn oauth_callback(
     // held PKCE state), continuing to use that cookie would let an
     // attacker plant their own pre-known session id on the victim
     // and then ride the authenticated session afterwards.
-    // tower-sessions' `cycle_id()` mints a fresh id and migrates the
-    // current session payload over — the old id is invalidated. The
-    // `record_login` call below sees the NEW id, so the meta row is
-    // created against an attacker-unknown identifier.
+    //
+    // Sequencing matters here. tower-sessions 0.13 documents that
+    // `cycle_id()` *marks* the session for ID rotation but does NOT
+    // mint the new ID until the next save — calling `session.id()`
+    // between cycle and save returns the OLD id (or None when the
+    // session record was missing). The first production deploy of
+    // this codepath crashed callbacks with "session id missing
+    // post-cycle" because we read the id before any save happened.
+    //
+    // The order is therefore:
+    //   1. insert SESSION_USER_ID  → guarantees an in-memory record
+    //   2. cycle_id                → flags the rotation
+    //   3. save                    → mints the new id + writes the
+    //                                row to the upstream session
+    //                                store with the rotated id
+    //   4. session.id()            → now returns the rotated id
+    //   5. record_login            → meta row lands against the id
+    //                                the next request will carry,
+    //                                NOT against a stale pre-cycle
+    //                                id that the gate would reject
+    //
+    // Without step 3, the meta row pointed at the pre-cycle id,
+    // the cookie shipped the post-cycle id, and the gate kicked
+    // every newly-logged-in user on their very first authenticated
+    // request — a regression worse than the bug we were fixing.
+    session
+        .insert(SESSION_USER_ID, user.id)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
     session
         .cycle_id()
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     session
-        .insert(SESSION_USER_ID, user.id)
+        .save()
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -128,10 +154,14 @@ pub async fn oauth_callback(
     // next request), which produces a confusing OAuth-loop UX. A
     // 500 at the callback is the honest outcome and lets the SPA
     // surface a "couldn't sign you in" toast.
-    let session_id = session
-        .id()
-        .map(|id| id.to_string())
-        .ok_or_else(|| AppError::Internal("session id missing post-cycle".into()))?;
+    let session_id = session.id().map(|id| id.to_string()).ok_or_else(|| {
+        // Reaching this branch means the session has no record even
+        // after an explicit save — typically a misconfigured or
+        // unreachable session store. The error message reflects that
+        // root cause rather than the previous "post-cycle" wording,
+        // which was a red herring once we re-ordered the calls.
+        AppError::Internal("session record unavailable after save".into())
+    })?;
     let user_agent = headers
         .get(axum::http::header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
