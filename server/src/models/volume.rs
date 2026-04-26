@@ -24,6 +24,43 @@ pub struct Model {
     /// (borrowed copy) or owned without being read (classic tsundoku).
     #[sea_orm(default)]
     pub read_at: Option<chrono::DateTime<chrono::Utc>>,
+
+    // ── 来 · Upcoming-volume metadata ───────────────────────────────
+    //
+    // A volume with `release_date > NOW()` is "upcoming" — the rest
+    // of the system enforces:
+    //   - owned must be false
+    //   - read_at must be NULL
+    //   - collector must be false
+    // The transition to "released" is implicit: once `release_date`
+    // is in the past, the same predicate flips, no migration / job
+    // is needed.
+    /// Announced commercial release date for this tome. NULL = the
+    /// volume is already out (or the source had no date).
+    #[sea_orm(default)]
+    pub release_date: Option<chrono::DateTime<chrono::Utc>>,
+    /// ISBN-13 of the announced edition. Surfaces in the drawer and
+    /// helps a future "scan on pickup" flow match the existing row
+    /// rather than minting a new one.
+    #[sea_orm(default)]
+    pub release_isbn: Option<String>,
+    /// Pre-order URL — typically the publisher's product page or a
+    /// retailer (Amazon FR / FNAC / Bookwalker). Displayed as an
+    /// outbound CTA in the upcoming-volume drawer.
+    #[sea_orm(default)]
+    pub release_url: Option<String>,
+    /// Provenance of this row. `manual` = the user typed it in and
+    /// the nightly sweep must leave it alone. Any of the API-source
+    /// values (`mangaupdates`, `googlebooks`, `openlibrary`,
+    /// `mangadex`) marks a row the sweep is allowed to refresh.
+    #[sea_orm(default = "manual")]
+    pub origin: String,
+    /// When THIS server first persisted the announcement. Used by
+    /// the UI to surface "Detected MMM dd" so the user can judge
+    /// the data's freshness, and by the cancellation cleanup path
+    /// (a stale upcoming row past its date by 14d gets removed).
+    #[sea_orm(default)]
+    pub announced_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -129,6 +129,13 @@ dotenvy = "0.15"
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }
 
+# Random identifiers — used for the subscribable ICS calendar token
+# (`users.calendar_token`). The crate is already in the dep graph via
+# sqlx, but declaring it directly with the right features lets us call
+# `Uuid::new_v4()` without piggybacking on the transitive's feature set
+# (which doesn't enable `v4` by default).
+uuid = { version = "1", features = ["v4"] }
+
 # Error handling
 anyhow = "1"
 thiserror = "2"

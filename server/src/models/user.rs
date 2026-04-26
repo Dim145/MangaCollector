@@ -29,6 +29,18 @@ pub struct Model {
     /// the application layer treats expired-or-NULL as "feature off".
     #[sea_orm(default)]
     pub wishlist_public_until: Option<chrono::DateTime<chrono::Utc>>,
+    /// 暦 · Secret token for the subscribable ICS calendar feed. NULL
+    /// means the user has never opted in (the SPA will mint a token
+    /// the first time they open the "Subscribe" modal). UUID v4 by
+    /// convention but the column is opaque text — anything random
+    /// and unique works.
+    ///
+    /// Treated as a credential: anyone holding it can read the user's
+    /// upcoming-volume timeline through the public ICS handler. The
+    /// SPA exposes a "Regenerate" action that mints a new token + drops
+    /// the old one, invalidating any leaked URL.
+    #[sea_orm(default)]
+    pub calendar_token: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

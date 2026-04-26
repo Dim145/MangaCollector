@@ -445,6 +445,93 @@ pub async fn set_wishlist_public_until(
     Ok(until)
 }
 
+// ── 暦 · Calendar ICS token lifecycle ─────────────────────────────────
+//
+// Three operations gate the subscribable ICS feed:
+//
+//   - `ensure_calendar_token`   → mint a token if missing, return it.
+//                                 Idempotent (returns the existing one
+//                                 when present). Used by the SPA the
+//                                 first time the user opens the
+//                                 "Subscribe" modal.
+//   - `regenerate_calendar_token`→ ALWAYS mint a fresh one, replacing
+//                                 the previous value. Invalidates any
+//                                 leaked URL.
+//   - `find_by_calendar_token`  → reverse lookup for the public ICS
+//                                 handler — the token IS the auth.
+//                                 Returns the user (so the handler can
+//                                 scope the calendar listing) or None.
+
+/// Look up a user by their secret calendar token. Returns `None`
+/// when no user has that token (or `token` is empty / malformed) —
+/// the caller maps this to a 404, never a 401, so an attacker
+/// brute-forcing the token space gets the exact same shape of
+/// response for "wrong" and "missing" inputs.
+pub async fn find_by_calendar_token(
+    db: &Db,
+    token: &str,
+) -> Result<Option<User>, AppError> {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    UserEntity::find()
+        .filter(user::Column::CalendarToken.eq(trimmed.to_string()))
+        .one(db)
+        .await
+        .map_err(AppError::from)
+}
+
+/// Lazily mint a calendar token. If the user already has one, it's
+/// returned unchanged — the caller can rely on stable URL semantics
+/// across repeated calls. This is the only path that minters NEW
+/// tokens for users who haven't subscribed yet.
+pub async fn ensure_calendar_token(
+    db: &Db,
+    user_id: i32,
+) -> Result<String, AppError> {
+    use sea_orm::Set;
+    let row = UserEntity::find_by_id(user_id)
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .ok_or(AppError::Unauthorized)?;
+    if let Some(existing) = row.calendar_token.as_ref() {
+        if !existing.is_empty() {
+            return Ok(existing.clone());
+        }
+    }
+
+    let token = uuid::Uuid::new_v4().to_string();
+    let mut active: ActiveModel = row.into();
+    active.calendar_token = Set(Some(token.clone()));
+    active.modified_on = Set(Utc::now());
+    active.update(db).await.map_err(AppError::from)?;
+    Ok(token)
+}
+
+/// Regenerate the calendar token unconditionally. Used by the user
+/// when they suspect the previous URL has leaked — the old token is
+/// dropped and any subscriber stops receiving updates after their
+/// next refresh.
+pub async fn regenerate_calendar_token(
+    db: &Db,
+    user_id: i32,
+) -> Result<String, AppError> {
+    use sea_orm::Set;
+    let row = UserEntity::find_by_id(user_id)
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .ok_or(AppError::Unauthorized)?;
+    let token = uuid::Uuid::new_v4().to_string();
+    let mut active: ActiveModel = row.into();
+    active.calendar_token = Set(Some(token.clone()));
+    active.modified_on = Set(Utc::now());
+    active.update(db).await.map_err(AppError::from)?;
+    Ok(token)
+}
+
 /// Toggle the "include adult content in public profile" opt-in. Takes
 /// a simple boolean because the action is unambiguous — no distinction
 /// between "unset" and "false".

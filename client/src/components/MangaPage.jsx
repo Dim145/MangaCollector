@@ -28,10 +28,10 @@ import { useVolumePreviewController } from "@/hooks/useVolumePreviewController.j
 import CoverPreview from "./ui/CoverPreview.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
-import { refreshFromMangadex } from "@/utils/user.js";
+import { refreshFromMangadex, refreshUpcoming } from "@/utils/user.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { db } from "@/lib/db.js";
-import { notifySyncError } from "@/lib/sync.js";
+import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -379,6 +379,67 @@ export default function MangaPage({ manga, adult_content_level }) {
     } catch (e) {
       console.error(e);
       notifySyncError(e, "mangadex-refresh");
+    } finally {
+      setRefreshingSource(null);
+    }
+  };
+
+  // 来 · Upcoming-volume refresh.
+  //
+  // Outcome surfacing moved to the global `SyncToaster` (via
+  // `notifySyncInfo`) after the trigger relocated into the
+  // edit-split-button's sync menu. The previous inline echo (next
+  // to the volumes list header) made sense when the trigger lived
+  // in the same row; with the trigger now collapsed into the
+  // dropdown, the echo had no anchor — it was floating above
+  // unrelated content. Routing through SyncToaster:
+  //
+  //   - puts the result in the same corner the user already
+  //     reads for sync feedback (errors, MAL/MD failures)
+  //   - keeps it visible regardless of scroll position
+  //   - lets us thematically distinguish success (moegi/green-tea
+  //     accent) from no-changes (neutral washi) from failure
+  //     (hanko/red), without re-implementing those variants here
+  //
+  // On failure we still emit through the existing error channel —
+  // SyncToaster renders both channels in a single stack.
+  const refreshUpcomingVolumes = async () => {
+    if (!online || refreshingSource) return;
+    setRefreshingSource("upcoming");
+    try {
+      const report = await refreshUpcoming(manga.mal_id);
+      const added = report?.added?.length ?? 0;
+      const updated = report?.updated?.length ?? 0;
+      // Server publishes SyncKind::Volumes itself; we still kick the
+      // query cache so users on a flaky WebSocket re-fetch quickly.
+      if (added > 0 || updated > 0) {
+        queryClient.invalidateQueries({
+          queryKey: ["volumes", manga.mal_id],
+        });
+      }
+      // Two payload shapes — one for "concrete result, celebrate"
+      // and one for "all good but nothing new." The toaster picks
+      // tone (moegi vs washi) off the `tone` field.
+      if (added + updated > 0) {
+        notifySyncInfo({
+          op: "upcoming-refresh",
+          tone: "success",
+          icon: "来",
+          title: t("manga.upcomingResultChanged", { added, updated }),
+          body: t("manga.upcomingResultChangedBody", { name: manga.name }),
+        });
+      } else {
+        notifySyncInfo({
+          op: "upcoming-refresh",
+          tone: "neutral",
+          icon: "来",
+          title: t("manga.upcomingResultNone"),
+          body: t("manga.upcomingResultNoneBody"),
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      notifySyncError(e, "upcoming-refresh");
     } finally {
       setRefreshingSource(null);
     }
@@ -956,26 +1017,28 @@ export default function MangaPage({ manga, adult_content_level }) {
                 {t("manga.volumesCount", { n: volumes?.length ?? 0 })}
               </span>
             </div>
-            {/* Coffret CTA — washi/cream palette so it reads as "box / paper
-                slipcase", distinct from the gold reserved for collector. */}
-            {manga.mal_id >= 0 && (volumes?.length ?? 0) > 0 && (
-              <button
-                type="button"
-                onClick={() => setCoffretModalOpen(true)}
-                disabled={!online}
-                title={!online ? t("coffret.offlineHint") : undefined}
-                className="inline-flex items-center gap-1.5 rounded-full border border-washi/30 bg-washi/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-washi/60 hover:bg-washi/10 hover:text-washi active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span
-                  aria-hidden="true"
-                  className="font-display text-[13px] leading-none text-washi"
-                  title={t("badges.coffret")}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Coffret CTA — washi/cream palette so it reads as "box / paper
+                  slipcase", distinct from the gold reserved for collector. */}
+              {manga.mal_id >= 0 && (volumes?.length ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCoffretModalOpen(true)}
+                  disabled={!online}
+                  title={!online ? t("coffret.offlineHint") : undefined}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-washi/30 bg-washi/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-washi/60 hover:bg-washi/10 hover:text-washi active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  盒
-                </span>
-                {t("coffret.addCta")}
-              </button>
-            )}
+                  <span
+                    aria-hidden="true"
+                    className="font-display text-[13px] leading-none text-washi"
+                    title={t("badges.coffret")}
+                  >
+                    盒
+                  </span>
+                  {t("coffret.addCta")}
+                </button>
+              )}
+            </div>
           </div>
 
           {volumesLoading ? (
@@ -1015,6 +1078,11 @@ export default function MangaPage({ manga, adult_content_level }) {
                         store={vol.store}
                         collector={vol.collector}
                         readAt={vol.read_at}
+                        releaseDate={vol.release_date}
+                        releaseIsbn={vol.release_isbn}
+                        releaseUrl={vol.release_url}
+                        origin={vol.origin}
+                        announcedAt={vol.announced_at}
                         locked
                         onUpdate={volumeUpdateCallback}
                         currencySetting={currencySetting}
@@ -1041,6 +1109,11 @@ export default function MangaPage({ manga, adult_content_level }) {
                         store={vol.store}
                         collector={vol.collector}
                         readAt={vol.read_at}
+                        releaseDate={vol.release_date}
+                        releaseIsbn={vol.release_isbn}
+                        releaseUrl={vol.release_url}
+                        origin={vol.origin}
+                        announcedAt={vol.announced_at}
                         onUpdate={volumeUpdateCallback}
                         currencySetting={currencySetting}
                         coverUrl={volumeCoverMap?.[vol.vol_num]}
@@ -1190,6 +1263,53 @@ export default function MangaPage({ manga, adult_content_level }) {
                 </svg>
                 <span className="flex-1 truncate">
                   {t("manga.syncFromMangadex")}
+                </span>
+              </button>
+            )}
+            {/* 来 · Upcoming-volume refresh.
+                Same menu family as the MAL / MangaDex pulls but
+                semantically distinct: we're not refetching THIS
+                series' metadata, we're discovering future volumes.
+                Visual cues marking that distinction:
+                  - 来 kanji (the same symbol the inline result
+                    badge below the volumes list uses) instead of
+                    the round-trip refresh arrow used for MAL/MD
+                  - `animate-pulse` on the glyph instead of the
+                    spinner animation, mirroring the original
+                    standalone button's "scanning the calendar"
+                    feel rather than "round-tripping a sync"
+                  - moegi accent on the kanji — the same green-tea
+                    tone the "next volume" chips elsewhere use, so
+                    the family connection reads at a glance.
+                Visibility gated on mal_id > 0 (custom-only series
+                have no calendar source to query). */}
+            {manga.mal_id > 0 && (
+              <button
+                role="menuitem"
+                onClick={async () => {
+                  await refreshUpcomingVolumes();
+                  setEditMenuOpen(false);
+                }}
+                disabled={refreshing || !online}
+                title={
+                  !online
+                    ? t("manga.upcomingOfflineHint")
+                    : t("manga.upcomingRefreshHint")
+                }
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold text-washi-muted transition hover:bg-moegi/10 hover:text-washi disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`font-jp text-[14px] font-bold leading-none text-moegi shrink-0 w-3.5 text-center ${
+                    refreshingSource === "upcoming" ? "animate-pulse" : ""
+                  }`}
+                >
+                  来
+                </span>
+                <span className="flex-1 truncate">
+                  {refreshingSource === "upcoming"
+                    ? t("manga.upcomingRefreshing")
+                    : t("manga.upcomingRefresh")}
                 </span>
               </button>
             )}

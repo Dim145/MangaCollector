@@ -90,6 +90,25 @@ export default function VolumeDetailDrawer({
   isLoading,
   onSave,
   onCancel,
+  // ── 来 · Upcoming-volume mode ────────────────────────────────────────
+  // When `isUpcoming` is true the drawer flips into a read-only
+  // "details" mode: every form input is disabled, the Save button is
+  // hidden (replaced by a single "Close"), and the header swaps to
+  // the upcoming-tier kanji 来 + countdown. The `daysUntilRelease`
+  // is parent-computed because the parent already needs the predicate
+  // for its own visual logic — duplicating the math here would risk
+  // a 1-day desync between the badge and the drawer.
+  isUpcoming = false,
+  releaseDate = null,
+  releaseIsbn = null,
+  releaseUrl = null,
+  origin = "manual",
+  /// ISO timestamp (or null) of when the announcement was first
+  /// detected by our cascade. Surfaced as "Detected MMM dd · X days
+  /// ago" so the user can judge how fresh the data is — relevant
+  /// when a publisher slips a date and we haven't re-confirmed yet.
+  announcedAt = null,
+  daysUntilRelease = null,
 }) {
   const t = useT();
   // Stable per-instance namespace for input/label association. Replaces
@@ -276,20 +295,33 @@ export default function VolumeDetailDrawer({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={t("volume.editDrawerTitle", { n: volNum })}
+        aria-label={
+          isUpcoming
+            ? t("volume.upcomingDetailsAria")
+            : t("volume.editDrawerTitle", { n: volNum })
+        }
         tabIndex={-1}
-        className={`relative flex h-full w-full max-w-[26rem] flex-col overflow-hidden border-l border-border bg-gradient-to-b from-ink-1 via-ink-1 to-ink-0 shadow-[0_0_60px_-12px_rgba(220,38,38,0.35)] focus:outline-none ${panelAnim}`}
+        className={`relative flex h-full w-full max-w-[26rem] flex-col overflow-hidden border-l ${
+          isUpcoming
+            ? "border-moegi/30 bg-gradient-to-b from-ink-1 via-ink-1 to-moegi/[0.04] shadow-[0_0_60px_-12px_rgba(163,201,97,0.32)]"
+            : "border-border bg-gradient-to-b from-ink-1 via-ink-1 to-ink-0 shadow-[0_0_60px_-12px_rgba(220,38,38,0.35)]"
+        } focus:outline-none ${panelAnim}`}
       >
-        {/* Background watermark — 巻 (kan/maki = "volume / scroll").
-            Sits behind everything at very low opacity, like a hanko mark
-            stamped onto handmade paper. Pointer-events disabled so it
-            never eats clicks. */}
+        {/* Background watermark.
+            Edit mode: 巻 (kan/maki = "volume / scroll") in hanko-red
+            ink wash, the same hanko-stamp aesthetic as the rest of
+            the SPA.
+            Upcoming mode: 来 (rai = "to come") in moegi, signalling
+            "the next page hasn't been written yet". Pointer-events
+            disabled either way. */}
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-12 top-24 select-none font-jp text-[28rem] font-bold leading-none text-hanko/[0.04]"
+          className={`pointer-events-none absolute -right-12 top-24 select-none font-jp text-[28rem] font-bold leading-none ${
+            isUpcoming ? "text-moegi/[0.06]" : "text-hanko/[0.04]"
+          }`}
           style={{ writingMode: "vertical-rl" }}
         >
-          巻
+          {isUpcoming ? "来" : "巻"}
         </span>
 
         {/* ── Header ────────────────────────────────────────────────── */}
@@ -298,11 +330,13 @@ export default function VolumeDetailDrawer({
             {coverUrl ? (
               <span
                 className={`relative h-24 w-16 flex-shrink-0 overflow-hidden rounded-md border shadow-md transition ${
-                  collectorStatus
-                    ? "border-gold ring-1 ring-gold/60 shadow-[0_0_12px_rgba(201,169,97,0.35)]"
-                    : ownedStatus
-                      ? "border-hanko/70 shadow-[0_0_10px_rgba(220,38,38,0.2)]"
-                      : "border-border"
+                  isUpcoming
+                    ? "border-moegi/60 ring-1 ring-moegi/40 shadow-[0_0_12px_rgba(163,201,97,0.35)]"
+                    : collectorStatus
+                      ? "border-gold ring-1 ring-gold/60 shadow-[0_0_12px_rgba(201,169,97,0.35)]"
+                      : ownedStatus
+                        ? "border-hanko/70 shadow-[0_0_10px_rgba(220,38,38,0.2)]"
+                        : "border-border"
                 }`}
               >
                 <img
@@ -312,18 +346,26 @@ export default function VolumeDetailDrawer({
                   draggable={false}
                   className={`h-full w-full select-none object-cover ${
                     blurImage ? "blur-md" : ""
-                  } ${!ownedStatus ? "brightness-50 grayscale" : ""}`}
+                  } ${
+                    isUpcoming
+                      ? "brightness-55 saturate-50"
+                      : !ownedStatus
+                        ? "brightness-50 grayscale"
+                        : ""
+                  }`}
                 />
-                {!ownedStatus && (
+                {(isUpcoming || !ownedStatus) && (
                   <span className="pointer-events-none absolute inset-0 bg-ink-0/55" />
                 )}
                 <span
                   className={`pointer-events-none absolute bottom-0.5 right-0.5 grid min-h-4 min-w-4 place-items-center rounded-sm px-1 font-mono text-[9px] font-bold leading-none shadow ${
-                    collectorStatus
-                      ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
-                      : ownedStatus
-                        ? "bg-hanko text-washi"
-                        : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
+                    isUpcoming
+                      ? "bg-moegi text-ink-0"
+                      : collectorStatus
+                        ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
+                        : ownedStatus
+                          ? "bg-hanko text-washi"
+                          : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
                   }`}
                 >
                   {volNum}
@@ -332,26 +374,57 @@ export default function VolumeDetailDrawer({
             ) : (
               <span
                 className={`grid h-24 w-16 flex-shrink-0 place-items-center rounded-md border bg-ink-2 font-mono text-base font-bold ${
-                  collectorStatus
-                    ? "border-gold text-gold"
-                    : ownedStatus
-                      ? "border-hanko text-hanko"
-                      : "border-border text-washi-dim"
+                  isUpcoming
+                    ? "border-moegi text-moegi"
+                    : collectorStatus
+                      ? "border-gold text-gold"
+                      : ownedStatus
+                        ? "border-hanko text-hanko"
+                        : "border-border text-washi-dim"
                 }`}
               >
                 {volNum}
               </span>
             )}
             <div className="min-w-0">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-hanko">
-                {t("volume.editDrawerEyebrow")}
+              <p
+                className={`font-mono text-[10px] uppercase tracking-[0.22em] ${
+                  isUpcoming ? "text-moegi" : "text-hanko"
+                }`}
+              >
+                {isUpcoming
+                  ? t("volume.upcomingDrawerEyebrow")
+                  : t("volume.editDrawerEyebrow")}
               </p>
               <h2 className="mt-1.5 font-display text-xl font-semibold italic leading-tight text-washi">
                 {t("volume.volume", { n: volNum })}
               </h2>
               <p className="mt-1 text-[12px] leading-snug text-washi-muted">
-                {t("volume.editDrawerLead")}
+                {isUpcoming
+                  ? t("volume.upcomingDrawerLead")
+                  : t("volume.editDrawerLead")}
               </p>
+              {/* 来 · Countdown chip — only on upcoming mode. Uses
+                  the same kanji as the card seal so the visual
+                  vocabulary stays consistent between the two
+                  surfaces. The chip carries both an absolute date
+                  (parseable) and a relative countdown (glanceable). */}
+              {isUpcoming && (
+                <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-moegi/40 bg-moegi/10 px-2.5 py-1 font-mono text-[11px] leading-none text-moegi">
+                  <span className="font-jp text-[12px] font-bold leading-none">
+                    来
+                  </span>
+                  <span>
+                    {formatReleaseDate(releaseDate)}
+                    {daysUntilRelease != null && daysUntilRelease > 0 && (
+                      <> · J−{daysUntilRelease}</>
+                    )}
+                    {daysUntilRelease === 0 && (
+                      <> · {t("volume.upcomingCountdownToday")}</>
+                    )}
+                  </span>
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -375,9 +448,100 @@ export default function VolumeDetailDrawer({
           </button>
         </div>
 
-        {/* ── Form (scrollable middle) ──────────────────────────────── */}
-        <div className="relative z-10 flex-1 space-y-5 overflow-y-auto p-5">
-          {/* Status (owned / missing) */}
+        {/* ── Body (scrollable middle) ───────────────────────────────
+            Two distinct shapes depending on `isUpcoming`:
+              - false: the editable form (status / reading / edition /
+                price / store) — original behaviour.
+              - true:  a read-only details panel (publisher, ISBN,
+                pre-order CTA, source attribution). The only writable
+                interaction left is "Close". */}
+        {isUpcoming ? (
+          <div className="relative z-10 flex-1 space-y-4 overflow-y-auto p-5">
+            <div className="rounded-xl border border-moegi/30 bg-moegi/5 p-4">
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-moegi-muted">
+                {t("volume.upcomingDrawerEyebrow")}
+              </p>
+              <p className="mt-1 text-[13px] leading-snug text-washi">
+                {t("volume.upcomingDrawerLead")}
+              </p>
+            </div>
+
+            {/* Publisher / ISBN / Pre-order — only render fields the
+                cascade actually populated. A bare upcoming row from
+                MangaUpdates will land with publisher only; once Phase
+                3 plugs Google Books in, ISBN + pre-order URL light up. */}
+            <dl className="space-y-3 text-[13px]">
+              {/* 印 · Source attribution — single row that adapts to
+                  manual vs API origins. The freshness sub-line ("Detected
+                  X days ago") only renders for API rows where the
+                  `announced_at` timestamp survived. Helps the user judge
+                  how stale a particular date is — a 14-day-old API row
+                  whose date is approaching deserves an eyebrow raise
+                  more than a 2-day-old one. */}
+              <div className="flex items-baseline gap-3 border-b border-border/60 pb-3">
+                <dt className="w-24 flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+                  {t("volume.upcomingSourceLabel")}
+                </dt>
+                <dd className="flex-1 text-washi">
+                  <span className="block font-mono text-[11px] text-washi-muted">
+                    {origin === "manual"
+                      ? t("volume.upcomingOriginManual")
+                      : t("volume.upcomingOriginApi", { source: origin })}
+                  </span>
+                  {announcedAt && origin !== "manual" && (
+                    <span className="mt-0.5 block font-mono text-[10px] text-washi-dim">
+                      {formatFreshness(announcedAt, t)}
+                    </span>
+                  )}
+                </dd>
+              </div>
+              {releaseIsbn && (
+                <div className="flex items-baseline gap-3 border-b border-border/60 pb-3">
+                  <dt className="w-24 flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+                    {t("volume.upcomingIsbn")}
+                  </dt>
+                  <dd className="flex-1 select-all font-mono text-[12px] text-washi">
+                    {releaseIsbn}
+                  </dd>
+                </div>
+              )}
+              {releaseUrl && (
+                <div className="flex items-baseline gap-3">
+                  <dt className="w-24 flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+                    {t("volume.upcomingPreorder")}
+                  </dt>
+                  <dd className="flex-1">
+                    <a
+                      href={releaseUrl}
+                      target="_blank"
+                      rel="noreferrer noopener nofollow"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-moegi/50 bg-moegi/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-moegi transition hover:border-moegi hover:bg-moegi/20"
+                    >
+                      <span className="font-jp text-[12px] font-bold leading-none">
+                        来
+                      </span>
+                      {t("volume.upcomingPreorder")}
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-3 w-3"
+                        aria-hidden="true"
+                      >
+                        <path d="M7 17 17 7M9 7h8v8" />
+                      </svg>
+                    </a>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        ) : (
+          <div className="relative z-10 flex-1 space-y-5 overflow-y-auto p-5">
+            {/* Status (owned / missing) */}
           <div>
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
               {t("volume.statusLabel")}
@@ -585,30 +749,89 @@ export default function VolumeDetailDrawer({
               className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
             />
           </div>
-        </div>
+          </div>
+        )}
 
-        {/* ── Footer (sticky save / cancel) ─────────────────────────── */}
+        {/* ── Footer ────────────────────────────────────────────────────
+            Edit mode: Save + Cancel side by side.
+            Upcoming mode: a single full-width Close button — there's
+            nothing to save on a not-yet-released volume, and the
+            two-button layout would invite a Save tap that the server
+            would silently coerce. Cleaner UI, fewer surprises. */}
         <div className="relative z-10 mt-auto flex gap-2 border-t border-border bg-ink-1/95 p-4 backdrop-blur">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={isLoading}
-            className="flex-1 rounded-lg bg-hanko px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
-          >
-            {isLoading ? t("common.saving") : t("common.save")}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isLoading}
-            className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi"
-          >
-            {t("common.cancel")}
-          </button>
+          {isUpcoming ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 rounded-lg border border-moegi/40 bg-moegi/5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-moegi transition hover:border-moegi hover:bg-moegi/15"
+            >
+              {t("common.close")}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={isLoading}
+                className="flex-1 rounded-lg bg-hanko px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+              >
+                {isLoading ? t("common.saving") : t("common.save")}
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={isLoading}
+                className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi"
+              >
+                {t("common.cancel")}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
 
   return createPortal(overlay, document.body);
+}
+
+/** Format an ISO release_date for upcoming-volume captions in the
+ *  drawer. Mirrors the helper in `Volume.jsx` so the two surfaces
+ *  agree on date rendering. Returns an empty string on bad input. */
+function formatReleaseDate(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
+/** Compose the "Detected MMM dd · N days ago" caption from the
+ *  `announced_at` ISO timestamp. Falls back to just the absolute
+ *  date when the relative count would round to today (the noise of
+ *  a tiny "0 days ago" doesn't earn its keep). */
+function formatFreshness(iso, t) {
+  try {
+    const announced = new Date(iso);
+    if (Number.isNaN(announced.getTime())) return "";
+    const ms = Date.now() - announced.getTime();
+    const days = Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)));
+    const absolute = announced.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    if (days === 0) return t("volume.upcomingDiscovered", { date: absolute });
+    return t("volume.upcomingDiscoveredAgo", {
+      date: absolute,
+      days,
+    });
+  } catch {
+    return "";
+  }
 }

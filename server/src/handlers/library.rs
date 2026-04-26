@@ -11,7 +11,7 @@ use crate::models::library::{
     AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, UpdateLibraryRequest,
 };
 use crate::services::realtime::SyncKind;
-use crate::services::{cover_pool, library};
+use crate::services::{cover_pool, library, releases, settings as settings_svc};
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -356,5 +356,80 @@ pub async fn delete_manga(
     Ok(Json(json!({
         "success": true,
         "message": "Removed manga from library successfully"
+    })))
+}
+
+/// POST /api/user/library/{mal_id}/refresh-upcoming
+///
+/// 来 · On-demand discovery + reconcile of upcoming volumes for a
+/// single series. Walks the API cascade (Phase 1: MangaUpdates only)
+/// and writes any newly-announced tomes into `user_volumes` with
+/// `release_date` populated, `owned/read/collector` zeroed, and
+/// `origin` set to the source. Updates in place when a known date
+/// has shifted; never touches rows the user marked as `manual`.
+///
+/// Returns a small report so the SPA can render a "X added · Y
+/// updated" toast; SPA also uses it to decide whether to refetch
+/// the volume list (added or updated > 0 → `SyncKind::Volumes` hits
+/// every connected device).
+pub async fn refresh_upcoming(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(mal_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Resolve the series name. The API cascade keys on free-text
+    // title — without the user's library row we'd be guessing,
+    // and a guess from URL params would let any caller probe the
+    // upstream API at our cost.
+    let entries = library::get_user_manga(&state.db, mal_id, user.id).await?;
+    let entry = entries
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::NotFound("Library entry not found".into()))?;
+
+    // 探 · Compute the start volume + locale before launching the
+    // cascade. `start_vol` is the user's highest known volume + 1
+    // (skipping volumes they already track to save quota); locale
+    // is read from their settings so a French user gets the Glénat
+    // / Pika edition rather than the VIZ one. Defaults to "en"
+    // when the setting is absent — Google Books' broadest catalogue.
+    let highest = releases::highest_known_vol_num(&state.db, user.id, mal_id).await?;
+    let start_vol = highest.saturating_add(1);
+    let user_settings = settings_svc::get_user_settings(&state.db, user.id).await?;
+    let lang = user_settings
+        .language
+        .clone()
+        .unwrap_or_else(|| "en".to_string());
+
+    let discovered = releases::discover_upcoming_with_locale(
+        &state.http_client,
+        state.cache.as_deref(),
+        state.config.google_books_api_key.as_deref(),
+        &entry.name,
+        start_vol,
+        &lang,
+        mal_id,
+        state.config.external_proxy_url.as_deref(),
+        std::time::Duration::from_secs(state.config.external_proxy_timeout_secs),
+    )
+    .await?;
+
+    let report = releases::reconcile_user(&state.db, user.id, mal_id, &discovered).await?;
+
+    // 同期 · Push a SyncKind::Volumes only when the reconcile actually
+    // mutated something — saves connected devices a redundant refetch
+    // when the sweep had nothing new to announce. Library kind is
+    // unaffected (the series row itself isn't touched), only the
+    // child volume rows.
+    if !report.added.is_empty() || !report.updated.is_empty() {
+        state.broker.publish(user.id, SyncKind::Volumes).await;
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "added": report.added,
+        "updated": report.updated,
+        "skipped": report.skipped,
+        "discovered_count": discovered.len(),
     })))
 }

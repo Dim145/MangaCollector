@@ -28,6 +28,18 @@ export default function Volume({
   // (borrowed / library copy) and owned without being read (classic
   // tsundoku 積読 — the pile of acquired-but-unread books).
   readAt,
+  // 来 · Upcoming-volume metadata. A row whose `releaseDate` is in the
+  // future is announced-but-not-yet-shipped — visual treatment is
+  // distinct (moegi tier + kanji 来) and every "I have this" axis is
+  // hard-disabled at the UI layer (server enforces too). When the
+  // date passes, all four fields stay set but the predicate flips
+  // and the row falls back to the regular missing/owned visual
+  // grammar — no migration needed.
+  releaseDate = null,
+  releaseIsbn = null,
+  releaseUrl = null,
+  origin = "manual",
+  announcedAt = null,
   locked = false,
   onUpdate,
   currencySetting,
@@ -91,6 +103,17 @@ export default function Volume({
 
   const toggleOwned = async () => {
     if (isEditing || locked) return;
+    // 来 · An upcoming volume cannot be owned — server enforces this
+    // too, but blocking the gesture client-side avoids the round-trip
+    // + WS event for nothing. The drawer-tap path below is the
+    // legitimate way for the user to interact (read-only details).
+    if (isUpcoming) {
+      // Long-press preview is suppressed alongside the tap so a
+      // suppressed click doesn't bounce the consumeClick latch into
+      // an unexpected state on a future tap.
+      preview.consumeClick();
+      return;
+    }
     // Suppress the tap when a long-press just opened the preview — the
     // user wanted to peek, not to flip the ownership.
     if (preview.consumeClick()) return;
@@ -101,6 +124,10 @@ export default function Volume({
 
   const toggleRead = async () => {
     if (isEditing) return;
+    // 来 · An upcoming volume cannot be marked read either —
+    // physically impossible until it ships. Blocking client-side
+    // matches the server enforce in `services::volume::update_by_id`.
+    if (isUpcoming) return;
     // Reading is orthogonal to the coffret lock — a box set controls
     // ownership/price/collector state for its members, but it does NOT
     // control whether you've read them. We let locked volumes flip their
@@ -180,21 +207,56 @@ export default function Volume({
     if (locked && isEditing) setIsEditing(false);
   }, [locked, isEditing]);
 
+  // 来 · Compute "is this an announced-but-not-yet-released volume?"
+  // The predicate is recomputed on every render so when the clock
+  // ticks past the release date, the visual grammar flips
+  // automatically — no async transition, no stale state.
+  const releaseDateObj = releaseDate ? new Date(releaseDate) : null;
+  const isUpcoming = Boolean(
+    releaseDateObj &&
+      !Number.isNaN(releaseDateObj.getTime()) &&
+      releaseDateObj.getTime() > Date.now(),
+  );
+  const daysUntilRelease = isUpcoming
+    ? Math.max(
+        0,
+        Math.ceil(
+          (releaseDateObj.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+        ),
+      )
+    : null;
+  // 旬 · Imminent = within 7 days. Switches the badge tone from
+  // moegi (calm anticipation) to sakura (here-it-comes), and the
+  // pulse animation engages so peripheral vision catches it.
+  const isImminent = isUpcoming && daysUntilRelease <= 7;
+
   // Card shell — collector adds a gold ring + subtle gold glow, stacking on
-  // top of whatever the ownership state dictates.
-  const borderClasses = collectorStatus
-    ? "border-transparent ring-2 ring-gold/80 shadow-[0_0_22px_rgba(201,169,97,0.25)]"
-    : ownedStatus
-      ? "border-hanko/40 bg-hanko/5 hover:border-hanko/60"
-      : "border-border bg-ink-1/40 hover:border-border/80";
+  // top of whatever the ownership state dictates. Upcoming gets its own
+  // dedicated treatment (dotted moegi border + gradient), distinct from
+  // the missing tier so the user sees a row that "isn't real yet".
+  const borderClasses = isUpcoming
+    ? isImminent
+      ? "border-sakura/55 bg-gradient-to-br from-sakura/10 via-ink-1/40 to-ink-1/40 shadow-[0_0_18px_rgba(245,194,210,0.18)]"
+      : "border-moegi/40 bg-gradient-to-br from-moegi/8 via-ink-1/40 to-ink-1/40"
+    : collectorStatus
+      ? "border-transparent ring-2 ring-gold/80 shadow-[0_0_22px_rgba(201,169,97,0.25)]"
+      : ownedStatus
+        ? "border-hanko/40 bg-hanko/5 hover:border-hanko/60"
+        : "border-border bg-ink-1/40 hover:border-border/80";
 
   // Volume-number badge colors: gold-inverted when collector, hanko when
-  // merely owned, neutral otherwise.
-  const badgeClasses = collectorStatus
-    ? "border-gold bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-md"
-    : ownedStatus
-      ? "border-hanko bg-hanko text-washi shadow-md glow-red"
-      : "border-border bg-ink-2 text-washi-dim hover:border-hanko/40 hover:text-washi";
+  // merely owned, neutral otherwise. Upcoming overrides everything because
+  // an announced tome can be neither owned nor collector — it's a fourth
+  // state in its own right.
+  const badgeClasses = isUpcoming
+    ? isImminent
+      ? "border-sakura bg-gradient-to-br from-sakura to-sakura/70 text-ink-0 shadow-md"
+      : "border-moegi bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow-md"
+    : collectorStatus
+      ? "border-gold bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-md"
+      : ownedStatus
+        ? "border-hanko bg-hanko text-washi shadow-md glow-red"
+        : "border-border bg-ink-2 text-washi-dim hover:border-hanko/40 hover:text-washi";
 
   return (
     <div
@@ -203,8 +265,10 @@ export default function Volume({
       {/* Collector hanko seal — pinned like a wax seal at the card's top-right corner.
           Wrapped in <Tooltip> for a reliable CSS-only hover label; the native
           `title` attribute was unreliable on this absolutely-positioned
-          decorative span in certain browser/layout combos. */}
-      {collectorStatus && (
+          decorative span in certain browser/layout combos.
+          Suppressed when the volume is upcoming — collector is a state
+          that only applies to a tome you actually own. */}
+      {collectorStatus && !isUpcoming && (
         <span className="absolute -right-2 -top-2 z-20">
           <Tooltip text={t("volume.collectorTitle")} placement="top">
             <span
@@ -214,6 +278,41 @@ export default function Volume({
             >
               <span className="font-display text-[10px] font-bold leading-none">
                 限
+              </span>
+            </span>
+          </Tooltip>
+        </span>
+      )}
+
+      {/* 来 · Upcoming-volume seal. Pinned where the collector seal
+          lives (they're mutually exclusive — server enforces). Tone
+          shifts from moegi (calm "anticipated") to sakura ("imminent")
+          inside a 7-day window so peripheral vision catches it.
+          The kanji 来 (rai = "to come / next") doubles as a state
+          marker AND a pictogram — even readers unfamiliar with
+          kanji learn its meaning by association after seeing it
+          paired with the date overlay below. */}
+      {isUpcoming && (
+        <span className="absolute -right-2 -top-2 z-20">
+          <Tooltip
+            text={t("volume.upcomingTooltip", {
+              date: formatReleaseDate(releaseDate),
+            })}
+            placement="top"
+          >
+            <span
+              aria-label={t("volume.upcomingTooltip", {
+                date: formatReleaseDate(releaseDate),
+              })}
+              className={`grid h-5 w-5 place-items-center rounded-full text-ink-0 ring-1 ${
+                isImminent
+                  ? "bg-gradient-to-br from-sakura to-sakura/70 ring-sakura/80 shadow-[0_2px_12px_rgba(245,194,210,0.55)] animate-pulse-glow"
+                  : "bg-gradient-to-br from-moegi to-moegi-muted ring-moegi/70 shadow-[0_2px_12px_rgba(163,201,97,0.45)]"
+              }`}
+              style={{ transform: "rotate(-8deg)" }}
+            >
+              <span className="font-jp text-[10px] font-bold leading-none">
+                来
               </span>
             </span>
           </Tooltip>
@@ -233,15 +332,27 @@ export default function Volume({
              bottom-right, like a library sticker on a physical volume. */
           <button
             onClick={toggleOwned}
-            disabled={isEditing || isLoading || locked}
+            disabled={isEditing || isLoading || locked || isUpcoming}
             aria-label={
-              locked
-                ? t("volume.lockedAria")
-                : ownedStatus
-                  ? t("volume.markNotOwned")
-                  : t("volume.markOwned")
+              isUpcoming
+                ? t("volume.upcomingAria", {
+                    date: formatReleaseDate(releaseDate),
+                  })
+                : locked
+                  ? t("volume.lockedAria")
+                  : ownedStatus
+                    ? t("volume.markNotOwned")
+                    : t("volume.markOwned")
             }
-            title={locked ? t("volume.lockedTitle") : undefined}
+            title={
+              isUpcoming
+                ? t("volume.upcomingTooltip", {
+                    date: formatReleaseDate(releaseDate),
+                  })
+                : locked
+                  ? t("volume.lockedTitle")
+                  : undefined
+            }
             // Gesture handlers for the floating preview. They spread across
             // the same button that handles the tap-to-toggle, which is fine
             // because the hook coordinates the two (long-press suppresses
@@ -254,26 +365,61 @@ export default function Volume({
             // text selection or callout; we take ownership of the gesture.
             style={{ touchAction: "manipulation" }}
             className={`group/vol relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-md border shadow-md transition-all duration-300 ${
-              collectorStatus
-                ? "border-gold ring-1 ring-gold/60 shadow-[0_0_12px_rgba(201,169,97,0.35)]"
-                : ownedStatus
-                  ? "border-hanko/70 shadow-[0_0_10px_rgba(220,38,38,0.2)]"
-                  : "border-border"
-            } ${locked ? "cursor-not-allowed" : "hover:-translate-y-0.5"} ${isEditing ? "opacity-60" : ""}`}
+              isUpcoming
+                ? isImminent
+                  ? "border-sakura/70 ring-1 ring-sakura/50 shadow-[0_0_12px_rgba(245,194,210,0.35)]"
+                  : "border-moegi/70 ring-1 ring-moegi/40 shadow-[0_0_12px_rgba(163,201,97,0.30)]"
+                : collectorStatus
+                  ? "border-gold ring-1 ring-gold/60 shadow-[0_0_12px_rgba(201,169,97,0.35)]"
+                  : ownedStatus
+                    ? "border-hanko/70 shadow-[0_0_10px_rgba(220,38,38,0.2)]"
+                    : "border-border"
+            } ${
+              locked || isUpcoming ? "cursor-default" : "hover:-translate-y-0.5"
+            } ${isEditing ? "opacity-60" : ""}`}
           >
             <img referrerPolicy="no-referrer"
               src={coverUrl}
               alt=""
               loading="lazy"
               draggable={false}
-              className={`h-full w-full select-none object-cover transition-transform duration-500 group-hover/vol:scale-105 ${
-                blurImage ? "blur-md" : ""
-              } ${!ownedStatus && !locked ? "brightness-40 grayscale" : ""}`}
+              className={`h-full w-full select-none object-cover transition-transform duration-500 ${
+                isUpcoming ? "" : "group-hover/vol:scale-105"
+              } ${blurImage ? "blur-md" : ""} ${
+                isUpcoming
+                  ? "brightness-50 saturate-50"
+                  : !ownedStatus && !locked
+                    ? "brightness-40 grayscale"
+                    : ""
+              }`}
             />
 
+            {/* 来 · Upcoming-state overlay. Stronger than the missing
+                wash because the cover is metadata for an unreleased
+                tome, not a missing-from-collection one. The countdown
+                text sits on top in font-mono so the date stays
+                readable even when the source artwork is busy. */}
+            {isUpcoming && (
+              <>
+                <span className="pointer-events-none absolute inset-0 bg-ink-0/65" />
+                <span className="pointer-events-none absolute inset-0 grid place-items-center">
+                  <span
+                    className={`font-mono text-[8px] font-bold uppercase leading-none tracking-[0.15em] ${
+                      isImminent ? "text-sakura" : "text-moegi"
+                    }`}
+                    style={{ textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}
+                  >
+                    J−{daysUntilRelease}
+                  </span>
+                </span>
+              </>
+            )}
+
             {/* Missing-state overlay — tinted wash that evokes "not yet
-                in the collection" without fully hiding the cover. */}
-            {!ownedStatus && !locked && (
+                in the collection" without fully hiding the cover.
+                Suppressed when upcoming because that state has its
+                own overlay above. */}
+            {!ownedStatus && !locked && !isUpcoming && (
               <span className="pointer-events-none absolute inset-0 bg-ink-0/55" />
             )}
 
@@ -289,11 +435,15 @@ export default function Volume({
                 is bright/dark/busy. */}
             <span
               className={`pointer-events-none absolute bottom-0.5 right-0.5 grid min-h-4 min-w-4 place-items-center rounded-sm px-1 font-mono text-[9px] font-bold leading-none shadow ${
-                collectorStatus
-                  ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
-                  : ownedStatus
-                    ? "bg-hanko text-washi"
-                    : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
+                isUpcoming
+                  ? isImminent
+                    ? "bg-sakura text-ink-0"
+                    : "bg-moegi text-ink-0"
+                  : collectorStatus
+                    ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
+                    : ownedStatus
+                      ? "bg-hanko text-washi"
+                      : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
               }`}
             >
               {volNum}
@@ -305,16 +455,30 @@ export default function Volume({
              published on MangaDex yet). */
           <button
             onClick={toggleOwned}
-            disabled={isEditing || isLoading || locked}
+            disabled={isEditing || isLoading || locked || isUpcoming}
             aria-label={
-              locked
-                ? t("volume.lockedAria")
-                : ownedStatus
-                  ? t("volume.markNotOwned")
-                  : t("volume.markOwned")
+              isUpcoming
+                ? t("volume.upcomingAria", {
+                    date: formatReleaseDate(releaseDate),
+                  })
+                : locked
+                  ? t("volume.lockedAria")
+                  : ownedStatus
+                    ? t("volume.markNotOwned")
+                    : t("volume.markOwned")
             }
-            title={locked ? t("volume.lockedTitle") : undefined}
-            className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${badgeClasses} ${locked ? "cursor-not-allowed" : ""}`}
+            title={
+              isUpcoming
+                ? t("volume.upcomingTooltip", {
+                    date: formatReleaseDate(releaseDate),
+                  })
+                : locked
+                  ? t("volume.lockedTitle")
+                  : undefined
+            }
+            className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${badgeClasses} ${
+              locked || isUpcoming ? "cursor-default" : ""
+            }`}
           >
             {isLoading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -349,46 +513,85 @@ export default function Volume({
             )}
           </p>
           <div className="mt-1 flex items-baseline gap-2">
-            <span
-              className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${
-                ownedStatus ? "text-gold" : "text-washi-dim"
-              }`}
-            >
-              {/* Non-colour state glyph — gives the row a second cue beyond
-                  the gold/dim tint, so colour-blind users can read state at
-                  a glance. ✓ for owned, ○ for missing. Inline SVG keeps the
-                  baseline aligned with the label. */}
-              {ownedStatus ? (
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-2.5 w-2.5 self-center"
-                  aria-hidden="true"
+            {isUpcoming ? (
+              /* 来 · Upcoming-state label, replaces the owned/missing
+                 row when the volume isn't out yet. The countdown pill
+                 sits where the price normally lives — same horizontal
+                 rhythm so the layout doesn't jump as a tome
+                 transitions from upcoming to released. */
+              <>
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${
+                    isImminent ? "text-sakura" : "text-moegi"
+                  }`}
                 >
-                  <polyline points="3 8.5 7 12 13 4.5" />
-                </svg>
-              ) : (
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  className="h-2.5 w-2.5 self-center"
-                  aria-hidden="true"
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-2.5 w-2.5 self-center"
+                    aria-hidden="true"
+                  >
+                    {/* Hourglass-ish glyph: announced, not yet here. */}
+                    <path d="M3 2h10M3 14h10M5 2v3.5l3 2.5 3-2.5V2M5 14v-3.5l3-2.5 3 2.5V14" />
+                  </svg>
+                  {t("volume.upcomingLabel")}
+                </span>
+                <span
+                  className={`font-mono text-xs ${
+                    isImminent ? "text-sakura" : "text-washi-muted"
+                  }`}
                 >
-                  <circle cx="8" cy="8" r="5.5" />
-                </svg>
-              )}
-              {ownedStatus ? t("volume.inCollection") : t("volume.missing")}
-            </span>
-            {ownedStatus && price > 0 && (
-              <span className="font-mono text-xs text-washi-muted">
-                {formatCurrency(price, currencySetting)}
-              </span>
+                  {formatReleaseDate(releaseDate)} · J−{daysUntilRelease}
+                </span>
+              </>
+            ) : (
+              <>
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${
+                    ownedStatus ? "text-gold" : "text-washi-dim"
+                  }`}
+                >
+                  {/* Non-colour state glyph — gives the row a second cue beyond
+                      the gold/dim tint, so colour-blind users can read state at
+                      a glance. ✓ for owned, ○ for missing. Inline SVG keeps the
+                      baseline aligned with the label. */}
+                  {ownedStatus ? (
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-2.5 w-2.5 self-center"
+                      aria-hidden="true"
+                    >
+                      <polyline points="3 8.5 7 12 13 4.5" />
+                    </svg>
+                  ) : (
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      className="h-2.5 w-2.5 self-center"
+                      aria-hidden="true"
+                    >
+                      <circle cx="8" cy="8" r="5.5" />
+                    </svg>
+                  )}
+                  {ownedStatus ? t("volume.inCollection") : t("volume.missing")}
+                </span>
+                {ownedStatus && price > 0 && (
+                  <span className="font-mono text-xs text-washi-muted">
+                    {formatCurrency(price, currencySetting)}
+                  </span>
+                )}
+              </>
             )}
             {locked && (
               <span className="group/lock relative inline-flex items-center">
@@ -435,8 +638,10 @@ export default function Volume({
             Stays available on locked (coffret) volumes because reading
             is independent of the box-set-managed ownership axes. On a
             locked volume we surface the read date in `title` since the
-            full editor (where the date normally lives) is unreachable. */}
-        {!isEditing && (
+            full editor (where the date normally lives) is unreachable.
+            Suppressed on upcoming volumes — there's nothing to read
+            yet. */}
+        {!isEditing && !isUpcoming && (
           <button
             onClick={toggleRead}
             aria-label={readStatus ? t("volume.markUnread") : t("volume.markRead")}
@@ -460,8 +665,45 @@ export default function Volume({
           </button>
         )}
 
-        {/* Edit pencil — hidden when the volume is managed by a coffret */}
-        {!locked && !isEditing ? (
+        {/* 来 · Upcoming-volume info chip. Replaces the read pill +
+            pencil on an unreleased tome — opens the read-only drawer
+            so the user can see ISBN / publisher / pre-order URL
+            without being able to flip ownership. Tap target stays at
+            8×8 to preserve the row's rhythm. */}
+        {isUpcoming && !isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            aria-label={t("volume.upcomingDetailsAria")}
+            title={t("volume.upcomingDetailsTitle")}
+            className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border transition ${
+              isImminent
+                ? "border-sakura/60 bg-sakura/10 text-sakura hover:bg-sakura/20"
+                : "border-moegi/50 bg-moegi/5 text-moegi hover:bg-moegi/15"
+            }`}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              {/* Info-circle: read-only details signal. */}
+              <circle cx="12" cy="12" r="9" />
+              <line x1="12" y1="8" x2="12" y2="8" />
+              <line x1="12" y1="12" x2="12" y2="16" />
+            </svg>
+          </button>
+        )}
+
+        {/* Edit pencil — hidden when the volume is managed by a coffret
+            OR when the volume is upcoming (the info-circle above takes
+            its slot in that case, and a real edit on an unreleased
+            tome would be rejected by the server anyway). */}
+        {!locked && !isEditing && !isUpcoming ? (
           <button
             onClick={() => setIsEditing(true)}
             aria-label={t("common.edit")}
@@ -514,6 +756,16 @@ export default function Volume({
         isLoading={isLoading}
         onSave={handleSave}
         onCancel={handleCancel}
+        // 来 · Upcoming-volume metadata. The drawer reads these to
+        // toggle into a read-only "details" mode where save is
+        // hidden and the form fields are disabled.
+        isUpcoming={isUpcoming}
+        releaseDate={releaseDate}
+        releaseIsbn={releaseIsbn}
+        releaseUrl={releaseUrl}
+        origin={origin}
+        announcedAt={announcedAt}
+        daysUntilRelease={daysUntilRelease}
       />
 
       {!isEditing && ownedStatus && purchaseLocation && (
@@ -539,6 +791,23 @@ export default function Volume({
 /** Format an ISO read_at timestamp for UI captions — short locale-aware
  *  rendering (e.g. "14 mars 2026"). Returns an empty string on bad input. */
 function formatReadDate(iso) {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
+/** Format an ISO release_date for upcoming-volume captions. Identical
+ *  rendering to `formatReadDate` today, kept as a separate symbol so
+ *  Phase 3 can plug a richer formatter (locale-aware "in 3 weeks" /
+ *  "next month") without bleeding into the read-history caption. */
+function formatReleaseDate(iso) {
+  if (!iso) return "";
   try {
     return new Date(iso).toLocaleDateString(undefined, {
       year: "numeric",

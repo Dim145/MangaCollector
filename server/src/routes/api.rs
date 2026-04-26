@@ -4,8 +4,9 @@ use axum::{
 };
 
 use crate::handlers::{
-    activity, archive, auth as auth_handlers, coffret, compare, external, external_import, health,
-    library, public, realtime, seals, settings, storage, user_profile, volume,
+    activity, archive, auth as auth_handlers, calendar, coffret, compare, external,
+    external_import, health, library, public, realtime, seals, settings, storage,
+    user_profile, volume,
 };
 use crate::state::AppState;
 
@@ -33,6 +34,15 @@ pub fn api_router() -> Router<AppState> {
         // session cookie as the REST endpoints and streams invalidation
         // events scoped to the user. Anonymous visitors get 401.
         .route("/ws", get(realtime::ws_handler))
+        // 暦 · Public ICS calendar feed. Auth is the secret token in
+        // the path — there's no cookie sent by Apple Calendar /
+        // Google Calendar / Outlook when they refresh a subscribed
+        // URL. Mounted on the api-router (not user-router) so the
+        // session middleware doesn't 401 anonymous polls.
+        .route(
+            "/calendar/{token}",
+            get(calendar::ics_feed_by_token),
+        )
         .nest("/user", user_router())
 }
 
@@ -54,6 +64,14 @@ fn user_router() -> Router<AppState> {
         .route(
             "/library/{mal_id}/refresh-from-mangadex",
             get(library::refresh_from_mangadex),
+        )
+        // 来 · Discover & reconcile announced upcoming volumes for
+        // this series. POST because the call mutates state (inserts
+        // new user_volumes rows, may update existing ones), even
+        // though no body is required.
+        .route(
+            "/library/{mal_id}/refresh-upcoming",
+            post(library::refresh_upcoming),
         )
         .route("/library/{mal_id}/covers", get(library::list_covers))
         .route(
@@ -98,6 +116,26 @@ fn user_router() -> Router<AppState> {
         .route("/activity", get(activity::list_activity))
         // 印鑑帳 — Carnet de sceaux (ceremonial achievements)
         .route("/seals", get(seals::list_seals))
+        // 暦 · Upcoming-volume calendar feed. Optional `?from=YYYY-MM`
+        // and `?until=YYYY-MM`; defaults span the next 12 months.
+        // Returns a flat list joined with series metadata so the
+        // SPA can render Month / Agenda views without further fanout.
+        .route(
+            "/calendar/upcoming",
+            get(calendar::list_upcoming),
+        )
+        // 暦 · Subscribable ICS feed token lifecycle. The actual feed
+        // is mounted at the api-router level (below) without auth —
+        // the token in the URL IS the auth. Both endpoints here are
+        // user-scoped and require a session.
+        .route(
+            "/calendar/ics-url",
+            get(calendar::get_ics_url),
+        )
+        .route(
+            "/calendar/ics-url/regenerate",
+            post(calendar::regenerate_ics_url),
+        )
         // 対照 — Compare my library with a public profile slug + add
         // a missing series from their library to mine.
         .route("/compare/{slug}", get(compare::compare_with))

@@ -62,6 +62,32 @@ pub async fn update_by_id(
         .await
         .map_err(AppError::from)?;
 
+    // 来 · Upcoming-volume guardrail. A row whose `release_date` is
+    // still in the future represents an announced-but-not-yet-shipped
+    // tome. The product rule says it can't be owned, read, or marked
+    // collector — it's not real yet. Rather than scatter conditions
+    // through the column-expression chain below, we coerce the
+    // incoming flags here so the rest of the function operates on
+    // already-sanitised values. Only the `store` / `price` paths
+    // remain sensitive to user input on upcoming rows (writing a
+    // pre-order note ahead of time is fine, even useful).
+    let is_upcoming = existing
+        .as_ref()
+        .and_then(|r| r.release_date)
+        .map(|d| d > now)
+        .unwrap_or(false);
+    let (owned, collector, read) = if is_upcoming {
+        // Force the three "I have this" axes to false/null. We
+        // intentionally don't bail with an error: the SPA might
+        // be replaying a stale outbox entry from before the
+        // announcement landed, and 400-ing it would jam the sync
+        // loop. Silently zeroing matches the same forgiving
+        // policy as the row-not-found / cross-user paths above.
+        (false, false, Some(false))
+    } else {
+        (owned, collector, read)
+    };
+
     // Second, independent defence in depth: scope the UPDATE itself by
     // (id, user_id). Even if `existing` were wrong somehow (e.g. a bug
     // in a future refactor of the lookup above), the DB will refuse to

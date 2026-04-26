@@ -73,10 +73,26 @@ export default function Dashboard() {
   // Tsundoku map is derived in the same pass — one per series counting
   // owned but unread volumes (owned && !read_at). Piggyback avoids a
   // second full scan of the volumes array.
-  const { allCollectorSet, tsundokuByMal } = useMemo(() => {
+  const { allCollectorSet, tsundokuByMal, upcomingByMal } = useMemo(() => {
     const byMal = new Map();
     const tsundoku = new Map();
+    // 来 · Upcoming-volume tally per series. A series counts as
+    // "upcoming" the moment it has at least one announced tome
+    // whose release_date is still in the future. Computed in the
+    // same pass as collector / tsundoku to avoid a second sweep
+    // over the volumes array.
+    const upcoming = new Map();
+    const now = Date.now();
     for (const v of allVolumes ?? []) {
+      // Track upcoming irrespective of `owned` — an upcoming tome
+      // is by definition unowned (server enforces). The flag we're
+      // computing is "this series has something on the horizon".
+      if (v.release_date) {
+        const ts = new Date(v.release_date).getTime();
+        if (!Number.isNaN(ts) && ts > now) {
+          upcoming.set(v.mal_id, (upcoming.get(v.mal_id) ?? 0) + 1);
+        }
+      }
       if (!v.owned) continue;
       const entry = byMal.get(v.mal_id) ?? { any: false, anyNonCollector: false };
       entry.any = true;
@@ -90,7 +106,11 @@ export default function Dashboard() {
     for (const [mal, { any, anyNonCollector }] of byMal) {
       if (any && !anyNonCollector) set.add(mal);
     }
-    return { allCollectorSet: set, tsundokuByMal: tsundoku };
+    return {
+      allCollectorSet: set,
+      tsundokuByMal: tsundoku,
+      upcomingByMal: upcoming,
+    };
   }, [allVolumes]);
 
   const stats = useMemo(() => {
@@ -138,6 +158,12 @@ export default function Dashboard() {
     } else if (filter === "tsundoku") {
       // Tsundoku (積読) = series with ≥1 owned-but-unread volume.
       result = result.filter((m) => (tsundokuByMal.get(m.mal_id) ?? 0) > 0);
+    } else if (filter === "upcoming") {
+      // 来 · Series with ≥1 announced-but-not-yet-released tome —
+      // the calendar's "this is on the horizon" axis surfaced as a
+      // dashboard filter so the user can drill in from the library
+      // grid without leaving the page.
+      result = result.filter((m) => (upcomingByMal.get(m.mal_id) ?? 0) > 0);
     }
     // Tag intersection — AND logic. Each series must carry every selected
     // tag. Genres are trimmed at read time so "  Romance " matches "Romance".
@@ -156,7 +182,7 @@ export default function Dashboard() {
     // `tsundokuByMal` is a memoised Map; including it as a dep lets
     // the filter recompute when the tsundoku slice changes (a volume
     // flip toggles a row in/out of the "積" bucket).
-  }, [library, filter, query, activeTags, tsundokuByMal]);
+  }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal]);
 
   return (
     <DefaultBackground>
@@ -285,6 +311,12 @@ export default function Dashboard() {
                   label: t("dashboard.tabTsundoku"),
                   tooltip: `${t("dashboard.tabTsundoku")} · ${t("dashboard.tabHintTsundoku")}`,
                 },
+                {
+                  id: "upcoming",
+                  glyph: "来",
+                  label: t("dashboard.tabUpcoming"),
+                  tooltip: `${t("dashboard.tabUpcoming")} · ${t("dashboard.tabHintUpcoming")}`,
+                },
               ].map((tab) => {
                 const active = filter === tab.id;
                 const activeBg =
@@ -292,7 +324,9 @@ export default function Dashboard() {
                     ? "bg-sakura text-ink-0 shadow-md"
                     : tab.id === "tsundoku"
                       ? "bg-moegi text-ink-0 shadow-md"
-                      : "bg-hanko text-washi shadow-md";
+                      : tab.id === "upcoming"
+                        ? "bg-moegi text-ink-0 shadow-md"
+                        : "bg-hanko text-washi shadow-md";
                 return (
                   <button
                     key={tab.id}

@@ -41,6 +41,8 @@ const ImportExternalPage = lazy(() =>
 const ComparePage = lazy(() => import("./components/ComparePage"));
 // 字典 — public reference page; no auth needed.
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
+// 暦 — upcoming-release calendar.
+const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -213,6 +215,18 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <SealsPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 暦 · Upcoming-release calendar — Agenda + Month grid
+                fed by `/api/user/calendar/upcoming`. Auth-required
+                because the data is per-user, even though the
+                announcement source itself (MangaUpdates) is public. */}
+            <Route
+              path="/calendrier"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <CalendarPage />
                 </ProtectedRoute>
               }
             />

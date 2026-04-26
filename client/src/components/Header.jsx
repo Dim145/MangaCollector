@@ -62,11 +62,12 @@ const NAV_ITEMS_BASE = [
     ),
   },
   {
-    to: "/seals",
-    key: "seals",
-    // Seal icon — a rounded square (hanko block) with a small mark inside,
-    // echoing the 印 carved into a stamp. Keeps the vector language of the
-    // other nav items while reading as "a seal" at a glance.
+    to: "/calendrier",
+    key: "calendar",
+    // Calendar icon — a stacked-block almanac, kept linear so it
+    // visually rhymes with the seal/stats glyphs around it. The
+    // 来 watermark on the page itself carries the kanji weight; the
+    // nav icon stays neutral.
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -77,8 +78,10 @@ const NAV_ITEMS_BASE = [
         strokeLinejoin="round"
         className="h-5 w-5"
       >
-        <rect x="4" y="4" width="16" height="16" rx="2" />
-        <path d="M9 9h6M12 9v6M9 15h6" />
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+        <line x1="8" y1="3" x2="8" y2="7" />
+        <line x1="16" y1="3" x2="16" y2="7" />
       </svg>
     ),
   },

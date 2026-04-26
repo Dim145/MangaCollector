@@ -214,6 +214,35 @@ export default function ProfileButton() {
               }
               label={t("nav.statistics")}
             />
+            {/* 印 · Seals (achievements / hanko-rewards) — moved here
+                from the top-level navbar to free up horizontal space.
+                Sits between Statistics and Settings because all three
+                are facets of "my own progression" rather than canonical
+                content; the seal panel is the most personal of the
+                three (your earned stamps), so keeping it next to Stats
+                preserves the natural reading order. Same SVG glyph as
+                before so muscle memory is preserved. */}
+            <MenuItem
+              onClick={() => {
+                setIsOpen(false);
+                navigate("/seals");
+              }}
+              icon={
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                  <path d="M9 9h6M12 9v6M9 15h6" />
+                </svg>
+              }
+              label={t("nav.seals")}
+            />
             <MenuItem
               onClick={() => {
                 setIsOpen(false);

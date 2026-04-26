@@ -25,6 +25,14 @@ import { flushPendingLogout, hasPendingLogout } from "@/utils/auth.js";
 
 const PENDING_CHANGED_EVENT = "mc:pending-changed";
 const SYNC_ERROR_EVENT = "mc:sync-error";
+// 報 · Positive-confirmation channel. Used for sync results that are
+// informational rather than failures — successful refresh-upcoming
+// reports, future "added N volumes" / "ISBN backfill done" surfacing.
+// Kept separate from the error channel so subscribers can render
+// each with its own visual variant (red ink for errors, green-tea
+// ink for confirmations) instead of one toaster trying to convey
+// both with the same shell.
+const SYNC_INFO_EVENT = "mc:sync-info";
 
 let syncing = false;
 let syncQueued = false;
@@ -77,6 +85,34 @@ export function notifySyncError(errOrMessage, opContext = "direct") {
         errOrMessage?.message ??
         "Request failed");
   emit(SYNC_ERROR_EVENT, { op: opContext, message });
+}
+
+export function onSyncInfo(handler) {
+  window.addEventListener(SYNC_INFO_EVENT, handler);
+  return () => window.removeEventListener(SYNC_INFO_EVENT, handler);
+}
+
+/**
+ * Surface a successful, info-shaped result through the SyncToaster.
+ * Caller passes a structured payload the toaster knows how to render:
+ *
+ *   {
+ *     op:     "upcoming-refresh" | "mal-refresh" | …,
+ *     tone:   "success" | "neutral",   // success = green-tea accent,
+ *                                      // neutral = washi (e.g. "no
+ *                                      // changes"); defaults to success
+ *     icon:   string,                  // single glyph (kanji / symbol)
+ *                                      // shown in the badge slot
+ *     title:  string,
+ *     body?:  string,                  // optional secondary line
+ *   }
+ *
+ * The toast renders for ~5 s then auto-dismisses. Kept event-driven
+ * (rather than imperative `pushToast(...)`) so any future replicator
+ * can subscribe alongside SyncToaster without coupling.
+ */
+export function notifySyncInfo(payload) {
+  emit(SYNC_INFO_EVENT, payload || {});
 }
 
 /*
