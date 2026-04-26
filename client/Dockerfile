@@ -2,12 +2,22 @@ FROM node:24-alpine AS build
 
 WORKDIR /client
 
-COPY package*.json ./
-RUN npm install
+# pnpm is installed via corepack (ships with Node 16.13+). The
+# `packageManager` field in package.json pins the exact pnpm version
+# corepack should activate, so the build uses the same tool the
+# developers run locally — no version skew between machines.
+RUN corepack enable
+
+# Cache the install layer separately from the source copy. The
+# lockfile pin is what matters for cache invalidation: package.json
+# alone wouldn't catch dependency-graph changes that happen at install
+# time (e.g. pnpm overrides being updated).
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-RUN npm run build
+RUN pnpm run build
 
 FROM nginx:alpine
 

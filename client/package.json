@@ -4,10 +4,11 @@
   "version": "2.7.1",
   "type": "module",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22"
   },
+  "packageManager": "pnpm@10.33.2",
   "scripts": {
-    "dev": "npm install && prettier --write . && vite --host",
+    "dev": "pnpm install && prettier --write . && vite --host",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -43,9 +44,17 @@
     "vite": "^8.0.10",
     "vite-plugin-pwa": "^1.2.0"
   },
-  "overrides": {
-    "vite-plugin-pwa": {
-      "vite": "$vite"
+  "pnpm": {
+    "overrides": {
+      "serialize-javascript": "^7.0.5",
+      "magic-string": "^0.30.21",
+      "source-map": "^0.7.6",
+      "glob": "^13.0.6"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "vite-plugin-pwa>vite": "^8.0.0"
+      }
     }
   }
 }
