@@ -180,6 +180,7 @@ export default {
     editionPreset_doubleVolumes: "Tomos dobles",
     editionPreset_pocket: "Bolsillo / Bunkoban",
     tsundokuHint: "{n} tomo(s) en posesión sin leer · 積読",
+    nextVolumeHint: "Próximo tomo anunciado · {date}",
     libraryLabel: "COLECCIÓN · 蔵書",
     ownedChip: "poseídos",
     readChip: "leídos",

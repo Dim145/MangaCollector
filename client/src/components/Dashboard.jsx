@@ -73,45 +73,62 @@ export default function Dashboard() {
   // Tsundoku map is derived in the same pass — one per series counting
   // owned but unread volumes (owned && !read_at). Piggyback avoids a
   // second full scan of the volumes array.
-  const { allCollectorSet, tsundokuByMal, upcomingByMal } = useMemo(() => {
-    const byMal = new Map();
-    const tsundoku = new Map();
-    // 来 · Upcoming-volume tally per series. A series counts as
-    // "upcoming" the moment it has at least one announced tome
-    // whose release_date is still in the future. Computed in the
-    // same pass as collector / tsundoku to avoid a second sweep
-    // over the volumes array.
-    const upcoming = new Map();
-    const now = Date.now();
-    for (const v of allVolumes ?? []) {
-      // Track upcoming irrespective of `owned` — an upcoming tome
-      // is by definition unowned (server enforces). The flag we're
-      // computing is "this series has something on the horizon".
-      if (v.release_date) {
-        const ts = new Date(v.release_date).getTime();
-        if (!Number.isNaN(ts) && ts > now) {
-          upcoming.set(v.mal_id, (upcoming.get(v.mal_id) ?? 0) + 1);
+  const { allCollectorSet, tsundokuByMal, upcomingByMal, nextUpcomingByMal } =
+    useMemo(() => {
+      const byMal = new Map();
+      const tsundoku = new Map();
+      // 来 · Upcoming-volume tally per series. A series counts as
+      // "upcoming" the moment it has at least one announced tome
+      // whose release_date is still in the future. Computed in the
+      // same pass as collector / tsundoku to avoid a second sweep
+      // over the volumes array.
+      const upcoming = new Map();
+      // 次 · Per-series record of the SOONEST upcoming volume
+      // ({ vol_num, release_date_ms }). Surfaced on the dashboard
+      // card when the user already owns every published volume —
+      // the "you're caught up, here's what arrives next" moment.
+      // Storing the timestamp as a number avoids re-parsing the
+      // ISO string on every comparison while sweeping.
+      const nextUpcoming = new Map();
+      const now = Date.now();
+      for (const v of allVolumes ?? []) {
+        // Track upcoming irrespective of `owned` — an upcoming tome
+        // is by definition unowned (server enforces). The flag we're
+        // computing is "this series has something on the horizon".
+        if (v.release_date) {
+          const ts = new Date(v.release_date).getTime();
+          if (!Number.isNaN(ts) && ts > now) {
+            upcoming.set(v.mal_id, (upcoming.get(v.mal_id) ?? 0) + 1);
+            // Keep only the soonest one per series.
+            const cur = nextUpcoming.get(v.mal_id);
+            if (!cur || ts < cur.release_date_ms) {
+              nextUpcoming.set(v.mal_id, {
+                vol_num: v.vol_num,
+                release_date_ms: ts,
+              });
+            }
+          }
+        }
+        if (!v.owned) continue;
+        const entry = byMal.get(v.mal_id) ?? { any: false, anyNonCollector: false };
+        entry.any = true;
+        if (!v.collector) entry.anyNonCollector = true;
+        byMal.set(v.mal_id, entry);
+        if (!v.read_at) {
+          tsundoku.set(v.mal_id, (tsundoku.get(v.mal_id) ?? 0) + 1);
         }
       }
-      if (!v.owned) continue;
-      const entry = byMal.get(v.mal_id) ?? { any: false, anyNonCollector: false };
-      entry.any = true;
-      if (!v.collector) entry.anyNonCollector = true;
-      byMal.set(v.mal_id, entry);
-      if (!v.read_at) {
-        tsundoku.set(v.mal_id, (tsundoku.get(v.mal_id) ?? 0) + 1);
+      const set = new Set();
+      for (const [mal, { any, anyNonCollector }] of byMal) {
+        if (any && !anyNonCollector) set.add(mal);
       }
-    }
-    const set = new Set();
-    for (const [mal, { any, anyNonCollector }] of byMal) {
-      if (any && !anyNonCollector) set.add(mal);
-    }
-    return {
-      allCollectorSet: set,
-      tsundokuByMal: tsundoku,
-      upcomingByMal: upcoming,
-    };
-  }, [allVolumes]);
+      return {
+        allCollectorSet: set,
+        tsundokuByMal: tsundoku,
+        upcomingByMal: upcoming,
+        nextUpcomingByMal: nextUpcoming,
+      };
+    }, [allVolumes]);
 
   const stats = useMemo(() => {
     const series = library.length;
@@ -457,6 +474,7 @@ export default function Dashboard() {
                     adult_content_level={adult_content_level}
                     allCollector={allCollectorSet.has(manga.mal_id)}
                     tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
+                    nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
                   />
                 </div>
               ))}
