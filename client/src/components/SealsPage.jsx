@@ -83,11 +83,31 @@ export default function SealsPage() {
         };
       });
 
+    // 探 · Resolve the seal DOM target, retrying up to ~600ms in case
+    // the category section is still in its `animate-fade-up` mount
+    // delay (`Math.min(180 + i * 40, 500)` for the staggered reveal).
+    // Without this, an early ceremony tick could find `target = null`,
+    // skip the scroll silently, and spotlight an offscreen card.
+    const findSealTarget = async (code) => {
+      const deadline = Date.now() + 600;
+      while (Date.now() < deadline) {
+        const el = document.querySelector(`[data-seal-code="${code}"]`);
+        if (el) return el;
+        // Wait one frame and retry — cheap on mount-pending DOM,
+        // immediately resolved once the section is painted.
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+      // Fallback to the last attempt; null is acceptable downstream
+      // (the ceremony just skips the scroll for this seal).
+      return document.querySelector(`[data-seal-code="${code}"]`);
+    };
+
     (async () => {
       for (let i = 0; i < newlyList.length; i++) {
         if (cancelled) return;
         const code = newlyList[i];
-        const target = document.querySelector(`[data-seal-code="${code}"]`);
+        const target = await findSealTarget(code);
+        if (cancelled) return;
         if (target) {
           target.scrollIntoView({ behavior: "smooth", block: "center" });
         }

@@ -36,6 +36,14 @@ export function useSessions() {
         Array.isArray(prev) ? prev.filter((s) => s.id !== revokedId) : prev,
       );
     },
+    onError: () => {
+      // 直 · Reconcile against the truth on the server when the
+      // DELETE fails (network drop, 403 from a stale CSRF token,
+      // etc.). Without this, the optimistic removal in onSuccess
+      // never fires and the list silently lies about which sessions
+      // exist until staleTime (30s) elapses or the modal is reopened.
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    },
   });
 
   return {

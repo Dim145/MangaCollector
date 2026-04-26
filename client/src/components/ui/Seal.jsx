@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useT } from "@/i18n/index.jsx";
 import { TIERS } from "@/lib/sealsCatalog.js";
 
@@ -74,9 +74,14 @@ export default function Seal({
   const tierDescription = t(`seals.tiers.${tierName}`);
 
   // Stable particle layout per seal — derived from the code so the
-  // splash placement doesn't reshuffle on re-render (only computed
-  // when the spotlight is actually about to fire).
-  const particles = playing ? makeParticles(code) : null;
+  // splash placement doesn't reshuffle on re-render. Memoised on
+  // `(playing, code)` so the rest of the page's state churn doesn't
+  // re-roll an array of 16 objects on every Seal render. `null` when
+  // not playing keeps the JSX guard below cheap.
+  const particles = useMemo(
+    () => (playing ? makeParticles(code) : null),
+    [playing, code],
+  );
   const glowColor = TIER_GLOW[tierName] ?? "var(--hanko)";
 
   // 儀式 · `playPass` increments only when `playing` flips ON,

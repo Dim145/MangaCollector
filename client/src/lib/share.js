@@ -45,10 +45,28 @@ export function pickShareQuery({ title, text, url } = {}) {
   return null;
 }
 
-/** Trim + clamp at a sane length so a 50 KB paste doesn't blow up the input. */
+/** Trim + clamp + scrub potentially dangerous chars. The output flows
+ *  into a React-controlled input, so React's text-content escaping
+ *  already neutralises any `<script>` payload — but stripping the
+ *  obvious offenders here keeps the value readable in the address bar
+ *  echo, the network logs, and any future non-React consumer. */
 function sanitize(value) {
   if (typeof value !== "string") return null;
-  const trimmed = value.trim();
+  let trimmed = value.trim();
+  if (!trimmed) return null;
+  // Drop angle brackets and quotes — they can't legitimately appear in
+  // a manga title, and their presence is almost always indicative of a
+  // share payload that's been tampered with by the source app.
+  trimmed = trimmed.replace(/[<>"']/g, "");
+  // Strip common "site name" suffixes that accumulate after the title
+  // when an app shares a page (`Tokyo Ghoul Vol 3 — MyAnimeList`,
+  // `… | Amazon.fr`, …). The MAL search bar treats them as noise and
+  // returns empty results.
+  trimmed = trimmed.replace(
+    /\s*[—\-|·•]\s*[A-Za-zÀ-ÿ0-9.\s]{2,40}$/u,
+    "",
+  );
+  trimmed = trimmed.trim();
   if (!trimmed) return null;
   // 200 chars is plenty for any series title and far below the URL
   // bar's practical length budget. The server search will still trim
@@ -111,6 +129,12 @@ function slugToTitle(slug) {
     decoded = slug;
   }
   return decoded
+    // Strip angle brackets / quotes the same way `sanitize()` does —
+    // a crafted URL like `/manga/1/<script>alert(1)</script>` would
+    // otherwise round-trip through this helper into `setQuery`.
+    // React escapes the rendered text either way, but defence in
+    // depth is cheap.
+    .replace(/[<>"']/g, "")
     .replace(/[-_+]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

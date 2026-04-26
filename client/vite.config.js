@@ -142,6 +142,23 @@ export default defineConfig({
         // Skip the backend — we handle offline/sync at the app layer
         navigateFallback: "index.html",
         navigateFallbackDenylist: [/^\/api/, /^\/auth/],
+        // Drop runtime caches from prior deploys whose strategy or
+        // version no longer matches this build. Without this, an old
+        // bucket (different `cacheName`, retired URL pattern…) keeps
+        // serving stale responses indefinitely until the browser quota
+        // forces eviction. Workbox handles each entry individually so
+        // there's no risk of nuking a still-valid bucket that happens
+        // to share a substring of its name with the obsolete one.
+        cleanupOutdatedCaches: true,
+        // Take control of any open tab as soon as a new SW is ready.
+        // Combined with `registerType: "autoUpdate"` above, this means
+        // a deploy doesn't wait for users to close every tab before
+        // their next request hits the new code paths. Trade-off: a
+        // request initiated mid-update is served by the new SW, so
+        // breaking changes to the runtime caching contract need a
+        // matching cleanup pass (covered by cleanupOutdatedCaches).
+        clientsClaim: true,
+        skipWaiting: true,
         runtimeCaching: [
           // Google Fonts stylesheets
           {

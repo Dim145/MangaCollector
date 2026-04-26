@@ -276,6 +276,15 @@ export default {
     customEntryLabel: "Las entradas personalizadas",
     malSearchLabel: "La búsqueda MAL",
   },
+  share: {
+    bannerAria: "Contenido compartido — confirmar o descartar",
+    bannerEyebrow: "Compartido contigo · 共",
+    bannerTitle: "¿Importar esto en tu búsqueda?",
+    bannerBody:
+      "Otra app ha entregado un título o enlace a MangaCollector. Revisa la fuente debajo y decide si quieres lanzar una búsqueda en MAL con ello.",
+    bannerAccept: "Importar y buscar",
+    bannerDecline: "Descartar",
+  },
   searchResults: {
     matches: "{n} coincidencias · 結果",
     owned: "Poseído",
@@ -682,6 +691,11 @@ export default {
     birthdayUntil: "Público hasta el {date} · quedan {days} días",
     birthdayStop: "Cerrar ahora",
     birthdayArm: "Abrir durante {days} días",
+    birthdayScopeHeading: "Qué se expone",
+    birthdayScopeBody:
+      "TODAS las series de tu lista de deseos serán visibles en /u/{slug}, incluidas las que añadas DURANTE la ventana. No hay opt-in por serie — es todo o nada durante la duración elegida. El filtro de contenido para adultos sigue activo.",
+    birthdayScopeReminder:
+      "Recordatorio · las series añadidas ahora aparecen inmediatamente en la página pública.",
     archiveTitle: "Archivo y portabilidad · 写本",
     archiveBody:
       "Exporta tu colección para archivarla o importa un rollo recibido. Solo fusión: las series ya presentes (mismo mal_id) se ignoran.",

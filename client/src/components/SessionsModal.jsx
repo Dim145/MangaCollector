@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Modal from "./ui/Modal.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import { useSessions } from "@/hooks/useSessions.js";
@@ -24,6 +24,35 @@ export default function SessionsModal({ open, onClose }) {
   const [pendingId, setPendingId] = useState(null);
   const [error, setError] = useState(null);
 
+  // 直 · Defensive de-duplication of `is_current`. The server is
+  // expected to mark exactly one session as the caller's own; if a bug
+  // ever flags multiple, only the most-recently-active one keeps the
+  // pill — otherwise the "this device" cue loses meaning. Memoised so
+  // the dedupe pass doesn't run on every render of an unrelated modal
+  // state change (pendingId, error…).
+  const dedupedSessions = useMemo(() => {
+    if (!Array.isArray(sessions) || sessions.length === 0) return sessions;
+    const currentIdx = (() => {
+      let bestIdx = -1;
+      let bestTs = -Infinity;
+      sessions.forEach((s, idx) => {
+        if (!s.is_current) return;
+        const ts = s.last_seen_at
+          ? new Date(s.last_seen_at).getTime()
+          : 0;
+        if (ts > bestTs) {
+          bestTs = ts;
+          bestIdx = idx;
+        }
+      });
+      return bestIdx;
+    })();
+    if (currentIdx < 0) return sessions;
+    return sessions.map((s, idx) =>
+      s.is_current && idx !== currentIdx ? { ...s, is_current: false } : s,
+    );
+  }, [sessions]);
+
   const handleRevoke = async (session) => {
     setError(null);
     setPendingId(session.id);
@@ -42,6 +71,14 @@ export default function SessionsModal({ open, onClose }) {
       setPendingId(null);
     }
   };
+
+  // 静 · Global revocation lock. The original code only disabled the
+  // *currently-revoking* session's button, but rendering happens AFTER
+  // setPendingId resolves — so two rapid clicks on different rows could
+  // both fire DELETEs before the disabled state propagated. Computing
+  // a global lock on every row's `disabled` prop closes that window
+  // (any pending revoke OR any in-flight mutation locks every button).
+  const revokeLocked = pendingId !== null || isRevoking;
 
   return (
     <Modal popupOpen={open} handleClose={onClose} additionalClasses="w-full max-w-xl">
@@ -110,12 +147,15 @@ export default function SessionsModal({ open, onClose }) {
             </li>
           )}
 
-          {sessions.map((s) => (
+          {dedupedSessions.map((s) => (
             <SessionRow
               key={s.id}
               session={s}
               onRevoke={() => handleRevoke(s)}
-              pending={pendingId === s.id || isRevoking}
+              // Show "Revoking…" only on the row whose DELETE is in
+              // flight; lock every other row to defuse double-clicks.
+              pending={pendingId === s.id}
+              locked={revokeLocked && pendingId !== s.id}
               t={t}
             />
           ))}
@@ -131,11 +171,22 @@ export default function SessionsModal({ open, onClose }) {
   );
 }
 
-function SessionRow({ session, onRevoke, pending, t }) {
+function SessionRow({ session, onRevoke, pending, locked = false, t }) {
   const ua = session.user_agent ?? "";
   const label = session.device_label || t("sessions.unknownDevice");
-  const lastSeen = formatRelative(session.last_seen_at, t);
-  const created = formatAbsolute(session.created_at);
+  // Memoise the relative+absolute dates so an unrelated parent re-
+  // render (the audit flagged formatRelative recalculating on every
+  // poll tick) doesn't re-run them. Cheap, but the modal can have
+  // 5-10 rows and this fires on every minute-tick of the polling
+  // loop in larger fleets.
+  const lastSeen = useMemo(
+    () => formatRelative(session.last_seen_at, t),
+    [session.last_seen_at, t],
+  );
+  const created = useMemo(
+    () => formatAbsolute(session.created_at),
+    [session.created_at],
+  );
 
   return (
     <li
@@ -165,7 +216,10 @@ function SessionRow({ session, onRevoke, pending, t }) {
         <button
           type="button"
           onClick={onRevoke}
-          disabled={pending}
+          // `pending` = this row's DELETE is in flight (shows "Revoking…").
+          // `locked` = a *different* row's DELETE is in flight; we
+          // disable this button to prevent racing concurrent reqs.
+          disabled={pending || locked}
           aria-label={
             session.is_current
               ? t("sessions.revokeCurrent")

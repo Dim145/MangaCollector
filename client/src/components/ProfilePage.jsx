@@ -1,6 +1,6 @@
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { consumeTourStep, TOUR_STEPS } from "@/lib/tour.js";
+import { consumeTourStep, peekTourStep, TOUR_STEPS } from "@/lib/tour.js";
 import CoverImage from "./ui/CoverImage.jsx";
 import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
@@ -50,8 +50,17 @@ export default function ProfilePage({ googleUser }) {
   // the muscle memory for next time.
   const avatarRef = useRef(null);
   const [tourSpotlight, setTourSpotlight] = useState(false);
+  // 探 · Peek-then-consume so the AVATAR tour step survives a delayed
+  // ref binding (the avatar button mounts after the user query
+  // resolves). The previous code consumed eagerly at mount, so a
+  // first-load race could leave the user looking at a no-op page —
+  // their tour step gone, no spotlight, no recovery path.
   useEffect(() => {
-    if (consumeTourStep() !== TOUR_STEPS.AVATAR) return;
+    if (peekTourStep() !== TOUR_STEPS.AVATAR) return;
+    if (!avatarRef.current) return; // wait for the ref to bind
+    // Now that the ref is real, atomically consume + animate.
+    const consumed = consumeTourStep();
+    if (consumed !== TOUR_STEPS.AVATAR) return;
     setTourSpotlight(true);
     // Bring the button into view in case the page was scrolled when
     // the user came back to the tab. `block: 'center'` keeps the
@@ -69,7 +78,13 @@ export default function ProfilePage({ googleUser }) {
       cancelAnimationFrame(raf);
       clearTimeout(timer);
     };
-  }, []);
+    // The ref's `.current` becomes truthy on the render that mounts
+    // the avatar button; we want this effect to re-run on that render
+    // until it succeeds. `googleUser` is the typical gate for that
+    // mount, so depending on it gives us the right re-fire cadence
+    // without polling. Once consumed, the peek returns null and the
+    // effect early-returns on subsequent re-renders.
+  }, [googleUser]);
 
   const loading = loadingLib || loadingVol;
 

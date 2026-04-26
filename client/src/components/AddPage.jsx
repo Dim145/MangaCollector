@@ -28,6 +28,13 @@ import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { consumeTourStep, TOUR_STEPS } from "@/lib/tour.js";
 import { pickShareQuery } from "@/lib/share.js";
 import {
+  consumeShortcutIntent,
+  consumeShareIntent,
+  peekShareIntent,
+  discardShareIntent,
+} from "@/lib/deepLinks.js";
+import { getCachedUser } from "@/utils/auth.js";
+import {
   addCustomEntryToUserLibrary,
   addFromMangadexToUserLibrary,
 } from "@/utils/user.js";
@@ -86,63 +93,59 @@ export default function AddPage() {
   const online = useOnline();
   const t = useT();
 
-  // 始 · Welcome-tour AND PWA-shortcut handoff.
-  // Two entry points feed the same choreography: (1) a tour step
-  // stashed in sessionStorage by WelcomeTour, (2) a `shortcut=…` query
-  // param the launcher passes when the user long-presses the installed
-  // PWA icon. Both surface as the same intent here, so the rest of the
-  // page reacts identically.
+  // 始 · Welcome-tour, PWA-shortcut, and Web Share Target handoff.
+  // Three entry points feed the same destination page:
+  //   1. WelcomeTour stashes a step id in sessionStorage when the user
+  //      taps a tour bullet.
+  //   2. The launcher menu hits `/addmanga?shortcut=scan|library` when
+  //      the user long-presses the installed PWA icon.
+  //   3. The OS share sheet hits `/addmanga?share_*=...` when the user
+  //      picks MangaCollector as a share target from another app.
   //
-  // Order matters: the URL param wins over the session step so a user
-  // who explicitly tapped "Scan ISBN" in the launcher menu can't be
-  // silently overridden by a stale tour flag. consumeTourStep() still
-  // runs unconditionally so the session entry is cleared either way.
+  // Cases (2) and (3) are now captured pre-React in `main.jsx`
+  // (`captureDeepLinkIntentFromUrl`) and stashed to sessionStorage.
+  // That guarantees the intent survives an OAuth round-trip if the
+  // user wasn't authenticated when the deep link landed; it also
+  // strips the URL params before any subsequent navigation, defusing
+  // a Referer leak of untrusted share data.
+  //
+  // Defensive: even though <ProtectedRoute> won't render this page
+  // without a cached user, we double-check `getCachedUser()` before
+  // opening the camera. Belt-and-braces against any future routing
+  // refactor that loosens the gate.
   const [tourFocusSearch, setTourFocusSearch] = useState(false);
+  // 共有 · Pending share import — populated when a share intent is
+  // present at mount. We DON'T auto-fire `runSearch` from a share
+  // (that would let any third-party app trigger a server search via
+  // navigator.share()); the user gets a confirmation card instead.
+  const [pendingShareIntent, setPendingShareIntent] = useState(null);
   useEffect(() => {
+    // 1. Shortcut from the PWA launcher (sessionStorage-backed).
+    let shortcut = consumeShortcutIntent();
     let intent = null;
-    let shareQuery = null;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const raw = params.get("shortcut");
-      if (raw === "scan") intent = TOUR_STEPS.SCAN;
-      else if (raw === "library") intent = TOUR_STEPS.LIBRARY;
+    if (shortcut === "scan") intent = TOUR_STEPS.SCAN;
+    else if (shortcut === "library") intent = TOUR_STEPS.LIBRARY;
 
-      // 共有 · Web Share Target payload. Three params, any subset may
-      // be present. lib/share.js condenses them into a single search
-      // candidate; null means the share carried no usable signal.
-      shareQuery = pickShareQuery({
-        title: params.get("share_title"),
-        text: params.get("share_text"),
-        url: params.get("share_url"),
-      });
-
-      // Strip every param we consumed so a manual reload doesn't re-
-      // fire the scanner / focus / search side-effects ad infinitum.
-      // replaceState keeps the route stable and out of history.
-      const consumed = ["shortcut", "share_title", "share_text", "share_url"];
-      let mutated = false;
-      for (const key of consumed) {
-        if (params.has(key)) {
-          params.delete(key);
-          mutated = true;
-        }
-      }
-      if (mutated) {
-        const qs = params.toString();
-        const url = window.location.pathname + (qs ? `?${qs}` : "");
-        window.history.replaceState(null, "", url);
-      }
-    } catch {
-      /* URL parsing failure — silent, fall through to the session step */
-    }
-
+    // 2. Tour step from the welcome modal — only consulted if no
+    //    explicit shortcut was set, so an explicit user action via
+    //    the launcher menu can't be overridden by a stale tour flag.
     const sessionStep = consumeTourStep();
     if (!intent) intent = sessionStep;
 
+    // 3. Share intent — peek (don't consume yet) so the banner can
+    //    render with the original payload. The user's "Import" /
+    //    "Discard" tap consumes it.
+    const sharePeek = peekShareIntent();
+
     if (intent === TOUR_STEPS.SCAN) {
-      // Defer one frame so the AddPage layout is mounted before we open
-      // the scanner overlay — getUserMedia rejects on some browsers if
-      // requested before the route transition settles.
+      // Defensive auth gate: if for any reason the cached user is gone
+      // by the time we'd open the camera (concurrent logout in another
+      // tab, race during ProtectedRoute settle), skip the camera open
+      // — the user will get bounced to login on the next request.
+      if (!getCachedUser()) return;
+      // Defer one frame so the AddPage layout is mounted before we
+      // open the scanner overlay — getUserMedia rejects on some
+      // browsers if requested before the route transition settles.
       const raf = requestAnimationFrame(() => setScannerOpen(true));
       return () => cancelAnimationFrame(raf);
     }
@@ -150,22 +153,35 @@ export default function AddPage() {
       setTourFocusSearch(true);
     }
 
-    // Share-target arrival — pre-fill the search bar with the
-    // extracted candidate and auto-run the MAL/MangaDex search so the
-    // user lands on a result list with zero taps. Skipped silently if
-    // we already routed to the scanner (mutually exclusive with SCAN).
-    if (shareQuery && intent !== TOUR_STEPS.SCAN) {
-      setQuery(shareQuery);
-      // Run the search after this microtask so React has flushed the
-      // setQuery — keeps the input visibly filled before the network
-      // request (perceived responsiveness).
-      queueMicrotask(() => {
-        runSearch(shareQuery);
-      });
-      // Force-focus the search bar even when no tour step asked for it.
-      setTourFocusSearch(true);
+    // Share-target arrival — show a confirmation banner instead of
+    // auto-running the search. The user opts in to import (which
+    // consumes the intent and runs the search) or discards.
+    if (sharePeek && intent !== TOUR_STEPS.SCAN) {
+      setPendingShareIntent(sharePeek);
     }
   }, []);
+
+  // 共有 · Confirmation banner handlers.
+  // - Accept: consume the intent, derive the best query candidate via
+  //   the existing share heuristic, fill the search bar and run the
+  //   search. The user explicitly opts in here, so auto-firing the
+  //   network request is justified.
+  // - Decline: clear the banner + drop the stashed intent so a remount
+  //   of this page (back-button) doesn't ask again.
+  const acceptShareIntent = () => {
+    const data = consumeShareIntent();
+    setPendingShareIntent(null);
+    if (!data) return;
+    const q = pickShareQuery(data);
+    if (!q) return;
+    setQuery(q);
+    setTourFocusSearch(true);
+    queueMicrotask(() => runSearch(q));
+  };
+  const declineShareIntent = () => {
+    discardShareIntent();
+    setPendingShareIntent(null);
+  };
 
   // onBarcodeDetected is a stable useCallback([]) — expose the current
   // currency code through a ref so prefill stays in sync with settings.
@@ -547,6 +563,65 @@ export default function AddPage() {
           {t("add.subtitle")}
         </p>
       </header>
+
+      {/* 共有 · Share-target confirmation banner.
+          Appears only when an external app has handed us share content
+          via the Web Share Target API (banner mode, not auto-fire — see
+          the audit note in the useEffect above). The user is in control
+          of the side-effects: tapping "Import" runs the MAL/MangaDex
+          search; "Discard" drops the intent so a remount doesn't ask
+          again. The original URL/title is surfaced verbatim (truncated
+          via Tailwind's `truncate`) so the user can verify the source
+          before triggering a network request. */}
+      {pendingShareIntent && (
+        <section
+          className="mb-6 overflow-hidden rounded-2xl border border-hanko/40 bg-gradient-to-br from-hanko/15 via-ink-1/60 to-ink-1/40 backdrop-blur animate-slide-down"
+          aria-label={t("share.bannerAria")}
+        >
+          <div className="flex items-start gap-4 p-5">
+            <span
+              aria-hidden
+              className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg bg-hanko/20 font-jp text-base font-bold text-hanko-bright shadow-inner"
+              style={{ transform: "rotate(-4deg)" }}
+            >
+              共
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-hanko-bright">
+                {t("share.bannerEyebrow")}
+              </p>
+              <h2 className="mt-1 font-display text-base font-semibold italic text-washi">
+                {t("share.bannerTitle")}
+              </h2>
+              <p className="mt-1 text-[13px] leading-snug text-washi-muted">
+                {t("share.bannerBody")}
+              </p>
+              {(pendingShareIntent.title || pendingShareIntent.url) && (
+                <p className="mt-2 truncate font-mono text-[11px] text-washi-dim">
+                  {pendingShareIntent.title || pendingShareIntent.url}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={acceptShareIntent}
+                  disabled={!online}
+                  className="rounded-full bg-hanko px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t("share.bannerAccept")}
+                </button>
+                <button
+                  type="button"
+                  onClick={declineShareIntent}
+                  className="rounded-full border border-border bg-transparent px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi"
+                >
+                  {t("share.bannerDecline")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ─── Scan hero CTA ─── */}
       <section className="mb-6 animate-fade-up">

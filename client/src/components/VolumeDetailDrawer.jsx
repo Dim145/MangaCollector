@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useT } from "@/i18n/index.jsx";
@@ -67,7 +67,9 @@ export default function VolumeDetailDrawer({
   open,
   onClose,
   // ── Volume context (display-only) ─────────────────────────────────────
-  id,
+  // (`id` from props is intentionally unused — input/label association
+  //  goes through `useId()` below for stability across remounts and to
+  //  cover the "custom volume, id=undefined" edge case.)
   volNum,
   coverUrl,
   blurImage = false,
@@ -90,6 +92,12 @@ export default function VolumeDetailDrawer({
   onCancel,
 }) {
   const t = useT();
+  // Stable per-instance namespace for input/label association. Replaces
+  // the previous `drawer-price-${id}` pattern, which broke when `id`
+  // was undefined (custom volumes freshly added produce that case) —
+  // every drawer would then collide on `drawer-price-undefined` and
+  // labels would point to the wrong input.
+  const fieldId = useId();
 
   // Decouple DOM lifecycle from `open` so we can play the slide-out
   // animation BEFORE unmounting, just like <Modal>.
@@ -123,11 +131,16 @@ export default function VolumeDetailDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Refs for focus management. The panel is what we trap inside; the
-  // overlay is just the click-outside catcher.
-  const overlayRef = useRef(null);
+  // Refs for focus management. The panel is what we trap inside.
+  // (We removed the overlay ref — it was never read, only attached.)
   const panelRef = useRef(null);
   const lastFocusedBeforeOpenRef = useRef(null);
+  // Tracks where a mousedown started so we can distinguish a true
+  // backdrop click (down + up on the overlay) from a drag-out (down
+  // inside the panel, up outside it because the user was selecting
+  // text). Without this, releasing a text selection past the panel
+  // edge unintentionally cancels the edit.
+  const backdropMouseDownRef = useRef(false);
 
   // Mirror onClose into a ref — see <Modal>.jsx for the rationale: an
   // inline-arrow callback would re-bind the keyup listener on every parent
@@ -160,7 +173,13 @@ export default function VolumeDetailDrawer({
         'a[href], area[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, audio[controls], video[controls], [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
       const tabbables = root.querySelectorAll(selector);
       if (!tabbables.length) {
+        // Saving/loading state can disable every button — without
+        // this fallback, the focus would silently leak back to the
+        // page behind on the next Tab. Park focus on the panel
+        // itself (tabIndex=-1) so subsequent keystrokes stay scoped
+        // to the drawer until controls re-enable.
         e.preventDefault();
+        if (typeof root.focus === "function") root.focus();
         return;
       }
       const first = tabbables[0];
@@ -224,17 +243,32 @@ export default function VolumeDetailDrawer({
 
   const overlay = (
     <div
-      ref={overlayRef}
       className={`fixed inset-0 flex items-stretch justify-end bg-ink-0/70 backdrop-blur-[3px] ${overlayAnim}`}
       // Highest sane z-index — escape any transformed/isolate ancestor.
       // Portaled to <body> so DefaultBackground can't trap us anyway.
       style={{ zIndex: 2147483630 }}
+      // Track drag-out vs. true backdrop click. The browser fires
+      // `click` on the deepest element that received both mousedown
+      // and mouseup — and on touch, it synthesises a click without
+      // any mouse events at all. We use a ref to remember whether
+      // the press *started* on the backdrop, then defer the dismiss
+      // decision to the click handler. Without this, dragging a
+      // text selection out of the panel would close the drawer
+      // mid-edit (the audit reproduced it cleanly).
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
         if (e.target !== e.currentTarget) return;
-        // Backdrop tap behaves like Cancel: discard local edits, close.
-        // (We deliberately don't let it auto-save — that'd surprise users
-        // who tapped outside expecting the inline-form's previous "click
-        // anywhere to dismiss" behaviour, where state was reset.)
+        // Mouse path: only fire if mousedown also originated on the
+        // backdrop. Touch path: pointerType is touch, mousedown
+        // never ran, ref is its initial false → we still want to
+        // dismiss because a touch tap is unambiguously a "click
+        // outside" gesture (no drag-out concept on a tap).
+        const isTouch = e.nativeEvent?.pointerType === "touch";
+        const downOnBackdrop = backdropMouseDownRef.current;
+        backdropMouseDownRef.current = false;
+        if (!isTouch && !downOnBackdrop) return;
         onCancel?.();
       }}
     >
@@ -352,14 +386,18 @@ export default function VolumeDetailDrawer({
               {[
                 { v: true, label: t("volume.ownedOption") },
                 { v: false, label: t("volume.missingOption") },
-              ].map((opt, idx) => (
+              ].map((opt) => (
                 <button
                   key={String(opt.v)}
                   type="button"
                   onClick={() => setOwnedStatus(opt.v)}
-                  // First Owned button gets autofocus so keyboard users
-                  // land on a meaningful control, not the close button.
-                  data-autofocus={idx === 0 ? true : undefined}
+                  // Autofocus the *currently selected* option so a
+                  // keyboard user pressing Space by reflex doesn't
+                  // accidentally flip the state. A reflex Tab still
+                  // takes them to the next field, an explicit click
+                  // on the unselected sibling is required to change
+                  // ownership.
+                  data-autofocus={ownedStatus === opt.v ? true : undefined}
                   className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition ${
                     ownedStatus === opt.v
                       ? opt.v
@@ -504,7 +542,7 @@ export default function VolumeDetailDrawer({
           {/* Price */}
           <div>
             <label
-              htmlFor={`drawer-price-${id}`}
+              htmlFor={`${fieldId}-price`}
               className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
             >
               {t("volume.priceLabel", {
@@ -512,7 +550,7 @@ export default function VolumeDetailDrawer({
               })}
             </label>
             <input
-              id={`drawer-price-${id}`}
+              id={`${fieldId}-price`}
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
@@ -534,13 +572,13 @@ export default function VolumeDetailDrawer({
           {/* Store / location */}
           <div>
             <label
-              htmlFor={`drawer-store-${id}`}
+              htmlFor={`${fieldId}-store`}
               className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
             >
               {t("volume.storeLabel")}
             </label>
             <StoreAutocomplete
-              id={`drawer-store-${id}`}
+              id={`${fieldId}-store`}
               value={purchaseLocation ?? ""}
               onChange={(e) => setPurchaseLocation(e.target.value)}
               placeholder={t("volume.storePlaceholder")}

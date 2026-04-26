@@ -273,6 +273,15 @@ export default {
     customEntryLabel: "Custom entries",
     malSearchLabel: "MAL search",
   },
+  share: {
+    bannerAria: "Imported share — confirm or discard",
+    bannerEyebrow: "Shared with you · 共",
+    bannerTitle: "Import this into your search?",
+    bannerBody:
+      "Another app handed MangaCollector a title or link. Review the source below and choose whether to run a MAL search with it.",
+    bannerAccept: "Import & search",
+    bannerDecline: "Discard",
+  },
   searchResults: {
     matches: "{n} matches · 結果",
     owned: "Owned",
@@ -676,6 +685,11 @@ export default {
     birthdayUntil: "Public until {date} · {days} days remaining",
     birthdayStop: "Close window now",
     birthdayArm: "Open for {days} days",
+    birthdayScopeHeading: "What gets exposed",
+    birthdayScopeBody:
+      "Every wishlist series in your library becomes visible on /u/{slug}, including series you add WHILE the window is open. There's no per-series opt-in — it's all-or-nothing for the duration. Adult-content filtering still applies.",
+    birthdayScopeReminder:
+      "Reminder · series you add now go live immediately on the public page.",
     archiveTitle: "Archive & portability · 写本",
     archiveBody:
       "Export your collection to archive it, or import a scroll received from elsewhere. Merge-only: series already present (same mal_id) are skipped.",

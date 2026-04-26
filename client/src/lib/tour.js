@@ -84,3 +84,20 @@ export function consumeTourStep() {
     return null;
   }
 }
+
+/**
+ * Read the tour step WITHOUT clearing it. Pages whose spotlight
+ * depends on a DOM ref that may not be bound at first render (e.g.
+ * ProfilePage's avatar button mounting after the user data loads)
+ * peek first, then call `consumeTourStep()` only once the target is
+ * actually available. Avoids the "consume succeeded but nothing got
+ * spotlit" failure mode the audit flagged.
+ */
+export function peekTourStep() {
+  try {
+    const v = sessionStorage.getItem(STEP_KEY);
+    return VALID_STEPS.has(v) ? v : null;
+  } catch {
+    return null;
+  }
+}

@@ -87,8 +87,39 @@ export default function BirthdayModeSection() {
           </p>
         )}
 
+        {/* 警 · Scope warning — explicit "all-or-nothing" disclosure
+            so a user activating Birthday mode understands they're
+            opening the full wishlist (including series added later in
+            the window). The audit flagged this as a M2 finding: the
+            UX previously left the all-or-nothing semantics implicit,
+            and there's no per-series opt-in to reach for instead.
+            Treatment differs by state — idle is preventative
+            (informational warning before opting in), active is a
+            reminder (a single-line caveat next to the countdown). */}
+        {!isActive && !publicProfileOff && (
+          <div className="mt-5 rounded-xl border border-sakura/35 bg-sakura/5 p-3.5">
+            <div className="flex items-start gap-3">
+              <span
+                aria-hidden="true"
+                className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-sakura/20 font-jp text-[12px] font-bold leading-none text-sakura"
+                style={{ transform: "rotate(-4deg)" }}
+              >
+                警
+              </span>
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-sakura">
+                  {t("settings.birthdayScopeHeading")}
+                </p>
+                <p className="mt-1 text-[12px] leading-snug text-washi-muted">
+                  {t("settings.birthdayScopeBody", { slug: slug ?? "…" })}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {isActive ? (
-          /* Active state — countdown chip + Stop CTA. */
+          /* Active state — countdown chip + reminder + Stop CTA. */
           <div className="mt-5 space-y-4">
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-sakura/35 bg-sakura/10 px-4 py-3">
               <span
@@ -109,6 +140,10 @@ export default function BirthdayModeSection() {
                 </p>
               </div>
             </div>
+
+            <p className="rounded-lg border border-sakura/25 bg-sakura/5 px-3 py-2 text-[11px] leading-snug text-washi-muted">
+              {t("settings.birthdayScopeReminder")}
+            </p>
 
             <button
               type="button"

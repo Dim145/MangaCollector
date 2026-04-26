@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   getCurrentSeason,
   hasGreetedSeason,
@@ -75,20 +75,29 @@ export default function SeasonGreeting() {
     }
   }, []);
 
+  // 儀 · Stable `dismiss` reference. The previous version was a
+  // function declaration recreated on every render, captured by the
+  // auto-dismiss timer's closure on the render where the timer was
+  // installed. If `season` evolved between then and the timer firing
+  // (e.g. a manual click flipped to null first), the closure could
+  // call markSeasonGreeted on a stale value. `useCallback` rebinds
+  // the function only when `season` changes, so the timer effect
+  // can list it as a dep without re-triggering on incidental
+  // re-renders.
+  const dismiss = useCallback(() => {
+    if (!season) return;
+    markSeasonGreeted(season);
+    setSeason(null);
+  }, [season]);
+
   useEffect(() => {
     if (!season) return;
-    const timer = window.setTimeout(() => dismiss(), AUTO_DISMISS_MS);
+    const timer = window.setTimeout(dismiss, AUTO_DISMISS_MS);
     return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [season]);
+  }, [season, dismiss]);
 
   if (!season) return null;
   const preset = SEASON_PRESETS[season];
-
-  function dismiss() {
-    markSeasonGreeted(season);
-    setSeason(null);
-  }
 
   return (
     <aside

@@ -278,6 +278,15 @@ export default {
     customEntryLabel: "Les entrées personnalisées",
     malSearchLabel: "La recherche MAL",
   },
+  share: {
+    bannerAria: "Partage importé — confirmer ou ignorer",
+    bannerEyebrow: "Partagé avec vous · 共",
+    bannerTitle: "Importer ceci dans votre recherche ?",
+    bannerBody:
+      "Une autre app a transmis un titre ou un lien à MangaCollector. Vérifiez la source ci-dessous puis décidez si vous voulez lancer une recherche MAL avec.",
+    bannerAccept: "Importer & rechercher",
+    bannerDecline: "Ignorer",
+  },
   searchResults: {
     matches: "{n} résultats · 結果",
     owned: "Possédé",
@@ -695,6 +704,11 @@ export default {
     birthdayUntil: "Public jusqu'au {date} · {days} jours restants",
     birthdayStop: "Fermer la fenêtre",
     birthdayArm: "Ouvrir pour {days} jours",
+    birthdayScopeHeading: "Ce qui sera exposé",
+    birthdayScopeBody:
+      "TOUTES les séries de votre liste de souhaits deviennent visibles sur /u/{slug}, y compris celles que vous ajoutez PENDANT la fenêtre. Pas d'opt-in par série — c'est tout ou rien pour la durée choisie. Le filtre contenu adulte reste actif.",
+    birthdayScopeReminder:
+      "Rappel · les séries ajoutées maintenant apparaissent immédiatement sur la page publique.",
     archiveTitle: "Archive & portabilité · 写本",
     archiveBody:
       "Exportez votre collection pour l'archiver ou importez un rouleau reçu d'ailleurs. Merge uniquement : les séries déjà présentes (même mal_id) sont ignorées.",
