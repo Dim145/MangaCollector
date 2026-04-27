@@ -203,9 +203,12 @@ function VolumeImpl({
 
   return (
     <div
-      // [contain:layout_paint] isolates each card so a sibling re-render
-      // can't trigger a reflow rippling through the bucket.
-      className={`group relative rounded-xl border transition-all duration-300 [contain:layout_paint] ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
+      // [contain:layout] isolates each card so a sibling re-render
+      // can't trigger a reflow rippling through the bucket. We
+      // intentionally DON'T add `paint` containment — that would clip
+      // the corner seals (限 / 来 / 余) which sit at -right-2 / -top-2
+      // / -left-2 and rely on overflowing the card's border-box.
+      className={`group relative rounded-xl border transition-all duration-300 [contain:layout] ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
     >
       {collectorStatus && !isUpcoming && (
         <span className="absolute -right-2 -top-2 z-20">
