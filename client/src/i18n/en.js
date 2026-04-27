@@ -597,6 +597,8 @@ export default {
     sec_vessels_title: "Vessels",
     sec_palette_kicker: "Colour names",
     sec_palette_title: "Palette",
+    sec_mokuji_kicker: "Navigation marks",
+    sec_mokuji_title: "Index",
 
     "states_全_literal": "all, entirety",
     "states_全_usage":
@@ -678,6 +680,28 @@ export default {
     "palette_桜_literal": "cherry blossom",
     "palette_桜_usage":
       "Wishlist accent — anticipation without arrival yet.",
+
+    "mokuji_目次_literal": "table of contents",
+    "mokuji_目次_usage":
+      "The vertical rail of the Settings page — each kanji jumps to a chapter. Hangs like a kakejiku scroll along the right edge on desktop; condenses to a sticky ribbon at the top on mobile.",
+    "mokuji_章_literal": "chapter",
+    "mokuji_章_usage":
+      "Unit of organisation on the Settings page — four total, each pressed under a vermillion hanko stamp bearing its ordinal 第○章.",
+    "mokuji_字典_literal": "kanji dictionary",
+    "mokuji_字典_usage":
+      "This very page — reached from Settings → Onboarding. The app's open vocabulary reference.",
+    "mokuji_風_literal": "wind, atmosphere",
+    "mokuji_風_usage":
+      "Settings chapter 1: theme, seasonal palette, ambient particles. Everything that touches the app's visual breath.",
+    "mokuji_文_literal": "writing, text",
+    "mokuji_文_usage":
+      "Settings chapter 2: language, currency, title format, adult-content filter, scanner key. How the app speaks to you, and what it calls things.",
+    "mokuji_館_literal": "hall, building",
+    "mokuji_館_usage":
+      "Settings chapter 3: public profile, archive, shelf labels, welcome tour. Everything tied to your account, or exported with it.",
+    "mokuji_危_literal": "danger, peril",
+    "mokuji_危_usage":
+      "Settings chapter 4: restore from server and account deletion. Actions that demand a careful hand — hence the heavier red stamp.",
   },
   season: {
     dismissAria: "Dismiss the season banner",
@@ -720,6 +744,18 @@ export default {
     heading: "SETTINGS · 設定",
     preferences: "Preferences",
     synced: "Synced",
+    tabsLabel: "Settings categories",
+    tabAppearance: "Appearance",
+    tabAppearanceHint: "Theme, season, atmosphere",
+    tabContent: "Content",
+    tabContentHint: "Language, currency, format",
+    tabAccount: "Account & data",
+    tabAccountHint: "Profile, archive, tools",
+    tabAdvanced: "Advanced",
+    tabAdvancedHint: "Restore & delete",
+    indexLabel: "Index",
+    indexAria: "Jump to chapter",
+    chapterLabel: "Chapter {n}",
     appearance: "Appearance",
     appearanceBody:
       "Dark ink or washi paper. Auto follows your operating system.",

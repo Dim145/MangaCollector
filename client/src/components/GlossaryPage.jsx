@@ -91,6 +91,29 @@ const SECTIONS = [
       { char: "桜", romaji: "sakura", swatch: "sakura" },
     ],
   },
+  // 目次 · Navigational and structural vocabulary — what the Settings
+  // page calls its chapters, what the index rail is named, and the
+  // self-reference back to this very glossary. Sits last because it's
+  // meta: the alphabet describing the alphabet.
+  {
+    id: "mokuji",
+    kanji: "目次",
+    romaji: "mokuji",
+    entries: [
+      { char: "目次", romaji: "mokuji" },
+      { char: "章", romaji: "shō" },
+      { char: "字典", romaji: "jiten" },
+      // The four chapter glyphs of the Settings tome, in their reading
+      // order on the page (一 → 四). Their literal meanings are
+      // intentionally close to their thematic role — chosen so a user
+      // who can't read the kanji still gets a hint of what's behind
+      // them.
+      { char: "風", romaji: "kaze" },
+      { char: "文", romaji: "bun" },
+      { char: "館", romaji: "kan" },
+      { char: "危", romaji: "ki" },
+    ],
+  },
 ];
 
 export default function GlossaryPage() {

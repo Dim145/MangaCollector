@@ -611,6 +611,8 @@ export default {
     sec_vessels_title: "Contenants",
     sec_palette_kicker: "Noms des couleurs",
     sec_palette_title: "Palette",
+    sec_mokuji_kicker: "Repères de navigation",
+    sec_mokuji_title: "Sommaire",
 
     "states_全_literal": "tout, intégralité",
     "states_全_usage":
@@ -692,6 +694,28 @@ export default {
     "palette_桜_literal": "fleur de cerisier",
     "palette_桜_usage":
       "Accent wishlist — l'anticipation avant l'arrivée.",
+
+    "mokuji_目次_literal": "table des matières, sommaire",
+    "mokuji_目次_usage":
+      "Le rail vertical des Réglages — chaque kanji conduit à un chapitre. Suspendu comme un kakejiku au bord droit de la page sur grand écran ; condensé en bandeau collant tout en haut sur mobile.",
+    "mokuji_章_literal": "chapitre",
+    "mokuji_章_usage":
+      "Unité de découpage de la page Réglages — quatre au total, chacun pressé sous un sceau hanko vermillon portant son numéro 第○章.",
+    "mokuji_字典_literal": "dictionnaire de caractères",
+    "mokuji_字典_usage":
+      "Cette page même — accessible depuis Réglages → Découverte. La référence ouverte du vocabulaire de l'app.",
+    "mokuji_風_literal": "vent, atmosphère",
+    "mokuji_風_usage":
+      "Chapitre 1 des Réglages : thème, palette saisonnière, particules d'ambiance. Tout ce qui touche à la respiration visuelle de l'app.",
+    "mokuji_文_literal": "écriture, texte",
+    "mokuji_文_usage":
+      "Chapitre 2 des Réglages : langue, devise, format des titres, contenu adulte, clé de scan. Comment l'app vous parle, et comment elle nomme les choses.",
+    "mokuji_館_literal": "bâtiment, demeure",
+    "mokuji_館_usage":
+      "Chapitre 3 des Réglages : profil public, archive, étiquettes d'étagère, tour de bienvenue. Tout ce qui appartient à votre compte ou s'exporte avec lui.",
+    "mokuji_危_literal": "danger, péril",
+    "mokuji_危_usage":
+      "Chapitre 4 des Réglages : restauration depuis le serveur et suppression du compte. Les actions à manier avec précaution — d'où le sceau rouge plus appuyé.",
   },
   season: {
     dismissAria: "Fermer la bannière de saison",
@@ -734,6 +758,18 @@ export default {
     heading: "PARAMÈTRES · 設定",
     preferences: "Préférences",
     synced: "Synchronisé",
+    tabsLabel: "Catégories de paramètres",
+    tabAppearance: "Apparence",
+    tabAppearanceHint: "Thème, saison, atmosphère",
+    tabContent: "Contenu",
+    tabContentHint: "Langue, devise, format",
+    tabAccount: "Compte & données",
+    tabAccountHint: "Profil, archive, outils",
+    tabAdvanced: "Avancé",
+    tabAdvancedHint: "Restauration & suppression",
+    indexLabel: "Sommaire",
+    indexAria: "Aller au chapitre",
+    chapterLabel: "Chapitre {n}",
     appearance: "Apparence",
     appearanceBody:
       "Encre sombre ou papier washi. Auto suit votre système d'exploitation.",

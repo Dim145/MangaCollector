@@ -603,6 +603,8 @@ export default {
     sec_vessels_title: "Recipientes",
     sec_palette_kicker: "Nombres de los colores",
     sec_palette_title: "Paleta",
+    sec_mokuji_kicker: "Marcas de navegación",
+    sec_mokuji_title: "Sumario",
 
     "states_全_literal": "todo, totalidad",
     "states_全_usage":
@@ -684,6 +686,28 @@ export default {
     "palette_桜_literal": "flor de cerezo",
     "palette_桜_usage":
       "Acento wishlist — anticipación antes de la llegada.",
+
+    "mokuji_目次_literal": "índice, tabla de contenidos",
+    "mokuji_目次_usage":
+      "El raíl vertical de los Ajustes — cada kanji salta a un capítulo. Cuelga como un kakejiku junto al borde derecho de la página en escritorio; se condensa en una cinta fija arriba en móvil.",
+    "mokuji_章_literal": "capítulo",
+    "mokuji_章_usage":
+      "Unidad de organización en la página de Ajustes — cuatro en total, cada uno sellado bajo un hanko bermellón que lleva su ordinal 第○章.",
+    "mokuji_字典_literal": "diccionario de caracteres",
+    "mokuji_字典_usage":
+      "Esta misma página — accesible desde Ajustes → Descubrimiento. La referencia abierta del vocabulario de la app.",
+    "mokuji_風_literal": "viento, atmósfera",
+    "mokuji_風_usage":
+      "Capítulo 1 de Ajustes: tema, paleta estacional, partículas de ambiente. Todo lo que afecta la respiración visual de la app.",
+    "mokuji_文_literal": "escritura, texto",
+    "mokuji_文_usage":
+      "Capítulo 2 de Ajustes: idioma, moneda, formato de títulos, contenido adulto, clave del escáner. Cómo te habla la app y cómo nombra las cosas.",
+    "mokuji_館_literal": "sala, edificio",
+    "mokuji_館_usage":
+      "Capítulo 3 de Ajustes: perfil público, archivo, etiquetas de estantería, tour de bienvenida. Todo lo ligado a tu cuenta o exportado con ella.",
+    "mokuji_危_literal": "peligro",
+    "mokuji_危_usage":
+      "Capítulo 4 de Ajustes: restauración desde el servidor y eliminación de la cuenta. Acciones que requieren mano cuidadosa — de ahí el sello rojo más marcado.",
   },
   season: {
     dismissAria: "Cerrar la pancarta de temporada",
@@ -726,6 +750,18 @@ export default {
     heading: "AJUSTES · 設定",
     preferences: "Preferencias",
     synced: "Sincronizado",
+    tabsLabel: "Categorías de ajustes",
+    tabAppearance: "Apariencia",
+    tabAppearanceHint: "Tema, estación, atmósfera",
+    tabContent: "Contenido",
+    tabContentHint: "Idioma, moneda, formato",
+    tabAccount: "Cuenta y datos",
+    tabAccountHint: "Perfil, archivo, utilidades",
+    tabAdvanced: "Avanzado",
+    tabAdvancedHint: "Restauración y eliminación",
+    indexLabel: "Índice",
+    indexAria: "Ir al capítulo",
+    chapterLabel: "Capítulo {n}",
     appearance: "Apariencia",
     appearanceBody:
       "Tinta oscura o papel washi. Auto sigue a tu sistema operativo.",
