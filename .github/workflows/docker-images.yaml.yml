@@ -4,13 +4,23 @@ on:
   release:
     types: [published]
 
-
+# Ne pas accumuler de runs en parallèle si plusieurs releases sont publiées
+# coup-sur-coup — la 2e annule la 1re.
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  # Backend et frontend tournent en parallèle — aucune dépendance entre eux,
+  # aucune raison de payer la latence d'un build séquentiel.
+  build-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # Buildx active le format BuildKit, prérequis pour `cache-to=type=gha`
+      # et pour les `--mount=type=cache` à l'intérieur du Dockerfile.
+      - uses: docker/setup-buildx-action@v3
 
       - name: Login to Container Registry
         uses: docker/login-action@v3
@@ -20,22 +30,49 @@ jobs:
           password: ${{ secrets.REGISTRY_TOKEN }}
 
       - name: Build and push backend
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./server
           platforms: linux/amd64
           push: true
+          # Releases taggées → profil `release` complet (LTO + opt=3). Le
+          # cargo-chef + cache GHA garde le rebuild rapide malgré la passe
+          # LTO. Pour économiser quelques minutes au prix de ~5-10% de perf
+          # runtime, override avec CARGO_PROFILE=release-fast.
+          build-args: |
+            CARGO_PROFILE=release
+          # `mode=max` exporte aussi les couches intermédiaires (chef /
+          # planner / builder), sans quoi cargo-chef perd son intérêt en CI.
+          # `scope=backend` isole ce cache du frontend pour qu'ils ne se
+          # marchent pas dessus dans le quota GHA (10 GB partagé pour le repo).
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
           tags: |
             ${{ secrets.REGISTRY_DOMAIN }}/${{ secrets.BACK_IMAGE_NAME }}:latest
             ${{ secrets.REGISTRY_DOMAIN }}/${{ secrets.BACK_IMAGE_NAME }}:${{ github.ref_name }}
-      
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_DOMAIN }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
 
       - name: Build and push frontend
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./client
           platforms: linux/amd64
           push: true
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
           tags: |
             ${{ secrets.REGISTRY_DOMAIN }}/${{ secrets.FRONT_IMAGE_NAME }}:latest
             ${{ secrets.REGISTRY_DOMAIN }}/${{ secrets.FRONT_IMAGE_NAME }}:${{ github.ref_name }}
