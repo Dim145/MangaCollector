@@ -25,6 +25,14 @@ import { flushPendingLogout, hasPendingLogout } from "@/utils/auth.js";
 
 const PENDING_CHANGED_EVENT = "mc:pending-changed";
 const SYNC_ERROR_EVENT = "mc:sync-error";
+// 報 · Positive-confirmation channel. Used for sync results that are
+// informational rather than failures — successful refresh-upcoming
+// reports, future "added N volumes" / "ISBN backfill done" surfacing.
+// Kept separate from the error channel so subscribers can render
+// each with its own visual variant (red ink for errors, green-tea
+// ink for confirmations) instead of one toaster trying to convey
+// both with the same shell.
+const SYNC_INFO_EVENT = "mc:sync-info";
 
 let syncing = false;
 let syncQueued = false;
@@ -77,6 +85,34 @@ export function notifySyncError(errOrMessage, opContext = "direct") {
         errOrMessage?.message ??
         "Request failed");
   emit(SYNC_ERROR_EVENT, { op: opContext, message });
+}
+
+export function onSyncInfo(handler) {
+  window.addEventListener(SYNC_INFO_EVENT, handler);
+  return () => window.removeEventListener(SYNC_INFO_EVENT, handler);
+}
+
+/**
+ * Surface a successful, info-shaped result through the SyncToaster.
+ * Caller passes a structured payload the toaster knows how to render:
+ *
+ *   {
+ *     op:     "upcoming-refresh" | "mal-refresh" | …,
+ *     tone:   "success" | "neutral",   // success = green-tea accent,
+ *                                      // neutral = washi (e.g. "no
+ *                                      // changes"); defaults to success
+ *     icon:   string,                  // single glyph (kanji / symbol)
+ *                                      // shown in the badge slot
+ *     title:  string,
+ *     body?:  string,                  // optional secondary line
+ *   }
+ *
+ * The toast renders for ~5 s then auto-dismisses. Kept event-driven
+ * (rather than imperative `pushToast(...)`) so any future replicator
+ * can subscribe alongside SyncToaster without coupling.
+ */
+export function notifySyncInfo(payload) {
+  emit(SYNC_INFO_EVENT, payload || {});
 }
 
 /*
@@ -246,10 +282,9 @@ export async function enqueueLibraryVolumesOwned(mal_id, nbOwned) {
  */
 
 export async function enqueueVolumeUpdate(volume) {
-  // Translate the `read: boolean` flag (from the mutation call-site) into
-  // a `read_at: iso|null` that matches the server row shape, so Dexie's
-  // live-query readers see the optimistic badge update immediately. The
-  // server mapping is mirrored in `services/volume.rs::update_by_id`.
+  // Translate the `read: boolean` flag from the call site into the
+  // `read_at: iso|null` shape Dexie's live-query readers expect; the
+  // matching server-side mapping lives in `services/volume.rs`.
   const { read, ...rest } = volume;
   const local = { ...rest };
   if (read !== undefined) {
@@ -288,9 +323,11 @@ export async function enqueueVolumeUpdate(volume) {
         local.collector !== undefined
           ? Boolean(local.collector)
           : prev.collector,
-      // `read` is the boolean the flusher translates into the PATCH
-      // field. `undefined` means "don't touch" — keep the prior value.
+      // `undefined` for `read` / `notes` means "don't touch" — the
+      // flusher only sends those fields when they're explicitly set,
+      // matching the server's leave-untouched contract.
       read: read !== undefined ? read : prev.read,
+      notes: local.notes !== undefined ? local.notes : prev.notes,
     };
 
     await db.outboxVolumes.put({
@@ -416,10 +453,14 @@ async function flushVolumes() {
         price: op.payload.price,
         store: op.payload.store,
         collector: Boolean(op.payload.collector),
-        // Only forward the `read` flag when it was explicitly set —
-        // sending undefined leaves the server-side read_at untouched.
+        // `read` and `notes` are only sent when explicitly set; an
+        // unrelated outbox replay (e.g. a price edit) leaves them
+        // untouched server-side.
         ...(op.payload.read !== undefined
           ? { read: Boolean(op.payload.read) }
+          : {}),
+        ...(op.payload.notes !== undefined
+          ? { notes: String(op.payload.notes ?? "") }
           : {}),
       });
       await db.outboxVolumes.delete(op.id);
@@ -602,6 +643,16 @@ let _syncRunnerInstalled = false;
 let _syncRunnerInterval = null;
 let _syncRunnerUnsubscribe = null;
 
+// Named so `removeEventListener` matches the same reference on uninstall.
+function _syncRunnerVisibilityHandler() {
+  if (typeof document === "undefined") return;
+  if (document.visibilityState !== "visible") return;
+  if (!isFullyOnline()) return;
+  pendingCount().then((n) => {
+    if (n > 0) syncOutbox();
+  });
+}
+
 /**
  * Install sync runner.
  *
@@ -624,10 +675,11 @@ export function installSyncRunner() {
     }
   });
 
-  // Slow safety-net for stuck ops: only do real work if there's actually
-  // something pending. A bare interval that fires GETs every minute would
-  // pile up on top of the React Query refetches and delay initial render.
+  // Slow safety-net for stuck outbox entries — only fires if the tab
+  // is visible AND there's actually pending work. The visibilitychange
+  // handler below covers the catch-up case when focus returns.
   _syncRunnerInterval = setInterval(async () => {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     if (!isFullyOnline()) return;
     if (hasPendingLogout()) {
       flushPendingLogout();
@@ -636,6 +688,10 @@ export function installSyncRunner() {
     const n = await pendingCount();
     if (n > 0) syncOutbox();
   }, 60_000);
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", _syncRunnerVisibilityHandler);
+  }
 
   // Deferred startup check — only schedules work if there IS work. Uses
   // requestIdleCallback so it never competes with the initial data render.
@@ -665,6 +721,12 @@ export function uninstallSyncRunner() {
   if (typeof _syncRunnerUnsubscribe === "function") {
     _syncRunnerUnsubscribe();
     _syncRunnerUnsubscribe = null;
+  }
+  if (typeof document !== "undefined") {
+    document.removeEventListener(
+      "visibilitychange",
+      _syncRunnerVisibilityHandler,
+    );
   }
   _syncRunnerInstalled = false;
 }

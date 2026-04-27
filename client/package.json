@@ -1,13 +1,14 @@
 {
   "name": "package.json",
   "private": true,
-  "version": "2.7.1",
+  "version": "2.8.0",
   "type": "module",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22"
   },
+  "packageManager": "pnpm@10.33.2",
   "scripts": {
-    "dev": "npm install && prettier --write . && vite --host",
+    "dev": "pnpm install && prettier --write . && vite --host",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -17,15 +18,15 @@
     "@tanstack/react-query": "^5.100.3",
     "axios": "^1.15.2",
     "barcode-detector": "^3.1.2",
-    "clsx": "^2.1.1",
     "currency.js": "^2.0.4",
     "dexie": "^4.4.2",
     "dexie-react-hooks": "^4.4.0",
+    "html-to-image": "^1.11.13",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2",
     "recharts": "^3.8.1",
-    "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.4"
   },
   "devDependencies": {
@@ -41,9 +42,17 @@
     "vite": "^8.0.10",
     "vite-plugin-pwa": "^1.2.0"
   },
-  "overrides": {
-    "vite-plugin-pwa": {
-      "vite": "$vite"
+  "pnpm": {
+    "overrides": {
+      "serialize-javascript": "^7.0.5",
+      "magic-string": "^0.30.21",
+      "source-map": "^0.7.6",
+      "glob": "^13.0.6"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "vite-plugin-pwa>vite": "^8.0.0"
+      }
     }
   }
 }

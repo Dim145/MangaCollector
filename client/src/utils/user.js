@@ -44,6 +44,24 @@ async function refreshFromMangadex(mal_id) {
   ).data;
 }
 
+/**
+ * 来 · Trigger an on-demand discovery sweep for the given series.
+ *
+ * Walks the backend API cascade (MangaUpdates today, Google Books +
+ * OpenLibrary in later phases) and reconciles the result against
+ * `user_volumes`. Returns a small report:
+ *   { success, added: [...], updated: [...], skipped, discovered_count }
+ * which the caller surfaces as a toast / refresh state.
+ *
+ * POST because the call mutates server state. No request body — the
+ * mal_id in the URL is the entire input.
+ */
+async function refreshUpcoming(mal_id) {
+  return (
+    await axios.post(`/api/user/library/${mal_id}/refresh-upcoming`)
+  ).data;
+}
+
 export {
   addToUserLibrary,
   uploadPoster,
@@ -51,4 +69,5 @@ export {
   addCustomEntryToUserLibrary,
   addFromMangadexToUserLibrary,
   refreshFromMangadex,
+  refreshUpcoming,
 };

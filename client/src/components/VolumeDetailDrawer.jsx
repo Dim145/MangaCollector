@@ -5,33 +5,16 @@ import { useT } from "@/i18n/index.jsx";
 import { formatCurrency } from "@/utils/price.js";
 
 /**
- * Volume detail drawer — slides in from the right edge so the underlying
- * volume grid stays visible behind a translucent ink scrim. This replaces
- * the previous in-card inline expansion which forced the rest of the grid
- * to reflow every time the user opened a single edit form.
- *
- * Design language is Shōjo Noir: 巻 (kan/maki = "volume / scroll") sits as
- * a faint hanko watermark behind the form, the panel is gradient-inked,
- * the save action carries the hanko-red, and the close affordance is a
- * round corner button mirroring <Modal>'s.
- *
- * State is *controlled* — the parent (`Volume`) owns the form fields. The
- * drawer is intentionally dumb beyond chrome (mount/unmount, focus trap,
- * scroll lock, ESC) so that:
- *   - cancel can reset state back to the server-side props,
- *   - save can persist + close in one atomic flow,
- *   - the optimistic-but-not-yet-flushed values survive a brief drawer
- *     re-render while a mutation is in flight.
+ * Volume detail drawer — controlled by the parent (Volume). The drawer is
+ * intentionally dumb beyond chrome (mount/unmount, focus trap, scroll lock,
+ * ESC) so cancel can reset cleanly and an in-flight save survives a remount.
  */
 
-/** Must match `animate-drawer-out` duration so the unmount fires AFTER the
- *  exit animation finishes, not on top of it. */
+// Must match the `animate-drawer-out` CSS duration.
 const CLOSE_ANIM_MS = 240;
 
-// Reference-counted body-scroll lock — same pattern as <Modal>. Multiple
-// drawers stacking would be unusual but it's cheap to be safe, and it
-// also means a Modal opening over a Drawer (or vice-versa) won't fight
-// over the original overflow value.
+// Reference-counted body-scroll lock — same pattern as <Modal>, so a Modal
+// opening over a Drawer (or vice-versa) doesn't fight over `overflow`.
 let activeDrawerCount = 0;
 let savedBodyOverflow = null;
 function acquireScrollLock() {
@@ -49,8 +32,6 @@ function releaseScrollLock() {
   }
 }
 
-/** Format an ISO read_at timestamp for UI captions. Mirrors the helper
- *  in Volume.jsx but kept inline so this component can stand alone. */
 function formatReadDate(iso) {
   try {
     return new Date(iso).toLocaleDateString(undefined, {
@@ -66,16 +47,11 @@ function formatReadDate(iso) {
 export default function VolumeDetailDrawer({
   open,
   onClose,
-  // ── Volume context (display-only) ─────────────────────────────────────
-  // (`id` from props is intentionally unused — input/label association
-  //  goes through `useId()` below for stability across remounts and to
-  //  cover the "custom volume, id=undefined" edge case.)
   volNum,
   coverUrl,
   blurImage = false,
   readAt,
   currencySetting,
-  // ── Form state — controlled by the parent ─────────────────────────────
   ownedStatus,
   setOwnedStatus,
   readStatus,
@@ -86,21 +62,24 @@ export default function VolumeDetailDrawer({
   setPrice,
   purchaseLocation,
   setPurchaseLocation,
-  // ── Lifecycle ─────────────────────────────────────────────────────────
+  note = "",
+  setNote = () => {},
   isLoading,
   onSave,
   onCancel,
+  isUpcoming = false,
+  releaseDate = null,
+  releaseIsbn = null,
+  releaseUrl = null,
+  origin = "manual",
+  announcedAt = null,
+  daysUntilRelease = null,
 }) {
   const t = useT();
-  // Stable per-instance namespace for input/label association. Replaces
-  // the previous `drawer-price-${id}` pattern, which broke when `id`
-  // was undefined (custom volumes freshly added produce that case) —
-  // every drawer would then collide on `drawer-price-undefined` and
-  // labels would point to the wrong input.
+  // useId() avoids the `drawer-price-undefined` collision custom volumes hit.
   const fieldId = useId();
 
-  // Decouple DOM lifecycle from `open` so we can play the slide-out
-  // animation BEFORE unmounting, just like <Modal>.
+  // Decouple DOM lifecycle from `open` so the exit animation plays before unmount.
   const [mounted, setMounted] = useState(open);
   const [leaving, setLeaving] = useState(false);
   const closeTimer = useRef(null);
@@ -131,20 +110,14 @@ export default function VolumeDetailDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Refs for focus management. The panel is what we trap inside.
-  // (We removed the overlay ref — it was never read, only attached.)
   const panelRef = useRef(null);
   const lastFocusedBeforeOpenRef = useRef(null);
-  // Tracks where a mousedown started so we can distinguish a true
-  // backdrop click (down + up on the overlay) from a drag-out (down
-  // inside the panel, up outside it because the user was selecting
-  // text). Without this, releasing a text selection past the panel
-  // edge unintentionally cancels the edit.
+  // Distinguishes a true backdrop click from a text-selection drag-out so
+  // releasing the selection past the panel edge doesn't cancel the edit.
   const backdropMouseDownRef = useRef(false);
 
-  // Mirror onClose into a ref — see <Modal>.jsx for the rationale: an
-  // inline-arrow callback would re-bind the keyup listener on every parent
-  // render, which can drop a keystroke during the one-frame gap.
+  // Mirror onClose into a ref to avoid re-binding the keyup listener on every
+  // parent render (would otherwise drop a keystroke in the one-frame gap).
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -160,11 +133,6 @@ export default function VolumeDetailDrawer({
       }
     };
 
-    // Focus trap — same selector as <Modal>. Tab cycles among interactive
-    // descendants of the panel; Shift+Tab cycles backwards. We don't trap
-    // arrow keys because the form has buttons + inputs that legitimately
-    // benefit from native arrow-key behaviour (e.g. the number input
-    // increment).
     const handleKeyDown = (e) => {
       if (e.key !== "Tab") return;
       const root = panelRef.current;
@@ -173,11 +141,8 @@ export default function VolumeDetailDrawer({
         'a[href], area[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, audio[controls], video[controls], [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
       const tabbables = root.querySelectorAll(selector);
       if (!tabbables.length) {
-        // Saving/loading state can disable every button — without
-        // this fallback, the focus would silently leak back to the
-        // page behind on the next Tab. Park focus on the panel
-        // itself (tabIndex=-1) so subsequent keystrokes stay scoped
-        // to the drawer until controls re-enable.
+        // No tabbables (loading state disables every button) → park focus on
+        // the panel itself so keystrokes stay scoped until controls re-enable.
         e.preventDefault();
         if (typeof root.focus === "function") root.focus();
         return;
@@ -199,8 +164,6 @@ export default function VolumeDetailDrawer({
     window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("keydown", handleKeyDown);
 
-    // Push focus inside the drawer once it's painted. Falls back to the
-    // panel itself (tabIndex=-1 below) if no `data-autofocus` is present.
     requestAnimationFrame(() => {
       const root = panelRef.current;
       if (!root) return;
@@ -230,9 +193,7 @@ export default function VolumeDetailDrawer({
       }
       lastFocusedBeforeOpenRef.current = null;
     };
-    // Effect deps intentionally narrow: handlers come off refs (so they
-    // can't be stale even though they aren't listed), and the only state
-    // we actually want to react to is the mount transition.
+    // Handlers come off refs — only the mount transition is a real dep.
   }, [mounted]);
 
   if (!mounted) return null;
@@ -244,27 +205,14 @@ export default function VolumeDetailDrawer({
   const overlay = (
     <div
       className={`fixed inset-0 flex items-stretch justify-end bg-ink-0/70 backdrop-blur-[3px] ${overlayAnim}`}
-      // Highest sane z-index — escape any transformed/isolate ancestor.
-      // Portaled to <body> so DefaultBackground can't trap us anyway.
       style={{ zIndex: 2147483630 }}
-      // Track drag-out vs. true backdrop click. The browser fires
-      // `click` on the deepest element that received both mousedown
-      // and mouseup — and on touch, it synthesises a click without
-      // any mouse events at all. We use a ref to remember whether
-      // the press *started* on the backdrop, then defer the dismiss
-      // decision to the click handler. Without this, dragging a
-      // text selection out of the panel would close the drawer
-      // mid-edit (the audit reproduced it cleanly).
       onMouseDown={(e) => {
         backdropMouseDownRef.current = e.target === e.currentTarget;
       }}
       onClick={(e) => {
         if (e.target !== e.currentTarget) return;
-        // Mouse path: only fire if mousedown also originated on the
-        // backdrop. Touch path: pointerType is touch, mousedown
-        // never ran, ref is its initial false → we still want to
-        // dismiss because a touch tap is unambiguously a "click
-        // outside" gesture (no drag-out concept on a tap).
+        // Touch path has no mousedown, so a tap is unambiguously "click
+        // outside"; mouse path needs the mousedown to have started here too.
         const isTouch = e.nativeEvent?.pointerType === "touch";
         const downOnBackdrop = backdropMouseDownRef.current;
         backdropMouseDownRef.current = false;
@@ -276,20 +224,26 @@ export default function VolumeDetailDrawer({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={t("volume.editDrawerTitle", { n: volNum })}
+        aria-label={
+          isUpcoming
+            ? t("volume.upcomingDetailsAria")
+            : t("volume.editDrawerTitle", { n: volNum })
+        }
         tabIndex={-1}
-        className={`relative flex h-full w-full max-w-[26rem] flex-col overflow-hidden border-l border-border bg-gradient-to-b from-ink-1 via-ink-1 to-ink-0 shadow-[0_0_60px_-12px_rgba(220,38,38,0.35)] focus:outline-none ${panelAnim}`}
+        className={`relative flex h-full w-full max-w-[26rem] flex-col overflow-hidden border-l ${
+          isUpcoming
+            ? "border-moegi/30 bg-gradient-to-b from-ink-1 via-ink-1 to-moegi/[0.04] shadow-[0_0_60px_-12px_rgba(163,201,97,0.32)]"
+            : "border-border bg-gradient-to-b from-ink-1 via-ink-1 to-ink-0 shadow-[0_0_60px_-12px_rgba(220,38,38,0.35)]"
+        } focus:outline-none ${panelAnim}`}
       >
-        {/* Background watermark — 巻 (kan/maki = "volume / scroll").
-            Sits behind everything at very low opacity, like a hanko mark
-            stamped onto handmade paper. Pointer-events disabled so it
-            never eats clicks. */}
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-12 top-24 select-none font-jp text-[28rem] font-bold leading-none text-hanko/[0.04]"
+          className={`pointer-events-none absolute -right-12 top-24 select-none font-jp text-[28rem] font-bold leading-none ${
+            isUpcoming ? "text-moegi/[0.06]" : "text-hanko/[0.04]"
+          }`}
           style={{ writingMode: "vertical-rl" }}
         >
-          巻
+          {isUpcoming ? "来" : "巻"}
         </span>
 
         {/* ── Header ────────────────────────────────────────────────── */}
@@ -298,11 +252,13 @@ export default function VolumeDetailDrawer({
             {coverUrl ? (
               <span
                 className={`relative h-24 w-16 flex-shrink-0 overflow-hidden rounded-md border shadow-md transition ${
-                  collectorStatus
-                    ? "border-gold ring-1 ring-gold/60 shadow-[0_0_12px_rgba(201,169,97,0.35)]"
-                    : ownedStatus
-                      ? "border-hanko/70 shadow-[0_0_10px_rgba(220,38,38,0.2)]"
-                      : "border-border"
+                  isUpcoming
+                    ? "border-moegi/60 ring-1 ring-moegi/40 shadow-[0_0_12px_rgba(163,201,97,0.35)]"
+                    : collectorStatus
+                      ? "border-gold ring-1 ring-gold/60 shadow-[0_0_12px_rgba(201,169,97,0.35)]"
+                      : ownedStatus
+                        ? "border-hanko/70 shadow-[0_0_10px_rgba(220,38,38,0.2)]"
+                        : "border-border"
                 }`}
               >
                 <img
@@ -312,18 +268,26 @@ export default function VolumeDetailDrawer({
                   draggable={false}
                   className={`h-full w-full select-none object-cover ${
                     blurImage ? "blur-md" : ""
-                  } ${!ownedStatus ? "brightness-50 grayscale" : ""}`}
+                  } ${
+                    isUpcoming
+                      ? "brightness-55 saturate-50"
+                      : !ownedStatus
+                        ? "brightness-50 grayscale"
+                        : ""
+                  }`}
                 />
-                {!ownedStatus && (
+                {(isUpcoming || !ownedStatus) && (
                   <span className="pointer-events-none absolute inset-0 bg-ink-0/55" />
                 )}
                 <span
                   className={`pointer-events-none absolute bottom-0.5 right-0.5 grid min-h-4 min-w-4 place-items-center rounded-sm px-1 font-mono text-[9px] font-bold leading-none shadow ${
-                    collectorStatus
-                      ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
-                      : ownedStatus
-                        ? "bg-hanko text-washi"
-                        : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
+                    isUpcoming
+                      ? "bg-moegi text-ink-0"
+                      : collectorStatus
+                        ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
+                        : ownedStatus
+                          ? "bg-hanko text-washi"
+                          : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
                   }`}
                 >
                   {volNum}
@@ -332,26 +296,52 @@ export default function VolumeDetailDrawer({
             ) : (
               <span
                 className={`grid h-24 w-16 flex-shrink-0 place-items-center rounded-md border bg-ink-2 font-mono text-base font-bold ${
-                  collectorStatus
-                    ? "border-gold text-gold"
-                    : ownedStatus
-                      ? "border-hanko text-hanko"
-                      : "border-border text-washi-dim"
+                  isUpcoming
+                    ? "border-moegi text-moegi"
+                    : collectorStatus
+                      ? "border-gold text-gold"
+                      : ownedStatus
+                        ? "border-hanko text-hanko"
+                        : "border-border text-washi-dim"
                 }`}
               >
                 {volNum}
               </span>
             )}
             <div className="min-w-0">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-hanko">
-                {t("volume.editDrawerEyebrow")}
+              <p
+                className={`font-mono text-[10px] uppercase tracking-[0.22em] ${
+                  isUpcoming ? "text-moegi" : "text-hanko"
+                }`}
+              >
+                {isUpcoming
+                  ? t("volume.upcomingDrawerEyebrow")
+                  : t("volume.editDrawerEyebrow")}
               </p>
               <h2 className="mt-1.5 font-display text-xl font-semibold italic leading-tight text-washi">
                 {t("volume.volume", { n: volNum })}
               </h2>
               <p className="mt-1 text-[12px] leading-snug text-washi-muted">
-                {t("volume.editDrawerLead")}
+                {isUpcoming
+                  ? t("volume.upcomingDrawerLead")
+                  : t("volume.editDrawerLead")}
               </p>
+              {isUpcoming && (
+                <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-moegi/40 bg-moegi/10 px-2.5 py-1 font-mono text-[11px] leading-none text-moegi">
+                  <span className="font-jp text-[12px] font-bold leading-none">
+                    来
+                  </span>
+                  <span>
+                    {formatReleaseDate(releaseDate)}
+                    {daysUntilRelease != null && daysUntilRelease > 0 && (
+                      <> · J−{daysUntilRelease}</>
+                    )}
+                    {daysUntilRelease === 0 && (
+                      <> · {t("volume.upcomingCountdownToday")}</>
+                    )}
+                  </span>
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -375,9 +365,81 @@ export default function VolumeDetailDrawer({
           </button>
         </div>
 
-        {/* ── Form (scrollable middle) ──────────────────────────────── */}
-        <div className="relative z-10 flex-1 space-y-5 overflow-y-auto p-5">
-          {/* Status (owned / missing) */}
+        {isUpcoming ? (
+          <div className="relative z-10 flex-1 space-y-4 overflow-y-auto p-5">
+            <div className="rounded-xl border border-moegi/30 bg-moegi/5 p-4">
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-moegi-muted">
+                {t("volume.upcomingDrawerEyebrow")}
+              </p>
+              <p className="mt-1 text-[13px] leading-snug text-washi">
+                {t("volume.upcomingDrawerLead")}
+              </p>
+            </div>
+
+            <dl className="space-y-3 text-[13px]">
+              <div className="flex items-baseline gap-3 border-b border-border/60 pb-3">
+                <dt className="w-24 flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+                  {t("volume.upcomingSourceLabel")}
+                </dt>
+                <dd className="flex-1 text-washi">
+                  <span className="block font-mono text-[11px] text-washi-muted">
+                    {origin === "manual"
+                      ? t("volume.upcomingOriginManual")
+                      : t("volume.upcomingOriginApi", { source: origin })}
+                  </span>
+                  {announcedAt && origin !== "manual" && (
+                    <span className="mt-0.5 block font-mono text-[10px] text-washi-dim">
+                      {formatFreshness(announcedAt, t)}
+                    </span>
+                  )}
+                </dd>
+              </div>
+              {releaseIsbn && (
+                <div className="flex items-baseline gap-3 border-b border-border/60 pb-3">
+                  <dt className="w-24 flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+                    {t("volume.upcomingIsbn")}
+                  </dt>
+                  <dd className="flex-1 select-all font-mono text-[12px] text-washi">
+                    {releaseIsbn}
+                  </dd>
+                </div>
+              )}
+              {releaseUrl && (
+                <div className="flex items-baseline gap-3">
+                  <dt className="w-24 flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+                    {t("volume.upcomingPreorder")}
+                  </dt>
+                  <dd className="flex-1">
+                    <a
+                      href={releaseUrl}
+                      target="_blank"
+                      rel="noreferrer noopener nofollow"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-moegi/50 bg-moegi/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-moegi transition hover:border-moegi hover:bg-moegi/20"
+                    >
+                      <span className="font-jp text-[12px] font-bold leading-none">
+                        来
+                      </span>
+                      {t("volume.upcomingPreorder")}
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-3 w-3"
+                        aria-hidden="true"
+                      >
+                        <path d="M7 17 17 7M9 7h8v8" />
+                      </svg>
+                    </a>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        ) : (
+          <div className="relative z-10 flex-1 space-y-5 overflow-y-auto p-5">
           <div>
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
               {t("volume.statusLabel")}
@@ -391,12 +453,7 @@ export default function VolumeDetailDrawer({
                   key={String(opt.v)}
                   type="button"
                   onClick={() => setOwnedStatus(opt.v)}
-                  // Autofocus the *currently selected* option so a
-                  // keyboard user pressing Space by reflex doesn't
-                  // accidentally flip the state. A reflex Tab still
-                  // takes them to the next field, an explicit click
-                  // on the unselected sibling is required to change
-                  // ownership.
+                  // Autofocus the selected option so reflex-Space doesn't flip state.
                   data-autofocus={ownedStatus === opt.v ? true : undefined}
                   className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition ${
                     ownedStatus === opt.v
@@ -412,7 +469,6 @@ export default function VolumeDetailDrawer({
             </div>
           </div>
 
-          {/* Reading toggle (tsundoku axis) */}
           <div>
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
               {t("volume.readingLabel")}
@@ -477,7 +533,6 @@ export default function VolumeDetailDrawer({
             </button>
           </div>
 
-          {/* Collector toggle (gold-accented edition switch) */}
           <div>
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
               {t("volume.editionLabel")}
@@ -539,7 +594,6 @@ export default function VolumeDetailDrawer({
             </button>
           </div>
 
-          {/* Price */}
           <div>
             <label
               htmlFor={`${fieldId}-price`}
@@ -569,7 +623,6 @@ export default function VolumeDetailDrawer({
             )}
           </div>
 
-          {/* Store / location */}
           <div>
             <label
               htmlFor={`${fieldId}-store`}
@@ -585,30 +638,139 @@ export default function VolumeDetailDrawer({
               className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
             />
           </div>
-        </div>
 
-        {/* ── Footer (sticky save / cancel) ─────────────────────────── */}
-        <div className="relative z-10 mt-auto flex gap-2 border-t border-border bg-ink-1/95 p-4 backdrop-blur">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={isLoading}
-            className="flex-1 rounded-lg bg-hanko px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
-          >
-            {isLoading ? t("common.saving") : t("common.save")}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isLoading}
-            className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi"
-          >
-            {t("common.cancel")}
-          </button>
+          <NoteField
+            fieldId={fieldId}
+            value={note ?? ""}
+            onChange={setNote}
+            t={t}
+          />
+          </div>
+        )}
+
+        <div className="relative z-10 mt-auto flex gap-2 border-t border-border bg-ink-1/95 p-4">
+          {isUpcoming ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 rounded-lg border border-moegi/40 bg-moegi/5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-moegi transition hover:border-moegi hover:bg-moegi/15"
+            >
+              {t("common.close")}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={isLoading}
+                className="flex-1 rounded-lg bg-hanko px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+              >
+                {isLoading ? t("common.saving") : t("common.save")}
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={isLoading}
+                className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi"
+              >
+                {t("common.cancel")}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
 
   return createPortal(overlay, document.body);
+}
+
+// Mirrors the server-side NOTE_MAX_CHARS — server caps as defence in depth.
+const NOTE_MAX_CHARS_CLIENT = 2000;
+function NoteField({ fieldId, value, onChange, t }) {
+  const safe = String(value ?? "");
+  const overSoftLimit = safe.length >= NOTE_MAX_CHARS_CLIENT * 0.95;
+
+  const handleChange = (event) => {
+    const next = event.target.value ?? "";
+    if (next.length > NOTE_MAX_CHARS_CLIENT) {
+      onChange(next.slice(0, NOTE_MAX_CHARS_CLIENT));
+    } else {
+      onChange(next);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <label
+          htmlFor={`${fieldId}-note`}
+          className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+        >
+          <span aria-hidden="true" className="font-jp text-base font-bold leading-none text-hanko-bright/70">
+            記
+          </span>
+          {t("volume.noteLabel")}
+        </label>
+        <span
+          aria-live="polite"
+          className={`font-mono text-[10px] tabular-nums tracking-wider transition ${
+            overSoftLimit ? "text-hanko-bright" : "text-washi-dim"
+          }`}
+        >
+          {t("volume.noteCounter", {
+            n: safe.length,
+            max: NOTE_MAX_CHARS_CLIENT,
+          })}
+        </span>
+      </div>
+      <textarea
+        id={`${fieldId}-note`}
+        value={safe}
+        onChange={handleChange}
+        rows={6}
+        maxLength={NOTE_MAX_CHARS_CLIENT}
+        placeholder={t("volume.notePlaceholder")}
+        spellCheck
+        className="block w-full resize-y rounded-lg border border-border bg-ink-1 px-3 py-2 font-serif text-sm leading-relaxed text-washi placeholder:italic placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+      />
+      <p className="mt-1.5 text-[10px] italic text-washi-muted">
+        {t("volume.noteHint")}
+      </p>
+    </div>
+  );
+}
+
+function formatReleaseDate(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function formatFreshness(iso, t) {
+  try {
+    const announced = new Date(iso);
+    if (Number.isNaN(announced.getTime())) return "";
+    const ms = Date.now() - announced.getTime();
+    const days = Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)));
+    const absolute = announced.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    if (days === 0) return t("volume.upcomingDiscovered", { date: absolute });
+    return t("volume.upcomingDiscoveredAgo", {
+      date: absolute,
+      days,
+    });
+  } catch {
+    return "";
+  }
 }

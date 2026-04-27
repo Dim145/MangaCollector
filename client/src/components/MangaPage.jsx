@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
+import VolumeShelfTile from "./VolumeShelfTile.jsx";
+import VolumesViewToggle from "./VolumesViewToggle.jsx";
 import CoffretGroup from "./CoffretGroup";
 // Heavy overlay modals that only mount on user action — lazy so a
 // reader who's just consulting a series doesn't pay for the coffret
@@ -23,15 +25,16 @@ import {
 } from "@/hooks/useLibrary.js";
 import { useVolumesForManga, useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
+import { useVolumesView } from "@/hooks/useVolumesView.js";
 import { useVolumeCovers } from "@/hooks/useVolumeCovers.js";
 import { useVolumePreviewController } from "@/hooks/useVolumePreviewController.js";
 import CoverPreview from "./ui/CoverPreview.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
-import { refreshFromMangadex } from "@/utils/user.js";
+import { refreshFromMangadex, refreshUpcoming } from "@/utils/user.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { db } from "@/lib/db.js";
-import { notifySyncError } from "@/lib/sync.js";
+import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -99,6 +102,8 @@ export default function MangaPage({ manga, adult_content_level }) {
   // for the whole page, cross-volume ← / → navigation, sticky mode on
   // long-press, zoom modal on tap.
   const previewCtl = useVolumePreviewController({ coverMap: volumeCoverMap });
+  const { mode: volumesView } = useVolumesView();
+  const isShelfMode = volumesView === "shelf";
   // `manga` comes frozen from React Router's location.state, so its volume
   // count never updates after navigation. Grab the live row from the Dexie-
   // backed library so edits (and background syncs) are reflected here.
@@ -379,6 +384,50 @@ export default function MangaPage({ manga, adult_content_level }) {
     } catch (e) {
       console.error(e);
       notifySyncError(e, "mangadex-refresh");
+    } finally {
+      setRefreshingSource(null);
+    }
+  };
+
+  // Outcome surfacing routes through SyncToaster (notifySyncInfo) so success /
+  // no-change / failure share the same corner as other sync feedback.
+  const refreshUpcomingVolumes = async () => {
+    if (!online || refreshingSource) return;
+    setRefreshingSource("upcoming");
+    try {
+      const report = await refreshUpcoming(manga.mal_id);
+      const added = report?.added?.length ?? 0;
+      const updated = report?.updated?.length ?? 0;
+      // Server publishes SyncKind::Volumes itself; we still kick the
+      // query cache so users on a flaky WebSocket re-fetch quickly.
+      if (added > 0 || updated > 0) {
+        queryClient.invalidateQueries({
+          queryKey: ["volumes", manga.mal_id],
+        });
+      }
+      // Two payload shapes — one for "concrete result, celebrate"
+      // and one for "all good but nothing new." The toaster picks
+      // tone (moegi vs washi) off the `tone` field.
+      if (added + updated > 0) {
+        notifySyncInfo({
+          op: "upcoming-refresh",
+          tone: "success",
+          icon: "来",
+          title: t("manga.upcomingResultChanged", { added, updated }),
+          body: t("manga.upcomingResultChangedBody", { name: manga.name }),
+        });
+      } else {
+        notifySyncInfo({
+          op: "upcoming-refresh",
+          tone: "neutral",
+          icon: "来",
+          title: t("manga.upcomingResultNone"),
+          body: t("manga.upcomingResultNoneBody"),
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      notifySyncError(e, "upcoming-refresh");
     } finally {
       setRefreshingSource(null);
     }
@@ -956,26 +1005,28 @@ export default function MangaPage({ manga, adult_content_level }) {
                 {t("manga.volumesCount", { n: volumes?.length ?? 0 })}
               </span>
             </div>
-            {/* Coffret CTA — washi/cream palette so it reads as "box / paper
-                slipcase", distinct from the gold reserved for collector. */}
-            {manga.mal_id >= 0 && (volumes?.length ?? 0) > 0 && (
-              <button
-                type="button"
-                onClick={() => setCoffretModalOpen(true)}
-                disabled={!online}
-                title={!online ? t("coffret.offlineHint") : undefined}
-                className="inline-flex items-center gap-1.5 rounded-full border border-washi/30 bg-washi/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-washi/60 hover:bg-washi/10 hover:text-washi active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span
-                  aria-hidden="true"
-                  className="font-display text-[13px] leading-none text-washi"
-                  title={t("badges.coffret")}
+            <div className="flex flex-wrap items-center gap-2">
+              {(volumes?.length ?? 0) > 0 && <VolumesViewToggle />}
+
+              {manga.mal_id >= 0 && (volumes?.length ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCoffretModalOpen(true)}
+                  disabled={!online}
+                  title={!online ? t("coffret.offlineHint") : undefined}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-washi/30 bg-washi/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-washi/60 hover:bg-washi/10 hover:text-washi active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  盒
-                </span>
-                {t("coffret.addCta")}
-              </button>
-            )}
+                  <span
+                    aria-hidden="true"
+                    className="font-display text-[13px] leading-none text-washi"
+                    title={t("badges.coffret")}
+                  >
+                    盒
+                  </span>
+                  {t("coffret.addCta")}
+                </button>
+              )}
+            </div>
           </div>
 
           {volumesLoading ? (
@@ -1004,51 +1055,95 @@ export default function MangaPage({ manga, adult_content_level }) {
                     coffret={seg.coffret}
                     currencySetting={currencySetting}
                   >
-                    {seg.members.map((vol) => (
-                      <Volume
-                        key={vol.id}
-                        id={vol.id}
-                        mal_id={vol.mal_id}
-                        volNum={vol.vol_num}
-                        owned={vol.owned}
-                        paid={vol.price}
-                        store={vol.store}
-                        collector={vol.collector}
-                        readAt={vol.read_at}
-                        locked
-                        onUpdate={volumeUpdateCallback}
-                        currencySetting={currencySetting}
-                        coverUrl={volumeCoverMap?.[vol.vol_num]}
-                        blurImage={isBlurred}
-                        onPreviewShow={previewCtl.show}
-                        onPreviewRelease={previewCtl.release}
-                      />
-                    ))}
+                    {seg.members.map((vol) =>
+                      isShelfMode ? (
+                        <VolumeShelfTile
+                          key={vol.id}
+                          volNum={vol.vol_num}
+                          owned={vol.owned}
+                          collector={vol.collector}
+                          readAt={vol.read_at}
+                          releaseDate={vol.release_date}
+                          coverUrl={volumeCoverMap?.[vol.vol_num]}
+                          blurImage={isBlurred}
+                          note={vol.notes}
+                          locked
+                        />
+                      ) : (
+                        <Volume
+                          key={vol.id}
+                          id={vol.id}
+                          mal_id={vol.mal_id}
+                          volNum={vol.vol_num}
+                          owned={vol.owned}
+                          paid={vol.price}
+                          store={vol.store}
+                          collector={vol.collector}
+                          readAt={vol.read_at}
+                          note={vol.notes}
+                          releaseDate={vol.release_date}
+                          releaseIsbn={vol.release_isbn}
+                          releaseUrl={vol.release_url}
+                          origin={vol.origin}
+                          announcedAt={vol.announced_at}
+                          locked
+                          onUpdate={volumeUpdateCallback}
+                          currencySetting={currencySetting}
+                          coverUrl={volumeCoverMap?.[vol.vol_num]}
+                          blurImage={isBlurred}
+                          onPreviewShow={previewCtl.show}
+                          onPreviewRelease={previewCtl.release}
+                        />
+                      ),
+                    )}
                   </CoffretGroup>
                 ) : (
                   <div
                     key={`g-${idx}`}
-                    className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                    className={
+                      isShelfMode
+                        ? "grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6"
+                        : "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                    }
                   >
-                    {seg.vols.map((vol) => (
-                      <Volume
-                        key={vol.id}
-                        id={vol.id}
-                        mal_id={vol.mal_id}
-                        volNum={vol.vol_num}
-                        owned={vol.owned}
-                        paid={vol.price}
-                        store={vol.store}
-                        collector={vol.collector}
-                        readAt={vol.read_at}
-                        onUpdate={volumeUpdateCallback}
-                        currencySetting={currencySetting}
-                        coverUrl={volumeCoverMap?.[vol.vol_num]}
-                        blurImage={isBlurred}
-                        onPreviewShow={previewCtl.show}
-                        onPreviewRelease={previewCtl.release}
-                      />
-                    ))}
+                    {seg.vols.map((vol) =>
+                      isShelfMode ? (
+                        <VolumeShelfTile
+                          key={vol.id}
+                          volNum={vol.vol_num}
+                          owned={vol.owned}
+                          collector={vol.collector}
+                          readAt={vol.read_at}
+                          releaseDate={vol.release_date}
+                          coverUrl={volumeCoverMap?.[vol.vol_num]}
+                          blurImage={isBlurred}
+                        />
+                      ) : (
+                        <Volume
+                          key={vol.id}
+                          id={vol.id}
+                          mal_id={vol.mal_id}
+                          volNum={vol.vol_num}
+                          owned={vol.owned}
+                          paid={vol.price}
+                          store={vol.store}
+                          collector={vol.collector}
+                          readAt={vol.read_at}
+                          note={vol.notes}
+                          releaseDate={vol.release_date}
+                          releaseIsbn={vol.release_isbn}
+                          releaseUrl={vol.release_url}
+                          origin={vol.origin}
+                          announcedAt={vol.announced_at}
+                          onUpdate={volumeUpdateCallback}
+                          currencySetting={currencySetting}
+                          coverUrl={volumeCoverMap?.[vol.vol_num]}
+                          blurImage={isBlurred}
+                          onPreviewShow={previewCtl.show}
+                          onPreviewRelease={previewCtl.release}
+                        />
+                      ),
+                    )}
                   </div>
                 ),
               )}
@@ -1190,6 +1285,37 @@ export default function MangaPage({ manga, adult_content_level }) {
                 </svg>
                 <span className="flex-1 truncate">
                   {t("manga.syncFromMangadex")}
+                </span>
+              </button>
+            )}
+            {/* Custom-only series (mal_id < 0) have no calendar source. */}
+            {manga.mal_id > 0 && (
+              <button
+                role="menuitem"
+                onClick={async () => {
+                  await refreshUpcomingVolumes();
+                  setEditMenuOpen(false);
+                }}
+                disabled={refreshing || !online}
+                title={
+                  !online
+                    ? t("manga.upcomingOfflineHint")
+                    : t("manga.upcomingRefreshHint")
+                }
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold text-washi-muted transition hover:bg-moegi/10 hover:text-washi disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`font-jp text-[14px] font-bold leading-none text-moegi shrink-0 w-3.5 text-center ${
+                    refreshingSource === "upcoming" ? "animate-pulse" : ""
+                  }`}
+                >
+                  来
+                </span>
+                <span className="flex-1 truncate">
+                  {refreshingSource === "upcoming"
+                    ? t("manga.upcomingRefreshing")
+                    : t("manga.upcomingRefresh")}
                 </span>
               </button>
             )}

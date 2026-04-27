@@ -1,6 +1,7 @@
 pub mod activity;
 pub mod archive;
 pub mod auth;
+pub mod calendar;
 pub mod coffret;
 pub mod compare;
 pub mod external;

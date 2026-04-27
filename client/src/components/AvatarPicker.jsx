@@ -146,7 +146,7 @@ export default function AvatarPicker({ open, onClose }) {
 function GroupSection({ group, currentAvatar, onSelect }) {
   return (
     <section>
-      <header className="sticky top-0 z-10 -mx-6 mb-3 bg-ink-1/95 px-6 py-2 backdrop-blur">
+      <header className="sticky top-0 z-10 -mx-6 mb-3 bg-ink-1/95 px-6 py-2">
         <div className="flex items-baseline gap-3">
           <h3 className="font-display text-sm font-semibold tracking-tight text-washi">
             {group.seriesName}

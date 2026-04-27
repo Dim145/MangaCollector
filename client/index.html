@@ -144,12 +144,37 @@
       content="black-translucent"
     />
 
+    <!-- 字 · Font loading strategy.
+         The Google Fonts stylesheet is large (4 families × multiple
+         weights × italic axes for Fraunces). Loading it as a regular
+         `rel=stylesheet` blocks the browser's render-blocking
+         resource pipeline until the CSS is parsed — pushing the
+         first paint of every page back by however long Google's CDN
+         takes to respond.
+         The `media="print" + onload` trick downloads the CSS as a
+         non-render-blocking resource (the browser thinks it's only
+         needed for print), then promotes it to all media once
+         loaded. Combined with `&display=swap` already in the URL,
+         the page renders immediately with the fallback stack and
+         swaps to the custom faces as soon as they're parsed —
+         exactly the behaviour we want.
+         The `<noscript>` mirrors the request synchronously for
+         users with JS disabled, so they still get the typography
+         (just with the original blocking behaviour). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;600&family=Noto+Serif+JP:wght@400;700&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;600&family=Noto+Serif+JP:wght@400;700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
 
     <title>MangaCollector — Your personal manga archive</title>
   </head>

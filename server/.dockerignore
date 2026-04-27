@@ -1,0 +1,25 @@
+# Local build artefacts — `target/` can reach several GB and is the single
+# biggest source of useless context bytes shipped to the daemon.
+target/
+
+# Editor / IDE state
+.idea/
+.vscode/
+*.swp
+
+# Local env & secrets — never bake into an image, even by accident.
+.env
+.env.*
+!.env.example
+
+# VCS metadata
+.git/
+.gitignore
+
+# Documentation isn't needed at build time
+README.md
+*.md
+
+# CI / Claude worktrees / agent state
+.github/
+.claude/

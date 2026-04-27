@@ -1,22 +1,45 @@
 import { useNavigate } from "react-router-dom";
 import CoverImage from "./ui/CoverImage.jsx";
 import { hasToBlurImage } from "@/utils/library.js";
-import { useT } from "@/i18n/index.jsx";
+import { useT, useLang } from "@/i18n/index.jsx";
 
 export default function Manga({
   manga,
   adult_content_level,
   allCollector,
   tsundokuCount = 0,
+  nextUpcoming,
 }) {
   const navigate = useNavigate();
   const t = useT();
+  const lang = useLang();
 
   const owned = manga.volumes_owned ?? 0;
   const total = manga.volumes ?? 0;
   const completion = total > 0 ? Math.min(100, (owned / total) * 100) : 0;
   const blur = hasToBlurImage(manga, adult_content_level);
   const complete = total > 0 && owned >= total;
+  // 来 · "Caught up · next volume coming" surfacing.
+  //
+  // The most useful upcoming-info moment for a reader is the one
+  // where they have nothing else to buy in this series — they're
+  // up to date AND a fresh tome has been announced. Showing the
+  // date as a slim ribbon under the title:
+  //   - reuses the moegi tone the rest of the app already maps to
+  //     "next / upcoming" (the editor scrapers, the calendar tab,
+  //     the refresh-upcoming menu item all use it)
+  //   - reuses the 来 kanji the same family carries
+  //   - keeps the `complete` badge intact in the top-right (the
+  //     achievement is real; the new tome is supplementary info,
+  //     not a state change)
+  // Series that are still ongoing don't get this ribbon — the
+  // user already has volumes to buy first; piling another date on
+  // top would just add visual noise to a card that's already in
+  // the "in-progress" state.
+  const showNextUpcoming = complete && nextUpcoming?.release_date_ms;
+  const nextDateLabel = showNextUpcoming
+    ? formatNextDate(nextUpcoming.release_date_ms, lang)
+    : null;
   // Wishlist (願 · negai) — series the user has tracked but hasn't started
   // owning yet. Distinct from "ongoing" (some volumes acquired) and from
   // "complete". Surfaced with a sakura accent so the user can spot the gap
@@ -29,7 +52,11 @@ export default function Manga({
       onClick={() =>
         navigate("/mangapage", { state: { manga, adult_content_level } })
       }
-      className="group relative flex flex-col text-left tap-none focus-visible:outline-none"
+      // `contain: layout paint` — the Library grid renders many of these
+      // (now also lazy-paginated by 30s). Containment keeps any class
+      // change on one card (hover, ownership flip) from rippling layout
+      // / paint through the rest of the grid.
+      className="group relative flex flex-col text-left tap-none focus-visible:outline-none [contain:layout_paint]"
     >
       {/* Cover — tall aspect like a real manga volume */}
       <div
@@ -189,6 +216,31 @@ export default function Manga({
           <h3 className="font-display text-sm font-semibold text-washi leading-tight line-clamp-2 drop-shadow-md">
             {manga.name}
           </h3>
+          {/* 来 · Next-volume ribbon. Kanji-led, tabular-nums for the
+              date so the digits don't jitter between cards in the
+              grid. `border-t` of moegi/15 anchors it to the title
+              above without needing a heavier separator; the kanji
+              itself does the visual lifting. Hidden on the densest
+              breakpoint (grid-cols-6) where a 3rd row of metadata
+              would push the title into truncation — but the dot
+              indicator stays via `sm:block` on the inner span so
+              the user still has a hint something's coming. */}
+          {showNextUpcoming && (
+            <div
+              className="mt-1.5 flex items-center gap-1.5 border-t border-moegi/15 pt-1 text-moegi"
+              title={t("manga.nextVolumeHint", { date: nextDateLabel })}
+            >
+              <span
+                aria-hidden="true"
+                className="font-jp text-[11px] font-bold leading-none drop-shadow-md"
+              >
+                来
+              </span>
+              <span className="truncate font-mono text-[10px] font-semibold uppercase tracking-wider tabular-nums drop-shadow-md">
+                {nextDateLabel}
+              </span>
+            </div>
+          )}
           <div className="mt-1.5 flex items-center justify-between gap-2">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-washi-muted">
               {/* Counter colour matches the state ladder: sakura when the
@@ -205,7 +257,7 @@ export default function Manga({
             </span>
           </div>
 
-          {/* Progress bar — three flavours:
+          {/* 進 · Progress bar — three flavours:
               · complete : full moegi gradient
               · wishlist : a faint sakura outline at full width, dashed
                            via background-image, signalling intent without
@@ -238,4 +290,44 @@ export default function Manga({
       </div>
     </button>
   );
+}
+
+/**
+ * 日付 · Compact next-release date formatter for the dashboard
+ * card. Sized to fit a ~10ch slot under the title across the
+ * grid breakpoints (2 → 6 columns).
+ *
+ * Logic:
+ *   - Same calendar year as `now`  → `"7 mai"` (FR) / `"May 7"` (EN)
+ *     / `"7 may."` (ES). The year is implicit, the day-month is
+ *     the actionable bit.
+ *   - Different year → tack on a 2-digit year ("7 mai 27") so the
+ *     reader doesn't think a 14-month-out announcement is "next
+ *     week."
+ *   - Past dates collapse silently to `null` — the caller has
+ *     already filtered to future-only, but the guard means a
+ *     stale row in the cache can't surface a misleading "due
+ *     yesterday" badge.
+ *
+ * Locale resolution falls through `Intl.DateTimeFormat`'s native
+ * matching: passing `"fr"` yields the French short-month form,
+ * which the project's existing `useLang` hook already provides.
+ */
+function formatNextDate(ms, lang) {
+  if (typeof ms !== "number" || Number.isNaN(ms)) return null;
+  const target = new Date(ms);
+  const now = new Date();
+  if (target.getTime() <= now.getTime()) return null;
+  const sameYear = target.getFullYear() === now.getFullYear();
+  const opts = sameYear
+    ? { day: "numeric", month: "short" }
+    : { day: "numeric", month: "short", year: "2-digit" };
+  // Browser fallback — Safari < 14 / very old Firefox could
+  // throw on a malformed lang code. Use English short-form as
+  // the safety net rather than blowing up the whole card render.
+  try {
+    return new Intl.DateTimeFormat(lang || "en", opts).format(target);
+  } catch {
+    return new Intl.DateTimeFormat("en", opts).format(target);
+  }
 }

@@ -1,11 +1,32 @@
 import { useContext, useEffect, useState } from "react";
 import { useT } from "@/i18n/index.jsx";
-import Punpun from "../assets/punpun.jpg";
-import Berserk from "../assets/berserk.jpg";
-import Beastars from "../assets/beastars.jpg";
-import TokyoGhoul from "../assets/tokyoghoul.jpg";
-import Vinland from "../assets/vinland.jpg";
-import FirePunch from "../assets/firepunch.jpg";
+// Each cover ships in AVIF, WebP, and JPEG; the <picture> element in
+// the render below picks the smallest format the browser supports.
+import PunpunAvif from "../assets/punpun.avif";
+import PunpunWebp from "../assets/punpun.webp";
+import PunpunJpg from "../assets/punpun.jpg";
+import BerserkAvif from "../assets/berserk.avif";
+import BerserkWebp from "../assets/berserk.webp";
+import BerserkJpg from "../assets/berserk.jpg";
+import BeastarsAvif from "../assets/beastars.avif";
+import BeastarsWebp from "../assets/beastars.webp";
+import BeastarsJpg from "../assets/beastars.jpg";
+import TokyoGhoulAvif from "../assets/tokyoghoul.avif";
+import TokyoGhoulWebp from "../assets/tokyoghoul.webp";
+import TokyoGhoulJpg from "../assets/tokyoghoul.jpg";
+import VinlandAvif from "../assets/vinland.avif";
+import VinlandWebp from "../assets/vinland.webp";
+import VinlandJpg from "../assets/vinland.jpg";
+import FirePunchAvif from "../assets/firepunch.avif";
+import FirePunchWebp from "../assets/firepunch.webp";
+import FirePunchJpg from "../assets/firepunch.jpg";
+
+const FirePunch = { avif: FirePunchAvif, webp: FirePunchWebp, jpg: FirePunchJpg };
+const Punpun = { avif: PunpunAvif, webp: PunpunWebp, jpg: PunpunJpg };
+const TokyoGhoul = { avif: TokyoGhoulAvif, webp: TokyoGhoulWebp, jpg: TokyoGhoulJpg };
+const Berserk = { avif: BerserkAvif, webp: BerserkWebp, jpg: BerserkJpg };
+const Vinland = { avif: VinlandAvif, webp: VinlandWebp, jpg: VinlandJpg };
+const Beastars = { avif: BeastarsAvif, webp: BeastarsWebp, jpg: BeastarsJpg };
 import SettingsContext from "@/SettingsContext.js";
 
 const MOCKED = [
@@ -156,12 +177,18 @@ export default function About({ googleUser } = {}) {
                     }}
                   >
                     {m.img && (
-                      <img referrerPolicy="no-referrer"
-                        src={m.img}
-                        alt=""
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                      />
+                      <picture>
+                        <source srcSet={m.img.avif} type="image/avif" />
+                        <source srcSet={m.img.webp} type="image/webp" />
+                        <img
+                          referrerPolicy="no-referrer"
+                          src={m.img.jpg}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      </picture>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-ink-0 via-transparent to-transparent" />
                     <div className="absolute inset-x-0 bottom-0 p-1.5">

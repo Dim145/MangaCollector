@@ -36,30 +36,51 @@ MAX_BODY_SIZE_MB  # optional, default 10, clamp [1,1024]
 # Full stack (recommended)
 docker-compose up
 
-# Client dev server only
-cd client && npm run dev      # Vite on port 5173
+# Client dev server only — Vite on port 5173
+cd client
+nvm use            # picks Node 24 from client/.nvmrc
+pnpm run dev
 
 # Server dev only
-cd server && npm run dev      # Node --watch on port 3000
+cd server && cargo run --bin manga-collector-server
+```
+
+## Package manager: pnpm
+
+The client uses **pnpm** (not npm) — pinned via `packageManager` in
+`client/package.json` and activated through corepack. Three reasons:
+
+1. **Disk** — content-addressable global store hard-links shared deps
+   across worktrees (this repo has several under `.claude/worktrees/`),
+   saving ~1 GB+ vs duplicated `node_modules`.
+2. **Speed** — install ~5 s vs ~15 s with npm; build ~385 ms vs ~795 ms.
+3. **Strict dep resolution** — only declared deps are importable, no
+   phantom transitive accidents.
+
+First-time setup on a new machine:
+```bash
+nvm use 24         # required Node version
+corepack enable    # ships with Node, activates pnpm
+cd client && pnpm install
 ```
 
 ## Building
 
 ```bash
-cd client && npm run build    # Outputs to client/dist/
+cd client && pnpm run build   # Outputs to client/dist/
 docker-compose build          # Build all Docker images
 ```
 
 ## Testing
 
-No test framework is currently configured. `npm test` returns an error in both client and server.
+No test framework is currently configured.
 
 ## Code Style
 
 - Frontend: ESLint + Prettier (configured via `eslint.config.js`)
 - Backend: Prettier
 - Editor: `.editorconfig` defines indentation/formatting rules
-- Tailwind CSS utility-first styling; use `tailwind-merge` (twMerge) for conditional classes
+- Tailwind CSS utility-first styling; conditional classes assembled inline via template strings or `${cond ? "a" : "b"}` ternaries (no `clsx`/`twMerge` helpers)
 
 ## API Routes
 

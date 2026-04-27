@@ -158,7 +158,7 @@ export default function CoverPickerModal({
 
   return (
     <Modal popupOpen={open} handleClose={onClose}>
-      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-ink-1/95 shadow-2xl backdrop-blur">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-ink-1/95 shadow-2xl">
         {/* Masthead */}
         <header className="relative shrink-0 border-b border-border px-6 py-3">
           <span

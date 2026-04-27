@@ -70,6 +70,9 @@ pub struct ExportVolume {
     pub collector: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub read_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Personal note — preserved through export/import round-trips.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
     /// Preserved so the import can restore coffret grouping. Coffret
     /// identity is recomputed on import (new serial IDs) but the link
     /// between a volume and its coffret's NAME is preserved via the

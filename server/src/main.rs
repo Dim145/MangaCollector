@@ -215,6 +215,199 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // 来 · Nightly upcoming-volume sweep.
+    //
+    // Once per day, walk every distinct series present in any user's
+    // library and call the discovery cascade (`releases::discover_upcoming`).
+    // For each user who follows the series, reconcile against their
+    // `user_volumes` rows so newly-announced tomes land automatically
+    // — no need for the user to remember to click "Refresh upcoming".
+    //
+    // Two design choices worth flagging:
+    //
+    //   1. We sleep ~330 ms between series so MangaUpdates' rate
+    //      limit (informally ~5 req/s) stays comfortable. A library
+    //      of 1 000 distinct series → ~5.5 minutes per pass, which
+    //      is fine for a nightly job. If we ever want faster, a
+    //      semaphore + parallel bucket would multiplex without
+    //      surpassing the rate.
+    //
+    //   2. Errors are logged and the loop carries on — a single bad
+    //      title shouldn't poison the rest of the nightly run.
+    //
+    // Schedule: 24 h interval, first tick after a 30 min delay so a
+    // restart-storm doesn't fan out to upstream APIs at boot. Run
+    // exactly once on a startup-near-04:00 UTC instance to align
+    // with the audit's planned cadence; on other instances it just
+    // ticks every 24 h relative to the boot time.
+    {
+        let sweep_db = state.db.clone();
+        let sweep_http = state.http_client.clone();
+        let sweep_cache = state.cache.clone();
+        let sweep_broker = state.broker.clone();
+        let sweep_config = state.config.clone();
+        tokio::spawn(async move {
+            // Boot delay — wait long enough that boot bursts (e.g.
+            // a rolling deploy that restarts every replica within
+            // a few minutes) don't all hammer MangaUpdates at once.
+            tokio::time::sleep(std::time::Duration::from_secs(30 * 60)).await;
+            let interval = std::time::Duration::from_secs(24 * 3600);
+            let inter_series = std::time::Duration::from_millis(330);
+            loop {
+                let started = std::time::Instant::now();
+                let mut total_added: u64 = 0;
+                let mut total_updated: u64 = 0;
+                let mut total_purged: u64 = 0;
+                let mut series_processed: u64 = 0;
+                let mut errors: u64 = 0;
+
+                // 廃 · Cancellation cleanup, run as the first step so
+                // the rest of the sweep doesn't reincarnate rows the
+                // publisher silently dropped. A volume whose announced
+                // date is more than 14 days in the past, never made
+                // owned, and not marked manual is treated as cancelled
+                // and removed. Manual rows are sticky — the user typed
+                // them in, the sweep is forbidden from second-guessing.
+                match crate::services::releases::purge_cancelled_upcoming(
+                    &sweep_db,
+                )
+                .await
+                {
+                    Ok(n) => total_purged = n,
+                    Err(err) => {
+                        tracing::warn!(%err, "purge_cancelled_upcoming failed");
+                    }
+                }
+
+                let series = match crate::services::releases::distinct_followed_series(
+                    &sweep_db,
+                )
+                .await
+                {
+                    Ok(s) => s,
+                    Err(err) => {
+                        tracing::warn!(%err, "nightly sweep: distinct_followed_series failed");
+                        tokio::time::sleep(interval).await;
+                        continue;
+                    }
+                };
+
+                for (mal_id, name) in series {
+                    series_processed += 1;
+                    // 1. Compute the global start_vol so the cascade
+                    //    doesn't burn quota probing volumes any user
+                    //    already has on file. A new user joining
+                    //    the series later catches up via their own
+                    //    manual /refresh-upcoming, which uses the
+                    //    per-user `highest_known_vol_num`.
+                    let highest = crate::services::releases::highest_known_vol_num_globally(
+                        &sweep_db,
+                        mal_id,
+                    )
+                    .await
+                    .unwrap_or(0);
+                    let start_vol = highest.saturating_add(1);
+
+                    // 2. Discover via the cascade. Cron uses default
+                    //    "en" locale — broadest Google Books catalogue
+                    //    coverage. Per-user manual refresh uses the
+                    //    user's setting so a French user fetches
+                    //    Glénat editions.
+                    let discovered = match crate::services::releases::discover_upcoming_with_locale(
+                        &sweep_http,
+                        sweep_cache.as_deref(),
+                        sweep_config.google_books_api_key.as_deref(),
+                        &name,
+                        start_vol,
+                        "en",
+                        mal_id,
+                        sweep_config.external_proxy_url.as_deref(),
+                        std::time::Duration::from_secs(
+                            sweep_config.external_proxy_timeout_secs,
+                        ),
+                    )
+                    .await
+                    {
+                        Ok(d) => d,
+                        Err(err) => {
+                            errors += 1;
+                            tracing::debug!(%err, mal_id, name, "discover_upcoming failed");
+                            tokio::time::sleep(inter_series).await;
+                            continue;
+                        }
+                    };
+
+                    if discovered.is_empty() {
+                        tokio::time::sleep(inter_series).await;
+                        continue;
+                    }
+
+                    // 2. Fan out the reconcile per user. Each user
+                    //    that follows the series gets their own
+                    //    INSERT/UPDATE pass + a Volumes WS event
+                    //    when the diff is non-empty.
+                    let users = match crate::services::releases::user_ids_owning_series(
+                        &sweep_db, mal_id,
+                    )
+                    .await
+                    {
+                        Ok(u) => u,
+                        Err(err) => {
+                            errors += 1;
+                            tracing::debug!(%err, mal_id, "user_ids_owning_series failed");
+                            tokio::time::sleep(inter_series).await;
+                            continue;
+                        }
+                    };
+
+                    for uid in users {
+                        match crate::services::releases::reconcile_user(
+                            &sweep_db, uid, mal_id, &discovered,
+                        )
+                        .await
+                        {
+                            Ok(report) => {
+                                let added = report.added.len() as u64;
+                                let updated = report.updated.len() as u64;
+                                total_added += added;
+                                total_updated += updated;
+                                if added + updated > 0 {
+                                    sweep_broker
+                                        .publish(
+                                            uid,
+                                            crate::services::realtime::SyncKind::Volumes,
+                                        )
+                                        .await;
+                                }
+                            }
+                            Err(err) => {
+                                errors += 1;
+                                tracing::debug!(
+                                    %err, mal_id, uid,
+                                    "reconcile_user failed"
+                                );
+                            }
+                        }
+                    }
+
+                    tokio::time::sleep(inter_series).await;
+                }
+
+                tracing::info!(
+                    series = series_processed,
+                    added = total_added,
+                    updated = total_updated,
+                    purged = total_purged,
+                    errors,
+                    elapsed_ms = started.elapsed().as_millis() as u64,
+                    "nightly upcoming sweep finished"
+                );
+
+                tokio::time::sleep(interval).await;
+            }
+        });
+    }
+
     // CORS
     let origin: HeaderValue = frontend_url
         .parse()

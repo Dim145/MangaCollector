@@ -73,6 +73,26 @@ pub struct Config {
     /// accepted by the server but not by modern browsers — prefer a
     /// CSP `frame-ancestors` directive if the use case is real.
     pub x_frame_options: String,
+    /// Optional Google Books API key. The upcoming-volume cascade
+    /// uses Google Books as its primary source; an authenticated
+    /// key bumps the daily quota from ~1k anonymous to ~100k. Leave
+    /// unset for development / low-volume instances — calls fall
+    /// back to anonymous and tolerate the lower limit.
+    pub google_books_api_key: Option<String>,
+    /// Optional URL of the manga-release-proxy sidecar (e.g.
+    /// `http://manga-release-proxy:3001`). Acts as the master switch
+    /// for the calendar / upcoming-volume feature: when unset, the
+    /// in-process cascade returns empty and the calendar UI shows
+    /// no entries. When set, the server runs Google Books in-process
+    /// then merges the proxy's aggregated response.
+    pub external_proxy_url: Option<String>,
+    /// Per-call timeout on requests to the proxy. Default 90 s — long
+    /// enough to absorb a cold-cache fan-out where every publisher
+    /// sitemap is being warmed for the first time. The proxy's own
+    /// `AGGREGATE_DEADLINE_SECS` (default 60 s) sets the upper bound
+    /// on how long it will spin before returning partial data; this
+    /// timeout adds margin for serialization + network transit.
+    pub external_proxy_timeout_secs: u64,
 }
 
 impl Config {
@@ -191,6 +211,29 @@ impl Config {
                 .ok()
                 .filter(|s| !s.trim().is_empty())
                 .unwrap_or_else(|| "DENY".to_string()),
+            google_books_api_key: std::env::var("GOOGLE_BOOKS_API_KEY")
+                .ok()
+                .filter(|s| !s.trim().is_empty()),
+            // Proxy URL doubles as the master switch for the calendar
+            // feature. Trim + reject empty so a stray
+            // `EXTERNAL_PROXY_URL=` (no value) treats the calendar as
+            // disabled instead of trying to call an empty URL.
+            external_proxy_url: std::env::var("EXTERNAL_PROXY_URL")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+            // Cold-cache calls to the proxy fan out across ~10
+            // upstream sites; 30 s leaves headroom for the slowest
+            // path (sitemap-driven publishers with multi-MB indexes).
+            external_proxy_timeout_secs: std::env::var("EXTERNAL_PROXY_TIMEOUT_SECS")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                // Default 150 s leaves margin above the proxy's
+                // own 120 s aggregate deadline. Cold-cache popular
+                // series (Slime, One Piece) routinely run 90-110 s
+                // before the proxy starts emitting partials; 30 s
+                // headroom covers serialization + network transit.
+                .unwrap_or(150),
         })
     }
 }

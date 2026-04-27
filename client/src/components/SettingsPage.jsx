@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import Modal from "@/components/ui/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
 // 削除 · The two-step GDPR erasure flow is a 550-line modal that
@@ -12,6 +13,7 @@ import PublicProfileSection from "@/components/PublicProfileSection.jsx";
 import BirthdayModeSection from "@/components/BirthdayModeSection.jsx";
 import ArchiveSection from "@/components/ArchiveSection.jsx";
 import SeasonSection from "@/components/SeasonSection.jsx";
+import AtmosphereSection from "@/components/AtmosphereSection.jsx";
 import WelcomeTour from "@/components/WelcomeTour.jsx";
 import { resetTourSeen } from "@/lib/tour.js";
 import { useOnline } from "@/hooks/useOnline.js";
@@ -707,6 +709,12 @@ export default function SettingsPage() {
             settings. */}
         <SeasonSection />
 
+        {/* ─── 風 Seasonal atmosphere — opt-out toggle for the drifting
+            particle layer. Sits right after the season-palette picker
+            because it's the same visual surface, just a different knob:
+            "what palette" vs "do I want particles drifting through it". */}
+        <AtmosphereSection />
+
         {/* ─── Onboarding · re-trigger the welcome tour on demand.
             The tour auto-shows on the first visit to an empty library;
             this section lets a returning user replay it (e.g. after
@@ -731,6 +739,11 @@ export default function SettingsPage() {
         {/* ─── Archive (export / import) — sits alongside public
             profile as another "what can I do with my data" feature. */}
         <ArchiveSection />
+
+        {/* ─── 札 Shelf-stickers printer — utility, sits with the other
+            "do something with your data" sections. Renders as a single
+            outline card with a CTA to the dedicated printer page. */}
+        <ShelfStickersEntry t={t} />
 
         {/* ─── Data section ─── */}
         <section
@@ -1032,21 +1045,49 @@ function ThemeSwatch({ value }) {
   );
 }
 
-/**
- * 始 · Onboarding section — replay-the-welcome-tour entry.
- * Stored as its own sub-component so the tour state lives close to the
- * button that triggers it; SettingsPage already has plenty of state of
- * its own. Re-rendered through the shared `<WelcomeTour>` modal so the
- * replay behaves identically to the auto-open path on the dashboard.
- */
+// Signpost card; the actual sticker UI lives in its own lazy-loaded route.
+function ShelfStickersEntry({ t }) {
+  return (
+    <section
+      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+      style={{ animationDelay: "270ms" }}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-gradient-to-br from-hanko-deep to-hanko text-washi shadow-[0_2px_10px_var(--hanko-glow)]"
+            style={{ transform: "rotate(-4deg)" }}
+          >
+            <span className="font-jp text-sm font-bold leading-none">札</span>
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-semibold text-washi">
+              {t("shelfStickers.settingsTitle")}
+            </h2>
+            <p className="mt-1 text-xs text-washi-muted">
+              {t("shelfStickers.settingsBody")}
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/settings/shelf-stickers"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-hanko/40 bg-hanko/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/20 active:scale-95"
+        >
+          {t("shelfStickers.settingsCta")}
+          <span aria-hidden="true">→</span>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function OnboardingSection() {
   const t = useT();
   const [open, setOpen] = useState(false);
 
   const replay = () => {
-    // Wipe the seen flag so the auto-open path on the dashboard would
-    // also fire on the next visit. The user explicitly asked to revisit
-    // the tour, so it's reasonable that they may want it elsewhere too.
+    // Wipe the "seen" flag so the dashboard auto-open path fires again next visit.
     resetTourSeen();
     setOpen(true);
   };

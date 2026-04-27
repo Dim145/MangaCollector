@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useDeleteCoffret, useUpdateCoffret } from "@/hooks/useCoffrets.js";
 import { useOnline } from "@/hooks/useOnline.js";
+import { useVolumesView } from "@/hooks/useVolumesView.js";
 import { notifySyncError } from "@/lib/sync.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
@@ -19,6 +20,7 @@ import { useT } from "@/i18n/index.jsx";
 export default function CoffretGroup({ coffret, currencySetting, children }) {
   const t = useT();
   const online = useOnline();
+  const { mode: volumesView } = useVolumesView();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [name, setName] = useState(coffret.name ?? "");
@@ -361,7 +363,13 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
         </header>
       )}
 
-      <div className="grid grid-cols-1 gap-3 border-t border-washi/10 p-3 md:grid-cols-2 md:p-4 lg:grid-cols-3">
+      <div
+        className={`border-t border-washi/10 p-3 md:p-4 ${
+          volumesView === "shelf"
+            ? "grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6"
+            : "grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3"
+        }`}
+      >
         {children}
       </div>
     </section>

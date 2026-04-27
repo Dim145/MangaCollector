@@ -1,4 +1,11 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
@@ -15,9 +22,70 @@ import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
 import { useT } from "@/i18n/index.jsx";
 
+// All series are rendered on mount — `content-visibility: auto` on each
+// card (see render below) lets the browser skip layout / paint for
+// offscreen cards, and the document is full-height from frame 1 so
+// scroll restoration after a back-navigation lands inside it instead
+// of clamping against a partially-rendered grid.
+
+// Two sessionStorage keys: scroll-Y is written at ~60 Hz so it's kept
+// raw to skip the JSON cost.
+const DASHBOARD_STATE_KEY = "mc:dashboard:view";
+const DASHBOARD_SCROLL_KEY = "mc:dashboard:scrollY";
+
+function readPersistedDashboardState() {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(DASHBOARD_STATE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return {
+      query: typeof parsed.query === "string" ? parsed.query : "",
+      filter: typeof parsed.filter === "string" ? parsed.filter : "all",
+      activeTags: Array.isArray(parsed.activeTags) ? parsed.activeTags : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedDashboardState(state) {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.setItem(DASHBOARD_STATE_KEY, JSON.stringify(state));
+  } catch {
+    /* quota / private mode — non-fatal */
+  }
+}
+
+function readPersistedScrollY() {
+  if (typeof sessionStorage === "undefined") return 0;
+  try {
+    const raw = sessionStorage.getItem(DASHBOARD_SCROLL_KEY);
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writePersistedScrollY(y) {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.setItem(DASHBOARD_SCROLL_KEY, String(Math.round(y)));
+  } catch {
+    /* quota / private mode — non-fatal */
+  }
+}
+
 export default function Dashboard() {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
+  // Single read of the persisted state at mount time — used to seed
+  // every piece of view state below. Subsequent state changes are
+  // each individually persisted in their own effect.
+  const persisted = useMemo(() => readPersistedDashboardState(), []);
+
+  const [query, setQuery] = useState(() => persisted?.query ?? "");
+  const [filter, setFilter] = useState(() => persisted?.filter ?? "all");
   // filter ∈ "all" | "inprogress" | "wishlist" | "complete" | "tsundoku"
   //   inprogress → at least one owned volume but not all (vraiment "en cours")
   //   wishlist   → tracked but zero volumes acquired (願 · negai)
@@ -29,7 +97,9 @@ export default function Dashboard() {
   // Genre filter — Set<string>. Multi-select with AND intersection (series
   // must carry every selected tag to remain visible). Kept as Set for O(1)
   // membership checks in the hot filter path below.
-  const [activeTags, setActiveTags] = useState(() => new Set());
+  const [activeTags, setActiveTags] = useState(
+    () => new Set(persisted?.activeTags ?? []),
+  );
   const { adult_content_level } = useContext(SettingsContext);
   const navigate = useNavigate();
   const t = useT();
@@ -73,25 +143,62 @@ export default function Dashboard() {
   // Tsundoku map is derived in the same pass — one per series counting
   // owned but unread volumes (owned && !read_at). Piggyback avoids a
   // second full scan of the volumes array.
-  const { allCollectorSet, tsundokuByMal } = useMemo(() => {
-    const byMal = new Map();
-    const tsundoku = new Map();
-    for (const v of allVolumes ?? []) {
-      if (!v.owned) continue;
-      const entry = byMal.get(v.mal_id) ?? { any: false, anyNonCollector: false };
-      entry.any = true;
-      if (!v.collector) entry.anyNonCollector = true;
-      byMal.set(v.mal_id, entry);
-      if (!v.read_at) {
-        tsundoku.set(v.mal_id, (tsundoku.get(v.mal_id) ?? 0) + 1);
+  const { allCollectorSet, tsundokuByMal, upcomingByMal, nextUpcomingByMal } =
+    useMemo(() => {
+      const byMal = new Map();
+      const tsundoku = new Map();
+      // 来 · Upcoming-volume tally per series. A series counts as
+      // "upcoming" the moment it has at least one announced tome
+      // whose release_date is still in the future. Computed in the
+      // same pass as collector / tsundoku to avoid a second sweep
+      // over the volumes array.
+      const upcoming = new Map();
+      // 次 · Per-series record of the SOONEST upcoming volume
+      // ({ vol_num, release_date_ms }). Surfaced on the dashboard
+      // card when the user already owns every published volume —
+      // the "you're caught up, here's what arrives next" moment.
+      // Storing the timestamp as a number avoids re-parsing the
+      // ISO string on every comparison while sweeping.
+      const nextUpcoming = new Map();
+      const now = Date.now();
+      for (const v of allVolumes ?? []) {
+        // Track upcoming irrespective of `owned` — an upcoming tome
+        // is by definition unowned (server enforces). The flag we're
+        // computing is "this series has something on the horizon".
+        if (v.release_date) {
+          const ts = new Date(v.release_date).getTime();
+          if (!Number.isNaN(ts) && ts > now) {
+            upcoming.set(v.mal_id, (upcoming.get(v.mal_id) ?? 0) + 1);
+            // Keep only the soonest one per series.
+            const cur = nextUpcoming.get(v.mal_id);
+            if (!cur || ts < cur.release_date_ms) {
+              nextUpcoming.set(v.mal_id, {
+                vol_num: v.vol_num,
+                release_date_ms: ts,
+              });
+            }
+          }
+        }
+        if (!v.owned) continue;
+        const entry = byMal.get(v.mal_id) ?? { any: false, anyNonCollector: false };
+        entry.any = true;
+        if (!v.collector) entry.anyNonCollector = true;
+        byMal.set(v.mal_id, entry);
+        if (!v.read_at) {
+          tsundoku.set(v.mal_id, (tsundoku.get(v.mal_id) ?? 0) + 1);
+        }
       }
-    }
-    const set = new Set();
-    for (const [mal, { any, anyNonCollector }] of byMal) {
-      if (any && !anyNonCollector) set.add(mal);
-    }
-    return { allCollectorSet: set, tsundokuByMal: tsundoku };
-  }, [allVolumes]);
+      const set = new Set();
+      for (const [mal, { any, anyNonCollector }] of byMal) {
+        if (any && !anyNonCollector) set.add(mal);
+      }
+      return {
+        allCollectorSet: set,
+        tsundokuByMal: tsundoku,
+        upcomingByMal: upcoming,
+        nextUpcomingByMal: nextUpcoming,
+      };
+    }, [allVolumes]);
 
   const stats = useMemo(() => {
     const series = library.length;
@@ -138,6 +245,12 @@ export default function Dashboard() {
     } else if (filter === "tsundoku") {
       // Tsundoku (積読) = series with ≥1 owned-but-unread volume.
       result = result.filter((m) => (tsundokuByMal.get(m.mal_id) ?? 0) > 0);
+    } else if (filter === "upcoming") {
+      // 来 · Series with ≥1 announced-but-not-yet-released tome —
+      // the calendar's "this is on the horizon" axis surfaced as a
+      // dashboard filter so the user can drill in from the library
+      // grid without leaving the page.
+      result = result.filter((m) => (upcomingByMal.get(m.mal_id) ?? 0) > 0);
     }
     // Tag intersection — AND logic. Each series must carry every selected
     // tag. Genres are trimmed at read time so "  Romance " matches "Romance".
@@ -156,7 +269,58 @@ export default function Dashboard() {
     // `tsundokuByMal` is a memoised Map; including it as a dep lets
     // the filter recompute when the tsundoku slice changes (a volume
     // flip toggles a row in/out of the "積" bucket).
-  }, [library, filter, query, activeTags, tsundokuByMal]);
+  }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal]);
+
+  useEffect(() => {
+    writePersistedDashboardState({
+      query,
+      filter,
+      activeTags: Array.from(activeTags),
+    });
+  }, [query, filter, activeTags]);
+
+  useEffect(() => {
+    let pending = false;
+    const onScroll = () => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        writePersistedScrollY(window.scrollY);
+        pending = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Restore the scroll position once, after the library data has
+  // resolved — `useLiveQuery` returns an empty array on the first
+  // render then refills, so we wait for the document to actually be
+  // tall enough before issuing the scroll.
+  const restoredScrollRef = useRef(false);
+  useEffect(() => {
+    if (restoredScrollRef.current) return;
+    if (isInitialLoad) return;
+    restoredScrollRef.current = true;
+    const savedY = readPersistedScrollY();
+    if (savedY <= 0) return;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: savedY, left: 0, behavior: "instant" });
+    });
+  }, [isInitialLoad]);
+
+  // Reset scroll on filter / query / tag change, but skip the first
+  // run so the seeded values don't trigger a reset on mount and wipe
+  // the restore above.
+  const firstViewChangeRef = useRef(true);
+  useEffect(() => {
+    if (firstViewChangeRef.current) {
+      firstViewChangeRef.current = false;
+      return;
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    writePersistedScrollY(0);
+  }, [filter, query, activeTags]);
 
   return (
     <DefaultBackground>
@@ -175,38 +339,48 @@ export default function Dashboard() {
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
           </div>
-          <h1 className="mt-2 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl">
-            {t("dashboard.yourLibrary")}{" "}
-            <span className="text-hanko-gradient font-semibold not-italic">
-              {t("dashboard.library")}
-            </span>
-          </h1>
 
-          {/* Stat chips */}
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {/* Stat-card colour grammar (locked across Dashboard + Profile):
-                  · count   → washi    (raw counts: series, volumes-owned/total)
-                  · achievement → gold (lifetime totals: complete series, € invested)
-                  · rate    → hanko    (current rate / progression: % done)
-                The same metric uses the same colour on every page. */}
-            <StatChip
+          {/* 帯 · Stat ribbon — compressed from the previous 4-card
+              grid (≈140 px tall) to a single line read.
+              Why the change:
+                The dashboard's centre-of-gravity is the series grid.
+                Four full stat-cards stacked above the title, then a
+                gap-suggestion carousel, then a search bar, then a
+                filter rail, pushed the grid below the fold on a 1280
+                viewport — meaning users had to scroll to see what
+                they came for. The ribbon keeps the four numbers
+                accessible at a glance but reclaims ~110 px of
+                vertical real-estate; the digits remain in
+                tabular-nums so updates don't jitter the layout.
+              The colour grammar matches the previous card treatment:
+              washi for raw counts, gold for the achievement (complete
+              series), hanko for the rate (progression %). */}
+          <div
+            className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-dim sm:gap-x-6"
+            role="group"
+            aria-label={t("dashboard.archive")}
+          >
+            <RibbonStat
               label={t("dashboard.series")}
               value={stats.series}
               loading={isInitialLoad}
             />
-            <StatChip
+            <span aria-hidden="true" className="text-washi-dim/40">·</span>
+            <RibbonStat
               label={t("dashboard.volumes")}
               value={`${stats.owned}/${stats.total || "?"}`}
               loading={isInitialLoad}
               width="6ch"
             />
-            <StatChip
+            <span aria-hidden="true" className="text-washi-dim/40">·</span>
+            <RibbonStat
               label={t("dashboard.complete")}
               value={stats.complete}
               accent="gold"
               loading={isInitialLoad}
             />
-            <StatChip
+            <span aria-hidden="true" className="text-washi-dim/40">·</span>
+            <RibbonStat
               label={t("dashboard.progress")}
               value={
                 stats.total
@@ -218,10 +392,14 @@ export default function Dashboard() {
               width="5ch"
             />
           </div>
-        </header>
 
-        {/* R1 — "Complete your collection" suggestions */}
-        {!isInitialLoad && !isEmpty && <GapSuggestions />}
+          <h1 className="mt-3 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl">
+            {t("dashboard.yourLibrary")}{" "}
+            <span className="text-hanko-gradient font-semibold not-italic">
+              {t("dashboard.library")}
+            </span>
+          </h1>
+        </header>
 
         {/* Controls */}
         <section className="mb-8 space-y-4" aria-label="Controls">
@@ -285,6 +463,12 @@ export default function Dashboard() {
                   label: t("dashboard.tabTsundoku"),
                   tooltip: `${t("dashboard.tabTsundoku")} · ${t("dashboard.tabHintTsundoku")}`,
                 },
+                {
+                  id: "upcoming",
+                  glyph: "来",
+                  label: t("dashboard.tabUpcoming"),
+                  tooltip: `${t("dashboard.tabUpcoming")} · ${t("dashboard.tabHintUpcoming")}`,
+                },
               ].map((tab) => {
                 const active = filter === tab.id;
                 const activeBg =
@@ -292,7 +476,9 @@ export default function Dashboard() {
                     ? "bg-sakura text-ink-0 shadow-md"
                     : tab.id === "tsundoku"
                       ? "bg-moegi text-ink-0 shadow-md"
-                      : "bg-hanko text-washi shadow-md";
+                      : tab.id === "upcoming"
+                        ? "bg-moegi text-ink-0 shadow-md"
+                        : "bg-hanko text-washi shadow-md";
                 return (
                   <button
                     key={tab.id}
@@ -406,35 +592,64 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filtered.map((manga, i) => (
                 <div
-                  // Use the Dexie row `id` as a stable, unique key.
-                  // `mal_id` collides when multiple custom series with
-                  // `mal_id = null` coexist (a legitimate state before
-                  // a server-side negative id is minted), triggering
-                  // React key-collision warnings and mis-mounted DOM
-                  // between sibling Manga cards. Falling back through
-                  // `mal_id` → `index` preserves keying for legacy
-                  // rows that may lack a Dexie primary key in hand.
+                  // Custom series can share `mal_id = null` until the
+                  // server mints a negative id, so we prefer the Dexie
+                  // primary key.
                   key={manga.id ?? manga.mal_id ?? `idx-${i}`}
-                  style={{ animationDelay: `${Math.min(i * 40, 500)}ms` }}
-                  className="animate-fade-up"
+                  style={{
+                    contentVisibility: "auto",
+                    containIntrinsicSize: "auto 360px",
+                    animationDelay:
+                      i < 12 ? `${Math.min(i * 40, 440)}ms` : undefined,
+                  }}
+                  className={i < 12 ? "animate-fade-up" : undefined}
                 >
                   <Manga
                     manga={manga}
                     adult_content_level={adult_content_level}
                     allCollector={allCollectorSet.has(manga.mal_id)}
                     tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
+                    nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
                   />
                 </div>
               ))}
             </div>
           )}
         </section>
+
+        {/* R1 — "Complete your collection" suggestions.
+            Repositioned below the grid (was: between the masthead
+            and the search/filter rail). The carousel is a discovery
+            module, not a primary surface — putting it after the user
+            has scanned their actual library makes it a recommendation
+            ("here's what you could close out next") rather than a
+            prologue ("here's what we suggest before you even see your
+            shelves"). The underlying component already self-hides
+            when there's nothing to suggest, so empty libraries pay
+            zero layout cost. */}
+        {!isInitialLoad && !isEmpty && <GapSuggestions />}
       </div>
     </DefaultBackground>
   );
 }
 
-function StatChip({ label, value, accent, loading, width }) {
+/**
+ * 帯 · One stat in the masthead ribbon.
+ *
+ * Renders as label-then-value spans grouped in an `inline-flex` —
+ * keeping `whitespace-nowrap` so a stat never wraps mid-pair (the
+ * `12 series` cluster always stays glued together; only the gaps
+ * between pairs are wrap points).
+ *
+ * Accent grammar matches the previous StatChip card it replaces:
+ * washi for raw counts, gold for the achievement total
+ * (complete series), hanko for the rate (progression %).
+ *
+ * Loading state borrows `Skeleton.Stat`'s `min-h: 1em` so the
+ * baseline doesn't jitter when the placeholder swaps in for the
+ * real value.
+ */
+function RibbonStat({ label, value, accent, loading, width }) {
   const accentClass =
     accent === "hanko"
       ? "text-hanko-bright"
@@ -444,17 +659,14 @@ function StatChip({ label, value, accent, loading, width }) {
           ? "text-moegi"
           : "text-washi";
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-ink-1/50 p-4 backdrop-blur transition hover:border-hanko/30">
-      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-        {label}
-      </p>
-      <p
-        className={`mt-2 font-display text-2xl font-semibold tabular-nums md:text-3xl ${accentClass}`}
+    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+      <span className="text-washi-dim/80">{label}</span>
+      <span
+        className={`font-display text-base font-semibold not-italic tabular-nums normal-case tracking-normal ${accentClass}`}
       >
         {loading ? <Skeleton.Stat width={width} /> : value}
-      </p>
-      <div className="pointer-events-none absolute -bottom-6 -right-6 h-16 w-16 rounded-full bg-hanko/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
-    </div>
+      </span>
+    </span>
   );
 }
 

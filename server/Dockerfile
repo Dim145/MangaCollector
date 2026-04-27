@@ -1,72 +1,65 @@
 # syntax=docker/dockerfile:1.7
-# ↑ Enables BuildKit cache mounts (below). Works with docker buildx,
-# docker-compose 2.x default builder, and the DOCKER_BUILDKIT=1 legacy
-# switch. Without this directive the `--mount=type=cache` lines are
-# silently ignored and we fall back to the classic dummy-main Docker
-# layer cache only.
+# ↑ BuildKit cache mounts. Without this directive `--mount=type=cache` is
+# silently ignored and only the classic Docker layer cache applies.
 
-# ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM rust:alpine AS builder
+# Build profile (`release` = full LTO/opt for prod, `release-fast` = quicker
+# compile for dev). Override at build time:  --build-arg CARGO_PROFILE=release
+ARG CARGO_PROFILE=release-fast
 
-# `musl-dev` + `pkgconfig` for the static link, `ca-certificates` so we
-# can copy the CA bundle into the scratch runtime stage. `openssl-dev`
-# and `openssl-libs-static` used to live here but were retired once the
-# Rust deps dropped the `openssl` crate entirely — reqwest now rides on
-# `rustls-tls` (aws-lc-rs backend), and sqlx / aws-sdk-s3 already used
-# rustls. Net effect: ~15 MB shaved off the build image and 5 RUSTSEC
-# advisories in the `openssl`/`openssl-sys` family can no longer apply.
-RUN apk add --no-cache musl-dev pkgconfig ca-certificates
-
+# ── Stage 0: chef base — Rust + musl + mold + cargo-chef ──────────────────────
+FROM rust:alpine AS chef
+# `musl-dev` for the static link, `pkgconfig` + `ca-certificates` so we can
+# copy the CA bundle into the scratch runtime stage. `mold` + `clang` are
+# enabled by .cargo/config.toml; mold replaces the linker (~30-90s → few s
+# on the final link). All TLS goes through rustls/aws-lc-rs — no openssl
+# in the dep graph, so no openssl-dev / openssl-libs-static here.
+RUN apk add --no-cache musl-dev pkgconfig ca-certificates mold clang
+RUN cargo install cargo-chef --locked
 WORKDIR /build
 
-# Two-layer caching strategy for Rust builds:
-#
-#   1. Docker layer cache (classic) — via the dummy-main pattern below.
-#      A change to src/ doesn't invalidate the "compile deps" layer,
-#      only the "compile app" one. Breaks when Cargo.toml/Cargo.lock
-#      change (full rebuild of deps).
-#
-#   2. BuildKit cache mounts (`--mount=type=cache,...`) — persist the
-#      cargo registry and `target/` directory ACROSS builds. Even when
-#      Cargo.lock changes and invalidates layer 1, most of the crates'
-#      compiled artefacts are still on disk, so the "full rebuild"
-#      turns into an incremental one. Typical cold build drops from
-#      ~500s to ~30-60s once the caches are warm.
-#
-#      Gotcha: `target/` becomes a volume mount that disappears after
-#      the RUN finishes. We `cp` the final binary out of it (into /out)
-#      so the runtime stage can COPY it from a path that actually
-#      survives in the image layer.
+# ── Stage 1: planner — emit recipe.json describing the dep graph ──────────────
+# The recipe captures only what `cargo chef cook` needs to build deps. It
+# changes whenever Cargo.toml / Cargo.lock change, never on src/ edits.
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+COPY migrations ./migrations
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Layer 1a: dep warmup with a dummy main — only invalidates when
-# Cargo.toml/Cargo.lock change.
-COPY Cargo.toml Cargo.lock* ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs
+# ── Stage 2: builder ──────────────────────────────────────────────────────────
+FROM chef AS builder
+ARG CARGO_PROFILE
+ENV CARGO_PROFILE=${CARGO_PROFILE}
+
+# Pull the linker config in early so `chef cook` and the real build below
+# both honour it. (.cargo/config.toml is resolved per invocation, not baked
+# into the artefact, so it must sit alongside Cargo.toml at build time.)
+COPY .cargo .cargo
+
+# Cook deps — this is the slow step on a cold build, but the layer cache
+# (Cargo.toml + Cargo.lock + recipe.json invariant) keeps it warm across
+# almost every src-only iteration.
+COPY --from=planner /build/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/build/target,sharing=locked \
-    cargo build --release
-RUN rm -f src/main.rs
+    cargo chef cook --profile ${CARGO_PROFILE} --recipe-path recipe.json
 
-# Layer 1b: real build. Migrations are embedded at compile time by
-# sqlx::migrate!() so they don't need to ship in the runtime image.
-# `touch src/main.rs` forces cargo to re-link against the fresh source
-# tree instead of reusing the dummy-main artefact. `cp` extracts the
-# binary out of the cache mount so the runtime stage can grab it.
+# Real build. Migrations are embedded at compile time by sqlx::migrate!()
+# so they don't ship in the runtime image. `cp` extracts the binary out of
+# the cache mount because /build/target is volatile after the RUN finishes.
+COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY migrations ./migrations
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/build/target,sharing=locked \
-    touch src/main.rs && \
-    cargo build --release && \
-    cp target/release/manga-collector-server /manga-collector-server
+    cargo build --profile ${CARGO_PROFILE} --bin manga-collector-server && \
+    cp target/${CARGO_PROFILE}/manga-collector-server /manga-collector-server
 
-# ── Stage 2: Runtime (scratch) ────────────────────────────────────────────────
+# ── Stage 3: Runtime (scratch) ────────────────────────────────────────────────
 FROM scratch AS runtime
 
-# Image metadata (OCI). Security labels document the read-only contract so
-# orchestrators, scanners (Trivy, Docker Scout, Snyk) and humans can see how
-# the image is meant to be deployed. Nothing here forces runtime — the flags
-# must still be passed by the launcher (docker run / compose / k8s).
+# OCI labels document the read-only deploy contract for scanners + humans.
+# These don't enforce runtime — flags must still be passed by the launcher.
 LABEL org.opencontainers.image.title="MangaCollector Backend" \
       org.opencontainers.image.description="Rust/Axum API backend. Designed to run read-only — requires /tmp as tmpfs and an optional /data volume for LocalStorage uploads." \
       org.opencontainers.image.source="https://github.com/dim145/MangaCollector" \
@@ -78,9 +71,8 @@ LABEL org.opencontainers.image.title="MangaCollector Backend" \
       security.no-new-privileges="required" \
       security.writable-volumes="/data (optional, for LocalStorage backend)"
 
-# Binary was copied out of the (volatile) cache-mounted /build/target
-# by the builder stage — we COPY from the image-layer path now, not
-# from /build/target/release which doesn't exist in the final layer.
+# Binary was copied out of the (volatile) cache-mounted /build/target by the
+# builder stage — we COPY from the image-layer path, not /build/target/*.
 COPY --from=builder /manga-collector-server /manga-collector-server
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
@@ -90,8 +82,8 @@ ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
 EXPOSE 3000
 
-# The binary exposes a `--health` subcommand that hits /api/health over
-# loopback and exits 0/1 — avoids needing curl/wget in the scratch image.
+# `--health` hits /api/health over loopback and exits 0/1 — avoids needing
+# curl/wget in the scratch image.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["/manga-collector-server", "--health"]
 

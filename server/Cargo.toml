@@ -1,6 +1,6 @@
 [package]
 name = "manga-collector-server"
-version = "2.7.1"
+version = "2.8.0"
 edition = "2024"
 
 [[bin]]
@@ -129,6 +129,13 @@ dotenvy = "0.15"
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }
 
+# Random identifiers — used for the subscribable ICS calendar token
+# (`users.calendar_token`). The crate is already in the dep graph via
+# sqlx, but declaring it directly with the right features lets us call
+# `Uuid::new_v4()` without piggybacking on the transitive's feature set
+# (which doesn't enable `v4` by default).
+uuid = { version = "1", features = ["v4"] }
+
 # Error handling
 anyhow = "1"
 thiserror = "2"
@@ -172,3 +179,15 @@ opt-level = 3
 # parallelise codegen across cores — huge win with a 200+ crate dep graph.
 lto = "thin"
 codegen-units = 16
+
+# Fast-build profile used by the container's Dockerfile to slash compile
+# wall-time (~40-60% off `release`). Trade-off: drops full LTO and bumps
+# codegen-units, costing ~5-10% runtime perf — invisible in practice for
+# a backend bottlenecked by DB + network. Switch back to `--profile release`
+# in CI when shipping a release tag.
+[profile.release-fast]
+inherits = "release"
+opt-level = 2
+lto = false
+codegen-units = 256
+incremental = false

@@ -137,10 +137,10 @@ export default function ProfileButton() {
         <div
           role="menu"
           // Dropdown sits over raw page content, so it DOES need its
-          // own blur. `md` (12px) is plenty frosted for a small
-          // surface; `xl` (24px) was a GPU tax with no visual win at
-          // this scale. Opacity bumped /95 → /96 to compensate.
-          className="absolute right-0 mt-3 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2/96 shadow-2xl backdrop-blur-md animate-slide-down"
+          // bg at /96 is opaque enough that a `backdrop-blur` is
+          // imperceptible — dropped entirely so the dropdown doesn't
+          // claim a compositor pass for an effect the eye can't see.
+          className="absolute right-0 mt-3 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2/96 shadow-2xl animate-slide-down"
         >
           <div className="flex items-center gap-3 border-b border-border p-3">
             <div
@@ -213,6 +213,35 @@ export default function ProfileButton() {
                 </svg>
               }
               label={t("nav.statistics")}
+            />
+            {/* 印 · Seals (achievements / hanko-rewards) — moved here
+                from the top-level navbar to free up horizontal space.
+                Sits between Statistics and Settings because all three
+                are facets of "my own progression" rather than canonical
+                content; the seal panel is the most personal of the
+                three (your earned stamps), so keeping it next to Stats
+                preserves the natural reading order. Same SVG glyph as
+                before so muscle memory is preserved. */}
+            <MenuItem
+              onClick={() => {
+                setIsOpen(false);
+                navigate("/seals");
+              }}
+              icon={
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                  <path d="M9 9h6M12 9v6M9 15h6" />
+                </svg>
+              }
+              label={t("nav.seals")}
             />
             <MenuItem
               onClick={() => {

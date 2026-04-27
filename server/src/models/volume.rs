@@ -24,6 +24,49 @@ pub struct Model {
     /// (borrowed copy) or owned without being read (classic tsundoku).
     #[sea_orm(default)]
     pub read_at: Option<chrono::DateTime<chrono::Utc>>,
+
+    // ── 来 · Upcoming-volume metadata ───────────────────────────────
+    //
+    // A volume with `release_date > NOW()` is "upcoming" — the rest
+    // of the system enforces:
+    //   - owned must be false
+    //   - read_at must be NULL
+    //   - collector must be false
+    // The transition to "released" is implicit: once `release_date`
+    // is in the past, the same predicate flips, no migration / job
+    // is needed.
+    /// Announced commercial release date for this tome. NULL = the
+    /// volume is already out (or the source had no date).
+    #[sea_orm(default)]
+    pub release_date: Option<chrono::DateTime<chrono::Utc>>,
+    /// ISBN-13 of the announced edition. Surfaces in the drawer and
+    /// helps a future "scan on pickup" flow match the existing row
+    /// rather than minting a new one.
+    #[sea_orm(default)]
+    pub release_isbn: Option<String>,
+    /// Pre-order URL — typically the publisher's product page or a
+    /// retailer (Amazon FR / FNAC / Bookwalker). Displayed as an
+    /// outbound CTA in the upcoming-volume drawer.
+    #[sea_orm(default)]
+    pub release_url: Option<String>,
+    /// Provenance of this row. `manual` = the user typed it in and
+    /// the nightly sweep must leave it alone. Any of the API-source
+    /// values (`mangaupdates`, `googlebooks`, `openlibrary`,
+    /// `mangadex`) marks a row the sweep is allowed to refresh.
+    #[sea_orm(default = "manual")]
+    pub origin: String,
+    /// When THIS server first persisted the announcement. Used by
+    /// the UI to surface "Detected MMM dd" so the user can judge
+    /// the data's freshness, and by the cancellation cleanup path
+    /// (a stale upcoming row past its date by 14d gets removed).
+    #[sea_orm(default)]
+    pub announced_at: Option<chrono::DateTime<chrono::Utc>>,
+
+    /// Personal note. Capped at NOTE_MAX_CHARS by the service layer.
+    /// NULL means no note; the service normalises empty-after-trim
+    /// strings to NULL on write.
+    #[sea_orm(default)]
+    pub notes: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -52,4 +95,10 @@ pub struct UpdateVolumeRequest {
     /// leaves the field untouched. Defaults to None for partial updates.
     #[serde(default)]
     pub read: Option<bool>,
+    /// `Some(text)` writes, `Some("")` clears (normalised to NULL),
+    /// `None` leaves the existing note untouched.
+    #[serde(default)]
+    pub notes: Option<String>,
 }
+
+pub const NOTE_MAX_CHARS: usize = 2000;

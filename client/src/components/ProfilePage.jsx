@@ -1,5 +1,5 @@
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { consumeTourStep, peekTourStep, TOUR_STEPS } from "@/lib/tour.js";
 import CoverImage from "./ui/CoverImage.jsx";
 import DefaultBackground from "./DefaultBackground";
@@ -268,6 +268,25 @@ export default function ProfilePage({ googleUser }) {
               <p className="mt-2 text-sm text-washi-muted">
                 {t("profile.byline")}
               </p>
+              {/* 収 · Year-in-review entry point — sits below the byline
+                  as a discreet outline chip. Visible year-round (the
+                  poster gracefully degrades to its empty-state surface
+                  when there's not enough story for the current year),
+                  with the harvest kanji acting as the conceptual
+                  signpost. */}
+              <Link
+                to="/year-in-review"
+                className="mt-3 inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-gold transition hover:border-gold/70 hover:bg-gold/10 hover:text-gold-muted"
+              >
+                <span
+                  aria-hidden="true"
+                  className="font-jp text-sm font-bold leading-none not-italic"
+                >
+                  収
+                </span>
+                {t("profile.yearReviewCta", { year: new Date().getFullYear() })}
+                <span aria-hidden="true">→</span>
+              </Link>
             </div>
           </div>
         </header>

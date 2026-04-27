@@ -6,13 +6,21 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigationType,
+  useSearchParams,
+} from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   bootstrapLanguage,
   I18nProvider,
   rememberLanguage,
 } from "@/i18n/index.jsx";
+import { useLibrary } from "@/hooks/useLibrary.js";
 
 // Eager — always on screen, no point code-splitting these
 import Header from "./components/Header";
@@ -39,8 +47,12 @@ const ImportExternalPage = lazy(() =>
   import("./components/ImportExternalPage"),
 );
 const ComparePage = lazy(() => import("./components/ComparePage"));
-// 字典 — public reference page; no auth needed.
+const YearInReviewPage = lazy(() => import("./components/YearInReviewPage"));
+const ShelfStickersPage = lazy(() =>
+  import("./components/ShelfStickersPage"),
+);
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
+const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -130,14 +142,67 @@ function I18nBoundary({ children }) {
   return <I18nProvider lang={lang}>{children}</I18nProvider>;
 }
 
+/**
+ * Hydrates the `manga` prop for `/mangapage` so deep links work.
+ *
+ * Internal navigations push a Manga row in `location.state.manga`.
+ * Deep links (refresh, bookmark, QR scan) carry no state — fall back
+ * to `?mal_id=` and look the row up in the Dexie-cached library. If
+ * neither yields a row, redirect to /dashboard.
+ */
+function MangaPageRoute({ stateManga, adult_content_level }) {
+  const [searchParams] = useSearchParams();
+  const malIdParam = searchParams.get("mal_id");
+  const malId = malIdParam ? Number.parseInt(malIdParam, 10) : null;
+
+  const { data: library, isInitialLoad: libLoading } = useLibrary();
+
+  if (stateManga) {
+    return (
+      <MangaPage manga={stateManga} adult_content_level={adult_content_level} />
+    );
+  }
+
+  if (!Number.isFinite(malId)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Wait for Dexie before deciding the row doesn't exist — a fresh tab
+  // races hydration against this render.
+  if (libLoading) {
+    return null;
+  }
+
+  const resolved = library?.find((m) => m.mal_id === malId);
+  if (!resolved) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return (
+    <MangaPage manga={resolved} adult_content_level={adult_content_level} />
+  );
+}
+
 function AppShell() {
   const location = useLocation();
+  const navType = useNavigationType();
   const { manga, adult_content_level } = location.state || {};
   const [googleUser, setGoogleUser] = useState(null);
 
+  // Scroll handling: top on PUSH/REPLACE; on POP we leave it alone so
+  // each destination page can run its own data-aware restore (see
+  // Dashboard.jsx). Browser auto-restoration is disabled because it
+  // fires before our data hydration and would clamp short.
   useLayoutEffect(() => {
+    if (typeof window === "undefined" || !window.history) return;
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (navType === "POP") return;
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [location.pathname]);
+  }, [location.key, navType]);
 
   // 同期 · Realtime sync — opens a WebSocket as soon as we're auth'd
   // and invalidates TanStack queries on incoming events so changes
@@ -181,8 +246,8 @@ function AppShell() {
               path="/mangapage"
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <MangaPage
-                    manga={manga}
+                  <MangaPageRoute
+                    stateManga={manga}
                     adult_content_level={adult_content_level}
                   />
                 </ProtectedRoute>
@@ -216,6 +281,18 @@ function AppShell() {
                 </ProtectedRoute>
               }
             />
+            {/* 暦 · Upcoming-release calendar — Agenda + Month grid
+                fed by `/api/user/calendar/upcoming`. Auth-required
+                because the data is per-user, even though the
+                announcement source itself (MangaUpdates) is public. */}
+            <Route
+              path="/calendrier"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <CalendarPage />
+                </ProtectedRoute>
+              }
+            />
             {/* Public profile — deliberately outside ProtectedRoute so
                 anonymous visitors can see the gallery. Server-side
                 filters adult content + sensitive fields. */}
@@ -237,6 +314,36 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <ComparePage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 収 · Year-in-review poster — authenticated. The :year
+                segment is optional via the second route; default
+                resolution to current year happens in the page. */}
+            <Route
+              path="/year-in-review"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <YearInReviewPage googleUser={googleUser} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/year-in-review/:year"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <YearInReviewPage googleUser={googleUser} />
+                </ProtectedRoute>
+              }
+            />
+            {/* 札 · Shelf stickers — print sheet of QR-coded series
+                labels for the user's physical bookshelf. Authenticated
+                because it lists the user's library. */}
+            <Route
+              path="/settings/shelf-stickers"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <ShelfStickersPage />
                 </ProtectedRoute>
               }
             />
