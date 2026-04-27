@@ -2,16 +2,9 @@ FROM node:24-alpine AS build
 
 WORKDIR /client
 
-# pnpm is installed via corepack (ships with Node 16.13+). The
-# `packageManager` field in package.json pins the exact pnpm version
-# corepack should activate, so the build uses the same tool the
-# developers run locally — no version skew between machines.
+# pnpm version is pinned via the `packageManager` field in package.json.
 RUN corepack enable
 
-# Cache the install layer separately from the source copy. The
-# lockfile pin is what matters for cache invalidation: package.json
-# alone wouldn't catch dependency-graph changes that happen at install
-# time (e.g. pnpm overrides being updated).
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
@@ -21,10 +14,8 @@ RUN pnpm run build
 
 FROM nginx:alpine
 
-# Image metadata (OCI). Security labels document the read-only contract so
-# orchestrators, scanners (Trivy, Docker Scout, Snyk) and humans can see how
-# the image is meant to be deployed. Nothing here forces runtime — the flags
-# must still be passed by the launcher (docker run / compose / k8s).
+# OCI labels document the read-only deploy contract for scanners + humans.
+# These don't enforce runtime — flags must still be passed by the launcher.
 LABEL org.opencontainers.image.title="MangaCollector Frontend" \
       org.opencontainers.image.description="React 19 + Vite PWA served by nginx. Designed to run read-only — requires /tmp and /var/cache/nginx as tmpfs, and the NET_BIND_SERVICE capability to bind port 80." \
       org.opencontainers.image.source="https://github.com/dim145/MangaCollector" \

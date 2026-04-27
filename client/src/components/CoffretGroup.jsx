@@ -20,10 +20,6 @@ import { useT } from "@/i18n/index.jsx";
 export default function CoffretGroup({ coffret, currencySetting, children }) {
   const t = useT();
   const online = useOnline();
-  // 棚 vs 帳 · The inner grid density follows the global volumes-view
-  // preference so coffret members visually match the rest of the
-  // volumes section. Shelf mode = denser grid of small covers; ledger
-  // mode = the original 1/2/3-column layout with full Volume rows.
   const { mode: volumesView } = useVolumesView();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);

@@ -7,13 +7,9 @@ import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
- * Volume card.
- *
- * When `locked=true` (the volume belongs to a coffret), every write-path is
- * disabled: no ownership toggle, no inline edit form, the pencil is hidden.
- * The coffret header above is the single source of truth for that volume's
- * owned / price / store / collector state — editing them inline would create
- * a split-brain with the coffret totals.
+ * Volume card. When `locked=true` (volume belongs to a coffret) every write-path
+ * is disabled — the coffret header is the single source of truth for owned /
+ * price / store / collector to avoid split-brain with the coffret totals.
  */
 function VolumeImpl({
   id,
@@ -23,23 +19,8 @@ function VolumeImpl({
   paid,
   store,
   collector,
-  // Reading status — ISO timestamp string if read, null otherwise.
-  // Orthogonal to ownership: a volume can be read without being owned
-  // (borrowed / library copy) and owned without being read (classic
-  // tsundoku 積読 — the pile of acquired-but-unread books).
   readAt,
-  // 記 · Personal collector note — free-text the user inscribed
-  // against this volume. May be null/empty when never written. The
-  // mere presence of a non-empty value surfaces a discrete kanji
-  // marker on the card; the content itself only shows in the drawer.
   note = null,
-  // 来 · Upcoming-volume metadata. A row whose `releaseDate` is in the
-  // future is announced-but-not-yet-shipped — visual treatment is
-  // distinct (moegi tier + kanji 来) and every "I have this" axis is
-  // hard-disabled at the UI layer (server enforces too). When the
-  // date passes, all four fields stay set but the predicate flips
-  // and the row falls back to the regular missing/owned visual
-  // grammar — no migration needed.
   releaseDate = null,
   releaseIsbn = null,
   releaseUrl = null,
@@ -48,14 +29,8 @@ function VolumeImpl({
   locked = false,
   onUpdate,
   currencySetting,
-  // Optional per-volume cover URL (from MangaDex via the useVolumeCovers
-  // hook). When present, the click-target badge is replaced by the actual
-  // book cover with a small number chip pinned to the corner.
   coverUrl,
   blurImage = false,
-  // Preview gesture callbacks — forwarded from MangaPage's shared
-  // controller. Volume itself doesn't own the preview state anymore; that
-  // lives upstream so keyboard nav across siblings works.
   onPreviewShow,
   onPreviewRelease,
 }) {
@@ -71,18 +46,14 @@ function VolumeImpl({
   const isLoading = updateVolume.isPending;
   const t = useT();
 
-  // Hover (desktop) + long-press (touch) → notifies the shared preview
-  // controller (lives in MangaPage). Disabled when the adult filter is
-  // active (blurImage=true for level 0 or 1) — users who've asked to
-  // blur / hide adult content shouldn't be able to peek around the
-  // filter via the preview. The thumbnail itself stays blurred as-is;
-  // only the "zoom on hover/long-press" interaction is neutralised.
+  // Preview disabled when blurImage is on so the filter can't be peeked around.
   const preview = useCoverPreviewGesture({
     enabled: Boolean(coverUrl) && !isEditing && !blurImage,
     onShow: (rect, sticky) => onPreviewShow?.(volNum, rect, sticky),
     onRelease: () => onPreviewRelease?.(),
   });
 
+  // `nextRead`/`nextNote === undefined` → leave that field untouched on save.
   async function persist(
     nextOwned,
     nextPrice,
@@ -90,15 +61,8 @@ function VolumeImpl({
     nextCollector,
     ownedChanged,
     nextRead,
-    // 記 · `nextNote === undefined` → leave the note untouched (the
-    // common path for ownership / read-flag toggles). A `string`
-    // (incl. "") triggers the dedicated note write — the server
-    // collapses empty-after-trim back to NULL.
     nextNote,
   ) {
-    // `nextRead === undefined` → leave read_at untouched (used when
-    // only owned / price / store / collector change). When set, we send
-    // a boolean that the server maps to a timestamp (or null).
     await updateVolume.mutateAsync({
       id,
       mal_id,
@@ -115,19 +79,11 @@ function VolumeImpl({
 
   const toggleOwned = async () => {
     if (isEditing || locked) return;
-    // 来 · An upcoming volume cannot be owned — server enforces this
-    // too, but blocking the gesture client-side avoids the round-trip
-    // + WS event for nothing. The drawer-tap path below is the
-    // legitimate way for the user to interact (read-only details).
     if (isUpcoming) {
-      // Long-press preview is suppressed alongside the tap so a
-      // suppressed click doesn't bounce the consumeClick latch into
-      // an unexpected state on a future tap.
       preview.consumeClick();
       return;
     }
-    // Suppress the tap when a long-press just opened the preview — the
-    // user wanted to peek, not to flip the ownership.
+    // Suppress the tap when a long-press opened the preview.
     if (preview.consumeClick()) return;
     const next = !ownedStatus;
     setOwnedStatus(next);
@@ -136,22 +92,12 @@ function VolumeImpl({
 
   const toggleRead = async () => {
     if (isEditing) return;
-    // 来 · An upcoming volume cannot be marked read either —
-    // physically impossible until it ships. Blocking client-side
-    // matches the server enforce in `services::volume::update_by_id`.
     if (isUpcoming) return;
-    // Reading is orthogonal to the coffret lock — a box set controls
-    // ownership/price/collector state for its members, but it does NOT
-    // control whether you've read them. We let locked volumes flip their
-    // read status freely, and just make sure we don't clobber the
-    // coffret-owned fields (owned/price/store/collector) on persist.
+    // Reading is orthogonal to the coffret lock — locked volumes can flip
+    // read status freely; the persist below preserves the coffret-owned axes.
     const next = !readStatus;
     setReadStatus(next);
-    // Auto-own on mark-read — but only for non-locked volumes. Locked
-    // volumes already have owned=true from their coffret (you can't box
-    // unowned volumes), so the branch below rarely fires anyway; guarding
-    // on `!locked` makes the intent explicit and prevents any future
-    // regression where a locked volume's `owned` state gets clobbered.
+    // Auto-own on mark-read, but never on a locked (coffret) volume.
     let nextOwned = ownedStatus;
     let ownedChanged = false;
     if (!locked && next && !ownedStatus) {
@@ -173,9 +119,7 @@ function VolumeImpl({
     setIsEditing(false);
     const ownedChanged = ownedStatus !== owned;
     const readChanged = readStatus !== Boolean(readAt);
-    // 記 · Only write the note when the draft actually diverges from
-    // the saved value — preserves the "leave field untouched" contract
-    // for non-note saves and avoids re-stamping `modified_on` for nothing.
+    // Only write note when it actually changed — avoids touching modified_on.
     const savedNote = note ?? "";
     const draftNote = noteDraft ?? "";
     const noteChanged = draftNote.trim() !== savedNote.trim();
@@ -200,18 +144,8 @@ function VolumeImpl({
     setNoteDraft(note ?? "");
   };
 
-  // Seed local state from server props, BUT only when the user isn't
-  // actively editing. Without this guard, a realtime-sync push (WS
-  // broadcast from another device, or the outbox flush echoing back
-  // the same row after a partial save) would overwrite the fields
-  // the user is currently typing into — their half-filled price or
-  // store gets reset to the previous saved value mid-edit.
-  //
-  // Note: when the user exits editing (either via save or cancel),
-  // the reset in `resetEditState` (called from the cancel path) or
-  // the successful `persist` (which already mutates local state
-  // optimistically) lines things back up with the incoming props on
-  // the NEXT render.
+  // Seed local state from props ONLY when not editing — protects mid-edit
+  // typing from being clobbered by realtime-sync echoes / outbox flushes.
   useEffect(() => {
     if (isEditing) return;
     setOwnedStatus(owned);
@@ -222,16 +156,10 @@ function VolumeImpl({
     setNoteDraft(note ?? "");
   }, [owned, paid, store, collector, readAt, note, isEditing]);
 
-  // If a volume becomes locked while the edit form is open (e.g. the user
-  // adds it to a coffret from elsewhere), collapse the form automatically.
   useEffect(() => {
     if (locked && isEditing) setIsEditing(false);
   }, [locked, isEditing]);
 
-  // 来 · Compute "is this an announced-but-not-yet-released volume?"
-  // The predicate is recomputed on every render so when the clock
-  // ticks past the release date, the visual grammar flips
-  // automatically — no async transition, no stale state.
   const releaseDateObj = releaseDate ? new Date(releaseDate) : null;
   const isUpcoming = Boolean(
     releaseDateObj &&
@@ -246,15 +174,9 @@ function VolumeImpl({
         ),
       )
     : null;
-  // 旬 · Imminent = within 7 days. Switches the badge tone from
-  // moegi (calm anticipation) to sakura (here-it-comes), and the
-  // pulse animation engages so peripheral vision catches it.
+  // Imminent = within 7 days → badge flips moegi → sakura + pulse engages.
   const isImminent = isUpcoming && daysUntilRelease <= 7;
 
-  // Card shell — collector adds a gold ring + subtle gold glow, stacking on
-  // top of whatever the ownership state dictates. Upcoming gets its own
-  // dedicated treatment (dotted moegi border + gradient), distinct from
-  // the missing tier so the user sees a row that "isn't real yet".
   const borderClasses = isUpcoming
     ? isImminent
       ? "border-sakura/55 bg-gradient-to-br from-sakura/10 via-ink-1/40 to-ink-1/40 shadow-[0_0_18px_rgba(245,194,210,0.18)]"
@@ -265,10 +187,6 @@ function VolumeImpl({
         ? "border-hanko/40 bg-hanko/5 hover:border-hanko/60"
         : "border-border bg-ink-1/40 hover:border-border/80";
 
-  // Volume-number badge colors: gold-inverted when collector, hanko when
-  // merely owned, neutral otherwise. Upcoming overrides everything because
-  // an announced tome can be neither owned nor collector — it's a fourth
-  // state in its own right.
   const badgeClasses = isUpcoming
     ? isImminent
       ? "border-sakura bg-gradient-to-br from-sakura to-sakura/70 text-ink-0 shadow-md"
@@ -281,20 +199,10 @@ function VolumeImpl({
 
   return (
     <div
-      // `contain: layout paint` isolates this card as its own painting
-      // and layout boundary. A re-render or class change on a sibling
-      // Volume can no longer trigger a reflow that ripples through the
-      // bucket — the browser confines work to the changed card only.
-      // The tradeoff (no overflowing content escapes the box) matches
-      // what the card already does visually.
+      // [contain:layout_paint] isolates each card so a sibling re-render
+      // can't trigger a reflow rippling through the bucket.
       className={`group relative rounded-xl border transition-all duration-300 [contain:layout_paint] ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
     >
-      {/* Collector hanko seal — pinned like a wax seal at the card's top-right corner.
-          Wrapped in <Tooltip> for a reliable CSS-only hover label; the native
-          `title` attribute was unreliable on this absolutely-positioned
-          decorative span in certain browser/layout combos.
-          Suppressed when the volume is upcoming — collector is a state
-          that only applies to a tome you actually own. */}
       {collectorStatus && !isUpcoming && (
         <span className="absolute -right-2 -top-2 z-20">
           <Tooltip text={t("volume.collectorTitle")} placement="top">
@@ -311,14 +219,6 @@ function VolumeImpl({
         </span>
       )}
 
-      {/* 来 · Upcoming-volume seal. Pinned where the collector seal
-          lives (they're mutually exclusive — server enforces). Tone
-          shifts from moegi (calm "anticipated") to sakura ("imminent")
-          inside a 7-day window so peripheral vision catches it.
-          The kanji 来 (rai = "to come / next") doubles as a state
-          marker AND a pictogram — even readers unfamiliar with
-          kanji learn its meaning by association after seeing it
-          paired with the date overlay below. */}
       {isUpcoming && (
         <span className="absolute -right-2 -top-2 z-20">
           <Tooltip
@@ -346,17 +246,8 @@ function VolumeImpl({
         </span>
       )}
 
-      {/* (The tsundoku seal was removed here — the inline 読/未 toggle
-          below makes it redundant, and the two together visually
-          doubled-up on the same card corner.) */}
-
       <div className="flex items-center gap-3 p-4">
         {coverUrl ? (
-          /* Cover-mode click target — a tall 2:3 thumbnail that stands in
-             for the number badge. Ownership state is carried by ring color
-             (gold collector > hanko owned > border missing) + dimming
-             overlay when not owned. A small number chip is pinned to the
-             bottom-right, like a library sticker on a physical volume. */
           <button
             onClick={toggleOwned}
             disabled={isEditing || isLoading || locked || isUpcoming}
@@ -380,16 +271,9 @@ function VolumeImpl({
                   ? t("volume.lockedTitle")
                   : undefined
             }
-            // Gesture handlers for the floating preview. They spread across
-            // the same button that handles the tap-to-toggle, which is fine
-            // because the hook coordinates the two (long-press suppresses
-            // the subsequent click via consumeClick()).
             {...preview.handlers}
-            // data-vol-num lets the shared preview controller re-anchor on
-            // the correct DOM node when the user navigates with ← / →.
+            // data-vol-num lets the shared preview controller re-anchor on ← / →.
             data-vol-num={volNum}
-            // touch-action: avoid the browser treating the long-press as a
-            // text selection or callout; we take ownership of the gesture.
             style={{ touchAction: "manipulation" }}
             className={`group/vol relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-md border shadow-md transition-all duration-300 ${
               isUpcoming
@@ -421,11 +305,6 @@ function VolumeImpl({
               }`}
             />
 
-            {/* 来 · Upcoming-state overlay. Stronger than the missing
-                wash because the cover is metadata for an unreleased
-                tome, not a missing-from-collection one. The countdown
-                text sits on top in font-mono so the date stays
-                readable even when the source artwork is busy. */}
             {isUpcoming && (
               <>
                 <span className="pointer-events-none absolute inset-0 bg-ink-0/65" />
@@ -442,24 +321,16 @@ function VolumeImpl({
               </>
             )}
 
-            {/* Missing-state overlay — tinted wash that evokes "not yet
-                in the collection" without fully hiding the cover.
-                Suppressed when upcoming because that state has its
-                own overlay above. */}
             {!ownedStatus && !locked && !isUpcoming && (
               <span className="pointer-events-none absolute inset-0 bg-ink-0/55" />
             )}
 
-            {/* Loading spinner while saving */}
             {isLoading && (
               <span className="pointer-events-none absolute inset-0 grid place-items-center bg-ink-0/70">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-washi/40 border-t-washi" />
               </span>
             )}
 
-            {/* Volume number chip — bottom-right corner. Color tracks the
-                ownership state so it's readable even when the cover art
-                is bright/dark/busy. */}
             <span
               className={`pointer-events-none absolute bottom-0.5 right-0.5 grid min-h-4 min-w-4 place-items-center rounded-sm px-1 font-mono text-[9px] font-bold leading-none shadow ${
                 isUpcoming
@@ -477,9 +348,6 @@ function VolumeImpl({
             </span>
           </button>
         ) : (
-          /* Legacy number-badge click target — used when no cover URL is
-             available (series without a MangaDex match, or volume not
-             published on MangaDex yet). */
           <button
             onClick={toggleOwned}
             disabled={isEditing || isLoading || locked || isUpcoming}
@@ -541,11 +409,6 @@ function VolumeImpl({
           </p>
           <div className="mt-1 flex items-baseline gap-2">
             {isUpcoming ? (
-              /* 来 · Upcoming-state label, replaces the owned/missing
-                 row when the volume isn't out yet. The countdown pill
-                 sits where the price normally lives — same horizontal
-                 rhythm so the layout doesn't jump as a tome
-                 transitions from upcoming to released. */
               <>
                 <span
                   className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${
@@ -562,7 +425,6 @@ function VolumeImpl({
                     className="h-2.5 w-2.5 self-center"
                     aria-hidden="true"
                   >
-                    {/* Hourglass-ish glyph: announced, not yet here. */}
                     <path d="M3 2h10M3 14h10M5 2v3.5l3 2.5 3-2.5V2M5 14v-3.5l3-2.5 3 2.5V14" />
                   </svg>
                   {t("volume.upcomingLabel")}
@@ -582,10 +444,7 @@ function VolumeImpl({
                     ownedStatus ? "text-gold" : "text-washi-dim"
                   }`}
                 >
-                  {/* Non-colour state glyph — gives the row a second cue beyond
-                      the gold/dim tint, so colour-blind users can read state at
-                      a glance. ✓ for owned, ○ for missing. Inline SVG keeps the
-                      baseline aligned with the label. */}
+                  {/* Glyph (✓/○) doubles the colour cue for colour-blind users. */}
                   {ownedStatus ? (
                     <svg
                       viewBox="0 0 16 16"
@@ -643,9 +502,6 @@ function VolumeImpl({
                     <path d="M8 11V7a4 4 0 0 1 8 0v4" />
                   </svg>
                 </span>
-                {/* Fade-in tooltip — appears above the padlock on hover or
-                    keyboard focus. Kept pointer-events-none so it never eats
-                    clicks on what's below. */}
                 <span
                   id={`lock-tip-${id}`}
                   role="tooltip"
@@ -658,16 +514,6 @@ function VolumeImpl({
           </div>
         </div>
 
-        {/* Quick read toggle — an inline 読/未 pill that flips the reading
-            status without opening the full editor. Moegi-jade when read,
-            muted ink when unread. Placed just before the edit pencil so
-            the most common toggle is reachable with a single tap.
-            Stays available on locked (coffret) volumes because reading
-            is independent of the box-set-managed ownership axes. On a
-            locked volume we surface the read date in `title` since the
-            full editor (where the date normally lives) is unreachable.
-            Suppressed on upcoming volumes — there's nothing to read
-            yet. */}
         {!isEditing && !isUpcoming && (
           <button
             onClick={toggleRead}
@@ -692,11 +538,6 @@ function VolumeImpl({
           </button>
         )}
 
-        {/* 来 · Upcoming-volume info chip. Replaces the read pill +
-            pencil on an unreleased tome — opens the read-only drawer
-            so the user can see ISBN / publisher / pre-order URL
-            without being able to flip ownership. Tap target stays at
-            8×8 to preserve the row's rhythm. */}
         {isUpcoming && !isEditing && (
           <button
             onClick={() => setIsEditing(true)}
@@ -718,7 +559,6 @@ function VolumeImpl({
               className="h-4 w-4"
               aria-hidden="true"
             >
-              {/* Info-circle: read-only details signal. */}
               <circle cx="12" cy="12" r="9" />
               <line x1="12" y1="8" x2="12" y2="8" />
               <line x1="12" y1="12" x2="12" y2="16" />
@@ -726,10 +566,6 @@ function VolumeImpl({
           </button>
         )}
 
-        {/* Edit pencil — hidden when the volume is managed by a coffret
-            OR when the volume is upcoming (the info-circle above takes
-            its slot in that case, and a real edit on an unreleased
-            tome would be rejected by the server anyway). */}
         {!locked && !isEditing && !isUpcoming ? (
           <button
             onClick={() => setIsEditing(true)}
@@ -751,16 +587,6 @@ function VolumeImpl({
         ) : null}
       </div>
 
-      {/* Edit drawer — slides in from the right edge over the live grid.
-          Replaces the previous in-card inline expansion (which forced a
-          reflow of every sibling card every time a user opened a single
-          edit form). The drawer is a "controlled" component — all form
-          state still lives here on Volume, so cancel can reset cleanly
-          and an in-flight save survives a brief drawer remount.
-          We pass `isEditing && !locked` rather than gating the JSX on
-          !locked: a volume turning into a coffret member mid-edit (the
-          useEffect above flips isEditing→false too) then plays the
-          slide-out animation instead of unmounting instantly. */}
       <VolumeDetailDrawer
         open={isEditing && !locked}
         onClose={handleCancel}
@@ -785,9 +611,6 @@ function VolumeImpl({
         isLoading={isLoading}
         onSave={handleSave}
         onCancel={handleCancel}
-        // 来 · Upcoming-volume metadata. The drawer reads these to
-        // toggle into a read-only "details" mode where save is
-        // hidden and the form fields are disabled.
         isUpcoming={isUpcoming}
         releaseDate={releaseDate}
         releaseIsbn={releaseIsbn}
@@ -817,11 +640,6 @@ function VolumeImpl({
               </>
             )}
 
-            {/* 記 · Personal-note indicator. Discreet, ledger-row level —
-                signals "there's a note here" without surfacing the text
-                itself. Clicking opens the drawer with the note section
-                ready to edit. The kanji rotates -3° to read as a stamp
-                rather than a typeset glyph. */}
             {note && note.trim() && (
               <Tooltip
                 text={t("volume.noteIndicatorTooltip")}
@@ -853,8 +671,6 @@ function VolumeImpl({
   );
 }
 
-/** Format an ISO read_at timestamp for UI captions — short locale-aware
- *  rendering (e.g. "14 mars 2026"). Returns an empty string on bad input. */
 function formatReadDate(iso) {
   try {
     return new Date(iso).toLocaleDateString(undefined, {
@@ -867,10 +683,6 @@ function formatReadDate(iso) {
   }
 }
 
-/** Format an ISO release_date for upcoming-volume captions. Identical
- *  rendering to `formatReadDate` today, kept as a separate symbol so
- *  Phase 3 can plug a richer formatter (locale-aware "in 3 weeks" /
- *  "next month") without bleeding into the read-history caption. */
 function formatReleaseDate(iso) {
   if (!iso) return "";
   try {
@@ -884,18 +696,6 @@ function formatReleaseDate(iso) {
   }
 }
 
-/**
- * Memoised export — when one volume in a bucket flips its owned state,
- * MangaPage re-renders, which would otherwise re-run every sibling
- * Volume's full body (200+ lines of derived classNames + JSX). Most
- * sibling props (volNum, owned, paid, store, …) are primitives that
- * shallow-equal across the re-render, so the default `memo` skip
- * applies and the unchanged Volumes bail out before doing any work.
- *
- * Caveat: callbacks (`onUpdate`, `onPreviewShow`, `onPreviewRelease`)
- * and the `currencySetting` object are referentially stable only if
- * the parent wraps them in `useCallback` / `useMemo`. The wins from
- * memo are proportional to that stability — worst case it's a no-op
- * with a tiny shallow-equal cost, never a regression.
- */
+// memo: callbacks/currencySetting need stable refs from the parent for skipping
+// to actually fire — worst case it's a no-op shallow-equal, never a regression.
 export default memo(VolumeImpl);

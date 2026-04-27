@@ -8,32 +8,6 @@ import { useYearInReview } from "@/hooks/useYearInReview.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
-/**
- * 収 · /year-in-review/:year? — Year-in-review poster page.
- *
- * A vertical-poster surface (max-w narrow, generous vertical rhythm,
- * intentional negative space) summarising the user's year of
- * collecting in nine "stanzas":
- *
- *   1. Header  — the year as a giant numeral + the kanji 収 (harvest)
- *   2. Headline — total volumes acquired this year
- *   3. Stats   — series started / completed / volumes read / spent
- *   4. Genres  — top 3 with proportions
- *   5. Month   — busiest month (by volumes acquired)
- *   6. Series  — most-collected series this year
- *   7. Bookend — first volume of the year (始)
- *   8. Bookend — last volume of the year (終)
- *   9. Footer  — display name + branding
- *
- * The accent palette (a single decorative tint) follows the season of
- * the user's busiest month — winter → washi cool, spring → sakura,
- * summer → moegi, autumn → gold. Gives every year's poster a unique
- * dominant tone keyed to the user's actual rhythm.
- *
- * Print-friendly via `@media print` rules in index.css; the poster
- * also screenshots cleanly via the browser's native tools because
- * the layout is fixed-width and self-contained.
- */
 export default function YearInReviewPage({ googleUser }) {
   const { year: yearParam } = useParams();
   const navigate = useNavigate();
@@ -62,14 +36,7 @@ export default function YearInReviewPage({ googleUser }) {
 
   const accentClass = ACCENT_CLASS[bundle.accentSeason] ?? ACCENT_CLASS.neutral;
 
-  // ── Image capture ────────────────────────────────────────────────
-  // Ref points at the `.yir-poster` element so `toPng` only rasterises
-  // the poster body, not the surrounding chrome (back link, year picker,
-  // save button — none of which belong on the shared image).
   const posterRef = useRef(null);
-  // `idle | working | shared | error` — drives the button label so the
-  // user gets feedback instead of clicking blindly while the worker
-  // thread chugs through the PNG encoding.
   const [captureState, setCaptureState] = useState("idle");
   const captureTimerRef = useRef(null);
   useEffect(() => {
@@ -78,53 +45,25 @@ export default function YearInReviewPage({ googleUser }) {
     };
   }, []);
 
-  /**
-   * Render the poster element to a PNG data URL at 2× pixel density.
-   *
-   * Two correctness details that bite if omitted:
-   *   1. `await document.fonts.ready` — without it, `html-to-image`
-   *      sometimes captures the page mid-FOUT and the year numerals
-   *      land in the system fallback font for one frame, which is
-   *      exactly what gets rasterised.
-   *   2. `backgroundColor` matches the page bg so the PNG has a
-   *      defined background (no transparent corners on dark themes).
-   *
-   * Filename is meaningful (`manga-collector-{year}.png`) so the file
-   * sorts and reads well in Downloads.
-   */
   async function generatePng() {
     if (!posterRef.current) return null;
+    // Without this, html-to-image can capture mid-FOUT and rasterise
+    // the year numerals in the system fallback font.
     if (typeof document?.fonts?.ready?.then === "function") {
       try {
         await document.fonts.ready;
       } catch {
-        /* font loading API absent or rejected — proceed anyway */
+        /* font loading API absent */
       }
     }
     return toPng(posterRef.current, {
       pixelRatio: 2,
       cacheBust: true,
-      // Match the dark canvas behind the poster so the PNG has a
-      // proper bg even when the user's OS preview puts it on white.
       backgroundColor: "#0a0908",
-      filter: (node) => {
-        // Skip the on-screen control row if it ever lived inside the
-        // captured tree. (It currently doesn't — controls are siblings
-        // of `.yir-poster`. Defensive belt + braces.)
-        return !(node?.classList?.contains?.("yir-controls"));
-      },
+      filter: (node) => !(node?.classList?.contains?.("yir-controls")),
     });
   }
 
-  /**
-   * Save → either share via the Web Share API (mobile / supported
-   * browsers) or fall back to a plain download. We always try share
-   * first when the runtime claims it can take a file payload — that
-   * gives the user the system "share to Instagram / Telegram /
-   * AirDrop / …" sheet, which is the canonical UX for "I made an
-   * image, send it somewhere". Browsers without `canShare({ files })`
-   * (Safari macOS in some versions, older Firefox) get the download.
-   */
   async function handleSave() {
     if (loading || bundle.empty) return;
     setCaptureState("working");
@@ -149,13 +88,10 @@ export default function YearInReviewPage({ googleUser }) {
           });
           setCaptureState("shared");
         } catch (err) {
-          // User cancelled the share sheet — that's not an error,
-          // just go back to idle.
           if (err?.name === "AbortError") {
             setCaptureState("idle");
             return;
           }
-          // Any other share failure → fall through to download.
           triggerDownload(dataUrl, filename);
           setCaptureState("shared");
         }
@@ -182,9 +118,7 @@ export default function YearInReviewPage({ googleUser }) {
 
   return (
     <div className="yir-root mx-auto min-h-screen w-full max-w-[44rem] px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-      {/* ── Top control strip — kept out of the captured PNG via the
-          posterRef boundary; the ref is attached to the article below
-          so html-to-image only walks the poster subtree. */}
+      {/* Controls sit outside the posterRef so they're skipped by toPng. */}
       <div className="yir-controls mb-6 flex items-center justify-between gap-3">
         <Link
           to="/profile"
@@ -271,19 +205,14 @@ export default function YearInReviewPage({ googleUser }) {
         </div>
       </div>
 
-      {/* ── The poster itself ── */}
       <article
         ref={posterRef}
         className={`yir-poster relative overflow-hidden rounded-3xl border border-border bg-ink-1/40 px-6 py-12 backdrop-blur sm:px-10 md:px-14 md:py-16 ${accentClass}`}
       >
-        {/* Faint grain texture for the printed-poster feel; opacity tuned
-            low enough to coexist with both light and dark themes. */}
         <span
           aria-hidden="true"
           className="yir-grain pointer-events-none absolute inset-0 opacity-[0.05]"
         />
-        {/* Subtle vignette — corners darken to draw the eye toward the
-            year + headline numerals. */}
         <span
           aria-hidden="true"
           className="yir-vignette pointer-events-none absolute inset-0"
@@ -310,12 +239,6 @@ export default function YearInReviewPage({ googleUser }) {
   );
 }
 
-/**
- * Per-season accent palette — a single class applied at the poster
- * root that subtly shifts the radial gradients underneath the title.
- * Each token resolves to its existing `--scene-*` CSS variable in
- * light/dark mode, so the page looks correct in both themes.
- */
 const ACCENT_CLASS = {
   spring: "yir-accent-spring",
   summer: "yir-accent-summer",
@@ -324,12 +247,8 @@ const ACCENT_CLASS = {
   neutral: "yir-accent-neutral",
 };
 
-/**
- * Trigger a synthetic-anchor download for a data URL. Cleans up the
- * anchor on the next tick — Chromium-based browsers leak the element
- * if it stays attached, and Safari requires it to be in the DOM at
- * click time, so the choreography is "append → click → remove".
- */
+// Safari requires the anchor to be in the DOM at click time, so we
+// append it before the click and remove it on the next tick.
 function triggerDownload(dataUrl, filename) {
   const a = document.createElement("a");
   a.href = dataUrl;
@@ -402,7 +321,6 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
 
   return (
     <div className="relative z-10 flex flex-col items-center text-center">
-      {/* ── 1. Header — the year + 収 watermark ── */}
       <header className="mb-10">
         <p className="font-mono text-[11px] uppercase tracking-[0.4em] text-washi-dim">
           {t("yearReview.eyebrow")}
@@ -422,7 +340,6 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
         </div>
       </header>
 
-      {/* ── 2. Headline number ── */}
       <section className="mb-2">
         <p className="font-display text-7xl font-semibold italic text-hanko-bright sm:text-8xl">
           {volumesAcquired}
@@ -437,7 +354,6 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
 
       <Divider />
 
-      {/* ── 3. Secondary stats — typographic grid ── */}
       <section className="grid w-full max-w-md grid-cols-2 gap-x-8 gap-y-6 text-left">
         <Stat
           value={seriesStarted}
@@ -464,7 +380,6 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
 
       <Divider />
 
-      {/* ── 4. Top genre ── */}
       {topGenres.length > 0 && (
         <section className="mb-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
@@ -487,7 +402,6 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
         </section>
       )}
 
-      {/* ── 5. Best month ── */}
       {bestMonth && (
         <section className="mb-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
@@ -502,7 +416,6 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
         </section>
       )}
 
-      {/* ── 6. Top series ── */}
       {topSeries && (
         <section className="mb-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
@@ -519,7 +432,6 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
 
       <Divider />
 
-      {/* ── 7-8. Bookends ── */}
       <section className="flex w-full max-w-md flex-col items-center gap-8 sm:flex-row sm:justify-between sm:gap-6">
         <Bookend
           kanji="始"
@@ -542,7 +454,6 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
 
       <Divider />
 
-      {/* ── 9. Footer signature ── */}
       <footer className="text-center">
         <p className="font-display text-base italic text-washi">
           @{displayName}

@@ -282,14 +282,9 @@ export async function enqueueLibraryVolumesOwned(mal_id, nbOwned) {
  */
 
 export async function enqueueVolumeUpdate(volume) {
-  // Translate the `read: boolean` flag (from the mutation call-site) into
-  // a `read_at: iso|null` that matches the server row shape, so Dexie's
-  // live-query readers see the optimistic badge update immediately. The
-  // server mapping is mirrored in `services/volume.rs::update_by_id`.
-  //
-  // 記 · The personal note ALSO carries through unchanged — the server
-  // column is `notes`, the local Dexie row column is `notes`, the PATCH
-  // field is `notes`. No translation needed here, only forwarding.
+  // Translate the `read: boolean` flag from the call site into the
+  // `read_at: iso|null` shape Dexie's live-query readers expect; the
+  // matching server-side mapping lives in `services/volume.rs`.
   const { read, ...rest } = volume;
   const local = { ...rest };
   if (read !== undefined) {
@@ -328,12 +323,10 @@ export async function enqueueVolumeUpdate(volume) {
         local.collector !== undefined
           ? Boolean(local.collector)
           : prev.collector,
-      // `read` is the boolean the flusher translates into the PATCH
-      // field. `undefined` means "don't touch" — keep the prior value.
+      // `undefined` for `read` / `notes` means "don't touch" — the
+      // flusher only sends those fields when they're explicitly set,
+      // matching the server's leave-untouched contract.
       read: read !== undefined ? read : prev.read,
-      // 記 · Personal note. `undefined` means "this PATCH did not touch
-      // the note" — same don't-touch policy as `read`. The flusher only
-      // forwards a `notes` field on the wire when it's not undefined.
       notes: local.notes !== undefined ? local.notes : prev.notes,
     };
 
@@ -460,15 +453,12 @@ async function flushVolumes() {
         price: op.payload.price,
         store: op.payload.store,
         collector: Boolean(op.payload.collector),
-        // Only forward the `read` flag when it was explicitly set —
-        // sending undefined leaves the server-side read_at untouched.
+        // `read` and `notes` are only sent when explicitly set; an
+        // unrelated outbox replay (e.g. a price edit) leaves them
+        // untouched server-side.
         ...(op.payload.read !== undefined
           ? { read: Boolean(op.payload.read) }
           : {}),
-        // 記 · Same don't-touch contract as `read`: omit the field when
-        // the merged payload didn't carry an explicit edit so unrelated
-        // outbox replays (e.g. a price-only change) can't accidentally
-        // clear or rewrite the note.
         ...(op.payload.notes !== undefined
           ? { notes: String(op.payload.notes ?? "") }
           : {}),
@@ -652,15 +642,12 @@ async function onServerRecover() {
 let _syncRunnerInstalled = false;
 let _syncRunnerInterval = null;
 let _syncRunnerUnsubscribe = null;
-// Resolved in `installSyncRunner` so `removeEventListener` can match
-// the same function reference on uninstall — anonymous arrow handlers
-// would leak the listener across hot-reload cycles.
+
+// Named so `removeEventListener` matches the same reference on uninstall.
 function _syncRunnerVisibilityHandler() {
   if (typeof document === "undefined") return;
   if (document.visibilityState !== "visible") return;
   if (!isFullyOnline()) return;
-  // Catch-up: fire one immediate pass instead of waiting for the
-  // next interval tick. The async chain mirrors the interval body.
   pendingCount().then((n) => {
     if (n > 0) syncOutbox();
   });
@@ -688,15 +675,9 @@ export function installSyncRunner() {
     }
   });
 
-  // Slow safety-net for stuck ops: only do real work if there's actually
-  // something pending. A bare interval that fires GETs every minute would
-  // pile up on top of the React Query refetches and delay initial render.
-  //
-  // Skipped while the tab is hidden — a backgrounded tab has no user
-  // looking at the result, so the wakeup wastes battery on mobile and
-  // CPU on desktop. The visibility listener below force-runs a single
-  // pass when focus returns, so a long-backgrounded tab catches up
-  // instantly instead of waiting for the next 60-second tick.
+  // Slow safety-net for stuck outbox entries — only fires if the tab
+  // is visible AND there's actually pending work. The visibilitychange
+  // handler below covers the catch-up case when focus returns.
   _syncRunnerInterval = setInterval(async () => {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     if (!isFullyOnline()) return;
@@ -708,10 +689,6 @@ export function installSyncRunner() {
     if (n > 0) syncOutbox();
   }, 60_000);
 
-  // Catch-up trigger on focus regain. Without this, a tab backgrounded
-  // for hours waits up to 60 s for the interval to fire after the user
-  // refocuses — a visible delay if they expected the local edit to
-  // already be on the server.
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", _syncRunnerVisibilityHandler);
   }

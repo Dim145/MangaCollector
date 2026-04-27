@@ -171,10 +171,6 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
                 .read_at
                 .map(|t| t.to_rfc3339())
                 .unwrap_or_default();
-            // 記 · Notes are escaped through the same helper; embedded
-            // newlines / commas / quotes are handled by RFC 4180-style
-            // double-quoting. Long notes are emitted in full — the cap
-            // (2000 chars) keeps the field benign for spreadsheet imports.
             let notes = csv_escape(v.notes.as_deref().unwrap_or(""));
             out.push_str(&format!(
                 "{mal},{name},{vol},{owned},{collector},{read},{price},{store},{notes},{genres}\n",

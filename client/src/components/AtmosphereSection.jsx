@@ -1,14 +1,6 @@
 import { useAtmosphere } from "@/hooks/useAtmosphere.js";
 import { useT } from "@/i18n/index.jsx";
 
-/**
- * 風 · Settings section — toggle the seasonal-atmosphere particle layer.
- *
- * Pure-client preference (localStorage), so the toggle reads as instant
- * with no spinner. The body copy reminds the user that even when the
- * toggle is on, the layer is gated to the moments where it matters
- * (public landing, or the 7-day window around an equinox/solstice).
- */
 export default function AtmosphereSection() {
   const t = useT();
   const { enabled, setEnabled } = useAtmosphere();

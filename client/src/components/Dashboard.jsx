@@ -22,31 +22,16 @@ import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
 import { useT } from "@/i18n/index.jsx";
 
-// 棚 · The library renders ALL series on mount — no pagination, no
-// sentinel-driven incremental load. The performance trick is CSS-side:
-// each card carries `content-visibility: auto`, which lets the browser
-// skip layout / paint / style work for offscreen cards entirely. With
-// a ~350 px `contain-intrinsic-size` fallback, the document is the
-// right total height from the very first frame, which means:
-//
-//   - Browser-native scroll restoration on POP back from MangaPage
-//     just works (the body is already tall enough for the saved Y).
-//   - No async race against Dexie's `useLiveQuery` re-painting an
-//     ever-growing grid — the whole grid lands in one shot.
-//   - Memory stays low: `<img loading="lazy">` on covers means the
-//     network never fetches a thumbnail for an offscreen card.
-//
-// The previous incremental-load approach (visibleCount / sentinel /
-// IntersectionObserver pagination) was retired in favour of this
-// content-visibility approach because of the back-navigation bug:
-// remounting Dashboard with `visibleCount = 30` left the document
-// too short to accept a saved scroll-Y of 4500, and every workaround
-// (ResizeObserver retry, etc.) raced the data load and felt brittle.
+// All series are rendered on mount — `content-visibility: auto` on each
+// card (see render below) lets the browser skip layout / paint for
+// offscreen cards, and the document is full-height from frame 1 so
+// scroll restoration after a back-navigation lands inside it instead
+// of clamping against a partially-rendered grid.
 
-// sessionStorage keys — split into two so the high-frequency scroll
-// writes don't pay the JSON-serialise cost of the wider state object.
-const DASHBOARD_STATE_KEY = "mc:dashboard:view"; // filter / query / tags
-const DASHBOARD_SCROLL_KEY = "mc:dashboard:scrollY"; // raw integer
+// Two sessionStorage keys: scroll-Y is written at ~60 Hz so it's kept
+// raw to skip the JSON cost.
+const DASHBOARD_STATE_KEY = "mc:dashboard:view";
+const DASHBOARD_SCROLL_KEY = "mc:dashboard:scrollY";
 
 function readPersistedDashboardState() {
   if (typeof sessionStorage === "undefined") return null;
@@ -286,10 +271,6 @@ export default function Dashboard() {
     // flip toggles a row in/out of the "積" bucket).
   }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal]);
 
-  // Persist the view state (filter / query / tags) so a back-nav from
-  // MangaPage restores the exact same shelf. Within a single render,
-  // all three values are written once when any of them flips — React's
-  // batching prevents per-keystroke writes for `query`.
   useEffect(() => {
     writePersistedDashboardState({
       query,
@@ -298,10 +279,6 @@ export default function Dashboard() {
     });
   }, [query, filter, activeTags]);
 
-  // 巻戻し · Scroll save — rAF-throttled write to sessionStorage on
-  // every scroll. The throttle avoids hundreds of writes per second
-  // during a fast scroll; rAF aligns with the paint tick so it caps
-  // naturally at ~60 Hz.
   useEffect(() => {
     let pending = false;
     const onScroll = () => {
@@ -316,16 +293,10 @@ export default function Dashboard() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // 巻戻し · Scroll restore — fires once per mount, after the library
-  // data has resolved (so the document has the right height) and a
-  // saved scroll-Y is available. The `restoredRef` guards against
-  // re-firing if the library updates again later (realtime sync, a
-  // background refetch, etc.) — the user has by then scrolled
-  // somewhere on their own and we mustn't yank them back.
-  //
-  // The deferred `requestAnimationFrame` ensures the grid layout has
-  // committed before we scroll; without it, the call sometimes runs
-  // before the browser has measured the new content-visibility cards.
+  // Restore the scroll position once, after the library data has
+  // resolved — `useLiveQuery` returns an empty array on the first
+  // render then refills, so we wait for the document to actually be
+  // tall enough before issuing the scroll.
   const restoredScrollRef = useRef(false);
   useEffect(() => {
     if (restoredScrollRef.current) return;
@@ -338,10 +309,9 @@ export default function Dashboard() {
     });
   }, [isInitialLoad]);
 
-  // Reset scroll on any filter / search / tag change. The first run
-  // is skipped via `firstViewChangeRef` so the post-mount restore
-  // (above) isn't immediately wiped by this effect's initial fire
-  // with the seeded values.
+  // Reset scroll on filter / query / tag change, but skip the first
+  // run so the seeded values don't trigger a reset on mount and wipe
+  // the restore above.
   const firstViewChangeRef = useRef(true);
   useEffect(() => {
     if (firstViewChangeRef.current) {
@@ -622,35 +592,13 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filtered.map((manga, i) => (
                 <div
-                  // Use the Dexie row `id` as a stable, unique key.
-                  // `mal_id` collides when multiple custom series with
-                  // `mal_id = null` coexist (a legitimate state before
-                  // a server-side negative id is minted), triggering
-                  // React key-collision warnings and mis-mounted DOM
-                  // between sibling Manga cards. Falling back through
-                  // `mal_id` → `index` preserves keying for legacy
-                  // rows that may lack a Dexie primary key in hand.
+                  // Custom series can share `mal_id = null` until the
+                  // server mints a negative id, so we prefer the Dexie
+                  // primary key.
                   key={manga.id ?? manga.mal_id ?? `idx-${i}`}
-                  // 棚 · `content-visibility: auto` lets the browser
-                  // skip layout / paint / style on cards outside the
-                  // viewport — typically only the ~12-30 cards in or
-                  // near the fold do real work. `contain-intrinsic-
-                  // size: auto 360px` reserves a sensible vertical
-                  // slot for never-painted cards (cover at aspect 2:3
-                  // plus title + meta ≈ 290–420 px depending on grid
-                  // column count); the `auto` keyword tells the
-                  // browser to remember the actual measured size after
-                  // first paint, so subsequent offscreen recycles use
-                  // the real number, not the fallback.
                   style={{
                     contentVisibility: "auto",
                     containIntrinsicSize: "auto 360px",
-                    // Stagger the fade-up only on the first ~12 cards
-                    // (the first viewport's worth). Beyond that, cards
-                    // are usually offscreen at mount, and animating
-                    // them as the user scrolls into view would feel
-                    // like a glitch — the eye reads "this card just
-                    // appeared" as data loading rather than scrolling.
                     animationDelay:
                       i < 12 ? `${Math.min(i * 40, 440)}ms` : undefined,
                   }}

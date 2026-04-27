@@ -5,33 +5,16 @@ import { useT } from "@/i18n/index.jsx";
 import { formatCurrency } from "@/utils/price.js";
 
 /**
- * Volume detail drawer — slides in from the right edge so the underlying
- * volume grid stays visible behind a translucent ink scrim. This replaces
- * the previous in-card inline expansion which forced the rest of the grid
- * to reflow every time the user opened a single edit form.
- *
- * Design language is Shōjo Noir: 巻 (kan/maki = "volume / scroll") sits as
- * a faint hanko watermark behind the form, the panel is gradient-inked,
- * the save action carries the hanko-red, and the close affordance is a
- * round corner button mirroring <Modal>'s.
- *
- * State is *controlled* — the parent (`Volume`) owns the form fields. The
- * drawer is intentionally dumb beyond chrome (mount/unmount, focus trap,
- * scroll lock, ESC) so that:
- *   - cancel can reset state back to the server-side props,
- *   - save can persist + close in one atomic flow,
- *   - the optimistic-but-not-yet-flushed values survive a brief drawer
- *     re-render while a mutation is in flight.
+ * Volume detail drawer — controlled by the parent (Volume). The drawer is
+ * intentionally dumb beyond chrome (mount/unmount, focus trap, scroll lock,
+ * ESC) so cancel can reset cleanly and an in-flight save survives a remount.
  */
 
-/** Must match `animate-drawer-out` duration so the unmount fires AFTER the
- *  exit animation finishes, not on top of it. */
+// Must match the `animate-drawer-out` CSS duration.
 const CLOSE_ANIM_MS = 240;
 
-// Reference-counted body-scroll lock — same pattern as <Modal>. Multiple
-// drawers stacking would be unusual but it's cheap to be safe, and it
-// also means a Modal opening over a Drawer (or vice-versa) won't fight
-// over the original overflow value.
+// Reference-counted body-scroll lock — same pattern as <Modal>, so a Modal
+// opening over a Drawer (or vice-versa) doesn't fight over `overflow`.
 let activeDrawerCount = 0;
 let savedBodyOverflow = null;
 function acquireScrollLock() {
@@ -49,8 +32,6 @@ function releaseScrollLock() {
   }
 }
 
-/** Format an ISO read_at timestamp for UI captions. Mirrors the helper
- *  in Volume.jsx but kept inline so this component can stand alone. */
 function formatReadDate(iso) {
   try {
     return new Date(iso).toLocaleDateString(undefined, {
@@ -66,16 +47,11 @@ function formatReadDate(iso) {
 export default function VolumeDetailDrawer({
   open,
   onClose,
-  // ── Volume context (display-only) ─────────────────────────────────────
-  // (`id` from props is intentionally unused — input/label association
-  //  goes through `useId()` below for stability across remounts and to
-  //  cover the "custom volume, id=undefined" edge case.)
   volNum,
   coverUrl,
   blurImage = false,
   readAt,
   currencySetting,
-  // ── Form state — controlled by the parent ─────────────────────────────
   ownedStatus,
   setOwnedStatus,
   readStatus,
@@ -86,46 +62,24 @@ export default function VolumeDetailDrawer({
   setPrice,
   purchaseLocation,
   setPurchaseLocation,
-  // 記 · Personal note — controlled by the parent like every other
-  // field. Drawer renders a textarea with a live counter; the parent
-  // owns the truncation logic at save time (and the server enforces
-  // its own cap as a defence-in-depth).
   note = "",
   setNote = () => {},
-  // ── Lifecycle ─────────────────────────────────────────────────────────
   isLoading,
   onSave,
   onCancel,
-  // ── 来 · Upcoming-volume mode ────────────────────────────────────────
-  // When `isUpcoming` is true the drawer flips into a read-only
-  // "details" mode: every form input is disabled, the Save button is
-  // hidden (replaced by a single "Close"), and the header swaps to
-  // the upcoming-tier kanji 来 + countdown. The `daysUntilRelease`
-  // is parent-computed because the parent already needs the predicate
-  // for its own visual logic — duplicating the math here would risk
-  // a 1-day desync between the badge and the drawer.
   isUpcoming = false,
   releaseDate = null,
   releaseIsbn = null,
   releaseUrl = null,
   origin = "manual",
-  /// ISO timestamp (or null) of when the announcement was first
-  /// detected by our cascade. Surfaced as "Detected MMM dd · X days
-  /// ago" so the user can judge how fresh the data is — relevant
-  /// when a publisher slips a date and we haven't re-confirmed yet.
   announcedAt = null,
   daysUntilRelease = null,
 }) {
   const t = useT();
-  // Stable per-instance namespace for input/label association. Replaces
-  // the previous `drawer-price-${id}` pattern, which broke when `id`
-  // was undefined (custom volumes freshly added produce that case) —
-  // every drawer would then collide on `drawer-price-undefined` and
-  // labels would point to the wrong input.
+  // useId() avoids the `drawer-price-undefined` collision custom volumes hit.
   const fieldId = useId();
 
-  // Decouple DOM lifecycle from `open` so we can play the slide-out
-  // animation BEFORE unmounting, just like <Modal>.
+  // Decouple DOM lifecycle from `open` so the exit animation plays before unmount.
   const [mounted, setMounted] = useState(open);
   const [leaving, setLeaving] = useState(false);
   const closeTimer = useRef(null);
@@ -156,20 +110,14 @@ export default function VolumeDetailDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Refs for focus management. The panel is what we trap inside.
-  // (We removed the overlay ref — it was never read, only attached.)
   const panelRef = useRef(null);
   const lastFocusedBeforeOpenRef = useRef(null);
-  // Tracks where a mousedown started so we can distinguish a true
-  // backdrop click (down + up on the overlay) from a drag-out (down
-  // inside the panel, up outside it because the user was selecting
-  // text). Without this, releasing a text selection past the panel
-  // edge unintentionally cancels the edit.
+  // Distinguishes a true backdrop click from a text-selection drag-out so
+  // releasing the selection past the panel edge doesn't cancel the edit.
   const backdropMouseDownRef = useRef(false);
 
-  // Mirror onClose into a ref — see <Modal>.jsx for the rationale: an
-  // inline-arrow callback would re-bind the keyup listener on every parent
-  // render, which can drop a keystroke during the one-frame gap.
+  // Mirror onClose into a ref to avoid re-binding the keyup listener on every
+  // parent render (would otherwise drop a keystroke in the one-frame gap).
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -185,11 +133,6 @@ export default function VolumeDetailDrawer({
       }
     };
 
-    // Focus trap — same selector as <Modal>. Tab cycles among interactive
-    // descendants of the panel; Shift+Tab cycles backwards. We don't trap
-    // arrow keys because the form has buttons + inputs that legitimately
-    // benefit from native arrow-key behaviour (e.g. the number input
-    // increment).
     const handleKeyDown = (e) => {
       if (e.key !== "Tab") return;
       const root = panelRef.current;
@@ -198,11 +141,8 @@ export default function VolumeDetailDrawer({
         'a[href], area[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, audio[controls], video[controls], [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
       const tabbables = root.querySelectorAll(selector);
       if (!tabbables.length) {
-        // Saving/loading state can disable every button — without
-        // this fallback, the focus would silently leak back to the
-        // page behind on the next Tab. Park focus on the panel
-        // itself (tabIndex=-1) so subsequent keystrokes stay scoped
-        // to the drawer until controls re-enable.
+        // No tabbables (loading state disables every button) → park focus on
+        // the panel itself so keystrokes stay scoped until controls re-enable.
         e.preventDefault();
         if (typeof root.focus === "function") root.focus();
         return;
@@ -224,8 +164,6 @@ export default function VolumeDetailDrawer({
     window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("keydown", handleKeyDown);
 
-    // Push focus inside the drawer once it's painted. Falls back to the
-    // panel itself (tabIndex=-1 below) if no `data-autofocus` is present.
     requestAnimationFrame(() => {
       const root = panelRef.current;
       if (!root) return;
@@ -255,9 +193,7 @@ export default function VolumeDetailDrawer({
       }
       lastFocusedBeforeOpenRef.current = null;
     };
-    // Effect deps intentionally narrow: handlers come off refs (so they
-    // can't be stale even though they aren't listed), and the only state
-    // we actually want to react to is the mount transition.
+    // Handlers come off refs — only the mount transition is a real dep.
   }, [mounted]);
 
   if (!mounted) return null;
@@ -269,27 +205,14 @@ export default function VolumeDetailDrawer({
   const overlay = (
     <div
       className={`fixed inset-0 flex items-stretch justify-end bg-ink-0/70 backdrop-blur-[3px] ${overlayAnim}`}
-      // Highest sane z-index — escape any transformed/isolate ancestor.
-      // Portaled to <body> so DefaultBackground can't trap us anyway.
       style={{ zIndex: 2147483630 }}
-      // Track drag-out vs. true backdrop click. The browser fires
-      // `click` on the deepest element that received both mousedown
-      // and mouseup — and on touch, it synthesises a click without
-      // any mouse events at all. We use a ref to remember whether
-      // the press *started* on the backdrop, then defer the dismiss
-      // decision to the click handler. Without this, dragging a
-      // text selection out of the panel would close the drawer
-      // mid-edit (the audit reproduced it cleanly).
       onMouseDown={(e) => {
         backdropMouseDownRef.current = e.target === e.currentTarget;
       }}
       onClick={(e) => {
         if (e.target !== e.currentTarget) return;
-        // Mouse path: only fire if mousedown also originated on the
-        // backdrop. Touch path: pointerType is touch, mousedown
-        // never ran, ref is its initial false → we still want to
-        // dismiss because a touch tap is unambiguously a "click
-        // outside" gesture (no drag-out concept on a tap).
+        // Touch path has no mousedown, so a tap is unambiguously "click
+        // outside"; mouse path needs the mousedown to have started here too.
         const isTouch = e.nativeEvent?.pointerType === "touch";
         const downOnBackdrop = backdropMouseDownRef.current;
         backdropMouseDownRef.current = false;
@@ -313,13 +236,6 @@ export default function VolumeDetailDrawer({
             : "border-border bg-gradient-to-b from-ink-1 via-ink-1 to-ink-0 shadow-[0_0_60px_-12px_rgba(220,38,38,0.35)]"
         } focus:outline-none ${panelAnim}`}
       >
-        {/* Background watermark.
-            Edit mode: 巻 (kan/maki = "volume / scroll") in hanko-red
-            ink wash, the same hanko-stamp aesthetic as the rest of
-            the SPA.
-            Upcoming mode: 来 (rai = "to come") in moegi, signalling
-            "the next page hasn't been written yet". Pointer-events
-            disabled either way. */}
         <span
           aria-hidden
           className={`pointer-events-none absolute -right-12 top-24 select-none font-jp text-[28rem] font-bold leading-none ${
@@ -410,11 +326,6 @@ export default function VolumeDetailDrawer({
                   ? t("volume.upcomingDrawerLead")
                   : t("volume.editDrawerLead")}
               </p>
-              {/* 来 · Countdown chip — only on upcoming mode. Uses
-                  the same kanji as the card seal so the visual
-                  vocabulary stays consistent between the two
-                  surfaces. The chip carries both an absolute date
-                  (parseable) and a relative countdown (glanceable). */}
               {isUpcoming && (
                 <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-moegi/40 bg-moegi/10 px-2.5 py-1 font-mono text-[11px] leading-none text-moegi">
                   <span className="font-jp text-[12px] font-bold leading-none">
@@ -454,13 +365,6 @@ export default function VolumeDetailDrawer({
           </button>
         </div>
 
-        {/* ── Body (scrollable middle) ───────────────────────────────
-            Two distinct shapes depending on `isUpcoming`:
-              - false: the editable form (status / reading / edition /
-                price / store) — original behaviour.
-              - true:  a read-only details panel (publisher, ISBN,
-                pre-order CTA, source attribution). The only writable
-                interaction left is "Close". */}
         {isUpcoming ? (
           <div className="relative z-10 flex-1 space-y-4 overflow-y-auto p-5">
             <div className="rounded-xl border border-moegi/30 bg-moegi/5 p-4">
@@ -472,18 +376,7 @@ export default function VolumeDetailDrawer({
               </p>
             </div>
 
-            {/* Publisher / ISBN / Pre-order — only render fields the
-                cascade actually populated. A bare upcoming row from
-                MangaUpdates will land with publisher only; once Phase
-                3 plugs Google Books in, ISBN + pre-order URL light up. */}
             <dl className="space-y-3 text-[13px]">
-              {/* 印 · Source attribution — single row that adapts to
-                  manual vs API origins. The freshness sub-line ("Detected
-                  X days ago") only renders for API rows where the
-                  `announced_at` timestamp survived. Helps the user judge
-                  how stale a particular date is — a 14-day-old API row
-                  whose date is approaching deserves an eyebrow raise
-                  more than a 2-day-old one. */}
               <div className="flex items-baseline gap-3 border-b border-border/60 pb-3">
                 <dt className="w-24 flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
                   {t("volume.upcomingSourceLabel")}
@@ -547,7 +440,6 @@ export default function VolumeDetailDrawer({
           </div>
         ) : (
           <div className="relative z-10 flex-1 space-y-5 overflow-y-auto p-5">
-            {/* Status (owned / missing) */}
           <div>
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
               {t("volume.statusLabel")}
@@ -561,12 +453,7 @@ export default function VolumeDetailDrawer({
                   key={String(opt.v)}
                   type="button"
                   onClick={() => setOwnedStatus(opt.v)}
-                  // Autofocus the *currently selected* option so a
-                  // keyboard user pressing Space by reflex doesn't
-                  // accidentally flip the state. A reflex Tab still
-                  // takes them to the next field, an explicit click
-                  // on the unselected sibling is required to change
-                  // ownership.
+                  // Autofocus the selected option so reflex-Space doesn't flip state.
                   data-autofocus={ownedStatus === opt.v ? true : undefined}
                   className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition ${
                     ownedStatus === opt.v
@@ -582,7 +469,6 @@ export default function VolumeDetailDrawer({
             </div>
           </div>
 
-          {/* Reading toggle (tsundoku axis) */}
           <div>
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
               {t("volume.readingLabel")}
@@ -647,7 +533,6 @@ export default function VolumeDetailDrawer({
             </button>
           </div>
 
-          {/* Collector toggle (gold-accented edition switch) */}
           <div>
             <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
               {t("volume.editionLabel")}
@@ -709,7 +594,6 @@ export default function VolumeDetailDrawer({
             </button>
           </div>
 
-          {/* Price */}
           <div>
             <label
               htmlFor={`${fieldId}-price`}
@@ -739,7 +623,6 @@ export default function VolumeDetailDrawer({
             )}
           </div>
 
-          {/* Store / location */}
           <div>
             <label
               htmlFor={`${fieldId}-store`}
@@ -756,12 +639,6 @@ export default function VolumeDetailDrawer({
             />
           </div>
 
-          {/* 記 · Personal note. Sits at the bottom of the form, after
-              the accountancy fields, because it's reflective rather
-              than transactional — the kind of thing you write *after*
-              you've recorded that you bought it and where. The kanji
-              top-left of the label doubles as a visual anchor for the
-              indicator that surfaces on the volume row. */}
           <NoteField
             fieldId={fieldId}
             value={note ?? ""}
@@ -771,12 +648,6 @@ export default function VolumeDetailDrawer({
           </div>
         )}
 
-        {/* ── Footer ────────────────────────────────────────────────────
-            Edit mode: Save + Cancel side by side.
-            Upcoming mode: a single full-width Close button — there's
-            nothing to save on a not-yet-released volume, and the
-            two-button layout would invite a Save tap that the server
-            would silently coerce. Cleaner UI, fewer surprises. */}
         <div className="relative z-10 mt-auto flex gap-2 border-t border-border bg-ink-1/95 p-4">
           {isUpcoming ? (
             <button
@@ -814,20 +685,7 @@ export default function VolumeDetailDrawer({
   return createPortal(overlay, document.body);
 }
 
-/**
- * 記 · NoteField — personal-note textarea with live character counter.
- *
- * The cap is the same NOTE_MAX_CHARS the server enforces (2000); the
- * counter shifts to the warning tone in the last 5% so users notice
- * before they hit the limit. Above the cap we soft-truncate on the
- * controlled `value` so the textarea cannot grow past the limit even
- * if a paste lands a 3 KB blob.
- *
- * The kanji 記 in the label header is the same glyph that surfaces as
- * the indicator on the volume row when a note exists — the visual
- * thread between "place where I write the note" and "place where the
- * note has been written" is explicit, not implicit.
- */
+// Mirrors the server-side NOTE_MAX_CHARS — server caps as defence in depth.
 const NOTE_MAX_CHARS_CLIENT = 2000;
 function NoteField({ fieldId, value, onChange, t }) {
   const safe = String(value ?? "");
@@ -835,9 +693,6 @@ function NoteField({ fieldId, value, onChange, t }) {
 
   const handleChange = (event) => {
     const next = event.target.value ?? "";
-    // Soft truncate — paste of a giant blob lands the value at the cap
-    // rather than growing past it. The server also caps as a defence
-    // in depth; this is purely about a smooth typing experience.
     if (next.length > NOTE_MAX_CHARS_CLIENT) {
       onChange(next.slice(0, NOTE_MAX_CHARS_CLIENT));
     } else {
@@ -886,9 +741,6 @@ function NoteField({ fieldId, value, onChange, t }) {
   );
 }
 
-/** Format an ISO release_date for upcoming-volume captions in the
- *  drawer. Mirrors the helper in `Volume.jsx` so the two surfaces
- *  agree on date rendering. Returns an empty string on bad input. */
 function formatReleaseDate(iso) {
   if (!iso) return "";
   try {
@@ -902,10 +754,6 @@ function formatReleaseDate(iso) {
   }
 }
 
-/** Compose the "Detected MMM dd · N days ago" caption from the
- *  `announced_at` ISO timestamp. Falls back to just the absolute
- *  date when the relative count would round to today (the noise of
- *  a tiny "0 days ago" doesn't earn its keep). */
 function formatFreshness(iso, t) {
   try {
     const announced = new Date(iso);

@@ -2,31 +2,6 @@ import { memo, useMemo } from "react";
 import CoverImage from "@/components/ui/CoverImage.jsx";
 import { useT } from "@/i18n/index.jsx";
 
-/**
- * 棚 · Shelf-mode tile — appreciation view.
- *
- * Pure presentational sibling of `<Volume>`. Where Volume is the dense
- * accountancy row (price, store, edit pencil, owned-toggle button), this
- * is the "wall of covers" tile: cover image up-front, state implied
- * through opacity / chrome rather than spelled out in metadata.
- *
- * Visual rules:
- *   - **Owned**  → full opacity, gentle warm shadow lifting on hover.
- *   - **Missing** → 35% opacity, grayscale, dashed sakura border.
- *     Reads as "this volume in the series exists, you don't have it
- *     yet" without screaming. The grayscale is the cue.
- *   - **Read**     → small 読 stamp top-left in gold.
- *   - **Collector** → 限 stamp top-right in hanko.
- *   - **Upcoming** → 来 stamp top-right in moegi (replaces 限 if both
- *     are true since collector + upcoming is rare and "upcoming" is
- *     the more time-sensitive cue).
- *   - **Volume number** → mono chip bottom-left for spatial anchoring
- *     when the cover doesn't include a visible volume number.
- *
- * Interaction: this view is intentionally read-only. Editing happens
- * in 帳 (ledger) mode. The user switches modes when they want to
- * accountancy-edit; this surface is for browsing.
- */
 function VolumeShelfTileImpl({
   volNum,
   owned,
@@ -40,9 +15,6 @@ function VolumeShelfTileImpl({
 }) {
   const t = useT();
 
-  // 来 · Upcoming = release date in the future (or no release info but
-  // marked as not owned and tagged announced — but for the tile, the
-  // simplest rule is `releaseDate > now` regardless of owned state).
   const isUpcoming = useMemo(() => {
     if (!releaseDate) return false;
     const ts = new Date(releaseDate).getTime();
@@ -57,10 +29,6 @@ function VolumeShelfTileImpl({
 
   return (
     <div
-      // `contain: layout paint` confines reflow + repaint to this tile.
-      // In a 6-column shelf grid with 24+ tiles, a class change on one
-      // tile would otherwise force the browser to reconsider the whole
-      // grid; with containment it stays local.
       className={`group relative aspect-[2/3] overflow-hidden rounded-md transition will-change-transform [contain:layout_paint] ${
         owned
           ? "shadow-[0_2px_8px_rgba(0,0,0,0.35)] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(0,0,0,0.45)]"
@@ -74,7 +42,6 @@ function VolumeShelfTileImpl({
             : t("manga.shelfTitleMissing", { n: volNum })
       }
     >
-      {/* Cover */}
       <div
         className={`absolute inset-0 transition ${
           owned
@@ -93,7 +60,6 @@ function VolumeShelfTileImpl({
         />
       </div>
 
-      {/* Bottom darkening for badge legibility on bright covers */}
       {owned && (
         <div
           aria-hidden="true"
@@ -101,7 +67,6 @@ function VolumeShelfTileImpl({
         />
       )}
 
-      {/* 読 · Read corner — top-left, gold */}
       {isRead && owned && (
         <span
           aria-label={t("manga.shelfBadgeRead")}
@@ -112,7 +77,7 @@ function VolumeShelfTileImpl({
         </span>
       )}
 
-      {/* 限 / 来 · Top-right corner. Upcoming wins the slot if both. */}
+      {/* Upcoming takes precedence over collector when a tile is both. */}
       {isUpcoming ? (
         <span
           aria-label={t("manga.shelfBadgeUpcoming")}
@@ -134,11 +99,8 @@ function VolumeShelfTileImpl({
         )
       )}
 
-      {/* 鎖 · Coffret-locked tile — tiny corner mark so users know why
-          the tile won't react to ledger edits. Bottom-right, neutral.
-          Shifts to bottom-right-with-offset when a note indicator
-          claims the same corner so the two glyphs sit side-by-side
-          rather than stacked. */}
+      {/* Locked + note glyphs share the bottom-right corner; offset
+          the lock so they sit side-by-side instead of stacked. */}
       {locked && owned && (
         <span
           aria-label={t("manga.shelfBadgeLocked")}
@@ -150,11 +112,6 @@ function VolumeShelfTileImpl({
         </span>
       )}
 
-      {/* 記 · Personal-note indicator — bottom-right corner stamp in
-          moegi (different tier than 限/読 to read as "annotation"
-          rather than "state of the volume"). Surfaces only when the
-          tile carries a note; absent note → absent glyph, no visual
-          weight wasted. */}
       {hasNote && (
         <span
           aria-label={t("manga.shelfBadgeNote")}
@@ -166,9 +123,6 @@ function VolumeShelfTileImpl({
         </span>
       )}
 
-      {/* Volume number chip — bottom-left, monospace, subtle.
-          Always present so the user can locate vol-N at a glance even
-          if the cover artwork doesn't carry a visible number. */}
       <span className="absolute bottom-1 left-1 rounded-sm bg-ink-0/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-washi backdrop-blur-sm">
         {volNum}
       </span>
@@ -176,11 +130,4 @@ function VolumeShelfTileImpl({
   );
 }
 
-/**
- * Memoised export — same rationale as Volume's default-memo: when one
- * tile in the shelf flips state, every other tile would otherwise re-
- * render its full body (cover, badges, hover handlers). Every prop is
- * a primitive or a stable string, so shallow-equal hits reliably and
- * the unchanged tiles bail out instantly.
- */
 export default memo(VolumeShelfTileImpl);

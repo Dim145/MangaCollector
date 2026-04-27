@@ -47,17 +47,11 @@ const ImportExternalPage = lazy(() =>
   import("./components/ImportExternalPage"),
 );
 const ComparePage = lazy(() => import("./components/ComparePage"));
-// 収 — year-in-review poster page; lazy because it's only visited
-// occasionally (typically a few times in December / January).
 const YearInReviewPage = lazy(() => import("./components/YearInReviewPage"));
-// 札 — shelf-sticker printer; lazy because it's a one-off setup tool,
-// not a daily-use surface. Pulls qrcode.react with it.
 const ShelfStickersPage = lazy(() =>
   import("./components/ShelfStickersPage"),
 );
-// 字典 — public reference page; no auth needed.
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
-// 暦 — upcoming-release calendar.
 const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
@@ -149,26 +143,12 @@ function I18nBoundary({ children }) {
 }
 
 /**
- * 巻 · MangaPage hydration shim.
+ * Hydrates the `manga` prop for `/mangapage` so deep links work.
  *
- * The `/mangapage` route historically receives its `manga` row through
- * React Router's `location.state` (set by Dashboard / Library cards on
- * navigation). That works for in-app links but BREAKS for any deep
- * link — refreshes, bookmarks, and most importantly QR codes scanned
- * off printed shelf stickers — because external entry points carry no
- * router state.
- *
- * This shim layers a fallback path: when `location.state.manga` is
- * absent, we read `?mal_id=` from the URL and resolve the row from the
- * Dexie-backed library cache. Three branches:
- *   1. state has the row     → render immediately (existing path).
- *   2. state empty + mal_id  → look up; render once Dexie answers.
- *   3. state empty + no mal_id OR not in library → redirect to
- *      `/dashboard` (a deep link to a series the user doesn't own
- *      isn't actionable here).
- *
- * Keeping this as a thin wrapper means MangaPage itself stays unaware
- * of routing concerns and can keep its `manga` prop contract.
+ * Internal navigations push a Manga row in `location.state.manga`.
+ * Deep links (refresh, bookmark, QR scan) carry no state — fall back
+ * to `?mal_id=` and look the row up in the Dexie-cached library. If
+ * neither yields a row, redirect to /dashboard.
  */
 function MangaPageRoute({ stateManga, adult_content_level }) {
   const [searchParams] = useSearchParams();
@@ -177,22 +157,20 @@ function MangaPageRoute({ stateManga, adult_content_level }) {
 
   const { data: library, isInitialLoad: libLoading } = useLibrary();
 
-  // Fast path — the in-app navigation case where state was populated.
   if (stateManga) {
     return (
       <MangaPage manga={stateManga} adult_content_level={adult_content_level} />
     );
   }
 
-  // No state, no query → nowhere to go.
   if (!Number.isFinite(malId)) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Wait for Dexie before deciding to redirect — a fresh tab opening
-  // the deep link races library hydration against this render.
+  // Wait for Dexie before deciding the row doesn't exist — a fresh tab
+  // races hydration against this render.
   if (libLoading) {
-    return null; // PageLoader from outer Suspense covers visual gap
+    return null;
   }
 
   const resolved = library?.find((m) => m.mal_id === malId);
@@ -210,22 +188,10 @@ function AppShell() {
   const { manga, adult_content_level } = location.state || {};
   const [googleUser, setGoogleUser] = useState(null);
 
-  // 巻戻し · Scroll handling on navigation.
-  //
-  //   PUSH / REPLACE (forward navigation, e.g. clicking a card)
-  //     → scroll to top of the new page, the canonical SPA behaviour.
-  //
-  //   POP (back / forward via the browser's history controls)
-  //     → do NOTHING from this top-level effect. Each destination
-  //       page that wants its scroll restored owns that logic itself
-  //       — Dashboard reads its saved scroll-Y from sessionStorage in
-  //       a one-shot effect that fires AFTER its data has resolved,
-  //       which is the only point at which the document is tall
-  //       enough for the saved Y to actually land. No top-level
-  //       ResizeObserver retry loops, no race against Dexie hydration.
-  //
-  // We disable the browser's auto scroll-restoration once on mount so
-  // it doesn't race the page-owned restore for routes that opt in.
+  // Scroll handling: top on PUSH/REPLACE; on POP we leave it alone so
+  // each destination page can run its own data-aware restore (see
+  // Dashboard.jsx). Browser auto-restoration is disabled because it
+  // fires before our data hydration and would clamp short.
   useLayoutEffect(() => {
     if (typeof window === "undefined" || !window.history) return;
     if ("scrollRestoration" in window.history) {

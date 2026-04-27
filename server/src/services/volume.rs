@@ -13,18 +13,10 @@ use crate::models::volume::{
 };
 use crate::services::activity;
 
-/// Normalise a personal note for persistence:
-///   - `None`         → leave column untouched (caller should branch
-///                      on this — we encode the policy at the call
-///                      site, this helper only handles `Some` values).
-///   - `Some(empty)`  → store NULL (an empty-after-trim note is a
-///                      "cleared" note, not a present-but-blank one).
-///   - `Some(text)`   → trim, truncate to NOTE_MAX_CHARS, store.
-///
-/// Truncation is silent. The client enforces the cap with a live
-/// counter, so a payload arriving over the limit is either a stale
-/// outbox replay or a misbehaving caller — neither warrants a 400 in
-/// production traffic.
+/// Trim, truncate to NOTE_MAX_CHARS, and collapse empty strings to
+/// NULL. Truncation is silent — the client enforces the same cap
+/// with a live counter, so a payload exceeding it is either a stale
+/// outbox replay or a misbehaving caller.
 fn normalise_note(input: String) -> Option<String> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
@@ -66,9 +58,7 @@ pub async fn update_by_id(
     store: Option<String>,
     collector: bool,
     read: Option<bool>,
-    // 記 · `None` leaves the existing note untouched. `Some(raw)` is
-    // passed through `normalise_note` — empty-after-trim clears the
-    // row, otherwise the trimmed/truncated text is persisted.
+    // `None` leaves the note column untouched.
     notes: Option<String>,
 ) -> Result<(), AppError> {
     // Note: the update is idempotent on two axes — a row that no longer
@@ -142,17 +132,9 @@ pub async fn update_by_id(
         .col_expr(volume::Column::Collector, collector.into())
         .col_expr(volume::Column::ModifiedOn, now.into());
 
-    // 記 · Personal note — three-way like `read`:
-    //  • None          → leave column untouched (no client intent
-    //                    to update notes; the caller may have only
-    //                    been editing price/store/etc.).
-    //  • Some(text)    → normalise (trim + truncate at NOTE_MAX_CHARS)
-    //                    and write. Empty-after-trim collapses to NULL.
-    //
-    // Conditional rather than always-write so the common "user toggled
-    // owned only" path doesn't read+rewrite an unchanged 2 KB blob,
-    // and so an outbox replay of a stale partial PATCH can't accidentally
-    // wipe a note set in a later (already-applied) request.
+    // Conditional write so a stale outbox replay of an unrelated
+    // partial PATCH (price-only, etc.) can't accidentally wipe a
+    // note set by a later request that already landed.
     if let Some(raw_note) = notes {
         let normalised = normalise_note(raw_note);
         query = query.col_expr(

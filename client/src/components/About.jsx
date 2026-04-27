@@ -1,16 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { useT } from "@/i18n/index.jsx";
-// Each landing-grid manga ships in three formats so the browser can pick
-// the smallest it understands:
-//   · AVIF — Chrome 85+, Firefox 93+, Safari 16.1+. ~58 % lighter than JPEG.
-//   · WebP — Chrome 32+, Firefox 65+, Safari 14+. ~48 % lighter than JPEG.
-//   · JPEG — universal fallback for ancient browsers (and any tooling
-//            that consumes the bare URL via `import …jpg`).
-//
-// The compound `?as=…` query strings are handled at build time by Vite —
-// each `import` returns the exact hashed asset URL pointing to the file
-// produced from `src/assets/{name}.{ext}` by sharp-cli during the
-// preprocessing step (the sources live alongside the JPEGs).
+// Each cover ships in AVIF, WebP, and JPEG; the <picture> element in
+// the render below picks the smallest format the browser supports.
 import PunpunAvif from "../assets/punpun.avif";
 import PunpunWebp from "../assets/punpun.webp";
 import PunpunJpg from "../assets/punpun.jpg";

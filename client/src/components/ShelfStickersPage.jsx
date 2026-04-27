@@ -6,48 +6,15 @@ import { useLibrary } from "@/hooks/useLibrary.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
- * 札 · Shelf-sticker printer.
- *
- * A utility surface — not part of the daily-use chrome — that lets a
- * user print physical shelf labels for their manga collection. Each
- * sticker carries:
- *   - A QR code linking back to the series (`/mangapage?mal_id=N`).
- *     The owner's phone, already authenticated, jumps straight to
- *     the detail page when scanned. Friends scanning won't get the
- *     gated content but will land on the login flow, which is the
- *     correct boundary for a personal-organisation tool.
- *   - The series cover thumbnail (uses the public `image_url_jpg`
- *     from MAL/MangaDex when available; custom uploads gracefully
- *     fall back to the kanji 巻 placeholder via `<CoverImage>`).
- *   - The series title.
- *   - A "X / Y" volume count so a glance at the shelf shows whether
- *     a series is complete.
- *
- * Layout matches the Avery L7160 template (A4, 21 stickers per
- * sheet, 63.5×38.1 mm each, 3 cols × 7 rows). The CSS lives in
- * `index.css` under the `.sticker-sheet` selector chain — page-rule
- * dimensions, mm-precise `@media print` rules, and the screen
- * preview that approximates the printed result at 1.6× scale so the
- * user can read the labels before committing the paper.
- *
- * Workflow:
- *   1. Tick the series you want to label
- *   2. Preview updates live (3-col grid of sticker tiles)
- *   3. Click "Print" → browser print dialog → drop an Avery L7160
- *      sticker sheet in the printer → done
- *
- * The Print button uses `window.print()` here because the output is
- * a paginated grid of small high-contrast labels that printers handle
- * faithfully — exactly the case where print dialogue beats PNG capture
- * (we used PNG for the year-in-review poster because that's a single
- * tall poster, where pagination broke).
+ * Prints physical shelf labels — one QR code per series. Layout
+ * targets the Avery L7160 template (A4, 21 stickers, 63.5×38.1 mm
+ * each); the mm-precise rules live under `.sticker-sheet` in
+ * index.css.
  */
 export default function ShelfStickersPage() {
   const t = useT();
   const { data: library, isInitialLoad } = useLibrary();
 
-  // Ordered alphabetically — gives the user a stable scan order when
-  // hunting for a specific series in a long library.
   const orderedLibrary = useMemo(() => {
     const arr = library ?? [];
     return [...arr].sort((a, b) =>
@@ -57,15 +24,8 @@ export default function ShelfStickersPage() {
     );
   }, [library]);
 
-  // Selection state — Set<mal_id>. Default-empty so a user landing on
-  // the page can ramp up by ticking only the series they want printed
-  // (a typical sheet is a small subset of the full library).
   const [selected, setSelected] = useState(() => new Set());
   const [search, setSearch] = useState("");
-
-  // If the library finishes loading and the user hasn't picked anything
-  // yet, pre-select nothing — wasting paper on a 200-sticker sheet they
-  // didn't intend is worse than an empty preview.
 
   const filtered = useMemo(() => {
     if (!search.trim()) return orderedLibrary;
@@ -98,22 +58,15 @@ export default function ShelfStickersPage() {
     if (typeof window !== "undefined") window.print();
   };
 
-  // Compute the public origin for QR URLs — defaults to the current
-  // page's origin so dev / staging / prod all resolve correctly without
-  // a hardcoded domain.
   const baseUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
     return window.location.origin;
   }, []);
 
-  // L7160 = 21 stickers per A4 page (3 cols × 7 rows). We compute the
-  // page count so the user knows how many sheets to load before clicking
-  // Print — saves a "wait, was that right?" cancel-and-retry.
   const pageCount = Math.max(1, Math.ceil(stickers.length / 21));
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-      {/* ── Header ── */}
       <header className="mb-8 animate-fade-up sticker-printer-header">
         <div className="flex items-baseline gap-3">
           <Link
@@ -148,7 +101,6 @@ export default function ShelfStickersPage() {
         </div>
       </header>
 
-      {/* ── Picker ── */}
       <section className="sticker-printer-picker mb-8 animate-fade-up rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
           <div>
@@ -270,7 +222,6 @@ export default function ShelfStickersPage() {
         )}
       </section>
 
-      {/* ── Print summary + button ── */}
       <section className="sticker-printer-actions mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-hanko/20 bg-gradient-to-br from-hanko/5 to-ink-1/40 p-4 animate-fade-up">
         <div>
           <p className="font-display text-sm font-semibold text-washi">
@@ -307,7 +258,6 @@ export default function ShelfStickersPage() {
         </button>
       </section>
 
-      {/* ── Preview / printable sheet ── */}
       {stickers.length > 0 && (
         <PrintableSheet stickers={stickers} baseUrl={baseUrl} t={t} />
       )}
@@ -315,16 +265,9 @@ export default function ShelfStickersPage() {
   );
 }
 
-/**
- * Printable sheet — Avery L7160 grid of stickers.
- * On screen, it's a scaled preview the user can scan with their eyes.
- * On `@media print`, it's mm-precise so the labels land in the correct
- * adhesive cells of the L7160 sheet.
- */
 function PrintableSheet({ stickers, baseUrl, t }) {
-  // Chunk into 21-sticker pages so each `<section>` corresponds to one
-  // physical sheet of L7160 paper. This makes the print-time
-  // page-break-after rules trivial (just break after each section).
+  // 21 stickers per L7160 sheet, so each chunk is one physical page
+  // and `page-break-after` on `.sticker-sheet` lines up cleanly.
   const pages = useMemo(() => {
     const out = [];
     for (let i = 0; i < stickers.length; i += 21) {
@@ -356,9 +299,7 @@ function PrintableSheet({ stickers, baseUrl, t }) {
           {pageStickers.map((m) => (
             <Sticker key={m.mal_id} entry={m} baseUrl={baseUrl} t={t} />
           ))}
-          {/* Pad with empty cells so the grid keeps its 21-cell shape
-              even on the last (partial) page. Empty cells just sit
-              blank — the adhesive paper underneath stays unused. */}
+          {/* Pad the partial last page so the 21-cell grid stays whole. */}
           {Array.from({ length: 21 - pageStickers.length }).map((_, i) => (
             <div key={`blank-${i}`} className="sticker-blank" />
           ))}

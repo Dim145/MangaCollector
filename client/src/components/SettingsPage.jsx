@@ -1045,13 +1045,7 @@ function ThemeSwatch({ value }) {
   );
 }
 
-/**
- * 札 · ShelfStickersEntry — small outline card linking to the
- * dedicated `/settings/shelf-stickers` printer page. Lives here
- * (instead of being a full subcomponent) because the actual sticker
- * UI is heavy enough to deserve its own route + lazy chunk; the
- * Settings surface just needs a discoverable signpost.
- */
+// Signpost card; the actual sticker UI lives in its own lazy-loaded route.
 function ShelfStickersEntry({ t }) {
   return (
     <section
@@ -1088,21 +1082,12 @@ function ShelfStickersEntry({ t }) {
   );
 }
 
-/**
- * 始 · Onboarding section — replay-the-welcome-tour entry.
- * Stored as its own sub-component so the tour state lives close to the
- * button that triggers it; SettingsPage already has plenty of state of
- * its own. Re-rendered through the shared `<WelcomeTour>` modal so the
- * replay behaves identically to the auto-open path on the dashboard.
- */
 function OnboardingSection() {
   const t = useT();
   const [open, setOpen] = useState(false);
 
   const replay = () => {
-    // Wipe the seen flag so the auto-open path on the dashboard would
-    // also fire on the next visit. The user explicitly asked to revisit
-    // the tour, so it's reasonable that they may want it elsewhere too.
+    // Wipe the "seen" flag so the dashboard auto-open path fires again next visit.
     resetTourSeen();
     setOpen(true);
   };

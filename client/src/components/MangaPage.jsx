@@ -102,9 +102,6 @@ export default function MangaPage({ manga, adult_content_level }) {
   // for the whole page, cross-volume ← / → navigation, sticky mode on
   // long-press, zoom modal on tap.
   const previewCtl = useVolumePreviewController({ coverMap: volumeCoverMap });
-  // 帳 vs 棚 · Volumes view-mode preference. Drives the toggle UI in
-  // the section header and the render branch (Volume row vs Shelf
-  // tile) below. Stored client-side, persisted across visits.
   const { mode: volumesView } = useVolumesView();
   const isShelfMode = volumesView === "shelf";
   // `manga` comes frozen from React Router's location.state, so its volume
@@ -392,25 +389,8 @@ export default function MangaPage({ manga, adult_content_level }) {
     }
   };
 
-  // 来 · Upcoming-volume refresh.
-  //
-  // Outcome surfacing moved to the global `SyncToaster` (via
-  // `notifySyncInfo`) after the trigger relocated into the
-  // edit-split-button's sync menu. The previous inline echo (next
-  // to the volumes list header) made sense when the trigger lived
-  // in the same row; with the trigger now collapsed into the
-  // dropdown, the echo had no anchor — it was floating above
-  // unrelated content. Routing through SyncToaster:
-  //
-  //   - puts the result in the same corner the user already
-  //     reads for sync feedback (errors, MAL/MD failures)
-  //   - keeps it visible regardless of scroll position
-  //   - lets us thematically distinguish success (moegi/green-tea
-  //     accent) from no-changes (neutral washi) from failure
-  //     (hanko/red), without re-implementing those variants here
-  //
-  // On failure we still emit through the existing error channel —
-  // SyncToaster renders both channels in a single stack.
+  // Outcome surfacing routes through SyncToaster (notifySyncInfo) so success /
+  // no-change / failure share the same corner as other sync feedback.
   const refreshUpcomingVolumes = async () => {
     if (!online || refreshingSource) return;
     setRefreshingSource("upcoming");
@@ -1026,13 +1006,8 @@ export default function MangaPage({ manga, adult_content_level }) {
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {/* 帳 vs 棚 · View toggle — only meaningful once there is at
-                  least one volume to look at. Hidden on empty series so the
-                  surface stays calm. */}
               {(volumes?.length ?? 0) > 0 && <VolumesViewToggle />}
 
-              {/* Coffret CTA — washi/cream palette so it reads as "box / paper
-                  slipcase", distinct from the gold reserved for collector. */}
               {manga.mal_id >= 0 && (volumes?.length ?? 0) > 0 && (
                 <button
                   type="button"
@@ -1313,23 +1288,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 </span>
               </button>
             )}
-            {/* 来 · Upcoming-volume refresh.
-                Same menu family as the MAL / MangaDex pulls but
-                semantically distinct: we're not refetching THIS
-                series' metadata, we're discovering future volumes.
-                Visual cues marking that distinction:
-                  - 来 kanji (the same symbol the inline result
-                    badge below the volumes list uses) instead of
-                    the round-trip refresh arrow used for MAL/MD
-                  - `animate-pulse` on the glyph instead of the
-                    spinner animation, mirroring the original
-                    standalone button's "scanning the calendar"
-                    feel rather than "round-tripping a sync"
-                  - moegi accent on the kanji — the same green-tea
-                    tone the "next volume" chips elsewhere use, so
-                    the family connection reads at a glance.
-                Visibility gated on mal_id > 0 (custom-only series
-                have no calendar source to query). */}
+            {/* Custom-only series (mal_id < 0) have no calendar source. */}
             {manga.mal_id > 0 && (
               <button
                 role="menuitem"

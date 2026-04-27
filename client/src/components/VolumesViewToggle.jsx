@@ -1,22 +1,6 @@
 import { useT } from "@/i18n/index.jsx";
 import { useVolumesView } from "@/hooks/useVolumesView.js";
 
-/**
- * 帳 vs 棚 · Two-segment toggle for the volumes view mode.
- *
- * Visual language:
- *   - The two kanji share the radical 巾 (cloth/strip) — they sit
- *     beside each other as a graphic pair, not as adversaries.
- *   - Active segment carries the hanko-bright accent + a tiny dot to
- *     read as "this is selected" without relying on contrast alone
- *     (color-blind safe).
- *   - Hover bumps the inactive kanji toward washi for a subtle
- *     "you can pick me" cue.
- *
- * Lives in the volumes-section header on MangaPage. Width is tight
- * (auto, content-driven) so it tucks beside the volume count and the
- * Coffret CTA without breaking the line.
- */
 export default function VolumesViewToggle() {
   const t = useT();
   const { mode, setMode } = useVolumesView();

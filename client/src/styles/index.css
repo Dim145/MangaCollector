@@ -1803,33 +1803,20 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  /* The seasonal atmosphere is decorative; for users with vestibular
-     sensitivity we hide it entirely rather than freezing the scene
-     to a still frame (which would just show a row of dots clinging
-     to the top of the viewport — visually confusing). */
+  /* Hide rather than freeze the atmosphere particles — frozen mid-fall
+     they'd cling to the top of the viewport. */
   .atmo-particle {
     display: none !important;
   }
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   季節 · Seasonal atmosphere — ambient particle layer keyed by the
-   real-world season returned by `lib/season.js`. Each particle is a
-   single absolutely-positioned `<span>` driven by per-particle CSS
-   variables (`--scale`, `--delay`, `--duration`, `--rot`) supplied
-   from React. The animations are pure transforms + opacity so they
-   stay on the GPU compositor.
-   ───────────────────────────────────────────────────────────────── */
-
-/* Shared positional + transform-baseline rule. Per-season variants
-   below override `background`, `border-radius`, animation name, and
-   sometimes box-shadow for the firefly glow. */
+/* Seasonal-atmosphere particles. Each particle is a single
+   absolutely-positioned `<span>` driven by per-particle CSS variables
+   set in JSX (`--scale`, `--delay`, `--duration`, `--rot`); the four
+   season variants below pick a shape, palette, and animation name. */
 .atmo-particle {
   position: absolute;
   top: 0;
-  /* `--scale`, `--rot`, `--delay`, `--duration` are injected per-
-     particle from JSX. Defaults guarantee the rule never breaks if
-     a particle is rendered without them. */
   --scale: 1;
   --rot: 0deg;
   --delay: 0s;
@@ -1837,25 +1824,14 @@
   width: calc(0.6rem * var(--scale));
   height: calc(0.6rem * var(--scale));
   opacity: 0;
-  /* Same animation-name + duration applied to every particle in a
-     season; the `--delay` per-particle stagger plus the per-particle
-     start position is what makes the swarm feel organic. */
   animation-duration: var(--duration);
   animation-delay: calc(var(--delay) * -1);
   animation-iteration-count: infinite;
   animation-timing-function: linear;
-  /* Keep transforms on a separate compositor layer — avoids
-     repaints during scroll on long pages. */
   will-change: transform, opacity;
   transform: translate3d(0, -10vh, 0) rotate(var(--rot)) scale(var(--scale));
 }
 
-/* 春 · Spring — sakura petals.
-   Petal silhouette via asymmetric `border-radius`; the radial
-   gradient gives the slightly translucent centre. V1 used a
-   `filter: blur(0.4px)` for softness — removed in V2 because the
-   filter triggered a separate compositor pass per particle per
-   frame. The radial gradient already gives a soft edge falloff. */
 .atmo-spring .atmo-particle {
   background: radial-gradient(
     circle at 30% 30%,
@@ -1869,10 +1845,6 @@
   height: calc(0.7rem * var(--scale));
 }
 
-/* 夏 · Summer — fireflies. V1 used a double box-shadow (8px + 16px)
-   for a wide glow halo. V2 keeps a single 12px ring — perceptually
-   identical at the small size we render at, but one fewer GPU pass
-   per particle per frame. */
 .atmo-summer .atmo-particle {
   background: var(--gold);
   border-radius: 50%;
@@ -1882,8 +1854,6 @@
   height: calc(0.4rem * var(--scale));
 }
 
-/* 秋 · Autumn — golden leaves. Same shape language as V1; blur
-   filter removed (the gradient softens the edge enough). */
 .atmo-autumn .atmo-particle {
   background: radial-gradient(
     ellipse at 40% 30%,
@@ -1897,8 +1867,6 @@
   height: calc(0.5rem * var(--scale));
 }
 
-/* 冬 · Winter — snow. Cream dots; the radial gradient takes the
-   place of the V1 blur for the softness cue. */
 .atmo-winter .atmo-particle {
   background: radial-gradient(
     circle at 50% 50%,
@@ -1912,10 +1880,6 @@
   height: calc(0.45rem * var(--scale));
 }
 
-/* Shared fall + sway — petals and other "falling with breeze" motion.
-   The horizontal `translateX` deltas are small (±2vw) so the
-   particle stays roughly in its column, but the eye reads the path
-   as a meandering descent rather than a straight drop. */
 @keyframes atmo-fall-sway {
   0% {
     transform: translate3d(0, -10vh, 0) rotate(var(--rot)) scale(var(--scale));
@@ -1936,9 +1900,6 @@
   }
 }
 
-/* Autumn leaves spin more aggressively than spring petals, which
-   reads as gravity tugging on a wider, flatter object — a leaf
-   tumbles, a petal drifts. */
 @keyframes atmo-fall-spin {
   0% {
     transform: translate3d(0, -10vh, 0) rotate(var(--rot)) scale(var(--scale));
@@ -1959,8 +1920,6 @@
   }
 }
 
-/* Winter snow — slowest, near-vertical, opacity ceiling at 0.4 so
-   the layer reads as ambient texture, not weather. */
 @keyframes atmo-fall-snow {
   0% {
     transform: translate3d(0, -10vh, 0) scale(var(--scale));
@@ -1978,10 +1937,6 @@
   }
 }
 
-/* Summer firefly — drifts laterally rather than falls, with an
-   independent opacity pulse so the "breath" of the glow is decoupled
-   from the position cycle (firefly visibly blinks even when staying
-   in roughly the same area). */
 @keyframes atmo-firefly {
   0% {
     transform: translate3d(0, 70vh, 0) scale(var(--scale));
@@ -2009,30 +1964,16 @@
   }
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   収 · Year-in-review poster styling.
-   The page surface mounts this set of utilities to render as a
-   poster — grain overlay for printed-paper feel, per-season accent
-   palette tying the page tint to the user's busiest month, and a
-   `@media print` block that strips the chrome and forces a clean
-   single-page layout suitable for "Save as PDF" or "Share to
-   stories" workflows.
-   ───────────────────────────────────────────────────────────────── */
+/* Year-in-review poster — grain texture + per-season accent halos.
+   Exported as a PNG via html-to-image (see YearInReviewPage.jsx); no
+   `@media print` rules because pagination of the tall vertical
+   layout produced blank front pages. */
 
 .yir-grain {
-  /* Same noise texture as `.grain::before` but mounted as a real
-     child element so the poster can sit at any z-index without
-     fighting `isolation` rules. Slightly higher opacity than the
-     ambient grain because the poster is a *foreground* surface. */
   background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   mix-blend-mode: overlay;
 }
 
-/* Per-season accent halos. Each variant places one or two large
-   radial gradients behind the poster body, tinted in the season's
-   signature colour. Tied to the user's busiest month so two users
-   reviewing the same year see different tones if their patterns
-   differ. */
 .yir-accent-spring {
   background-image:
     radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-sakura) 22%, transparent), transparent 55%),
@@ -2058,26 +1999,10 @@
     radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-red) 18%, transparent), transparent 55%);
 }
 
-/* The poster is exported as a PNG via `html-to-image` (see
-   `YearInReviewPage.jsx`). We deliberately do NOT ship `@media print`
-   rules here — paginated print of a tall vertical poster produced
-   blank-front-page artefacts and split the headline across pages.
-   PNG capture renders the same DOM at 2× pixel ratio in a single
-   image the user can share or save, which is the canonical UX for
-   "I made a poster, send it somewhere". */
-
-/* ─────────────────────────────────────────────────────────────────
-   札 · Shelf-sticker printer.
-   The user prints small QR-coded labels onto Avery L7160 sheets
-   (A4, 21 stickers per page, 63.5 × 38.1 mm each, 3 cols × 7 rows
-   with a 2.5 mm horizontal gutter and 0 mm vertical gutter). The
-   layout is mm-precise on print and approximated at ~1.55× scale
-   on screen so the user can preview before committing paper.
-   ───────────────────────────────────────────────────────────────── */
-
-/* Screen preview — uses inches/pixels close to the printed size so
-   the user reads labels at roughly the on-paper density. The mm-
-   precise layout takes over inside `@media print` below. */
+/* Shelf stickers — Avery L7160 (A4, 21 stickers, 63.5 × 38.1 mm
+   each, 3 cols × 7 rows, 2.5 mm horizontal gutter, 0 mm vertical).
+   The screen preview below approximates the printed size; the mm-
+   precise layout takes over inside `@media print`. */
 .sticker-sheet {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2098,13 +2023,12 @@
   align-items: center;
   gap: 6px;
   padding: 6px;
-  /* Aspect ratio matches the L7160 cell (63.5 / 38.1 ≈ 1.667). */
+  /* L7160 cell: 63.5 / 38.1 ≈ 1.667. */
   aspect-ratio: 63.5 / 38.1;
   overflow: hidden;
   background: #ffffff;
   color: #0a0908;
   border-radius: 4px;
-  /* Soft frame for screen preview only; print zeroes it out below. */
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
@@ -2116,11 +2040,8 @@
 }
 
 .sticker-cover {
-  /* Fill the cover cell of the sticker grid — no aspect-ratio
-     constraint here because the cell is shorter than 2:3 (the
-     sticker is wider than tall). The image inside uses
-     `object-cover` so the cover artwork crops vertically rather
-     than letterboxing dead space at the top and bottom. */
+  /* No aspect-ratio: the L7160 cell is wider than 2:3 so the cover
+     image uses `object-cover` to crop vertically. */
   display: block;
   height: 100%;
   width: 100%;
@@ -2141,7 +2062,6 @@
   font-size: 10px;
   line-height: 1.15;
   color: #0a0908;
-  /* Two-line clamp so a long title doesn't crash into the QR code. */
   display: -webkit-box;
   -webkit-line-clamp: 3;
   line-clamp: 3;
@@ -2172,32 +2092,15 @@
   display: block;
 }
 
-/* ── Print rules — mm-precise to land each sticker on its L7160
-   adhesive cell. Tested against Avery's official L7160 spec:
-     · A4 (210 × 297 mm)
-     · 7 mm top + bottom margin
-     · 7.21 mm left + right margin
-     · 21 cells: 3 cols × 7 rows
-     · 63.5 × 38.1 mm per cell
-     · 2.5 mm horizontal gutter, 0 mm vertical gutter
-   The user picks "Avery L7160" in their printer settings (or
-   plain A4 with no scaling) and the cells line up.
-
-   ## Why the visibility-isolation pattern (and not `display: none`)
-   The first iteration tried `body > *:not(:has(.sticker-sheet-wrapper))
-   { display: none }` to hide the chrome. That FAILED in the wild —
-   the global Header component sits as a sibling of the page route
-   inside `#root`, so `body > *` was `#root` (which DOES contain the
-   sticker wrapper, so `:has()` matched and `:not()` un-matched). The
-   Header rendered, and the print job became a single page of branding
-   over an empty canvas.
-
-   The robust pattern: hide EVERYTHING via `visibility: hidden` on the
-   body, then re-show only the sticker subtree by re-applying
-   `visibility: visible` to it and its descendants. Layout is
-   preserved (so the sheet sizes correctly), but only the labels are
-   inked. We then absolutely-position the sheet so it starts at the
-   page origin instead of wherever the rest of the layout pushed it. */
+/* mm-precise print layout for the Avery L7160 sheet (A4, 7 mm top
+   and bottom margin, 7.21 mm left and right, 2.5 mm horizontal
+   gutter, 0 mm vertical).
+   The visibility-isolation pattern below is deliberate: hiding the
+   chrome with `display: none` failed because Header sits as a sibling
+   of the page route inside #root, so any `body > *` selector either
+   matched everything (including the sheet) or nothing useful.
+   Hiding via `visibility: hidden` and then re-showing only the
+   sticker subtree preserves layout and avoids that escape. */
 @media print {
   @page {
     size: A4;
@@ -2212,25 +2115,16 @@
     padding: 0 !important;
   }
 
-  /* Hide every painted pixel by default. */
   body * {
     visibility: hidden !important;
   }
-  /* Re-show ONLY the sticker subtree — the wrapper, the per-page
-     sheet, every sticker and every sub-element inside them. */
   .sticker-sheet-wrapper,
   .sticker-sheet-wrapper * {
     visibility: visible !important;
   }
-  /* Anchor the wrapper to the page origin so the first sheet starts
-     at (0, 0) on paper instead of inheriting the on-screen offset
-     from the parent layout (header, picker, action bar — all of
-     which are still part of the in-flow layout under
-     `visibility: hidden`, just invisible). We pin top-left and let
-     the wrapper grow downward without a height ceiling so multi-page
-     stickers still paginate via `page-break-after` on each
-     `.sticker-sheet`. `inset: 0` would clip to the viewport box and
-     drop pages 2+, which is the wrong tradeoff. */
+  /* `inset: 0` would clip the wrapper to one viewport-height and
+     drop sheets 2+, so we pin top-left only and let the wrapper
+     grow vertically with `page-break-after` paginating each sheet. */
   .sticker-sheet-wrapper {
     position: absolute !important;
     left: 0 !important;
@@ -2241,8 +2135,6 @@
   }
 
   .sticker-sheet {
-    /* Full A4 page, mm-precise grid. The padding doubles as the
-       Avery margin so cells start at exactly (7.21mm, 7mm). */
     display: grid !important;
     grid-template-columns: 63.5mm 63.5mm 63.5mm !important;
     grid-template-rows: repeat(7, 38.1mm) !important;
