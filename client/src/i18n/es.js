@@ -20,6 +20,12 @@ export default {
     yes: "Sí",
     no: "No",
     openSettings: "Abrir ajustes",
+    settingsSavedTitle: "Preferencia guardada",
+    settingsSavedBody: "Tus cambios se sincronizan en todos tus dispositivos.",
+    apiKeySavedBody: "Clave API guardada localmente (nunca se transmite al servidor).",
+    apiKeyClearedBody: "Clave API borrada de este dispositivo.",
+    restoreDoneTitle: "Archivo restaurado",
+    restoreDoneBody: "Recargado desde el servidor — listo desde cero.",
   },
   nav: {
     library: "Biblioteca",

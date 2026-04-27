@@ -4,7 +4,7 @@ import {
   useAddUpcomingVolume,
   useUpdateUpcomingVolume,
 } from "@/hooks/useVolumes.js";
-import { notifySyncInfo } from "@/lib/sync.js";
+import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -154,17 +154,27 @@ export default function AddUpcomingVolumeModal({
       });
       onClose();
     } catch (err) {
-      // Translate the server's status into a friendly inline message.
+      // Translate the server's status into a friendly message. Inline
+      // display stays so the user reads the diagnostic right next to
+      // the form they're trying to submit, AND the toast fires so the
+      // failure is also surfaced through the canonical channel — same
+      // dual-channel pattern as the import-external page.
       const status = err?.response?.status;
-      if (status === 409) setError(t("manga.upcomingErrConflict"));
-      else if (status === 400) {
-        const detail = err?.response?.data?.error ?? "";
-        if (/isbn/i.test(detail)) setError(t("manga.upcomingErrIsbn"));
-        else if (/url/i.test(detail)) setError(t("manga.upcomingErrUrl"));
-        else if (/future|date/i.test(detail))
-          setError(t("manga.upcomingErrPastDate"));
-        else setError(t("manga.upcomingErrGeneric"));
-      } else setError(t("manga.upcomingErrGeneric"));
+      const detail = err?.response?.data?.error ?? "";
+      const message =
+        status === 409
+          ? t("manga.upcomingErrConflict")
+          : status === 400
+            ? /isbn/i.test(detail)
+              ? t("manga.upcomingErrIsbn")
+              : /url/i.test(detail)
+                ? t("manga.upcomingErrUrl")
+                : /future|date/i.test(detail)
+                  ? t("manga.upcomingErrPastDate")
+                  : t("manga.upcomingErrGeneric")
+            : t("manga.upcomingErrGeneric");
+      setError(message);
+      notifySyncError(message, "upcoming-volume-save");
     }
   };
 

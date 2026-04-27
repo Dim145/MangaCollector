@@ -20,6 +20,15 @@ export default {
     yes: "Oui",
     no: "Non",
     openSettings: "Ouvrir les paramètres",
+    /* Toast bodies — shared across the app for "saved" / "removed"
+       feedback so every successful mutation lands with a consistent
+       label rather than a per-feature one-off string. */
+    settingsSavedTitle: "Préférence enregistrée",
+    settingsSavedBody: "Vos changements sont synchronisés sur tous vos appareils.",
+    apiKeySavedBody: "Clé API enregistrée localement (jamais transmise au serveur).",
+    apiKeyClearedBody: "Clé API effacée de cet appareil.",
+    restoreDoneTitle: "Archive restaurée",
+    restoreDoneBody: "Données rechargées depuis le serveur — fenêtre prête.",
   },
   nav: {
     library: "Bibliothèque",

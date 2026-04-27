@@ -20,6 +20,12 @@ export default {
     yes: "Yes",
     no: "No",
     openSettings: "Open Settings",
+    settingsSavedTitle: "Preference saved",
+    settingsSavedBody: "Your changes are synced across every device.",
+    apiKeySavedBody: "API key saved locally (never transmitted to the server).",
+    apiKeyClearedBody: "API key cleared from this device.",
+    restoreDoneTitle: "Archive restored",
+    restoreDoneBody: "Reloaded from the server — fresh slate ready.",
   },
   nav: {
     library: "Library",

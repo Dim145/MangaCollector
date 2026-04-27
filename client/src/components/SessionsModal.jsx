@@ -3,6 +3,7 @@ import Modal from "./ui/Modal.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import { useSessions } from "@/hooks/useSessions.js";
 import { logout } from "@/utils/auth.js";
+import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -22,7 +23,6 @@ export default function SessionsModal({ open, onClose }) {
   const { sessions, isLoading, isError, refetch, revoke, isRevoking } =
     useSessions();
   const [pendingId, setPendingId] = useState(null);
-  const [error, setError] = useState(null);
 
   // 直 · Defensive de-duplication of `is_current`. The server is
   // expected to mark exactly one session as the caller's own; if a bug
@@ -54,7 +54,6 @@ export default function SessionsModal({ open, onClose }) {
   }, [sessions]);
 
   const handleRevoke = async (session) => {
-    setError(null);
     setPendingId(session.id);
     try {
       await revoke(session.id);
@@ -66,7 +65,7 @@ export default function SessionsModal({ open, onClose }) {
         window.location.href = "/log-in";
       }
     } catch (err) {
-      setError(err?.response?.data?.error ?? err?.message ?? "Failed");
+      notifySyncError(err, "session-revoke");
     } finally {
       setPendingId(null);
     }
@@ -160,12 +159,6 @@ export default function SessionsModal({ open, onClose }) {
             />
           ))}
         </ul>
-
-        {error && (
-          <p className="relative mt-4 rounded-lg border border-hanko/30 bg-hanko/5 px-3 py-2 text-xs text-hanko-bright">
-            {error}
-          </p>
-        )}
       </div>
     </Modal>
   );

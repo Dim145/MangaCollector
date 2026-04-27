@@ -17,7 +17,7 @@ import { resetTourSeen } from "@/lib/tour.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
-import { forceResyncFromServer, notifySyncError } from "@/lib/sync.js";
+import { forceResyncFromServer, notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { getApiKey, setApiKey } from "@/lib/isbn.js";
 import { formatCurrency } from "@/utils/price.js";
 import { LANGUAGES, useT } from "@/i18n/index.jsx";
@@ -158,14 +158,32 @@ export default function SettingsPage() {
 
   const handleApiKeySave = () => {
     setApiKey(apiKeyInput);
+    // Keep the inline "Saved" pill on the button itself for fast
+    // visual feedback at the click target, but ALSO surface a toast
+    // so the user notices even if their gaze has moved away from
+    // the field — same pattern as every other "saved" feedback.
     setApiKeySaved(true);
     setTimeout(() => setApiKeySaved(false), 1500);
+    notifySyncInfo({
+      op: "api-key-save",
+      tone: "success",
+      icon: "鍵",
+      title: t("settings.keySaved"),
+      body: t("common.apiKeySavedBody"),
+    });
   };
   const handleApiKeyClear = () => {
     setApiKey("");
     setApiKeyInput("");
     setApiKeySaved(true);
     setTimeout(() => setApiKeySaved(false), 1500);
+    notifySyncInfo({
+      op: "api-key-clear",
+      tone: "neutral",
+      icon: "鍵",
+      title: t("settings.keySaved"),
+      body: t("common.apiKeyClearedBody"),
+    });
   };
 
   const save = async (next) => {
@@ -173,6 +191,17 @@ export default function SettingsPage() {
       await updateSettings.mutateAsync(next);
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
+      // 印 · Surface every accepted preference change as a toast.
+      // The header chip stays as a quick "synced" confirmation, but
+      // the toast is the canonical channel — matches refresh-upcoming
+      // and every other mutation feedback.
+      notifySyncInfo({
+        op: "settings-save",
+        tone: "success",
+        icon: "印",
+        title: t("common.settingsSavedTitle"),
+        body: t("common.settingsSavedBody"),
+      });
     } catch (err) {
       console.error("Error updating setting:", err);
       notifySyncError(err, "settings-save");
@@ -215,17 +244,32 @@ export default function SettingsPage() {
     try {
       await forceResyncFromServer();
       setRestoreDone(true);
+      // Modal stays open just long enough to play the success state
+      // (the inline 復 stamp transition), then closes and lets the
+      // toast carry the confirmation forward.
       setTimeout(() => {
         setConfirmRestore(false);
         setRestoreDone(false);
       }, 1200);
+      notifySyncInfo({
+        op: "settings-restore",
+        tone: "success",
+        icon: "復",
+        title: t("common.restoreDoneTitle"),
+        body: t("common.restoreDoneBody"),
+      });
     } catch (err) {
       console.error(err);
-      setRestoreError(
+      // Keep the inline error inside the modal — this is the right
+      // place for it: it explains what failed while the user is still
+      // looking at the Restore button. Also emit the toast so the
+      // user sees something even if they close the modal in panic.
+      const message =
         err?.response?.data?.error ??
-          err?.message ??
-          t("settings.restoreFailedGeneric"),
-      );
+        err?.message ??
+        t("settings.restoreFailedGeneric");
+      setRestoreError(message);
+      notifySyncError(message, "settings-restore");
     } finally {
       setRestoring(false);
     }
