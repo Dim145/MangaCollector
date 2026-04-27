@@ -5,6 +5,7 @@ import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
 import ScanLoadingView from "@/components/ScanLoadingView.jsx";
 import Modal from "@/components/ui/Modal.jsx";
+import { acquireScrollLock, releaseScrollLock } from "@/lib/scrollLock.js";
 
 // 既読 · Lazy-imported overlays. Each of these mounts only when the
 // user opens its specific flow — the scanner camera, the coffret
@@ -337,12 +338,13 @@ export default function AddPage() {
     const onPop = () => closeScanner();
     window.addEventListener("popstate", onPop);
 
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // Use the shared lock so a Modal opening over the scanner (or
+    // vice-versa) doesn't leak an `overflow: hidden` on the body.
+    acquireScrollLock();
 
     return () => {
       window.removeEventListener("popstate", onPop);
-      document.body.style.overflow = prevOverflow;
+      releaseScrollLock();
       if (window.history.state?.__mc_scanner) {
         window.history.back();
       }

@@ -28,6 +28,10 @@ function VolumeImpl({
   announcedAt = null,
   locked = false,
   onUpdate,
+  // 来 · Optional callback fired when the user requests "edit announce"
+  // from the drawer's upcoming-mode footer. Receives the volume's current
+  // announce-side fields so the parent can hydrate the modal.
+  onEditUpcoming,
   currencySetting,
   coverUrl,
   blurImage = false,
@@ -618,6 +622,27 @@ function VolumeImpl({
         origin={origin}
         announcedAt={announcedAt}
         daysUntilRelease={daysUntilRelease}
+        onEditUpcoming={
+          onEditUpcoming
+            ? () => {
+                // Hand the parent a snapshot of the announce fields so it
+                // can hydrate the modal without re-querying. We close the
+                // drawer first so the modal isn't stacked on top of it.
+                handleCancel();
+                onEditUpcoming({
+                  id,
+                  vol_num: volNum,
+                  release_date: releaseDate,
+                  release_isbn: releaseIsbn,
+                  release_url: releaseUrl,
+                });
+              }
+            : undefined
+        }
+        // After a successful delete the row vanishes from Dexie → the
+        // live query updates → the drawer's parent re-renders without
+        // this Volume. The drawer just needs to close itself first.
+        onAfterDelete={handleCancel}
       />
 
       {!isEditing &&

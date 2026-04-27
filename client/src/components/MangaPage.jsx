@@ -11,6 +11,9 @@ import CoffretGroup from "./CoffretGroup";
 // builder or the cover picker bundle. Combined ~900 lines of code.
 const AddCoffretModal = lazy(() => import("./AddCoffretModal"));
 const CoverPickerModal = lazy(() => import("./CoverPickerModal.jsx"));
+const AddUpcomingVolumeModal = lazy(() =>
+  import("./AddUpcomingVolumeModal.jsx"),
+);
 import Skeleton from "./ui/Skeleton.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import Modal from "@/components/ui/Modal.jsx";
@@ -118,6 +121,11 @@ export default function MangaPage({ manga, adult_content_level }) {
   const setPosterMutation = useSetPoster();
   const updateVolume = useUpdateVolume();
   const [coffretModalOpen, setCoffretModalOpen] = useState(false);
+  // 来 · State for the manual-upcoming modal. `editingUpcoming` holds the
+  // volume row when we're in edit mode (drawer → "edit announce" CTA),
+  // or null when we're creating a fresh row from the menu item.
+  const [upcomingModalOpen, setUpcomingModalOpen] = useState(false);
+  const [editingUpcoming, setEditingUpcoming] = useState(null);
 
   // Build an ordered sequence that preserves volume order: walk volumes
   // sorted by vol_num, emit each loose volume in-line and insert the
@@ -1088,6 +1096,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                           announcedAt={vol.announced_at}
                           locked
                           onUpdate={volumeUpdateCallback}
+                          onEditUpcoming={(volData) => {
+                            setEditingUpcoming(volData);
+                            setUpcomingModalOpen(true);
+                          }}
                           currencySetting={currencySetting}
                           coverUrl={volumeCoverMap?.[vol.vol_num]}
                           blurImage={isBlurred}
@@ -1136,6 +1148,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                           origin={vol.origin}
                           announcedAt={vol.announced_at}
                           onUpdate={volumeUpdateCallback}
+                          onEditUpcoming={(volData) => {
+                            setEditingUpcoming(volData);
+                            setUpcomingModalOpen(true);
+                          }}
                           currencySetting={currencySetting}
                           coverUrl={volumeCoverMap?.[vol.vol_num]}
                           blurImage={isBlurred}
@@ -1167,6 +1183,28 @@ export default function MangaPage({ manga, adult_content_level }) {
             mal_id={manga.mal_id}
             totalVolumes={totalVolumes}
             currencySetting={currencySetting}
+          />
+        </Suspense>
+      )}
+
+      {/* 来 · Manual upcoming-volume modal — mounted lazily so first
+          paint of MangaPage doesn't drag in 400 lines of date input
+          + form chrome. The same modal handles both create (from the
+          edit menu) and edit (from the volume drawer's "edit announce"
+          CTA when origin === "manual"). */}
+      {upcomingModalOpen && (
+        <Suspense fallback={null}>
+          <AddUpcomingVolumeModal
+            open
+            onClose={() => {
+              setUpcomingModalOpen(false);
+              setEditingUpcoming(null);
+            }}
+            manga={manga}
+            highestKnownVolNum={
+              volumes?.reduce((m, v) => Math.max(m, v.vol_num ?? 0), 0) ?? 0
+            }
+            editingVolume={editingUpcoming}
           />
         </Suspense>
       )}
@@ -1319,6 +1357,48 @@ export default function MangaPage({ manga, adult_content_level }) {
                 </span>
               </button>
             )}
+            {/* 来 · Manual sibling. Available always — the only path
+                upcoming volumes have on a custom series (mal_id < 0)
+                where the auto cascade above isn't allowed. */}
+            <button
+              role="menuitem"
+              onClick={() => {
+                setEditingUpcoming(null);
+                setUpcomingModalOpen(true);
+                setEditMenuOpen(false);
+              }}
+              disabled={!online}
+              title={
+                !online
+                  ? t("manga.upcomingAddManualOfflineHint")
+                  : t("manga.upcomingAddManualHint")
+              }
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold text-washi-muted transition hover:bg-moegi/10 hover:text-washi disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <span
+                aria-hidden="true"
+                className="font-jp text-[14px] font-bold leading-none text-moegi shrink-0 w-3.5 text-center"
+              >
+                来
+              </span>
+              <span className="flex-1 truncate">
+                {t("manga.upcomingAddManual")}
+              </span>
+              {/* Pencil glyph emphasises "manual" vs the auto-refresh's
+                  cycling-arrow visual. */}
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-3 w-3 shrink-0 text-moegi/70"
+              >
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              </svg>
+            </button>
             {!online && (
               <p className="border-t border-border/60 bg-hanko/5 px-4 py-2 font-mono text-[9px] uppercase tracking-wider text-hanko-bright">
                 {t("manga.refreshOffline")}
