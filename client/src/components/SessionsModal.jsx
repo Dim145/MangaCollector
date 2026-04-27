@@ -181,30 +181,43 @@ function SessionRow({ session, onRevoke, pending, locked = false, t }) {
     [session.created_at],
   );
 
+  // Mobile (< sm): stacked layout — icon + content on one row, the
+  // revoke button anchored full-width below. The date line is allowed
+  // to wrap to two lines (no `truncate`) because the row has the
+  // breathing space and a clipped "Actif à l'ins…" is unhelpful.
+  //
+  // Desktop (≥ sm): single row — icon, content, button side-by-side.
+  // The date line uses `truncate` because the button steals horizontal
+  // real estate and we'd otherwise overflow the modal width.
   return (
     <li
-      className={`group relative overflow-hidden rounded-xl border px-4 py-3 transition ${
+      className={`group relative overflow-hidden rounded-xl border p-3 transition sm:py-3 sm:px-4 ${
         session.is_current
           ? "border-hanko/40 bg-hanko/5"
           : "border-border bg-ink-2/40"
       }`}
     >
-      <div className="flex items-center gap-3">
-        <DeviceIcon label={session.device_label} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <p className="font-display text-base font-semibold text-washi">
-              {label}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+          <DeviceIcon label={session.device_label} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="font-display text-base font-semibold leading-tight text-washi">
+                {label}
+              </p>
+              {session.is_current && (
+                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-hanko/20 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-hanko-bright">
+                  {t("sessions.thisDevice")}
+                </span>
+              )}
+            </div>
+            <p
+              className="mt-1 font-mono text-[10px] leading-relaxed text-washi-dim sm:mt-0.5 sm:truncate sm:leading-normal"
+              title={ua}
+            >
+              {lastSeen} · {t("sessions.signedIn", { date: created })}
             </p>
-            {session.is_current && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-hanko/20 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.25em] text-hanko-bright">
-                {t("sessions.thisDevice")}
-              </span>
-            )}
           </div>
-          <p className="mt-0.5 truncate font-mono text-[10px] text-washi-dim" title={ua}>
-            {lastSeen} · {t("sessions.signedIn", { date: created })}
-          </p>
         </div>
         <button
           type="button"
@@ -218,7 +231,7 @@ function SessionRow({ session, onRevoke, pending, locked = false, t }) {
               ? t("sessions.revokeCurrent")
               : t("sessions.revoke")
           }
-          className={`shrink-0 rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 ${
+          className={`w-full shrink-0 rounded-full border px-3 py-2 font-mono text-[10px] uppercase tracking-[0.22em] transition disabled:opacity-50 sm:w-auto sm:py-1.5 ${
             session.is_current
               ? "border-hanko/50 text-hanko-bright hover:border-hanko hover:bg-hanko/10"
               : "border-border text-washi-muted hover:border-hanko/40 hover:text-washi"
