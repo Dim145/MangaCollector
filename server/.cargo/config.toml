@@ -1,0 +1,17 @@
+# Linker overrides — only kick in for the musl targets used by the
+# container build. macOS / glibc-Linux developers building locally fall
+# through to the default linker (lld / system ld), so installing mold
+# locally is optional.
+#
+# `mold` cuts the final-link stage from ~30-90s down to a few seconds on
+# this codebase (~512 transitive crates, scratch-image static binary).
+# Routed via `clang -fuse-ld=mold` because Rust's default cc-driven link
+# command needs an explicit driver to honour `-fuse-ld`.
+
+[target.x86_64-unknown-linux-musl]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.aarch64-unknown-linux-musl]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
