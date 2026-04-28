@@ -1139,6 +1139,14 @@ export default {
     remove: "Remettre l'initiale",
     stillFetching: "Récupération d'autres personnages…",
     changeAria: "Changer l'avatar",
+    searchPlaceholder: "Rechercher un personnage…",
+    searchAria: "Rechercher un personnage par son nom",
+    searchClear: "Effacer la recherche",
+    allSeries: "Toutes",
+    seriesNavLabel: "Naviguer par série",
+    countCharacters: "{n} portraits",
+    mainBadge: "MAIN",
+    seriesJumpAria: "Aller à la série {name}",
     emptyNoLibrary: "Aucune source",
     emptyNoLibraryHint:
       "Ajoutez une série à votre bibliothèque et ses personnages apparaîtront ici.",
@@ -1147,6 +1155,9 @@ export default {
     emptyNoMain: "Aucun personnage principal trouvé",
     emptyNoMainHint:
       "Désactivez le filtre pour voir aussi les personnages secondaires.",
+    emptyNoSearch: "Aucun résultat",
+    emptyNoSearchHint:
+      "Aucun personnage ne correspond à « {q} ». Essayez un autre nom ou effacez la recherche.",
     emptyGeneric: "Aucun portrait disponible",
     emptyGenericHint:
       "MyAnimeList n'a pas de personnages référencés pour ces séries.",

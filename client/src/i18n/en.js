@@ -1116,6 +1116,14 @@ export default {
     remove: "Use initial",
     stillFetching: "Fetching more characters…",
     changeAria: "Change profile avatar",
+    searchPlaceholder: "Search a character…",
+    searchAria: "Search a character by name",
+    searchClear: "Clear search",
+    allSeries: "All",
+    seriesNavLabel: "Jump to a series",
+    countCharacters: "{n} portraits",
+    mainBadge: "MAIN",
+    seriesJumpAria: "Jump to series {name}",
     emptyNoLibrary: "No sources yet",
     emptyNoLibraryHint:
       "Add a series to your library and their characters will appear here.",
@@ -1124,6 +1132,9 @@ export default {
     emptyNoMain: "No main characters found",
     emptyNoMainHint:
       "Toggle the filter off to browse supporting characters as well.",
+    emptyNoSearch: "No matches",
+    emptyNoSearchHint:
+      "No character matches “{q}”. Try another name or clear the search.",
     emptyGeneric: "No portraits available",
     emptyGenericHint: "MyAnimeList has no character entries for these series.",
   },
