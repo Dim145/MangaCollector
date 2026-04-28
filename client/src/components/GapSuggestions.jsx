@@ -2,28 +2,9 @@ import { useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import SettingsContext from "@/SettingsContext.js";
 import { hasToBlurImage } from "@/utils/library.js";
+import { summarizeRange } from "@/utils/volume.js";
 import { useGapSuggestions } from "@/hooks/useGapSuggestions.js";
 import { useT } from "@/i18n/index.jsx";
-
-/** Turn [1,2,3,5,6,8] into "1-3, 5-6, 8". */
-function summarizeRange(nums) {
-  if (!nums.length) return "";
-  const sorted = [...nums].sort((a, b) => a - b);
-  const ranges = [];
-  let start = sorted[0];
-  let prev = sorted[0];
-  for (let i = 1; i <= sorted.length; i++) {
-    const n = sorted[i];
-    if (n === prev + 1) {
-      prev = n;
-      continue;
-    }
-    ranges.push(start === prev ? `${start}` : `${start}–${prev}`);
-    start = n;
-    prev = n;
-  }
-  return ranges.join(", ");
-}
 
 export default function GapSuggestions() {
   const t = useT();

@@ -4,6 +4,7 @@ import VolumeDetailDrawer from "./VolumeDetailDrawer.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoverPreviewGesture } from "@/hooks/useCoverPreviewGesture.js";
 import { formatCurrency } from "@/utils/price.js";
+import { formatShortDate } from "@/utils/volume.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -230,13 +231,13 @@ function VolumeImpl({
         <span className="absolute -right-2 -top-2 z-20">
           <Tooltip
             text={t("volume.upcomingTooltip", {
-              date: formatReleaseDate(releaseDate),
+              date: formatShortDate(releaseDate),
             })}
             placement="top"
           >
             <span
               aria-label={t("volume.upcomingTooltip", {
-                date: formatReleaseDate(releaseDate),
+                date: formatShortDate(releaseDate),
               })}
               className={`grid h-5 w-5 place-items-center rounded-full text-ink-0 ring-1 ${
                 isImminent
@@ -261,7 +262,7 @@ function VolumeImpl({
             aria-label={
               isUpcoming
                 ? t("volume.upcomingAria", {
-                    date: formatReleaseDate(releaseDate),
+                    date: formatShortDate(releaseDate),
                   })
                 : locked
                   ? t("volume.lockedAria")
@@ -272,7 +273,7 @@ function VolumeImpl({
             title={
               isUpcoming
                 ? t("volume.upcomingTooltip", {
-                    date: formatReleaseDate(releaseDate),
+                    date: formatShortDate(releaseDate),
                   })
                 : locked
                   ? t("volume.lockedTitle")
@@ -361,7 +362,7 @@ function VolumeImpl({
             aria-label={
               isUpcoming
                 ? t("volume.upcomingAria", {
-                    date: formatReleaseDate(releaseDate),
+                    date: formatShortDate(releaseDate),
                   })
                 : locked
                   ? t("volume.lockedAria")
@@ -372,7 +373,7 @@ function VolumeImpl({
             title={
               isUpcoming
                 ? t("volume.upcomingTooltip", {
-                    date: formatReleaseDate(releaseDate),
+                    date: formatShortDate(releaseDate),
                   })
                 : locked
                   ? t("volume.lockedTitle")
@@ -441,7 +442,7 @@ function VolumeImpl({
                     isImminent ? "text-sakura" : "text-washi-muted"
                   }`}
                 >
-                  {formatReleaseDate(releaseDate)} · J−{daysUntilRelease}
+                  {formatShortDate(releaseDate)} · J−{daysUntilRelease}
                 </span>
               </>
             ) : (
@@ -530,7 +531,7 @@ function VolumeImpl({
               readStatus
                 ? readAt
                   ? t("volume.readTitle", {
-                      date: formatReadDate(readAt),
+                      date: formatShortDate(readAt),
                     })
                   : t("volume.markUnread")
                 : t("volume.markRead")
@@ -697,31 +698,6 @@ function VolumeImpl({
         )}
     </div>
   );
-}
-
-function formatReadDate(iso) {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return "";
-  }
-}
-
-function formatReleaseDate(iso) {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return "";
-  }
 }
 
 // memo: callbacks/currencySetting need stable refs from the parent for skipping

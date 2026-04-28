@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useT } from "@/i18n/index.jsx";
 import { formatCurrency } from "@/utils/price.js";
+import { formatShortDate } from "@/utils/volume.js";
 import { useDeleteUpcomingVolume } from "@/hooks/useVolumes.js";
 import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { acquireScrollLock, releaseScrollLock } from "@/lib/scrollLock.js";
@@ -19,18 +20,6 @@ const CLOSE_ANIM_MS = 240;
 // Body-scroll lock is shared with Modal via `lib/scrollLock.js` —
 // otherwise a Modal opening over a Drawer (or vice-versa) leaks an
 // `overflow: hidden` after both close, blocking the page until reload.
-
-function formatReadDate(iso) {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return "";
-  }
-}
 
 export default function VolumeDetailDrawer({
   open,
@@ -330,7 +319,7 @@ export default function VolumeDetailDrawer({
                     来
                   </span>
                   <span>
-                    {formatReleaseDate(releaseDate)}
+                    {formatShortDate(releaseDate)}
                     {daysUntilRelease != null && daysUntilRelease > 0 && (
                       <> · J−{daysUntilRelease}</>
                     )}
@@ -522,7 +511,7 @@ export default function VolumeDetailDrawer({
                   <span className="block text-[11px] text-washi-muted">
                     {readStatus && readAt
                       ? t("volume.readSince", {
-                          date: formatReadDate(readAt),
+                          date: formatShortDate(readAt),
                         })
                       : t("volume.readingHint")}
                   </span>
@@ -752,19 +741,6 @@ function NoteField({ fieldId, value, onChange, t }) {
       </p>
     </div>
   );
-}
-
-function formatReleaseDate(iso) {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return "";
-  }
 }
 
 function formatFreshness(iso, t) {

@@ -39,6 +39,7 @@ import {
   addCustomEntryToUserLibrary,
   addFromMangadexToUserLibrary,
 } from "@/utils/user.js";
+import { summarizeRange } from "@/utils/volume.js";
 import { db } from "@/lib/db.js";
 import {
   detectCoffret,
@@ -1321,26 +1322,6 @@ function GoogleBooksPriceHint({ bookPrice, userCurrency }) {
         t("scan.googleBooksListPrice")}
     </p>
   );
-}
-
-/** Turn [1,2,3,5,6,8] into "1-3, 5-6, 8". */
-function summarizeRange(nums) {
-  if (!nums.length) return "";
-  const sorted = [...nums].sort((a, b) => a - b);
-  const ranges = [];
-  let start = sorted[0];
-  let prev = sorted[0];
-  for (let i = 1; i <= sorted.length; i++) {
-    const n = sorted[i];
-    if (n === prev + 1) {
-      prev = n;
-      continue;
-    }
-    ranges.push(start === prev ? `${start}` : `${start}–${prev}`);
-    start = n;
-    prev = n;
-  }
-  return ranges.join(", ");
 }
 
 function NotFoundCard({ notFound, onRescan, onManual, onClose }) {
