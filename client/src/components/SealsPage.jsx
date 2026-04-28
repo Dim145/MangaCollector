@@ -7,18 +7,37 @@ import { SEALS_BY_CATEGORY, SEAL_CATALOG, TIERS } from "@/lib/sealsCatalog.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
- * 印鑑帳 — Carnet de sceaux.
+ * 印鑑帳 — Carnet de sceaux (festival edition).
  *
- * A dedicated "journal" page where every ceremonial milestone the user
- * has earned appears as a real hanko stamp, and every unearned one
- * appears as a dashed silhouette. Sections are grouped by category
- * (Débuts / Progression / Étagère / Complétion / Collector / Coffrets /
- * Diversité / Ancienneté) so the journal reads chapter by chapter.
+ * The page is a celebration, not a status table. It reads more like a
+ * matsuri tournament board than an admin grid:
  *
- * On mount, the server evaluates the catalog and may grant newly-
- * qualifying seals. Those come back in `newly_granted`; we pass the flag
- * into <Seal newly={…} /> so the newly-earned stamps play an emphatic
- * ceremony animation (scale-overshoot + hanko glow halo) exactly once.
+ *   • A drifting flock of sakura petals across the whole canvas — pure
+ *     CSS, six instances at staggered delays so the rhythm never reads
+ *     as a marquee. Off when the OS asks for reduced motion.
+ *
+ *   • A hero band with a giant gold 印 watermark drifting in the
+ *     background, a HUGE earned-count display, and (top-right) a
+ *     circular RANK BADGE whose halo recolours per the user's highest
+ *     earned tier — ink-black at start, hanko-red, moegi-green,
+ *     gold, then black-with-gold-rays at legendary.
+ *
+ *   • A row of 5 vertical TIER LANTERNS replacing the legacy legend.
+ *     Each lantern stacks a kanji header, count, and gradient bar in
+ *     its tier colour — the eye reads the rank ladder at a glance.
+ *
+ *   • A "QUEST" panel pointing at the closest unearned seal. Bigger
+ *     than the chip-style hint it replaces; reads like a JRPG quest
+ *     prompt.
+ *
+ *   • Each category section gets a "CHAPITRE N" eyebrow + brushstroke
+ *     divider + a kanji medallion. When fully earned, the section
+ *     wears a gold "CHAPITRE COMPLET" banner with a sweeping shimmer
+ *     and a sparkle satellite — a real reward, not a quiet checkmark.
+ *
+ * The ceremony loop (scroll-into-view + dim overlay + spotlight per
+ * newly_granted seal) is preserved verbatim — it remains the page's
+ * primary celebration moment for the freshly-earned stamps.
  */
 export default function SealsPage() {
   const t = useT();
@@ -36,21 +55,9 @@ export default function SealsPage() {
 
   // 儀式 · In-grid ceremony loop — orchestrates a sequential
   // spotlight-and-stamp routine across every freshly-earned seal.
-  //
-  // For each code in `newly_granted`, in order:
-  //   1. scroll the matching seal into the centre of the viewport
-  //   2. dim the rest of the page with a translucent ink overlay
-  //   3. raise the focal seal above the overlay and replay an
-  //      amplified seal-ceremony animation in place
-  //   4. hold long enough to read it, then advance to the next
-  //
-  // Skipping (tap on the overlay or Escape) jumps straight to the
-  // next index; once the queue empties, the overlay fades and the
-  // page returns to its idle state. The `consumedRef` guards
-  // against re-running the loop on incidental re-renders (the hook
-  // keeps `newly_granted` reference-stable for the page's lifetime).
+  // Logic preserved verbatim from the previous revision; see the
+  // detailed inline comments below for each step.
   const consumedRef = useRef(null);
-  // -1 idle · 0..N-1 currently spotlighting that index in newly_granted.
   const [ceremonyIndex, setCeremonyIndex] = useState(-1);
   const skipRef = useRef(null);
   const newlyList = useMemo(
@@ -66,10 +73,6 @@ export default function SealsPage() {
     consumedRef.current = newlyList;
 
     let cancelled = false;
-
-    // Helper that resolves on its timer or early when the user taps
-    // skip — the active resolver is stashed on `skipRef.current` so
-    // the click handler can fire it.
     const interruptible = (ms) =>
       new Promise((resolve) => {
         const timer = window.setTimeout(() => {
@@ -83,22 +86,13 @@ export default function SealsPage() {
         };
       });
 
-    // 探 · Resolve the seal DOM target, retrying up to ~600ms in case
-    // the category section is still in its `animate-fade-up` mount
-    // delay (`Math.min(180 + i * 40, 500)` for the staggered reveal).
-    // Without this, an early ceremony tick could find `target = null`,
-    // skip the scroll silently, and spotlight an offscreen card.
     const findSealTarget = async (code) => {
       const deadline = Date.now() + 600;
       while (Date.now() < deadline) {
         const el = document.querySelector(`[data-seal-code="${code}"]`);
         if (el) return el;
-        // Wait one frame and retry — cheap on mount-pending DOM,
-        // immediately resolved once the section is painted.
         await new Promise((r) => requestAnimationFrame(r));
       }
-      // Fallback to the last attempt; null is acceptable downstream
-      // (the ceremony just skips the scroll for this seal).
       return document.querySelector(`[data-seal-code="${code}"]`);
     };
 
@@ -111,16 +105,9 @@ export default function SealsPage() {
         if (target) {
           target.scrollIntoView({ behavior: "smooth", block: "center" });
         }
-        // Let the scroll settle. 700ms is a comfortable overshoot for
-        // browser-native smooth scrolling on most viewports; cancelling
-        // mid-flight stays safe because the next iteration just runs
-        // its own scrollIntoView.
         await interruptible(700);
         if (cancelled) return;
-
         setCeremonyIndex(i);
-        // Hold the spotlight long enough to read the seal's name and
-        // see the stamp settle. ~2.4s feels generous without dragging.
         try {
           navigator.vibrate?.([18, 50, 80]);
         } catch {
@@ -138,18 +125,13 @@ export default function SealsPage() {
     };
   }, [newlyList]);
 
-  const handleOverlayClick = () => {
-    // Click anywhere on the dimmer — fast-forward through the rest.
-    skipRef.current?.();
-  };
+  const handleOverlayClick = () => skipRef.current?.();
 
   const earnedCount = earnedMap.size;
   const totalCount = SEAL_CATALOG.length;
   const percent = Math.round((earnedCount / totalCount) * 100);
 
-  // 階 · Per-tier breakdown — used by the tier panel below the progress
-  // bar. Lets the visitor see "I'm 80% on the common tiers but 0% on
-  // legendary" at a glance, instead of a single conflated %.
+  // 階 · Per-tier breakdown — feeds the lantern row.
   const tierStats = useMemo(() => {
     const stats = {};
     Object.keys(TIERS).forEach((k) => {
@@ -161,10 +143,18 @@ export default function SealsPage() {
     return stats;
   }, [earnedMap]);
 
-  // 近 · "Closest seal" — used below the masthead to point the visitor
-  // at something tangible to chase next. Picks the lowest-tier unearned
-  // seal so the suggestion always feels reachable rather than aspirational.
-  // Falls back to null when every seal is earned (full collection).
+  // 階級 · Highest tier the user has reached — feeds the rank badge.
+  // 0 means no seals yet (the badge then renders an "Initiate" state
+  // rather than picking the lowest tier).
+  const highestTier = useMemo(() => {
+    let max = 0;
+    SEAL_CATALOG.forEach((s) => {
+      if (earnedMap.has(s.code) && s.tier > max) max = s.tier;
+    });
+    return max;
+  }, [earnedMap]);
+
+  // 近 · Closest unearned seal — feeds the QUEST panel.
   const nextSeal = useMemo(() => {
     return (
       [...SEAL_CATALOG]
@@ -175,15 +165,7 @@ export default function SealsPage() {
 
   return (
     <DefaultBackground>
-      {/* 儀式 · Ceremony dimmer. Sits between the page (z auto) and
-          the spotlighted seal (z-50 via .seal-spotlight). Tint only —
-          no backdrop-blur — because blurring the rest of the journal
-          obscures the celebration of seeing the carnet fill in (the
-          previous draft used 2px blur, which read as a dropped focus
-          rather than a focused dim). The translucent ink is enough
-          to push the focal seal forward.
-          Pointer-events: auto so a tap fast-forwards through the
-          queue — the user is never trapped. */}
+      {/* Ceremony dimmer — same behaviour as before. */}
       {ceremonyIndex >= 0 && (
         <button
           type="button"
@@ -192,205 +174,127 @@ export default function SealsPage() {
           className="fixed inset-0 z-40 cursor-pointer animate-fade-in bg-ink-0/40 focus:outline-none"
         />
       )}
+
+      {/* Ambient sakura petals — pure CSS. Hidden on mobile because the
+          drift looks busy on smaller viewports; this is a desktop
+          delight. */}
+      <FloatingPetals />
+
       <div className="relative mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-        {/* ───── Masthead ─────
-            Two-column composition: text+progress on the left, ornamental
-            "carnet" panel on the right (kanji medallion + tier breakdown).
-            On mobile, stacks vertically — the medallion drops to a slim
-            ribbon under the title so the progress bar always reads above
-            the fold. */}
-        <header className="relative mb-12 animate-fade-up">
-          {/* 印 watermark — anchored inside its own clip-layer (mirrors
-              the PublicProfile / ComparePage pattern) so the gold
-              kanji doesn't bleed past the masthead and the hanko-rule
-              chips below it stay un-clipped. */}
+        {/* ───── HERO ───── */}
+        <header className="relative mb-14 animate-fade-up">
+          {/* watermark + atmospheric blooms in their own clip-layer */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
           >
             <span
-              className="absolute -top-6 right-2 select-none font-jp text-[22rem] font-bold leading-none text-gold/[0.07]"
+              className="absolute -top-4 right-2 select-none font-jp text-[26rem] font-bold leading-none text-gold/[0.07]"
               style={{
-                animation: "seal-watermark-drift 12s ease-in-out infinite",
+                animation: "seal-watermark-drift 14s ease-in-out infinite",
               }}
             >
               印
             </span>
-            {/* Atmospheric blooms — hanko top-left, gold bottom-right.
-                Mirrors the warmth of an oxidising paper edge. */}
             <div className="absolute -top-32 -left-32 h-72 w-72 rounded-full bg-hanko/10 blur-3xl" />
             <div className="absolute bottom-0 right-1/4 h-64 w-64 rounded-full bg-gold/10 blur-3xl" />
           </div>
 
-          <div className="relative">
-            <div className="flex items-baseline gap-3">
-              <span className="font-mono text-xs uppercase tracking-[0.3em] text-hanko">
-                {t("seals.eyebrow")}
-              </span>
-              <span className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent" />
-              <span className="hidden font-jp text-[10px] tracking-[0.3em] text-washi-dim sm:inline">
-                印鑑帳
-              </span>
-            </div>
+          {/* Two-column hero on desktop, stacked on mobile. The rank
+              badge sits to the right where the eye lands after scanning
+              the title. */}
+          <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+            {/* LEFT: eyebrow / title / hero-stat / progress / lanterns */}
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-3">
+                <span className="font-mono text-xs uppercase tracking-[0.3em] text-hanko">
+                  {t("seals.eyebrow")}
+                </span>
+                <span className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent" />
+                <span className="hidden font-jp text-[10px] tracking-[0.3em] text-washi-dim sm:inline">
+                  印鑑帳
+                </span>
+              </div>
 
-            {/* Title row — h1 + a stamped 印 medallion to the right that
-                ties into the watermark behind. */}
-            <div className="mt-3 flex items-start justify-between gap-6">
-              <h1 className="flex-1 font-display text-4xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl">
+              <h1 className="mt-3 font-display text-4xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl">
                 {t("seals.yourTitle")}{" "}
                 <span className="text-hanko-gradient font-semibold not-italic">
                   {t("seals.titleAccent")}
                 </span>
               </h1>
-              {/* Ornamental medallion — mirrors the in-grid hanko-seal
-                  styling but at a hero scale. Rotated -4deg to look
-                  hand-stamped onto the page. */}
-              <div
-                aria-hidden="true"
-                className="hanko-seal hidden h-16 w-16 shrink-0 place-items-center rounded-md font-display text-2xl shadow-[0_8px_24px_rgba(220,38,38,0.35)] sm:grid"
-                style={{ transform: "rotate(-4deg)" }}
-              >
-                印
-              </div>
-            </div>
 
-            <p className="mt-4 max-w-xl font-sans text-sm leading-relaxed text-washi-muted">
-              {t("seals.subtitle")}
-            </p>
+              <p className="mt-4 max-w-xl font-sans text-sm leading-relaxed text-washi-muted">
+                {t("seals.subtitle")}
+              </p>
 
-            {/* Two-row progress block:
-                  · ROW 1 — overall progress bar with shimmer + stamp marker
-                  · ROW 2 — per-tier breakdown panel (5 mini bars in tier colours) */}
-            <div className="mt-8 space-y-5">
-              {/* Overall progress */}
-              <div>
-                <div className="flex items-baseline justify-between gap-4">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
-                    {t("seals.progressLabel")}
-                  </p>
-                  <p className="font-display text-base italic text-washi">
-                    <span className="font-semibold not-italic text-hanko-bright tabular-nums">
-                      {earnedCount}
-                    </span>{" "}
-                    <span className="text-washi-dim">
-                      / {totalCount} · {percent}%
-                    </span>
-                  </p>
+              {/* HERO STAT — the count gets the spotlight, not a ratio. */}
+              <div className="mt-7 flex items-baseline gap-4">
+                <span
+                  className="font-display text-7xl font-semibold italic leading-none tracking-tight text-washi md:text-8xl"
+                  style={{ textShadow: "0 4px 28px rgba(220,38,38,0.25)" }}
+                >
+                  <span className="text-hanko-gradient">{earnedCount}</span>
+                </span>
+                <div className="flex flex-col gap-1 pb-1">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim">
+                    / {totalCount}
+                  </span>
+                  <span className="font-display italic text-base text-washi-muted md:text-lg">
+                    {t("seals.statSubtitle")}
+                  </span>
                 </div>
-                {/* Bar — taller than before (h-1.5 vs h-[3px]) and
-                    overlaid with a subtle shimmer band so the
-                    "ink-still-wet" feel reads even when nothing has
-                    just changed. The marker dot at the leading edge
-                    behaves like the tip of a brush still pressed to
-                    paper. */}
-                <div className="seal-progress-rail mt-2 relative h-1.5 w-full overflow-hidden rounded-full bg-ink-2/70">
+              </div>
+
+              {/* OVERALL PROGRESS RAIL */}
+              <div className="mt-5">
+                <div className="seal-progress-rail relative h-2 w-full overflow-hidden rounded-full bg-ink-2/70">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright transition-all duration-1000 ease-out"
                     style={{
                       width: `${percent}%`,
-                      boxShadow: percent > 0 ? "0 0 10px var(--hanko-glow)" : "none",
+                      boxShadow: percent > 0 ? "0 0 12px var(--hanko-glow)" : "none",
                     }}
                   />
                   {percent > 0 && percent < 100 && (
                     <span
                       aria-hidden="true"
-                      className="seal-progress-marker absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-hanko shadow-[0_0_12px_var(--hanko-glow)]"
+                      className="seal-progress-marker absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-hanko shadow-[0_0_14px_var(--hanko-glow)]"
                       style={{ left: `${percent}%` }}
                     />
                   )}
                 </div>
+                <div className="mt-2 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+                  <span>{t("seals.progressLabel")}</span>
+                  <span className="text-washi-muted tabular-nums">{percent}%</span>
+                </div>
               </div>
 
-              {/* Per-tier breakdown — replaces the old inline legend.
-                  Five tiny bars in their tier colours, each labelled
-                  with the JP tier name + earned/total count. Reads as
-                  a "rank ladder" so the visitor can spot which tier
-                  is closest to filling out. */}
-              <TierBreakdown tierStats={tierStats} t={t} />
+              {/* TIER LANTERNS — 5 vertical bars, one per ink rank */}
+              <TierLanterns tierStats={tierStats} highestTier={highestTier} t={t} />
+            </div>
+
+            {/* RIGHT: rank badge — only on lg+, where there's horizontal
+                room. On smaller screens the badge would crowd the title. */}
+            <div className="hidden lg:block">
+              <RankBadge tier={highestTier} t={t} />
             </div>
           </div>
         </header>
 
-        {/* ───── Newly-granted banner ─────
-            Re-themed: gradient hanko -> moegi (fresh ink lands on the
-            paper), with a sparking 新 stamp on the left and a chevron
-            cue on the right hinting "scroll down to see them light up". */}
+        {/* ───── NEWLY-GRANTED BANNER ───── */}
         {newlySet.size > 0 && (
-          <div
-            className="relative mb-10 overflow-hidden rounded-2xl border border-hanko/40 bg-gradient-to-br from-hanko/15 via-ink-1/80 to-moegi/15 p-5 shadow-[0_8px_32px_rgba(220,38,38,0.18)] backdrop-blur animate-fade-up"
-            role="status"
-            aria-live="polite"
-            style={{ animationDelay: "80ms" }}
-          >
-            {/* Tiny floating sparks behind the 新 stamp */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute -top-3 left-3 h-1.5 w-1.5 rounded-full bg-gold/80"
-              style={{ animation: "seal-spark 2.4s ease-in-out infinite" }}
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute top-4 left-14 h-1 w-1 rounded-full bg-hanko/80"
-              style={{
-                animation: "seal-spark 2.4s ease-in-out 0.6s infinite",
-              }}
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute -top-1 left-20 h-1 w-1 rounded-full bg-moegi/80"
-              style={{
-                animation: "seal-spark 2.4s ease-in-out 1.1s infinite",
-              }}
-            />
-            <div className="relative flex items-center gap-4">
-              <div
-                className="hanko-seal grid h-14 w-14 shrink-0 place-items-center rounded-md font-display text-xl shadow-[0_4px_18px_rgba(220,38,38,0.4)]"
-                style={{ transform: "rotate(-6deg)" }}
-              >
-                新
-              </div>
-              <div className="flex-1">
-                <p className="font-display text-lg italic text-washi md:text-xl">
-                  {newlySet.size === 1
-                    ? t("seals.newlyGrantedOne")
-                    : t("seals.newlyGrantedMany", { n: newlySet.size })}
-                </p>
-                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-washi-muted">
-                  {t("seals.newlyGrantedHint")}
-                </p>
-              </div>
-            </div>
-          </div>
+          <NewlyGrantedBanner count={newlySet.size} t={t} />
         )}
 
-        {/* ───── Next-up hint ─────
-            Tiny suggestion card pointing at the closest unearned seal,
-            so the visitor leaves the page with a concrete "next stop"
-            instead of a vague "earn more". Hidden when there's nothing
-            left to earn (full carnet) or while loading. */}
+        {/* ───── NEXT QUEST CARD ───── */}
         {!isLoading && nextSeal && newlySet.size === 0 && (
-          <div
-            className="mb-10 inline-flex items-center gap-3 rounded-full border border-border bg-ink-1/60 px-4 py-2 backdrop-blur animate-fade-up"
-            style={{ animationDelay: "100ms" }}
-          >
-            <span
-              aria-hidden="true"
-              className="grid h-7 w-7 place-items-center rounded border border-dashed border-washi-dim/50 font-jp text-[12px] text-washi-dim"
-            >
-              {nextSeal.kanji}
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-muted">
-              {t("seals.nextHint", {
-                name: t(`seals.codes.${nextSeal.code}.label`),
-              })}
-            </span>
-          </div>
+          <NextQuestCard seal={nextSeal} t={t} />
         )}
 
-        {/* ───── Loading state ───── */}
+        {/* ───── LOADING ───── */}
         {isLoading && <SealsPageSkeleton />}
 
-        {/* ───── Sections by category ───── */}
+        {/* ───── SECTIONS ───── */}
         {!isLoading &&
           SEALS_BY_CATEGORY.map((category, ci) => {
             const categoryEarned = category.seals.filter((s) =>
@@ -398,117 +302,19 @@ export default function SealsPage() {
             ).length;
             const categoryComplete = categoryEarned === category.seals.length;
             return (
-              <section
+              <CategorySection
                 key={category.code}
-                className="relative mb-14 animate-fade-up"
-                style={{ animationDelay: `${120 + ci * 50}ms` }}
-              >
-                {/* Brushstroke divider above each section — gradient
-                    that fades in/out, anchored to the medallion. Gives
-                    the page a "page-break in a journal" rhythm. */}
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none mb-6 flex items-center gap-3"
-                >
-                  <span className="h-px w-8 bg-gradient-to-r from-transparent to-border" />
-                  <span className="font-jp text-[10px] tracking-[0.4em] text-washi-dim">
-                    {category.kanji}
-                  </span>
-                  <span className="h-px flex-1 bg-gradient-to-r from-border via-border/40 to-transparent" />
-                </div>
-
-                {/* Category header — bigger medallion than before, with
-                    a soft glow when this category is fully earned (the
-                    "completed chapter" celebration). The kanji wears
-                    a subtle ring of sumi-dots when partial, gold when
-                    full — without ever competing visually with the
-                    in-grid seals. */}
-                <div className="mb-6 flex items-center gap-4">
-                  <div
-                    className={`relative grid h-14 w-14 shrink-0 place-items-center rounded-lg font-display text-lg transition-shadow ${
-                      categoryComplete
-                        ? "hanko-seal shadow-[0_0_24px_rgba(212,160,57,0.4)] ring-1 ring-gold/40"
-                        : "hanko-seal"
-                    }`}
-                    style={{ transform: "rotate(-3deg)" }}
-                  >
-                    {category.kanji}
-                    {/* Tiny gold satellite dot — lights up only when
-                        the chapter is fully earned. */}
-                    {categoryComplete && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-gradient-to-br from-gold to-gold-muted shadow-[0_0_8px_rgba(212,160,57,0.6)]"
-                        style={{
-                          animation:
-                            "seal-spark 3s ease-in-out infinite",
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-display text-xl italic text-washi md:text-2xl">
-                      {t(`seals.categories.${category.code}`)}
-                    </p>
-                    <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-                      {t(`seals.categoryHint.${category.code}`)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-display text-2xl italic text-washi">
-                      <span
-                        className={`tabular-nums not-italic ${
-                          categoryComplete
-                            ? "text-gold"
-                            : categoryEarned > 0
-                              ? "text-hanko-bright"
-                              : "text-washi-dim"
-                        }`}
-                      >
-                        {categoryEarned}
-                      </span>
-                      <span className="font-mono text-[12px] text-washi-dim">
-                        /{category.seals.length}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  role="list"
-                  className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
-                >
-                  {category.seals.map((seal, i) => (
-                    <div
-                      key={seal.code}
-                      data-seal-code={seal.code}
-                      className="animate-fade-up"
-                      style={{
-                        animationDelay: `${Math.min(180 + i * 40, 500)}ms`,
-                      }}
-                    >
-                      <Seal
-                        code={seal.code}
-                        kanji={seal.kanji}
-                        tier={seal.tier}
-                        earned={earnedMap.has(seal.code)}
-                        earnedAt={earnedMap.get(seal.code)}
-                        newly={newlySet.has(seal.code)}
-                        playing={currentCode === seal.code}
-                        // While the ceremony loop is in flight, we
-                        // don't let any other seal play its baseline
-                        // `animate-seal-ceremony` reveal. Otherwise
-                        // the seal that just left the spotlight would
-                        // pick up a fresh animation pass when its
-                        // class set changed (browser animation engines
-                        // restart on class swap), causing a phantom
-                        // re-bump every time we advance.
-                        ceremonyManaged={newlyList.length > 0}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </section>
+                category={category}
+                chapterNumber={ci + 1}
+                animationDelay={120 + ci * 50}
+                categoryEarned={categoryEarned}
+                categoryComplete={categoryComplete}
+                earnedMap={earnedMap}
+                newlySet={newlySet}
+                currentCode={currentCode}
+                ceremonyManaged={newlyList.length > 0}
+                t={t}
+              />
             );
           })}
       </div>
@@ -516,64 +322,438 @@ export default function SealsPage() {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   SUB-COMPONENTS — split out so the main render stays readable.
+   ═══════════════════════════════════════════════════════════════ */
+
 /**
- * Per-tier earned/total breakdown — five mini-bars in the tier's own
- * colour, stacked horizontally on desktop, vertically on narrow mobile.
- * Each row reads at a glance: kanji label + ratio + filled portion.
- *
- * Why this replaces the legacy "tier legend dot row":
- *   - The legend only said *what* the colours mean — it required hover
- *     on every individual seal to learn how many you'd earned in each
- *     rank. The breakdown answers both questions at once: the colour
- *     *and* the progress within it.
- *   - Visitors with a near-empty carnet now see "0 / 5 sumi" in plain
- *     ink rather than just "墨", which reads as a target rather than a
- *     decoration.
+ * Six sakura petals drifting from above the viewport down past the
+ * fold. Each one gets a hand-tuned position / duration / delay so the
+ * flock feels organic rather than synchronised. Hidden via CSS when
+ * the user prefers reduced motion (handled in index.css).
  */
-function TierBreakdown({ tierStats, t }) {
+function FloatingPetals() {
+  // Hand-tuned constants — picked individually so the petals drift at
+  // different cadences instead of marching in lockstep. Mobile gets
+  // fewer petals (the smaller canvas would otherwise feel cluttered).
+  const petals = [
+    { left: "8%",  size: 14, dur: 22, delay: 0,    drift: 60,  rot: 320, opacity: 0.55 },
+    { left: "22%", size: 12, dur: 28, delay: 6,    drift: -40, rot: -280, opacity: 0.45 },
+    { left: "38%", size: 18, dur: 19, delay: 11,   drift: 90,  rot: 360, opacity: 0.5 },
+    { left: "55%", size: 11, dur: 25, delay: 3,    drift: -70, rot: -340, opacity: 0.4 },
+    { left: "72%", size: 16, dur: 21, delay: 14,   drift: 50,  rot: 400, opacity: 0.55 },
+    { left: "88%", size: 13, dur: 26, delay: 8,    drift: -30, rot: -360, opacity: 0.45 },
+  ];
   return (
     <div
-      className="rounded-xl border border-border/60 bg-ink-1/40 p-3 backdrop-blur sm:p-4"
-      aria-label={t("seals.tierLegend")}
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 -z-[5] hidden overflow-hidden md:block"
     >
-      <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
-        {t("seals.tierLegend")}
-      </p>
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-5 sm:gap-3">
-        {Object.entries(TIERS).map(([tier, { name, label }]) => {
-          const stats = tierStats[tier] || { earned: 0, total: 0 };
-          const ratio = stats.total > 0 ? stats.earned / stats.total : 0;
-          const ratioPct = Math.round(ratio * 100);
-          return (
-            <div key={tier} className="min-w-0">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="flex items-baseline gap-1.5">
-                  <span
-                    className={`tier-legend-dot tier-legend-${name}`}
-                    aria-hidden="true"
-                  />
-                  <span className="font-jp text-[12px] text-washi">
-                    {label}
-                  </span>
-                </span>
-                <span className="font-mono text-[10px] tabular-nums text-washi-muted">
-                  {stats.earned}
-                  <span className="text-washi-dim">/{stats.total}</span>
-                </span>
-              </div>
-              <div
-                className={`mt-1.5 h-1 w-full overflow-hidden rounded-full bg-ink-2/80 tier-bar-${name}`}
-              >
-                <div
-                  className="h-full rounded-full transition-[width] duration-700 ease-out"
-                  style={{ width: `${ratioPct}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
+      {petals.map((p, i) => (
+        <span
+          key={i}
+          className="seal-petal"
+          style={{
+            left: p.left,
+            width: `${p.size}px`,
+            height: `${p.size}px`,
+            "--drift-x": `${p.drift}px`,
+            "--drift-rot": `${p.rot}deg`,
+            "--petal-duration": `${p.dur}s`,
+            "--petal-delay": `${p.delay}s`,
+            "--petal-opacity": p.opacity,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The hero rank badge — a circular medallion whose halo recolours per
+ * the user's highest earned tier. At tier 0 (no seals yet) the badge
+ * shows an "Initié" state with sumi-grey rays; at tier 5 it gleams
+ * with gold rays on a near-black core (legendary lacquer).
+ */
+function RankBadge({ tier, t }) {
+  const tierMeta = tier > 0 ? TIERS[tier] : { name: "sumi", label: "—" };
+  // The tier i18n string is "<kanji> · <translated name>" (e.g.
+  // "萌葱 · Jade"). Split on the middle dot:
+  //   [0] → the kanji (decorative)
+  //   [1] → the translated name (readable)
+  // The chip below the medallion uses the readable half so visitors
+  // who don't read JP know what their rank actually means; the
+  // medallion itself keeps the kanji as its icon (it's the visual
+  // signature) but exposes the full string via `title=` on hover for
+  // anyone who's curious about the JP reading.
+  const tierFullLabel = tier > 0 ? t(`seals.tiers.${tierMeta.name}`) : null;
+  const rankName =
+    tier > 0
+      ? tierFullLabel.split("·")[1]?.trim() ?? tierMeta.label
+      : t("seals.rankNone");
+  return (
+    <div
+      className="seal-rank relative flex h-44 w-44 items-center justify-center"
+      data-tier={tier}
+    >
+      {/* Slow-rotating sun-rays halo (large, blurred) */}
+      <span aria-hidden="true" className="seal-rank-rays" />
+      {/* Faster, sharper inner rays for a layered halo */}
+      <span aria-hidden="true" className="seal-rank-rays-fast" />
+
+      {/* The medallion itself */}
+      <div
+        title={tierFullLabel ?? undefined}
+        className={`relative grid h-32 w-32 place-items-center rounded-full border-2 backdrop-blur transition-all ${
+          tier === 0
+            ? "border-washi-dim/30 bg-ink-1/80"
+            : tier === 1
+              ? "border-washi-muted/40 bg-ink-1/85 shadow-[0_0_30px_rgba(0,0,0,0.4)]"
+              : tier === 2
+                ? "border-hanko/60 bg-gradient-to-br from-hanko/20 to-ink-1/90 shadow-[0_0_28px_rgba(220,38,38,0.45)]"
+                : tier === 3
+                  ? "border-moegi/60 bg-gradient-to-br from-moegi/15 to-ink-1/90 shadow-[0_0_28px_rgba(167,209,114,0.45)]"
+                  : tier === 4
+                    ? "border-gold/70 bg-gradient-to-br from-gold/15 to-ink-1/90 shadow-[0_0_30px_rgba(212,160,57,0.5)]"
+                    : "border-gold/80 bg-gradient-to-br from-ink-0 via-ink-1 to-ink-0 shadow-[0_0_36px_rgba(212,160,57,0.55)]"
+        }`}
+      >
+        {tier > 0 ? (
+          <span
+            className={`font-jp font-bold leading-none ${
+              tier === 5 ? "text-gold" : "text-washi"
+            }`}
+            style={{ fontSize: "3.2rem" }}
+          >
+            {tierMeta.label}
+          </span>
+        ) : (
+          // Empty rank: a soft dashed circle and a quiet kanji
+          <span
+            className="font-jp text-3xl font-bold leading-none text-washi-dim"
+            style={{ opacity: 0.5 }}
+          >
+            初
+          </span>
+        )}
+      </div>
+
+      {/* Floating label below the medallion */}
+      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border bg-ink-1/90 px-3 py-1 backdrop-blur">
+        <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-washi-dim">
+          {t("seals.rankLabel")}
+        </p>
+        <p className="text-center font-display text-xs italic text-washi">
+          {rankName}
+        </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Five vertical lantern-style bars, one per tier — the visual rank
+ * ladder. Each lantern shows the tier kanji at the top, an earned/total
+ * count below, and a vertical fill bar in the tier's colour gradient.
+ *
+ * Why vertical (and not the prior horizontal mini-bars)? The metaphor
+ * carries the festival theme — paper lanterns hang in a row at a
+ * matsuri, and only the ones the visitor has "lit" glow with full
+ * colour. Tiers with zero earned read as unlit lanterns — present in
+ * the row, not yet bright.
+ */
+function TierLanterns({ tierStats, highestTier, t }) {
+  return (
+    <div
+      className="mt-7 grid grid-cols-5 gap-2 sm:gap-3"
+      aria-label={t("seals.tierLegend")}
+    >
+      {Object.entries(TIERS).map(([tier, { name, label }]) => {
+        const stats = tierStats[tier] || { earned: 0, total: 0 };
+        const ratio = stats.total > 0 ? stats.earned / stats.total : 0;
+        const ratioPct = Math.round(ratio * 100);
+        const lit = stats.earned > 0;
+        const isCurrent = parseInt(tier, 10) === highestTier;
+        return (
+          <div
+            key={tier}
+            className={`group relative flex flex-col items-stretch overflow-hidden rounded-lg border bg-ink-1/40 backdrop-blur transition ${
+              isCurrent
+                ? "border-hanko/50 shadow-[0_0_18px_rgba(220,38,38,0.25)]"
+                : lit
+                  ? "border-border hover:border-washi-muted/40"
+                  : "border-border/60"
+            }`}
+          >
+            {/* Lantern "head" — kanji + count */}
+            <div className="flex flex-col items-center px-2 pt-3 pb-1.5">
+              <span
+                className={`font-jp text-lg font-bold leading-none transition-transform group-hover:scale-110 ${
+                  lit ? "text-washi" : "text-washi-dim"
+                }`}
+              >
+                {label}
+              </span>
+              <span className="mt-1.5 font-mono text-[9px] tabular-nums text-washi-muted">
+                {stats.earned}
+                <span className="text-washi-dim">/{stats.total}</span>
+              </span>
+            </div>
+            {/* Lantern "body" — vertical fill bar in tier colour. Min
+                height of 36px so even at 0% the lantern reads as
+                present rather than collapsed. */}
+            <div
+              className={`relative mx-1.5 mb-2 h-9 overflow-hidden rounded bg-ink-2/80 tier-bar-${name}`}
+            >
+              <div
+                className="absolute bottom-0 left-0 right-0 transition-[height] duration-700 ease-out"
+                style={{ height: `${Math.max(ratioPct, lit ? 8 : 0)}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * The "QUEST" card — appears when there's at least one unearned seal
+ * and no newly-granted banner is competing for attention. Bigger and
+ * more inviting than the previous chip; reads like a JRPG quest prompt.
+ */
+function NextQuestCard({ seal, t }) {
+  return (
+    <div
+      className="relative mb-12 overflow-hidden rounded-2xl border border-sakura/35 bg-gradient-to-br from-sakura/10 via-ink-1/60 to-ink-1/30 p-5 shadow-[0_8px_30px_rgba(247,170,200,0.12)] backdrop-blur animate-fade-up sm:p-6"
+      style={{ animationDelay: "100ms" }}
+    >
+      {/* Background watermark of the target kanji — gives the card the
+          "you can almost touch this" feel. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-12 -right-2 select-none font-jp text-[14rem] font-bold leading-none text-sakura/[0.08]"
+      >
+        {seal.kanji}
+      </span>
+
+      <div className="relative flex items-center gap-5">
+        {/* Mock seal silhouette — same dashed treatment as unearned
+            seals in the grid. */}
+        <div className="hidden h-20 w-20 shrink-0 place-items-center rounded-md border-2 border-dashed border-sakura/55 bg-ink-0/40 sm:grid">
+          <span className="font-jp text-3xl font-bold leading-none text-sakura/80">
+            {seal.kanji}
+          </span>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-sakura">
+            {t("seals.questLabel")}
+          </p>
+          <p className="mt-1 font-display text-xl italic text-washi md:text-2xl">
+            {t(`seals.codes.${seal.code}.label`)}
+          </p>
+          <p className="mt-1.5 line-clamp-2 max-w-xl font-sans text-xs text-washi-muted md:text-sm">
+            {t(`seals.codes.${seal.code}.description`)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Newly-granted banner with kinetic sparks. Same i18n keys as before —
+ * the change is purely visual punch. Sparks twinkle in slightly
+ * out-of-phase pulses so the row reads as a continuous shimmer rather
+ * than a synchronous blink.
+ */
+function NewlyGrantedBanner({ count, t }) {
+  return (
+    <div
+      className="relative mb-10 overflow-hidden rounded-2xl border border-hanko/40 bg-gradient-to-br from-hanko/15 via-ink-1/80 to-moegi/15 p-5 shadow-[0_8px_32px_rgba(220,38,38,0.18)] backdrop-blur animate-fade-up"
+      role="status"
+      aria-live="polite"
+      style={{ animationDelay: "80ms" }}
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-3 left-3 h-1.5 w-1.5 rounded-full bg-gold/80"
+        style={{ animation: "seal-spark 2.4s ease-in-out infinite" }}
+      />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-4 left-14 h-1 w-1 rounded-full bg-hanko/80"
+        style={{
+          animation: "seal-spark 2.4s ease-in-out 0.6s infinite",
+        }}
+      />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-1 left-20 h-1 w-1 rounded-full bg-moegi/80"
+        style={{
+          animation: "seal-spark 2.4s ease-in-out 1.1s infinite",
+        }}
+      />
+      <div className="relative flex items-center gap-4">
+        <div
+          className="hanko-seal grid h-14 w-14 shrink-0 place-items-center rounded-md font-display text-xl shadow-[0_4px_18px_rgba(220,38,38,0.4)]"
+          style={{ transform: "rotate(-6deg)" }}
+        >
+          新
+        </div>
+        <div className="flex-1">
+          <p className="font-display text-lg italic text-washi md:text-xl">
+            {count === 1
+              ? t("seals.newlyGrantedOne")
+              : t("seals.newlyGrantedMany", { n: count })}
+          </p>
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-washi-muted">
+            {t("seals.newlyGrantedHint")}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One category section. Wraps the grid of <Seal> tiles with:
+ *   · a "CHAPITRE N · 章" eyebrow and a brushstroke divider
+ *   · a kanji medallion + huge italic title + scoreboard counter
+ *   · a celebratory "CHAPITRE COMPLET" banner with sweeping shimmer,
+ *     shown only when every seal in the category is earned.
+ */
+function CategorySection({
+  category,
+  chapterNumber,
+  animationDelay,
+  categoryEarned,
+  categoryComplete,
+  earnedMap,
+  newlySet,
+  currentCode,
+  ceremonyManaged,
+  t,
+}) {
+  return (
+    <section
+      className="relative mb-16 animate-fade-up"
+      style={{ animationDelay: `${animationDelay}ms` }}
+    >
+      {/* Chapter eyebrow — locates the section in the journal */}
+      <div className="mb-3 flex items-baseline gap-3">
+        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-washi-dim">
+          {t("seals.chapterPrefix", { n: chapterNumber })}
+        </span>
+        <span className="h-px flex-1 bg-gradient-to-r from-border via-border/40 to-transparent" />
+        <span className="font-jp text-[10px] tracking-[0.4em] text-washi-dim">
+          {category.kanji}
+        </span>
+      </div>
+
+      {/* Header row — large kanji medallion + title block + counter */}
+      <div className="mb-6 flex items-center gap-4">
+        <div
+          className={`relative grid h-16 w-16 shrink-0 place-items-center rounded-lg font-display text-xl transition-shadow ${
+            categoryComplete
+              ? "hanko-seal shadow-[0_0_28px_rgba(212,160,57,0.45)] ring-1 ring-gold/45"
+              : "hanko-seal"
+          }`}
+          style={{ transform: "rotate(-3deg)" }}
+        >
+          {category.kanji}
+          {categoryComplete && (
+            <span
+              aria-hidden="true"
+              className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-gradient-to-br from-gold to-gold-muted shadow-[0_0_10px_rgba(212,160,57,0.7)]"
+              style={{ animation: "seal-spark 3s ease-in-out infinite" }}
+            />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-display text-2xl italic leading-tight text-washi md:text-3xl">
+            {t(`seals.categories.${category.code}`)}
+          </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
+            {t(`seals.categoryHint.${category.code}`)}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="font-display italic text-washi">
+            <span
+              className={`text-3xl font-semibold tabular-nums not-italic ${
+                categoryComplete
+                  ? "text-gold"
+                  : categoryEarned > 0
+                    ? "text-hanko-bright"
+                    : "text-washi-dim"
+              }`}
+            >
+              {categoryEarned}
+            </span>
+            <span className="font-mono text-sm text-washi-dim">
+              /{category.seals.length}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {/* "CHAPITRE COMPLET" celebration — only rendered when the user
+          has earned every seal in this category. The shimmer track
+          sweeps a diagonal gold sheen across the banner every ~3.6s. */}
+      {categoryComplete && (
+        <div className="relative mb-5 overflow-hidden rounded-xl border border-gold/40 bg-gradient-to-r from-gold/10 via-gold/15 to-gold/10 px-4 py-2.5 backdrop-blur">
+          <span
+            aria-hidden="true"
+            className="seal-chapter-shimmer-track"
+          />
+          <div className="relative flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-gradient-to-br from-gold to-gold-muted font-jp text-sm font-bold leading-none text-ink-0 shadow"
+              style={{ transform: "rotate(-4deg)" }}
+            >
+              完
+            </span>
+            <p className="flex-1 font-mono text-[11px] font-semibold uppercase tracking-[0.3em] text-gold">
+              {t("seals.chapterCleared")}
+            </p>
+            <p className="hidden font-display text-xs italic text-washi-muted sm:inline">
+              {t("seals.chapterClearedHint")}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Seal grid — unchanged behaviour, just a tighter visual stagger */}
+      <div
+        role="list"
+        className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+      >
+        {category.seals.map((seal, i) => (
+          <div
+            key={seal.code}
+            data-seal-code={seal.code}
+            className="animate-fade-up"
+            style={{
+              animationDelay: `${Math.min(180 + i * 40, 500)}ms`,
+            }}
+          >
+            <Seal
+              code={seal.code}
+              kanji={seal.kanji}
+              tier={seal.tier}
+              earned={earnedMap.has(seal.code)}
+              earnedAt={earnedMap.get(seal.code)}
+              newly={newlySet.has(seal.code)}
+              playing={currentCode === seal.code}
+              ceremonyManaged={ceremonyManaged}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -583,9 +763,9 @@ function SealsPageSkeleton() {
       {[0, 1, 2].map((i) => (
         <div key={i}>
           <div className="mb-5 flex items-center gap-4">
-            <Skeleton className="h-14 w-14 rounded-lg" />
+            <Skeleton className="h-16 w-16 rounded-lg" />
             <div className="flex-1">
-              <Skeleton className="h-5 w-40 rounded" />
+              <Skeleton className="h-6 w-48 rounded" />
               <Skeleton className="mt-1 h-3 w-60 rounded" />
             </div>
           </div>

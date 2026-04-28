@@ -1703,14 +1703,175 @@
   }
 }
 
+/* ─── Sakura petal drift (SealsPage ambient particles) ───
+   A pale petal floats from above the viewport down past the fold,
+   drifting horizontally as it falls. Each petal instance gets a
+   different `--drift-x` (sideways travel) + `--drift-rot` (spin amount)
+   + duration / delay via inline style so a flock of 6-8 petals reads
+   as organic rather than a synchronised marquee. */
+@keyframes seal-petal-drift {
+  0% {
+    transform: translate3d(0, -10vh, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--petal-opacity, 0.55);
+  }
+  90% {
+    opacity: var(--petal-opacity, 0.55);
+  }
+  100% {
+    transform:
+      translate3d(var(--drift-x, 80px), 110vh, 0)
+      rotate(var(--drift-rot, 360deg));
+    opacity: 0;
+  }
+}
+
+.seal-petal {
+  position: absolute;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 30% 30%,
+    oklch(0.92 0.04 10 / 0.85) 0%,
+    oklch(0.86 0.07 10 / 0.6) 45%,
+    oklch(0.78 0.1 10 / 0.2) 100%
+  );
+  border-radius: 60% 40% 60% 40% / 50% 60% 40% 50%;
+  filter: blur(0.4px);
+  animation: seal-petal-drift var(--petal-duration, 18s) linear infinite;
+  animation-delay: var(--petal-delay, 0s);
+}
+
+/* ─── Rank badge rotating rays (SealsPage hero) ───
+   12 conic-gradient sun-rays slowly rotate behind the rank kanji.
+   The ray colour is set per-tier via the `data-tier` attribute below
+   so the whole halo recolours when the user reaches a new rank. */
+@keyframes seal-rank-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.seal-rank-rays {
+  position: absolute;
+  inset: -22%;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 0deg,
+    var(--rank-ray-color, oklch(0.6 0.18 28 / 0.5)) 0deg,
+    transparent 24deg,
+    var(--rank-ray-color, oklch(0.6 0.18 28 / 0.5)) 60deg,
+    transparent 84deg,
+    var(--rank-ray-color, oklch(0.6 0.18 28 / 0.5)) 120deg,
+    transparent 144deg,
+    var(--rank-ray-color, oklch(0.6 0.18 28 / 0.5)) 180deg,
+    transparent 204deg,
+    var(--rank-ray-color, oklch(0.6 0.18 28 / 0.5)) 240deg,
+    transparent 264deg,
+    var(--rank-ray-color, oklch(0.6 0.18 28 / 0.5)) 300deg,
+    transparent 324deg
+  );
+  filter: blur(8px);
+  opacity: 0.5;
+  animation: seal-rank-rotate 30s linear infinite;
+}
+
+.seal-rank-rays-fast {
+  position: absolute;
+  inset: -8%;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 90deg,
+    transparent 0deg,
+    var(--rank-ray-color, oklch(0.6 0.18 28 / 0.4)) 30deg,
+    transparent 90deg,
+    var(--rank-ray-color, oklch(0.6 0.18 28 / 0.4)) 180deg,
+    transparent 270deg,
+    var(--rank-ray-color, oklch(0.6 0.18 28 / 0.4)) 330deg,
+    transparent 360deg
+  );
+  opacity: 0.4;
+  animation: seal-rank-rotate 14s linear infinite reverse;
+}
+
+/* Tier-specific ray colours — used as a CSS variable so the same
+   `.seal-rank-rays` element re-themes when the rank tier changes. */
+.seal-rank[data-tier="0"] {
+  --rank-ray-color: oklch(0.55 0.01 70 / 0.45);
+}
+.seal-rank[data-tier="1"] {
+  --rank-ray-color: oklch(0.55 0.01 70 / 0.55);
+}
+.seal-rank[data-tier="2"] {
+  --rank-ray-color: oklch(0.62 0.18 28 / 0.55);
+}
+.seal-rank[data-tier="3"] {
+  --rank-ray-color: oklch(0.74 0.16 140 / 0.5);
+}
+.seal-rank[data-tier="4"] {
+  --rank-ray-color: oklch(0.82 0.13 78 / 0.6);
+}
+.seal-rank[data-tier="5"] {
+  --rank-ray-color: oklch(0.82 0.13 78 / 0.7);
+}
+
+/* ─── Chapter cleared shimmer (SealsPage section banner) ───
+   A diagonal gold sheen sweeps across the "CHAPITRE COMPLET" banner
+   every few seconds — fast enough to feel celebratory, slow enough
+   not to nag. */
+@keyframes seal-chapter-shimmer {
+  0% {
+    transform: translateX(-150%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(250%) skewX(-18deg);
+  }
+}
+
+.seal-chapter-shimmer-track {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.seal-chapter-shimmer-track::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    oklch(0.95 0.13 78 / 0.3) 50%,
+    transparent 100%
+  );
+  animation: seal-chapter-shimmer 3.6s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
 /* ─── Reduce-motion safety ───
    Honour the user's OS-level preference: drift / spark / pulse loops
    freeze in their resting position rather than running indefinitely. */
 @media (prefers-reduced-motion: reduce) {
   .seal-progress-marker,
+  .seal-petal,
+  .seal-rank-rays,
+  .seal-rank-rays-fast,
   [style*="seal-watermark-drift"],
   [style*="seal-spark"] {
     animation: none !important;
+  }
+  .seal-chapter-shimmer-track::after {
+    animation: none !important;
+    opacity: 0;
   }
 }
 
