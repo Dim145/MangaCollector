@@ -33,6 +33,14 @@ pub struct Model {
 pub const PUBLISHER_MAX_LEN: usize = 80;
 pub const EDITION_MAX_LEN: usize = 60;
 
+/// Per-genre length cap and per-row count cap, used by `sanitize_genres`.
+/// 40 chars is roomy enough for "Slice of Life" or "Comédie romantique"
+/// without letting a megabyte of "spam" land in the column. 30 entries
+/// covers the broadest MAL series (Naruto stops at ~14) with headroom
+/// for user customs without bloating the comma-string.
+pub const GENRE_MAX_LEN: usize = 40;
+pub const GENRES_MAX_COUNT: usize = 30;
+
 /// Trim + length-clamp + empty-to-None. Returned `None` means "unset
 /// the field"; returned `Some(_)` is guaranteed to be a non-empty
 /// string of at most `max_len` chars. Length is measured in characters
@@ -44,6 +52,32 @@ pub fn sanitize_label(value: Option<String>, max_len: usize) -> Option<String> {
     }
     let truncated: String = v.chars().take(max_len).collect();
     Some(truncated)
+}
+
+/// Same contract as `sanitize_label`, applied per entry, plus:
+///   - drop empties
+///   - dedup case-sensitive while preserving first-seen order
+///   - clamp the total count to `GENRES_MAX_COUNT`
+///
+/// Returns the sanitized vector. Caller decides whether to persist as
+/// the comma-joined `genres` column (`Vec::is_empty()` → empty string,
+/// rendered as `Option::<String>::None` upstream).
+pub fn sanitize_genres(values: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::with_capacity(values.len().min(GENRES_MAX_COUNT));
+    for raw in values {
+        let trimmed: String = raw.trim().chars().take(GENRE_MAX_LEN).collect();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if out.iter().any(|x| x == &trimmed) {
+            continue;
+        }
+        out.push(trimmed);
+        if out.len() >= GENRES_MAX_COUNT {
+            break;
+        }
+    }
+    out
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -166,6 +200,18 @@ pub struct UpdateLibraryRequest {
     pub publisher: Option<Option<String>>,
     #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub edition: Option<Option<String>>,
+    /// Replace the whole genres list. Editing genres post-creation is
+    /// only allowed for **custom rows** — i.e. `mal_id < 0` AND
+    /// `mangadex_id IS NULL`. Rows that have either an upstream MAL or
+    /// MangaDex link silently ignore this field, because letting the
+    /// user diverge from upstream without an override-tracking schema
+    /// would make the next `refresh-from-*` clobber the edits without
+    /// warning. The handler enforces the gate.
+    ///
+    /// Three-state shape (`Option<Option<Vec<String>>>`) so the client
+    /// can send `null` to clear all genres on a custom row.
+    #[serde(default, deserialize_with = "deserialize_optional_genres")]
+    pub genres: Option<Option<Vec<String>>>,
 }
 
 /// Three-state deserializer: omitted / null / value. Lets the handler
@@ -179,5 +225,16 @@ where
     D: serde::Deserializer<'de>,
 {
     Option::<String>::deserialize(deserializer).map(Some)
+}
+
+/// Same three-state pattern, but for the `genres` field which carries a
+/// `Vec<String>` instead of a `String`.
+fn deserialize_optional_genres<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<Vec<String>>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<Vec<String>>::deserialize(deserializer).map(Some)
 }
 

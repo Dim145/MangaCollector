@@ -189,6 +189,20 @@ export async function enqueueLibraryPatch(mal_id, fields) {
       next[key] = trimmed === "" ? null : trimmed;
     }
   }
+  // Genres ride as an array (not a comma-string). Server-side sanitize
+  // (trim / dedup / cap) is the authoritative pass; we only do the
+  // bare minimum here so the optimistic Dexie write reflects the same
+  // shape the server will eventually apply. We normalise `null` to an
+  // empty array because the rest of the app reads `manga.genres` as an
+  // iterable — keeping a uniform type avoids `?.` everywhere downstream.
+  if ("genres" in fields) {
+    const raw = fields.genres;
+    next.genres = Array.isArray(raw)
+      ? raw
+          .map((g) => (typeof g === "string" ? g.trim() : ""))
+          .filter((g, i, arr) => g.length > 0 && arr.indexOf(g) === i)
+      : [];
+  }
   if (Object.keys(next).length === 0) return;
 
   await db.transaction("rw", db.library, db.outboxLibrary, async () => {
@@ -408,6 +422,12 @@ async function flushLibrary() {
         if (op.payload?.volumes != null) meta.volumes = op.payload.volumes;
         if ("publisher" in (op.payload ?? {})) meta.publisher = op.payload.publisher;
         if ("edition" in (op.payload ?? {})) meta.edition = op.payload.edition;
+        // Genres ship as an array; server gates the write to custom-only
+        // rows (mal_id < 0 AND mangadex_id IS NULL) and silently drops
+        // the field on any other row. The frontend already only opens
+        // the editor on those rows, so a non-custom row reaching this
+        // branch indicates a stale Dexie payload — harmless to send.
+        if ("genres" in (op.payload ?? {})) meta.genres = op.payload.genres;
         if (Object.keys(meta).length > 0) {
           await axios.patch(`/api/user/library/${op.mal_id}`, meta);
           // A volumes change rebuilds rows in user_volumes server-side;
