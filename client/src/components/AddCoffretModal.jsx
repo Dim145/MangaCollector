@@ -129,6 +129,19 @@ export default function AddCoffretModal({
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-washi/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-hanko/10 blur-3xl" />
 
+        {/* 集 (shu, "gather/collect") watermark — vertical script, sat
+            against the bottom-right corner. Cream-tinted to stay in the
+            coffret family (gold is reserved for the collector toggle
+            inside the form). Anchors the modal in the same kanji-poster
+            voice as AddUpcomingVolumeModal's 来. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-12 -right-12 select-none font-jp text-[24rem] font-bold leading-none text-washi/[0.06]"
+          style={{ writingMode: "vertical-rl" }}
+        >
+          集
+        </span>
+
         <header className="relative border-b border-border/60 px-6 pt-6 pb-5">
           <div className="flex items-baseline gap-3">
             <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">

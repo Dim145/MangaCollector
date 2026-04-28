@@ -67,7 +67,25 @@ export default function ShelfStickersPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-      <header className="mb-8 animate-fade-up sticker-printer-header">
+      <header className="relative mb-8 animate-fade-up sticker-printer-header">
+        {/* 棚 (tana, "shelf") watermark — counterpart to the masthead's
+            札 (fuda, "label") stamp on the right: the stickers are 札
+            and they go on a 棚. Moegi-tinted because the print preview
+            grid that follows already speaks hanko + gold; moegi keeps
+            the masthead distinct from the printable section.
+            Wrapped in its own clip-layer so the 札 stamp's hanko-glow
+            shadow on the right side isn't chopped by the header's
+            bounds. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+        >
+          <span className="absolute -left-12 -top-16 select-none font-jp text-[28rem] font-bold leading-none text-moegi/[0.07]">
+            棚
+          </span>
+        </div>
+
+        <div className="relative">
         <div className="flex items-baseline gap-3">
           <Link
             to="/settings"
@@ -98,6 +116,7 @@ export default function ShelfStickersPage() {
           >
             札
           </span>
+        </div>
         </div>
       </header>
 

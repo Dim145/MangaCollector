@@ -596,9 +596,17 @@ export default function Dashboard() {
                   // server mints a negative id, so we prefer the Dexie
                   // primary key.
                   key={manga.id ?? manga.mal_id ?? `idx-${i}`}
+                  // `content-visibility: auto` was here for off-screen
+                  // perf (skip rendering of cards below the fold). It
+                  // *also* clips paint to the wrapper's box in Chrome's
+                  // implementation — even when the element is on-screen
+                  // and the spec says no containment should apply. The
+                  // Manga card translates `-translate-y-1` on hover, and
+                  // those 4px were getting chopped at the top of the
+                  // wrapper, killing the hover border. Since the grid
+                  // is already paginated to 30 cards, the perf benefit
+                  // is small enough that correctness wins.
                   style={{
-                    contentVisibility: "auto",
-                    containIntrinsicSize: "auto 360px",
                     animationDelay:
                       i < 12 ? `${Math.min(i * 40, 440)}ms` : undefined,
                   }}

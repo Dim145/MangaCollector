@@ -35,7 +35,13 @@ export default function GapSuggestions() {
 
   return (
     <section
-      className="mb-8 animate-fade-up"
+      // `mt-12` puts visible breathing room between the main library
+      // grid (which ends in a row of card bottoms — green progress bars,
+      // tomes counters) and this section's gold "PRESQUE · あと少し"
+      // eyebrow. Without it, the eyebrow sat flush against the cards
+      // above and read like a continuation of the grid rather than a
+      // new section.
+      className="mt-12 mb-8 animate-fade-up"
       style={{ animationDelay: "50ms" }}
     >
       <div className="mb-3 flex items-baseline gap-3">

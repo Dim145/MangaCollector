@@ -168,9 +168,22 @@ export default function MalRecommendationModal({
       popupOpen={Boolean(open && rec)}
       handleClose={committing ? undefined : onClose}
     >
-      <div className="max-w-md overflow-hidden rounded-2xl border border-border bg-ink-1 shadow-2xl">
+      <div className="relative max-w-md overflow-hidden rounded-2xl border border-border bg-ink-1 shadow-2xl">
+        {/* 縁 (en, "bond / fated connection") watermark — the entire MAL
+            recommendation feature is about *en*: the threads of taste
+            that connect one reader's library to another's. Sakura-tinted
+            because the concept lives in the same "soft, lyrical"
+            palette as the Birthday/wishlist celebration features. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-12 -right-12 select-none font-jp text-[22rem] font-bold leading-none text-sakura/[0.07]"
+          style={{ writingMode: "vertical-rl" }}
+        >
+          縁
+        </span>
+
         {/* Header — same "source of this suggestion" strip as the scan card */}
-        <div className="border-b border-border p-4">
+        <div className="relative z-10 border-b border-border p-4">
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
             {t("recs.label")}
           </p>
@@ -180,7 +193,7 @@ export default function MalRecommendationModal({
         </div>
 
         {/* Cover + title */}
-        <div className="flex gap-3 p-4">
+        <div className="relative flex gap-3 p-4">
           {candidate?.images?.jpg?.image_url ? (
             <img referrerPolicy="no-referrer"
               src={candidate.images.jpg.image_url}
@@ -250,7 +263,7 @@ export default function MalRecommendationModal({
         </div>
 
         {/* Volume count input */}
-        <div className="border-t border-border p-4">
+        <div className="relative border-t border-border p-4">
           <label
             htmlFor="rec-owned"
             className="block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
@@ -342,7 +355,7 @@ export default function MalRecommendationModal({
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 border-t border-border bg-ink-0/40 p-4">
+        <div className="relative flex gap-2 border-t border-border bg-ink-0/40 p-4">
           <button
             type="button"
             onClick={onClose}

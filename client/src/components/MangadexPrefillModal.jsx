@@ -45,7 +45,20 @@ export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
 
   return (
     <Modal popupOpen={Boolean(result)} handleClose={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-border bg-ink-1/95 p-6 shadow-2xl">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-border bg-ink-1/95 p-6 shadow-2xl">
+        {/* 入 (nyu, "enter / import") watermark — the modal's purpose is
+            to capture one missing field (volume count) before the entry
+            *enters* the library. Moegi-tinted to differentiate from the
+            MangaDex eyebrow chip (which owns gold here). */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-10 -right-10 select-none font-jp text-[22rem] font-bold leading-none text-moegi/[0.07]"
+          style={{ writingMode: "vertical-rl" }}
+        >
+          入
+        </span>
+
+        <div className="relative">
         <div className="flex items-baseline gap-2">
           <span className="rounded-full bg-gold/15 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-gold">
             MangaDex
@@ -130,6 +143,7 @@ export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
               t("mangadexPrefill.confirm")
             )}
           </button>
+        </div>
         </div>
       </div>
     </Modal>

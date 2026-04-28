@@ -52,11 +52,17 @@ export default function Manga({
       onClick={() =>
         navigate("/mangapage", { state: { manga, adult_content_level } })
       }
-      // `contain: layout paint` — the Library grid renders many of these
-      // (now also lazy-paginated by 30s). Containment keeps any class
-      // change on one card (hover, ownership flip) from rippling layout
-      // / paint through the rest of the grid.
-      className="group relative flex flex-col text-left tap-none focus-visible:outline-none [contain:layout_paint]"
+      // `contain: layout` — the Library grid renders many of these
+      // (now also lazy-paginated by 30s). `layout` containment keeps any
+      // class change on one card (hover, ownership flip) from rippling
+      // layout through the rest of the grid. We deliberately drop the
+      // `paint` half because it clips painting to the element's box —
+      // the inner cover wrapper translates up by 4px on hover
+      // (`group-hover:-translate-y-1`), which pushes the TOP border (and
+      // any badge near top:0) outside the contained box and made the
+      // top edge of the moegi/hanko hover-border vanish. Same bug class
+      // as the Volume.jsx corner-badge clipping fixed earlier.
+      className="group relative flex flex-col text-left tap-none focus-visible:outline-none [contain:layout]"
     >
       {/* Cover — tall aspect like a real manga volume */}
       <div

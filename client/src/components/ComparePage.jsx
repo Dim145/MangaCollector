@@ -69,7 +69,24 @@ export default function ComparePage() {
     <DefaultBackground>
       <div className="mx-auto max-w-7xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
         {/* ── Masthead ── */}
-        <header className="mb-10 animate-fade-up">
+        <header className="relative mb-10 animate-fade-up">
+          {/* 対 (tai, "versus / facing each other") watermark — the page
+              already pronounces "対" inline in the title ("Vous · 対 ·
+              Eux"), so the watermark amplifies the same kanji at scale.
+              The watermark lives in its own absolute clip-layer so any
+              shadow / overhang on adjacent content (HankoPair glows,
+              skeleton chips, etc.) is left untouched — putting
+              `overflow-hidden` on the header itself would clip those. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+          >
+            <span className="absolute -right-10 -top-16 select-none font-jp text-[28rem] font-bold leading-none text-hanko/[0.06]">
+              対
+            </span>
+          </div>
+
+          <div className="relative">
           <div className="flex items-baseline gap-3">
             <button
               type="button"
@@ -131,6 +148,7 @@ export default function ComparePage() {
               )}
             </>
           )}
+          </div>
         </header>
 
         {!notFound && !selfCompare && isLoading && <ThreePanelSkeleton />}
