@@ -62,7 +62,14 @@ export default function About({ googleUser } = {}) {
           id: m.mal_id,
           title: m.title_english || m.title,
           volumes: m.volumes || "—",
-          img: m.images?.jpg?.large_image_url,
+          // The render below treats `img` as a `{ avif, webp, jpg }`
+          // bundle (the format the bundled mocked covers ship in). MAL
+          // only serves JPG, so the avif/webp `<source>` slots stay
+          // empty and `<picture>` naturally falls through to the
+          // `<img src={img.jpg}>`. Returning a bare string here (the
+          // previous behaviour) made `m.img.jpg` undefined and the
+          // cards rendered as empty frames.
+          img: { jpg: m.images?.jpg?.large_image_url },
         }));
         if (top.length) setTopMangas(top);
       } catch (e) {
