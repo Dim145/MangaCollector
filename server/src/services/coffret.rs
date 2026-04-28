@@ -7,9 +7,10 @@ use sea_orm::{
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::coffret::{
-    self, ActiveModel, Coffret, CreateCoffretRequest, Entity as CoffretEntity,
-    UpdateCoffretRequest,
+    self, ActiveModel, COFFRET_NAME_MAX_LEN, Coffret, CreateCoffretRequest,
+    Entity as CoffretEntity, STORE_MAX_LEN, UpdateCoffretRequest,
 };
+use crate::models::library::sanitize_label;
 use crate::models::volume::{self, Entity as VolumeEntity};
 
 pub async fn list_for_manga(
@@ -65,10 +66,14 @@ pub async fn create(
         )));
     }
 
-    let name = req.name.trim();
-    if name.is_empty() {
-        return Err(AppError::BadRequest("coffret name is required".into()));
-    }
+    // Trim, length-clamp, refuse-empty in one pass via sanitize_label.
+    // The frontend's `<input maxLength={100}>` already prevents typing
+    // past the cap; this is the defense-in-depth pass for malicious
+    // clients that bypass the UI.
+    let name = sanitize_label(Some(req.name.clone()), COFFRET_NAME_MAX_LEN)
+        .ok_or_else(|| AppError::BadRequest("coffret name is required".into()))?;
+    // store: same trim+cap pass; empty string folds to None (= unset).
+    let store = sanitize_label(req.store.clone(), STORE_MAX_LEN);
     let per_volume_price: Option<Decimal> = req.price.and_then(|total| {
         let divisor = Decimal::from(count);
         if divisor.is_zero() {
@@ -84,11 +89,11 @@ pub async fn create(
     let new_row = ActiveModel {
         user_id: Set(user_id),
         mal_id: Set(mal_id),
-        name: Set(name.to_string()),
+        name: Set(name),
         vol_start: Set(req.vol_start),
         vol_end: Set(req.vol_end),
         price: Set(req.price),
-        store: Set(req.store.clone()),
+        store: Set(store),
         created_on: Set(now),
         modified_on: Set(now),
         ..Default::default()
@@ -161,11 +166,13 @@ pub async fn update_by_id(
 
     let mut active: ActiveModel = existing.into();
     if let Some(name) = &req.name {
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Err(AppError::BadRequest("name cannot be empty".into()));
-        }
-        active.name = Set(trimmed.to_string());
+        // Same gate as create: empty/whitespace-only is rejected; the
+        // length cap matches the `<input maxLength={100}>` on the
+        // client, so a malicious caller can't bypass that with a raw
+        // POST.
+        let cleaned = sanitize_label(Some(name.clone()), COFFRET_NAME_MAX_LEN)
+            .ok_or_else(|| AppError::BadRequest("name cannot be empty".into()))?;
+        active.name = Set(cleaned);
     }
     if req.clear_price {
         active.price = Set(None);
@@ -175,12 +182,9 @@ pub async fn update_by_id(
     if req.clear_store {
         active.store = Set(None);
     } else if let Some(s) = &req.store {
-        let trimmed = s.trim();
-        active.store = Set(if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
-        });
+        // sanitize_label folds empty/whitespace-only to None (same as
+        // clear_store) and clamps length.
+        active.store = Set(sanitize_label(Some(s.clone()), STORE_MAX_LEN));
     }
     active.modified_on = Set(Utc::now());
 

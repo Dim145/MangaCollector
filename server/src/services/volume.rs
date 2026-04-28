@@ -7,7 +7,8 @@ use sea_orm::{
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity::event_types;
-use crate::models::library::{self as library_mod, Entity as LibraryEntity};
+use crate::models::coffret::STORE_MAX_LEN;
+use crate::models::library::{self as library_mod, Entity as LibraryEntity, sanitize_label};
 use crate::models::volume::{
     self, ActiveModel, Entity as VolumeEntity, Volume, NOTE_MAX_CHARS,
 };
@@ -68,6 +69,12 @@ pub async fn update_by_id(
     // need to distinguish, and we never leak existence info to an
     // attacker who guessed a row id.
     let now = Utc::now();
+    // 店 · Trim + length-clamp the store label. Frontend
+    // `<StoreAutocomplete>` defaults to `maxLength={STORE_MAX_LEN}`
+    // (mirroring this constant); a malicious client bypassing the UI
+    // hits the cap here. `None` and empty/whitespace-only both fold to
+    // None — same "clear this column" contract as publisher / edition.
+    let store = sanitize_label(store, STORE_MAX_LEN);
 
     // Fetch the existing row scoped to the caller — the user_id filter
     // is the horizontal-authz gate. `find_by_id` alone is NOT enough:

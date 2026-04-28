@@ -25,6 +25,20 @@ impl ActiveModelBehavior for ActiveModel {}
 
 pub type Coffret = Model;
 
+/// Per-field length caps for the user-supplied text columns. Mirrors
+/// the constants in `models::library` (publisher / edition) — same
+/// "let normal use breathe, refuse a megabyte paste" sizing. The
+/// frontend `<input maxLength=…>` should match these so a user never
+/// gets silently truncated server-side without a UI hint first.
+///
+///   • COFFRET_NAME_MAX_LEN — frontend input is `maxLength={100}` in
+///     [AddCoffretModal](client/src/components/AddCoffretModal.jsx)
+///     and [CoffretGroup](client/src/components/CoffretGroup.jsx).
+///   • STORE_MAX_LEN — covers both coffret.store and volume.store; the
+///     frontend's `<StoreAutocomplete>` defaults to the same cap.
+pub const COFFRET_NAME_MAX_LEN: usize = 100;
+pub const STORE_MAX_LEN: usize = 80;
+
 /// Request body for creating a new coffret. Server computes per-volume price
 /// as `price / (vol_end - vol_start + 1)` and stamps each volume in that
 /// range as owned + linked to the new coffret.
