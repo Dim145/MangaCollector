@@ -1,10 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePendingCount } from "@/hooks/usePendingCount.js";
 import {
   getServerReachable,
   onConnectivityChange,
 } from "@/lib/connectivity.js";
 import { useT } from "@/i18n/index.jsx";
+
+/**
+ * 沈黙 · Quiet window before a "syncing" / "server unreachable" state
+ * earns a banner. Mutations on a healthy connection complete in
+ * 50-300ms; without a debounce the banner flickers in and out every
+ * time the user clicks Enregistrer because pending goes 0 → 1 → 0
+ * inside a single round-trip. 800ms keeps the banner from triggering
+ * on routine saves while still surfacing genuinely slow / failed syncs
+ * within a perceptible delay.
+ *
+ * Genuine offline at MOUNT (browser already disconnected when the
+ * component renders) bypasses the debounce — we don't want a user who
+ * lands on the app without network to wait 800ms before seeing the
+ * "you're offline" banner.
+ */
+const BANNER_DEBOUNCE_MS = 800;
 
 function useConnectivityDetail() {
   const [state, setState] = useState(() => ({
@@ -37,7 +53,51 @@ export default function OfflineBanner() {
   const online = browserOnline && serverReachable;
   const t = useT();
 
-  if (online && pending === 0) return null;
+  // Whether the banner SHOULD be shown given current state. The actual
+  // visibility flag below debounces transitions into the "show" state.
+  const shouldShow = !online || pending > 0;
+
+  // Initial visibility = shouldShow, so a user landing on the app
+  // already offline sees the banner immediately. Subsequent transitions
+  // run through the debounce.
+  const [visible, setVisible] = useState(shouldShow);
+  // Track whether we've ever seen a hide → show transition; used to
+  // decide whether to debounce or to snap-show on mount.
+  const everToggledRef = useRef(false);
+
+  useEffect(() => {
+    if (!shouldShow) {
+      // Hide immediately — sync just completed or connectivity recovered.
+      setVisible(false);
+      everToggledRef.current = true;
+      return;
+    }
+
+    // First render with shouldShow=true (cold offline mount): the
+    // useState init already set visible=true; nothing to schedule.
+    if (!everToggledRef.current && visible) {
+      everToggledRef.current = true;
+      return;
+    }
+
+    // shouldShow just flipped false → true (e.g. user clicked Save and
+    // an outbox row was queued). Wait BANNER_DEBOUNCE_MS before showing
+    // — if pending drops back to 0 within that window (the normal
+    // healthy-connection path) the cleanup cancels the timer and the
+    // banner never appears.
+    const timer = setTimeout(() => {
+      setVisible(true);
+      everToggledRef.current = true;
+    }, BANNER_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // `visible` is intentionally read but not a dep — this effect only
+    // re-runs on `shouldShow` changes; reading the live `visible` for
+    // the cold-mount branch is fine since useState's initialiser already
+    // mirrored shouldShow.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldShow]);
+
+  if (!visible) return null;
 
   const cause = !browserOnline
     ? "offline"
