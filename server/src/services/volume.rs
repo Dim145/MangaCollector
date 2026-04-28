@@ -7,7 +7,8 @@ use sea_orm::{
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity::event_types;
-use crate::models::library::{self as library_mod, Entity as LibraryEntity};
+use crate::models::coffret::STORE_MAX_LEN;
+use crate::models::library::{self as library_mod, Entity as LibraryEntity, sanitize_label};
 use crate::models::volume::{
     self, ActiveModel, Entity as VolumeEntity, Volume, NOTE_MAX_CHARS,
 };
@@ -68,6 +69,12 @@ pub async fn update_by_id(
     // need to distinguish, and we never leak existence info to an
     // attacker who guessed a row id.
     let now = Utc::now();
+    // 店 · Trim + length-clamp the store label. Frontend
+    // `<StoreAutocomplete>` defaults to `maxLength={STORE_MAX_LEN}`
+    // (mirroring this constant); a malicious client bypassing the UI
+    // hits the cap here. `None` and empty/whitespace-only both fold to
+    // None — same "clear this column" contract as publisher / edition.
+    let store = sanitize_label(store, STORE_MAX_LEN);
 
     // Fetch the existing row scoped to the caller — the user_id filter
     // is the horizontal-authz gate. `find_by_id` alone is NOT enough:
@@ -218,6 +225,245 @@ pub async fn update_by_id(
         }
     }
 
+    Ok(())
+}
+
+/// 来 · Manually create an upcoming-volume row.
+///
+/// Mirrors the API-cascade insert path in `services::releases::reconcile_user`,
+/// but with two key differences:
+///   1. `origin = "manual"` — the nightly sweep is forbidden from
+///      touching this row even if the auto-cascade later finds a
+///      conflicting date for the same vol_num.
+///   2. The caller chose every value (date, ISBN, URL) — we validate
+///      shape but never override the user's intent.
+///
+/// The function refuses to create a row if:
+///   * `release_date` is in the past (or now) — a tome already out
+///     should not be marked "upcoming".
+///   * `release_isbn` is non-empty but not 10/13 ASCII digits (allowing
+///     a trailing `X` for the legacy ISBN-10 check digit).
+///   * `release_url` is non-empty and lacks an `http://` / `https://`
+///     scheme.
+///   * The series is not in the user's library — same authz gate as
+///     `reconcile_user`.
+///   * A row already exists at `(user_id, mal_id, vol_num)`. The DB
+///     would catch this via the partial unique index, but we surface
+///     it as a 409 instead of a 500 so the SPA can inline a clear
+///     "tome déjà existant" hint.
+pub async fn add_upcoming_manually(
+    db: &Db,
+    user_id: i32,
+    mal_id: i32,
+    vol_num: i32,
+    release_date: chrono::DateTime<chrono::Utc>,
+    release_isbn: Option<String>,
+    release_url: Option<String>,
+) -> Result<Volume, AppError> {
+    let now = Utc::now();
+
+    if vol_num < 1 {
+        return Err(AppError::BadRequest(
+            "vol_num must be a positive integer".into(),
+        ));
+    }
+    if release_date <= now {
+        return Err(AppError::BadRequest(
+            "release_date must be strictly in the future".into(),
+        ));
+    }
+
+    // Authz gate — the user must already follow this series. Without
+    // this check, a malicious caller could probe arbitrary mal_ids
+    // and inflate the volume table with orphan rows.
+    let owns_series = LibraryEntity::find()
+        .filter(library_mod::Column::UserId.eq(user_id))
+        .filter(library_mod::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .is_some();
+    if !owns_series {
+        return Err(AppError::NotFound("Library entry not found".into()));
+    }
+
+    // ISBN-13 / ISBN-10 — strip cosmetic separators and verify digit count.
+    let normalised_isbn = match release_isbn.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(raw) => {
+            let cleaned: String = raw
+                .chars()
+                .filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x')
+                .map(|c| c.to_ascii_uppercase())
+                .collect();
+            if !(cleaned.len() == 10 || cleaned.len() == 13) {
+                return Err(AppError::BadRequest(
+                    "ISBN must be 10 or 13 characters once dashes/spaces are stripped".into(),
+                ));
+            }
+            Some(cleaned)
+        }
+    };
+
+    // URL — only `http(s)://` is allowed. We don't try to verify the
+    // host resolves, only that the value is not a `javascript:` payload
+    // or a relative path that would mismount on click.
+    let normalised_url = match release_url.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(raw) => {
+            if !(raw.starts_with("http://") || raw.starts_with("https://")) {
+                return Err(AppError::BadRequest(
+                    "release_url must start with http:// or https://".into(),
+                ));
+            }
+            Some(raw.to_string())
+        }
+    };
+
+    // Pre-check for duplicates so we can return a meaningful 409.
+    let already = VolumeEntity::find()
+        .filter(volume::Column::UserId.eq(user_id))
+        .filter(volume::Column::MalId.eq(mal_id))
+        .filter(volume::Column::VolNum.eq(vol_num))
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+    if already.is_some() {
+        return Err(AppError::Conflict(
+            "A volume already exists at this number for this series".into(),
+        ));
+    }
+
+    let model = ActiveModel {
+        created_on: Set(now),
+        modified_on: Set(now),
+        user_id: Set(user_id),
+        mal_id: Set(Some(mal_id)),
+        vol_num: Set(vol_num),
+        owned: Set(false),
+        price: Set(None),
+        store: Set(Some(String::new())),
+        collector: Set(false),
+        coffret_id: Set(None),
+        read_at: Set(None),
+        release_date: Set(Some(release_date)),
+        release_isbn: Set(normalised_isbn),
+        release_url: Set(normalised_url),
+        origin: Set("manual".to_string()),
+        announced_at: Set(Some(now)),
+        ..Default::default()
+    };
+
+    let inserted = model.insert(db).await.map_err(AppError::from)?;
+    Ok(inserted)
+}
+
+/// 来 · Update the announce-side fields of an existing
+/// `origin = "manual"` upcoming row. Refuses on API-origin rows so
+/// the nightly sweep keeps authority over what it produced.
+///
+/// The owned/read/collector axes are NOT updatable here — the regular
+/// `update_by_id` path already handles those (and applies the upcoming
+/// guardrail that forces them off while the row is still in the future).
+pub async fn update_upcoming_manually(
+    db: &Db,
+    id: i32,
+    user_id: i32,
+    release_date: chrono::DateTime<chrono::Utc>,
+    release_isbn: Option<String>,
+    release_url: Option<String>,
+) -> Result<Volume, AppError> {
+    let now = Utc::now();
+    if release_date <= now {
+        return Err(AppError::BadRequest(
+            "release_date must be strictly in the future".into(),
+        ));
+    }
+
+    // Same shape validation as the create path.
+    let normalised_isbn = match release_isbn.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(raw) => {
+            let cleaned: String = raw
+                .chars()
+                .filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x')
+                .map(|c| c.to_ascii_uppercase())
+                .collect();
+            if !(cleaned.len() == 10 || cleaned.len() == 13) {
+                return Err(AppError::BadRequest(
+                    "ISBN must be 10 or 13 characters once dashes/spaces are stripped".into(),
+                ));
+            }
+            Some(cleaned)
+        }
+    };
+    let normalised_url = match release_url.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(raw) => {
+            if !(raw.starts_with("http://") || raw.starts_with("https://")) {
+                return Err(AppError::BadRequest(
+                    "release_url must start with http:// or https://".into(),
+                ));
+            }
+            Some(raw.to_string())
+        }
+    };
+
+    // Fetch the row scoped to the caller — same defence-in-depth as
+    // `update_by_id`. Refuse if the row doesn't belong to the user OR
+    // if its origin isn't "manual".
+    let existing = VolumeEntity::find()
+        .filter(volume::Column::Id.eq(id))
+        .filter(volume::Column::UserId.eq(user_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::NotFound("Volume not found".into()))?;
+    if existing.origin != "manual" {
+        return Err(AppError::Conflict(
+            "Only manual upcoming volumes can be edited this way".into(),
+        ));
+    }
+
+    let mut active: ActiveModel = existing.into();
+    active.release_date = Set(Some(release_date));
+    active.release_isbn = Set(normalised_isbn);
+    active.release_url = Set(normalised_url);
+    active.modified_on = Set(now);
+    let updated = active.update(db).await.map_err(AppError::from)?;
+    Ok(updated)
+}
+
+/// 消 · Delete a volume row.
+///
+/// Limited by design to `origin = "manual"` rows. API-origin rows are
+/// re-created by the nightly sweep, so a delete on those would just
+/// resurrect the row on the next refresh — surprising the user. We
+/// refuse instead and let the caller manage that side via the regular
+/// "release date passed → flips back to a normal volume" lifecycle.
+pub async fn delete_manual_volume(
+    db: &Db,
+    id: i32,
+    user_id: i32,
+) -> Result<(), AppError> {
+    let existing = VolumeEntity::find()
+        .filter(volume::Column::Id.eq(id))
+        .filter(volume::Column::UserId.eq(user_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::NotFound("Volume not found".into()))?;
+    if existing.origin != "manual" {
+        return Err(AppError::Conflict(
+            "Only manual upcoming volumes can be deleted".into(),
+        ));
+    }
+    VolumeEntity::delete_many()
+        .filter(volume::Column::Id.eq(id))
+        .filter(volume::Column::UserId.eq(user_id))
+        .exec(db)
+        .await
+        .map_err(AppError::from)?;
     Ok(())
 }
 

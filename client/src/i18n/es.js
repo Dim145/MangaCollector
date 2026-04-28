@@ -1,6 +1,7 @@
 export default {
   common: {
     cancel: "Cancelar",
+    copy: "Copiar",
     save: "Guardar",
     saved: "Guardado",
     saving: "Guardando…",
@@ -20,6 +21,12 @@ export default {
     yes: "Sí",
     no: "No",
     openSettings: "Abrir ajustes",
+    settingsSavedTitle: "Preferencia guardada",
+    settingsSavedBody: "Tus cambios se sincronizan en todos tus dispositivos.",
+    apiKeySavedBody: "Clave API guardada localmente (nunca se transmite al servidor).",
+    apiKeyClearedBody: "Clave API borrada de este dispositivo.",
+    restoreDoneTitle: "Archivo restaurado",
+    restoreDoneBody: "Recargado desde el servidor — listo desde cero.",
   },
   nav: {
     library: "Biblioteca",
@@ -165,6 +172,9 @@ export default {
     ongoing: "En curso",
     wishlist: "Por adquirir",
     allCollector: "Todos los tomos son coleccionista",
+    addTag: "Añadir un tag",
+    addTagPlaceholder: "Escribe un género…",
+    removeTag: "Quitar este tag",
     publisherLabel: "Editorial",
     publisherPlaceholder: "Norma, Panini, Ivréa…",
     editionLabel: "Edición",
@@ -234,6 +244,44 @@ export default {
     shelfBadgeCollector: "Edición coleccionista",
     shelfBadgeLocked: "Incluido en un estuche",
     shelfBadgeNote: "Nota personal inscrita",
+    upcomingAddManual: "Añadir manualmente · 来",
+    upcomingAddManualHint:
+      "Apunta a mano un tomo anunciado — número, fecha de salida, ISBN o URL de prepedido opcionales.",
+    upcomingAddManualOfflineHint:
+      "Reconéctate para añadir un tomo por venir.",
+    upcomingModalEyebrow: "TOMO POR VENIR · 来",
+    upcomingModalTitle: "Apunta un tomo por venir",
+    upcomingModalLead:
+      "Lo que anotes aquí es tuyo — el auto-refresco nunca sobrescribirá una ficha manual.",
+    upcomingModalSeries: "Serie",
+    upcomingFieldVolNum: "Número de tomo",
+    upcomingFieldVolNumHint: "Sugerido: siguiente al más alto que conoces.",
+    upcomingFieldDate: "Fecha de salida",
+    upcomingFieldDateHint: "Estrictamente en el futuro.",
+    upcomingFieldIsbn: "ISBN-13 (opcional)",
+    upcomingFieldIsbnPlaceholder: "978-...",
+    upcomingFieldUrl: "URL de prepedido (opcional)",
+    upcomingFieldUrlPlaceholder: "https://...",
+    upcomingSubmitCreate: "Sellar",
+    upcomingSubmitting: "Guardando…",
+    upcomingSubmitEdit: "Actualizar",
+    upcomingDeleteCta: "Eliminar este tomo",
+    upcomingDeleteConfirmTitle: "¿Eliminar este tomo por venir?",
+    upcomingDeleteConfirmBody:
+      "Este anuncio manual se borrará de tu archivo. Acción irreversible — habrá que recrearlo si lo necesitas.",
+    upcomingDeleteConfirm: "Eliminar definitivamente",
+    upcomingDeleting: "Eliminando…",
+    upcomingErrConflict: "Ya existe un tomo con ese número en esta serie.",
+    upcomingErrPastDate: "La fecha debe ser estrictamente futura.",
+    upcomingErrIsbn: "ISBN inválido — debe tener 10 o 13 dígitos.",
+    upcomingErrUrl: "La URL debe empezar por http:// o https://.",
+    upcomingErrGeneric: "Falló — vuelve a intentarlo.",
+    upcomingCreatedTitle: "Tomo {n} añadido",
+    upcomingCreatedBody: "Anuncio manual para {name} · salida el {date}.",
+    upcomingUpdatedTitle: "Anuncio actualizado",
+    upcomingUpdatedBody: "Tomo {n} de {name} · nueva salida el {date}.",
+    upcomingDeletedTitle: "Anuncio eliminado",
+    upcomingDeletedBody: "Tomo {n} de {name} retirado de tu archivo.",
     upcomingRefresh: "Refrescar próximos · 来",
     upcomingRefreshing: "Buscando…",
     upcomingRefreshHint:
@@ -603,6 +651,8 @@ export default {
     sec_vessels_title: "Recipientes",
     sec_palette_kicker: "Nombres de los colores",
     sec_palette_title: "Paleta",
+    sec_mokuji_kicker: "Marcas de navegación",
+    sec_mokuji_title: "Sumario",
 
     "states_全_literal": "todo, totalidad",
     "states_全_usage":
@@ -684,6 +734,28 @@ export default {
     "palette_桜_literal": "flor de cerezo",
     "palette_桜_usage":
       "Acento wishlist — anticipación antes de la llegada.",
+
+    "mokuji_目次_literal": "índice, tabla de contenidos",
+    "mokuji_目次_usage":
+      "El raíl vertical de los Ajustes — cada kanji salta a un capítulo. Cuelga como un kakejiku junto al borde derecho de la página en escritorio; se condensa en una cinta fija arriba en móvil.",
+    "mokuji_章_literal": "capítulo",
+    "mokuji_章_usage":
+      "Unidad de organización en la página de Ajustes — cuatro en total, cada uno sellado bajo un hanko bermellón que lleva su ordinal 第○章.",
+    "mokuji_字典_literal": "diccionario de caracteres",
+    "mokuji_字典_usage":
+      "Esta misma página — accesible desde Ajustes → Descubrimiento. La referencia abierta del vocabulario de la app.",
+    "mokuji_風_literal": "viento, atmósfera",
+    "mokuji_風_usage":
+      "Capítulo 1 de Ajustes: tema, paleta estacional, partículas de ambiente. Todo lo que afecta la respiración visual de la app.",
+    "mokuji_文_literal": "escritura, texto",
+    "mokuji_文_usage":
+      "Capítulo 2 de Ajustes: idioma, moneda, formato de títulos, contenido adulto, clave del escáner. Cómo te habla la app y cómo nombra las cosas.",
+    "mokuji_館_literal": "sala, edificio",
+    "mokuji_館_usage":
+      "Capítulo 3 de Ajustes: perfil público, archivo, etiquetas de estantería, tour de bienvenida. Todo lo ligado a tu cuenta o exportado con ella.",
+    "mokuji_危_literal": "peligro",
+    "mokuji_危_usage":
+      "Capítulo 4 de Ajustes: restauración desde el servidor y eliminación de la cuenta. Acciones que requieren mano cuidadosa — de ahí el sello rojo más marcado.",
   },
   season: {
     dismissAria: "Cerrar la pancarta de temporada",
@@ -726,6 +798,18 @@ export default {
     heading: "AJUSTES · 設定",
     preferences: "Preferencias",
     synced: "Sincronizado",
+    tabsLabel: "Categorías de ajustes",
+    tabAppearance: "Apariencia",
+    tabAppearanceHint: "Tema, estación, atmósfera",
+    tabContent: "Contenido",
+    tabContentHint: "Idioma, moneda, formato",
+    tabAccount: "Cuenta y datos",
+    tabAccountHint: "Perfil, archivo, utilidades",
+    tabAdvanced: "Avanzado",
+    tabAdvancedHint: "Restauración y eliminación",
+    indexLabel: "Índice",
+    indexAria: "Ir al capítulo",
+    chapterLabel: "Capítulo {n}",
     appearance: "Apariencia",
     appearanceBody:
       "Tinta oscura o papel washi. Auto sigue a tu sistema operativo.",
@@ -906,7 +990,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.8.0 · Archiva tu colección",
+    version: "v2.9.0 · Archiva tu colección",
     heroStart: "Cada",
     heroAccent: "tomo",
     heroEnd1: ",",
@@ -1044,6 +1128,14 @@ export default {
     remove: "Usar inicial",
     stillFetching: "Cargando más personajes…",
     changeAria: "Cambiar avatar",
+    searchPlaceholder: "Buscar un personaje…",
+    searchAria: "Buscar un personaje por su nombre",
+    searchClear: "Borrar la búsqueda",
+    allSeries: "Todas",
+    seriesNavLabel: "Saltar a una serie",
+    countCharacters: "{n} retratos",
+    mainBadge: "MAIN",
+    seriesJumpAria: "Ir a la serie {name}",
     emptyNoLibrary: "Sin fuentes",
     emptyNoLibraryHint:
       "Añade una serie a tu biblioteca y sus personajes aparecerán aquí.",
@@ -1052,6 +1144,9 @@ export default {
     emptyNoMain: "No se encontraron personajes principales",
     emptyNoMainHint:
       "Desactiva el filtro para ver también personajes secundarios.",
+    emptyNoSearch: "Sin resultados",
+    emptyNoSearchHint:
+      "Ningún personaje coincide con «{q}». Prueba con otro nombre o borra la búsqueda.",
     emptyGeneric: "No hay retratos disponibles",
     emptyGenericHint:
       "MyAnimeList no tiene personajes registrados para estas series.",
@@ -1154,6 +1249,15 @@ export default {
     newlyGrantedOne: "Un nuevo sello acaba de estamparse.",
     newlyGrantedMany: "{n} sellos nuevos acaban de estamparse.",
     newlyGrantedHint: "Observa la tinta secar en las páginas siguientes.",
+    nextHint: "Siguiente sello · {name}",
+    rankLabel: "RANGO · 階級",
+    rankNone: "Iniciado",
+    rankSubtitle: "Tu grado más alto",
+    statSubtitle: "sellos ganados",
+    questLabel: "PRÓXIMA MISIÓN · 目標",
+    chapterPrefix: "Capítulo {n} · 章",
+    chapterCleared: "CAPÍTULO COMPLETO · 完",
+    chapterClearedHint: "Toda la tinta ha secado en esta página.",
     ceremonyAria: "Sello desbloqueado",
     ceremonyKicker: "Ceremonia",
     ceremonyHeadingOne: "Un nuevo sello se une al cuaderno.",

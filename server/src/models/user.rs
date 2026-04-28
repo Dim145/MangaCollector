@@ -192,3 +192,52 @@ pub struct PublicLibraryEntry {
     /// filtered out server-side and never reach this DTO.
     pub is_adult: bool,
 }
+
+/// Derive the 2-character "hanko" stamp label shown on a user's profile
+/// (own dashboard) and on the comparison page (`/compare/:slug`).
+///
+/// Algorithm:
+///   1. If `display_name` splits into ≥2 whitespace-separated words,
+///      take the first **alphabetic** char of each of the first two
+///      words and uppercase. Skips leading punctuation: `"(John) (Doe)"`
+///      → `"JD"`. Returns immediately if both yield a letter.
+///   2. Otherwise, take the first 2 **alphanumeric** chars of
+///      `display_name` (so `"j_o"` → `"JO"`, not `"J_"`). Falls back
+///      to `fallback` (typically the public slug) when `display_name`
+///      is empty or holds no alphanumerics.
+///
+/// Always returns a 1-or-2 char uppercase string; never panics. Two
+/// services used to carry near-identical copies — this is the
+/// canonical version.
+pub fn derive_hanko(display_name: &str, fallback: &str) -> String {
+    let words: Vec<&str> = display_name.split_whitespace().collect();
+    if words.len() >= 2 {
+        let mut out = String::new();
+        for w in words.iter().take(2) {
+            if let Some(c) = w.chars().find(|c| c.is_alphabetic()) {
+                out.push(c.to_ascii_uppercase());
+            }
+        }
+        if out.chars().count() == 2 {
+            return out;
+        }
+    }
+
+    // 1-word fallback: alphanumerics-only of display_name (so symbols
+    // like `_` / `(` get stripped before slicing); fall back to the
+    // caller-supplied default when the name yields nothing.
+    let cleaned: String = display_name
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect();
+    let source = if cleaned.is_empty() {
+        fallback
+    } else {
+        cleaned.as_str()
+    };
+    source
+        .chars()
+        .take(2)
+        .collect::<String>()
+        .to_uppercase()
+}

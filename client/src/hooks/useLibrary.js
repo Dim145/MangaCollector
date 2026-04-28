@@ -127,10 +127,15 @@ export function useUpdateVolumesOwned() {
  */
 export function useUpdateMangaMeta() {
   return useMutation({
-    mutationFn: async ({ mal_id, publisher, edition }) => {
+    mutationFn: async ({ mal_id, publisher, edition, genres }) => {
       const fields = {};
       if (publisher !== undefined) fields.publisher = publisher;
       if (edition !== undefined) fields.edition = edition;
+      // Genres are an array. Server gates this field to custom rows
+      // (mal_id < 0 AND mangadex_id IS NULL); the calling UI is expected
+      // to apply the same gate so a non-custom row never reaches this
+      // mutation in the first place.
+      if (genres !== undefined) fields.genres = genres;
       await enqueueLibraryPatch(mal_id, fields);
       return { mal_id, ...fields };
     },

@@ -4,6 +4,7 @@ import VolumeDetailDrawer from "./VolumeDetailDrawer.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoverPreviewGesture } from "@/hooks/useCoverPreviewGesture.js";
 import { formatCurrency } from "@/utils/price.js";
+import { formatShortDate } from "@/utils/volume.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -28,6 +29,10 @@ function VolumeImpl({
   announcedAt = null,
   locked = false,
   onUpdate,
+  // 来 · Optional callback fired when the user requests "edit announce"
+  // from the drawer's upcoming-mode footer. Receives the volume's current
+  // announce-side fields so the parent can hydrate the modal.
+  onEditUpcoming,
   currencySetting,
   coverUrl,
   blurImage = false,
@@ -199,9 +204,12 @@ function VolumeImpl({
 
   return (
     <div
-      // [contain:layout_paint] isolates each card so a sibling re-render
-      // can't trigger a reflow rippling through the bucket.
-      className={`group relative rounded-xl border transition-all duration-300 [contain:layout_paint] ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
+      // [contain:layout] isolates each card so a sibling re-render
+      // can't trigger a reflow rippling through the bucket. We
+      // intentionally DON'T add `paint` containment — that would clip
+      // the corner seals (限 / 来 / 余) which sit at -right-2 / -top-2
+      // / -left-2 and rely on overflowing the card's border-box.
+      className={`group relative rounded-xl border transition-all duration-300 [contain:layout] ${collectorStatus ? "bg-gradient-to-br from-gold/5 via-ink-1/40 to-ink-1/40" : ""} ${borderClasses}`}
     >
       {collectorStatus && !isUpcoming && (
         <span className="absolute -right-2 -top-2 z-20">
@@ -223,13 +231,13 @@ function VolumeImpl({
         <span className="absolute -right-2 -top-2 z-20">
           <Tooltip
             text={t("volume.upcomingTooltip", {
-              date: formatReleaseDate(releaseDate),
+              date: formatShortDate(releaseDate),
             })}
             placement="top"
           >
             <span
               aria-label={t("volume.upcomingTooltip", {
-                date: formatReleaseDate(releaseDate),
+                date: formatShortDate(releaseDate),
               })}
               className={`grid h-5 w-5 place-items-center rounded-full text-ink-0 ring-1 ${
                 isImminent
@@ -254,7 +262,7 @@ function VolumeImpl({
             aria-label={
               isUpcoming
                 ? t("volume.upcomingAria", {
-                    date: formatReleaseDate(releaseDate),
+                    date: formatShortDate(releaseDate),
                   })
                 : locked
                   ? t("volume.lockedAria")
@@ -265,7 +273,7 @@ function VolumeImpl({
             title={
               isUpcoming
                 ? t("volume.upcomingTooltip", {
-                    date: formatReleaseDate(releaseDate),
+                    date: formatShortDate(releaseDate),
                   })
                 : locked
                   ? t("volume.lockedTitle")
@@ -354,7 +362,7 @@ function VolumeImpl({
             aria-label={
               isUpcoming
                 ? t("volume.upcomingAria", {
-                    date: formatReleaseDate(releaseDate),
+                    date: formatShortDate(releaseDate),
                   })
                 : locked
                   ? t("volume.lockedAria")
@@ -365,7 +373,7 @@ function VolumeImpl({
             title={
               isUpcoming
                 ? t("volume.upcomingTooltip", {
-                    date: formatReleaseDate(releaseDate),
+                    date: formatShortDate(releaseDate),
                   })
                 : locked
                   ? t("volume.lockedTitle")
@@ -434,7 +442,7 @@ function VolumeImpl({
                     isImminent ? "text-sakura" : "text-washi-muted"
                   }`}
                 >
-                  {formatReleaseDate(releaseDate)} · J−{daysUntilRelease}
+                  {formatShortDate(releaseDate)} · J−{daysUntilRelease}
                 </span>
               </>
             ) : (
@@ -523,7 +531,7 @@ function VolumeImpl({
               readStatus
                 ? readAt
                   ? t("volume.readTitle", {
-                      date: formatReadDate(readAt),
+                      date: formatShortDate(readAt),
                     })
                   : t("volume.markUnread")
                 : t("volume.markRead")
@@ -618,6 +626,27 @@ function VolumeImpl({
         origin={origin}
         announcedAt={announcedAt}
         daysUntilRelease={daysUntilRelease}
+        onEditUpcoming={
+          onEditUpcoming
+            ? () => {
+                // Hand the parent a snapshot of the announce fields so it
+                // can hydrate the modal without re-querying. We close the
+                // drawer first so the modal isn't stacked on top of it.
+                handleCancel();
+                onEditUpcoming({
+                  id,
+                  vol_num: volNum,
+                  release_date: releaseDate,
+                  release_isbn: releaseIsbn,
+                  release_url: releaseUrl,
+                });
+              }
+            : undefined
+        }
+        // After a successful delete the row vanishes from Dexie → the
+        // live query updates → the drawer's parent re-renders without
+        // this Volume. The drawer just needs to close itself first.
+        onAfterDelete={handleCancel}
       />
 
       {!isEditing &&
@@ -669,31 +698,6 @@ function VolumeImpl({
         )}
     </div>
   );
-}
-
-function formatReadDate(iso) {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return "";
-  }
-}
-
-function formatReleaseDate(iso) {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return "";
-  }
 }
 
 // memo: callbacks/currencySetting need stable refs from the parent for skipping

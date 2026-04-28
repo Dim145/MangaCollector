@@ -158,9 +158,21 @@ export default function CoverPickerModal({
 
   return (
     <Modal popupOpen={open} handleClose={onClose}>
-      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-ink-1/95 shadow-2xl">
+      <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-ink-1/95 shadow-2xl">
+        {/* 表 (omote, "front/cover") watermark — vertical script tucked
+            in the lower-left so the hero cover image stays the focal
+            point. Extra-faint (/04) because the hero is image-heavy
+            and competes for attention more than a form-modal would. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-16 -left-16 z-0 select-none font-jp text-[28rem] font-bold leading-none text-hanko/[0.06]"
+          style={{ writingMode: "vertical-rl" }}
+        >
+          表
+        </span>
+
         {/* Masthead */}
-        <header className="relative shrink-0 border-b border-border px-6 py-3">
+        <header className="relative z-10 shrink-0 border-b border-border px-6 py-3">
           <span
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-hanko/40 to-transparent"
@@ -272,7 +284,7 @@ export default function CoverPickerModal({
 
         {/* Strip — mini overview, click any thumb to jump. Smaller than
             before so the hero keeps top billing. */}
-        <div className="shrink-0 border-y border-border bg-ink-0/50 px-4 py-2">
+        <div className="relative shrink-0 border-y border-border bg-ink-0/50 px-4 py-2">
           {isPending ? (
             <div className="flex gap-2 overflow-hidden">
               {[...Array(8)].map((_, i) => (
@@ -362,7 +374,7 @@ export default function CoverPickerModal({
         </div>
 
         {/* Action bar */}
-        <footer className="flex shrink-0 items-center justify-between gap-3 px-6 py-3">
+        <footer className="relative flex shrink-0 items-center justify-between gap-3 px-6 py-3">
           <p className="min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-wider text-washi-dim">
             {sourceLabel(selected, t)}
           </p>

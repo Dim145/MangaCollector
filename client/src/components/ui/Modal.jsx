@@ -1,43 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { acquireScrollLock, releaseScrollLock } from "@/lib/scrollLock.js";
 
 /** Must match `animate-fade-out` / `animate-fade-down-out` duration in CSS. */
 const CLOSE_ANIM_MS = 220;
-
-/**
- * Module-level body-scroll lock. When multiple Modals stack (e.g. a
- * multi-step flow that transitions modal 1 → modal 2), a naive per-
- * instance approach corrupts the original-overflow capture:
- *
- *   1. Modal 1 mounts, captures prev="", sets overflow="hidden"
- *   2. Modal 2 mounts BEFORE modal 1's 220ms leave anim completes,
- *      captures prev="hidden" (modal 1's lock!), sets overflow="hidden"
- *   3. Modal 1 unmounts, restores overflow="" — body unlocks even though
- *      modal 2 is still visible
- *   4. Modal 2 unmounts, restores overflow="hidden" — body LOCKED
- *      forever, and only a full page reload clears it
- *
- * Reference-counting the active modals fixes it: only the first mount
- * captures and locks, only the last unmount restores.
- */
-let activeModalCount = 0;
-let originalBodyOverflow = null;
-
-function acquireScrollLock() {
-  if (activeModalCount === 0) {
-    originalBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-  }
-  activeModalCount += 1;
-}
-
-function releaseScrollLock() {
-  activeModalCount = Math.max(0, activeModalCount - 1);
-  if (activeModalCount === 0) {
-    document.body.style.overflow = originalBodyOverflow ?? "";
-    originalBodyOverflow = null;
-  }
-}
 
 export default function Modal({
   children,

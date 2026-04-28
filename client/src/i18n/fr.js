@@ -1,6 +1,7 @@
 export default {
   common: {
     cancel: "Annuler",
+    copy: "Copier",
     save: "Enregistrer",
     saved: "Enregistré",
     saving: "Enregistrement…",
@@ -20,6 +21,15 @@ export default {
     yes: "Oui",
     no: "Non",
     openSettings: "Ouvrir les paramètres",
+    /* Toast bodies — shared across the app for "saved" / "removed"
+       feedback so every successful mutation lands with a consistent
+       label rather than a per-feature one-off string. */
+    settingsSavedTitle: "Préférence enregistrée",
+    settingsSavedBody: "Vos changements sont synchronisés sur tous vos appareils.",
+    apiKeySavedBody: "Clé API enregistrée localement (jamais transmise au serveur).",
+    apiKeyClearedBody: "Clé API effacée de cet appareil.",
+    restoreDoneTitle: "Archive restaurée",
+    restoreDoneBody: "Données rechargées depuis le serveur — fenêtre prête.",
   },
   nav: {
     library: "Bibliothèque",
@@ -166,6 +176,9 @@ export default {
     ongoing: "En cours",
     wishlist: "À acquérir",
     allCollector: "Tous les tomes sont collector",
+    addTag: "Ajouter un tag",
+    addTagPlaceholder: "Tapez un genre…",
+    removeTag: "Retirer ce tag",
     publisherLabel: "Éditeur",
     publisherPlaceholder: "Glénat, Kana, Pika…",
     editionLabel: "Édition",
@@ -240,6 +253,44 @@ export default {
     upcomingRefreshHint:
       "Rechercher les tomes annoncés via MangaUpdates et les ajouter à cette série.",
     upcomingOfflineHint: "Reconnectez-vous pour chercher les tomes à venir.",
+    upcomingAddManual: "Ajouter manuellement · 来",
+    upcomingAddManualHint:
+      "Pencillez vous-même un tome annoncé : numéro, date de sortie, ISBN ou URL de précommande facultatifs.",
+    upcomingAddManualOfflineHint:
+      "Reconnectez-vous pour ajouter un tome à venir.",
+    upcomingModalEyebrow: "TOME À VENIR · 来",
+    upcomingModalTitle: "Pencillez un tome à venir",
+    upcomingModalLead:
+      "Tout ce que vous notez ici reste sous votre main — l'auto-rafraîchissement n'écrasera jamais une fiche manuelle.",
+    upcomingModalSeries: "Série",
+    upcomingFieldVolNum: "Numéro de tome",
+    upcomingFieldVolNumHint: "Suggéré : tome suivant le plus haut connu.",
+    upcomingFieldDate: "Date de sortie",
+    upcomingFieldDateHint: "Strictement dans le futur.",
+    upcomingFieldIsbn: "ISBN-13 (facultatif)",
+    upcomingFieldIsbnPlaceholder: "978-2-...",
+    upcomingFieldUrl: "URL de précommande (facultatif)",
+    upcomingFieldUrlPlaceholder: "https://...",
+    upcomingSubmitCreate: "Empreindre",
+    upcomingSubmitting: "Enregistrement…",
+    upcomingSubmitEdit: "Mettre à jour",
+    upcomingDeleteCta: "Supprimer ce tome",
+    upcomingDeleteConfirmTitle: "Supprimer ce tome à venir ?",
+    upcomingDeleteConfirmBody:
+      "Cette annonce manuelle sera retirée de votre archive. Action irréversible — un nouveau tome devra être recréé si besoin.",
+    upcomingDeleteConfirm: "Supprimer définitivement",
+    upcomingDeleting: "Suppression…",
+    upcomingErrConflict: "Un tome porte déjà ce numéro pour cette série.",
+    upcomingErrPastDate: "La date doit être strictement dans le futur.",
+    upcomingErrIsbn: "ISBN invalide — il faut 10 ou 13 chiffres.",
+    upcomingErrUrl: "L'URL doit commencer par http:// ou https://.",
+    upcomingErrGeneric: "Échec — veuillez réessayer.",
+    upcomingCreatedTitle: "Tome {n} ajouté",
+    upcomingCreatedBody: "Annonce manuelle pour {name} · sortie le {date}.",
+    upcomingUpdatedTitle: "Annonce mise à jour",
+    upcomingUpdatedBody: "Tome {n} de {name} · nouvelle sortie le {date}.",
+    upcomingDeletedTitle: "Annonce supprimée",
+    upcomingDeletedBody: "Tome {n} de {name} retiré de votre archive.",
     upcomingResultChanged: "+{added} ajouté(s) · {updated} mis à jour",
     upcomingResultChangedBody:
       "Calendrier de « {name} » mis à jour avec les dernières parutions.",
@@ -611,6 +662,8 @@ export default {
     sec_vessels_title: "Contenants",
     sec_palette_kicker: "Noms des couleurs",
     sec_palette_title: "Palette",
+    sec_mokuji_kicker: "Repères de navigation",
+    sec_mokuji_title: "Sommaire",
 
     "states_全_literal": "tout, intégralité",
     "states_全_usage":
@@ -692,6 +745,28 @@ export default {
     "palette_桜_literal": "fleur de cerisier",
     "palette_桜_usage":
       "Accent wishlist — l'anticipation avant l'arrivée.",
+
+    "mokuji_目次_literal": "table des matières, sommaire",
+    "mokuji_目次_usage":
+      "Le rail vertical des Réglages — chaque kanji conduit à un chapitre. Suspendu comme un kakejiku au bord droit de la page sur grand écran ; condensé en bandeau collant tout en haut sur mobile.",
+    "mokuji_章_literal": "chapitre",
+    "mokuji_章_usage":
+      "Unité de découpage de la page Réglages — quatre au total, chacun pressé sous un sceau hanko vermillon portant son numéro 第○章.",
+    "mokuji_字典_literal": "dictionnaire de caractères",
+    "mokuji_字典_usage":
+      "Cette page même — accessible depuis Réglages → Découverte. La référence ouverte du vocabulaire de l'app.",
+    "mokuji_風_literal": "vent, atmosphère",
+    "mokuji_風_usage":
+      "Chapitre 1 des Réglages : thème, palette saisonnière, particules d'ambiance. Tout ce qui touche à la respiration visuelle de l'app.",
+    "mokuji_文_literal": "écriture, texte",
+    "mokuji_文_usage":
+      "Chapitre 2 des Réglages : langue, devise, format des titres, contenu adulte, clé de scan. Comment l'app vous parle, et comment elle nomme les choses.",
+    "mokuji_館_literal": "bâtiment, demeure",
+    "mokuji_館_usage":
+      "Chapitre 3 des Réglages : profil public, archive, étiquettes d'étagère, tour de bienvenue. Tout ce qui appartient à votre compte ou s'exporte avec lui.",
+    "mokuji_危_literal": "danger, péril",
+    "mokuji_危_usage":
+      "Chapitre 4 des Réglages : restauration depuis le serveur et suppression du compte. Les actions à manier avec précaution — d'où le sceau rouge plus appuyé.",
   },
   season: {
     dismissAria: "Fermer la bannière de saison",
@@ -734,6 +809,18 @@ export default {
     heading: "PARAMÈTRES · 設定",
     preferences: "Préférences",
     synced: "Synchronisé",
+    tabsLabel: "Catégories de paramètres",
+    tabAppearance: "Apparence",
+    tabAppearanceHint: "Thème, saison, atmosphère",
+    tabContent: "Contenu",
+    tabContentHint: "Langue, devise, format",
+    tabAccount: "Compte & données",
+    tabAccountHint: "Profil, archive, outils",
+    tabAdvanced: "Avancé",
+    tabAdvancedHint: "Restauration & suppression",
+    indexLabel: "Sommaire",
+    indexAria: "Aller au chapitre",
+    chapterLabel: "Chapitre {n}",
     appearance: "Apparence",
     appearanceBody:
       "Encre sombre ou papier washi. Auto suit votre système d'exploitation.",
@@ -916,7 +1003,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.8.0 · Archivez votre collection",
+    version: "v2.9.0 · Archivez votre collection",
     heroStart: "Chaque",
     heroAccent: "tome",
     heroEnd1: ",",
@@ -1056,6 +1143,14 @@ export default {
     remove: "Remettre l'initiale",
     stillFetching: "Récupération d'autres personnages…",
     changeAria: "Changer l'avatar",
+    searchPlaceholder: "Rechercher un personnage…",
+    searchAria: "Rechercher un personnage par son nom",
+    searchClear: "Effacer la recherche",
+    allSeries: "Toutes",
+    seriesNavLabel: "Naviguer par série",
+    countCharacters: "{n} portraits",
+    mainBadge: "MAIN",
+    seriesJumpAria: "Aller à la série {name}",
     emptyNoLibrary: "Aucune source",
     emptyNoLibraryHint:
       "Ajoutez une série à votre bibliothèque et ses personnages apparaîtront ici.",
@@ -1064,6 +1159,9 @@ export default {
     emptyNoMain: "Aucun personnage principal trouvé",
     emptyNoMainHint:
       "Désactivez le filtre pour voir aussi les personnages secondaires.",
+    emptyNoSearch: "Aucun résultat",
+    emptyNoSearchHint:
+      "Aucun personnage ne correspond à « {q} ». Essayez un autre nom ou effacez la recherche.",
     emptyGeneric: "Aucun portrait disponible",
     emptyGenericHint:
       "MyAnimeList n'a pas de personnages référencés pour ces séries.",
@@ -1166,6 +1264,15 @@ export default {
     newlyGrantedOne: "Un nouveau sceau vient d'être apposé.",
     newlyGrantedMany: "{n} nouveaux sceaux viennent d'être apposés.",
     newlyGrantedHint: "Regardez l'encre sécher sur les pages qui suivent.",
+    nextHint: "Prochain sceau · {name}",
+    rankLabel: "RANG · 階級",
+    rankNone: "Initié",
+    rankSubtitle: "Votre plus haut grade",
+    statSubtitle: "sceaux conquis",
+    questLabel: "PROCHAINE QUÊTE · 目標",
+    chapterPrefix: "Chapitre {n} · 章",
+    chapterCleared: "CHAPITRE COMPLET · 完",
+    chapterClearedHint: "Toute l'encre est sèche sur cette page.",
     ceremonyAria: "Sceau débloqué",
     ceremonyKicker: "Cérémonie",
     ceremonyHeadingOne: "Un nouveau sceau rejoint le carnet.",

@@ -156,6 +156,18 @@ function IosInstructions({ open, onClose }) {
         <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-hanko/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-gold/10 blur-3xl" />
 
+        {/* 携 (kei, "carry / make portable") watermark — the prompt's
+            point is to turn the web app into something the user *carries*
+            on their home screen, like a real native app. Hanko-tinted
+            because the close CTA + step badges already speak hanko. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-8 -right-8 select-none font-jp text-[20rem] font-bold leading-none text-hanko/[0.07]"
+          style={{ writingMode: "vertical-rl" }}
+        >
+          携
+        </span>
+
         <header className="relative border-b border-border/60 px-5 pt-6 pb-4">
           <div className="flex items-baseline gap-3">
             <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">

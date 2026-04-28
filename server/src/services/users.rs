@@ -11,7 +11,7 @@ use crate::models::setting::Entity as SettingEntity;
 use crate::models::library::LibraryEntry;
 use crate::models::user::{
     self, ActiveModel, Entity as UserEntity, PublicLibraryEntry, PublicProfileResponse,
-    PublicProfileStats, User,
+    PublicProfileStats, User, derive_hanko,
 };
 use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
 use crate::storage::StorageBackend;
@@ -183,36 +183,6 @@ pub(crate) fn entry_is_adult(genres: &[String]) -> bool {
     genres.iter().any(|g| is_adult_genre(g))
 }
 
-/// Deterministic 2-char hanko initials from the display name. Falls back
-/// to the first 2 chars of the slug when the name is empty or otherwise
-/// useless. Always uppercase, diacritics stripped to ASCII.
-fn derive_hanko(display_name: &str, slug: &str) -> String {
-    let cleaned: String = display_name
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .collect();
-    let candidate = if cleaned.is_empty() { slug } else { cleaned.as_str() };
-
-    // Prefer word-initials (first letter of first two words) when the
-    // display_name splits naturally; fall back to the first two chars.
-    let words: Vec<&str> = display_name.split_whitespace().collect();
-    if words.len() >= 2 {
-        let mut out = String::new();
-        for w in words.iter().take(2) {
-            if let Some(c) = w.chars().find(|c| c.is_alphabetic()) {
-                out.push(c.to_ascii_uppercase());
-            }
-        }
-        if out.chars().count() == 2 {
-            return out;
-        }
-    }
-    candidate
-        .chars()
-        .take(2)
-        .collect::<String>()
-        .to_uppercase()
-}
 
 /// Build the public profile payload for a given user, with adult
 /// content filtered out unconditionally and sensitive fields stripped.

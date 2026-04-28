@@ -11,7 +11,7 @@ use crate::models::activity::event_types;
 use crate::models::library::{
     self, ActiveModel, AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest,
     EDITION_MAX_LEN, Entity as LibraryEntity, LibraryEntry, PUBLISHER_MAX_LEN,
-    UpdateLibraryRequest, sanitize_label,
+    UpdateLibraryRequest, sanitize_genres, sanitize_label,
 };
 use crate::services::cache::CacheStore;
 use crate::services::{activity, mangadex_api, settings, volume};
@@ -663,10 +663,10 @@ pub async fn apply_library_patch(
         update_manga_volumes(db, mal_id, user_id, new_volumes).await?;
     }
 
-    // publisher / edition are independent of the volumes path. Skip the
-    // round-trip if neither field is present (the common case for a
-    // pure volumes PATCH).
-    if body.publisher.is_none() && body.edition.is_none() {
+    // publisher / edition / genres are independent of the volumes path.
+    // Skip the round-trip when none of them are present (the common case
+    // for a pure volumes PATCH).
+    if body.publisher.is_none() && body.edition.is_none() && body.genres.is_none() {
         return Ok(());
     }
 
@@ -683,6 +683,17 @@ pub async fn apply_library_patch(
         return Ok(());
     };
 
+    // 自由 · "Truly custom" gate for genre edits.
+    //   mal_id < 0       → custom-minted id namespace, never collides with MAL
+    //   mangadex_id None → no upstream MangaDex link to clobber on next sync
+    // Both must hold. A row with positive mal_id (real MAL series) OR a
+    // mangadex_id is excluded, because a future `refresh-from-*` would
+    // otherwise silently undo the user's edits — without an
+    // override-tracking schema (genres_added / genres_removed) we can't
+    // merge the two safely.
+    let custom_genres_allowed =
+        existing.mal_id.is_some_and(|id| id < 0) && existing.mangadex_id.is_none();
+
     let mut active: ActiveModel = existing.into();
 
     // `Some(value)` means the client wants to set or clear the column.
@@ -693,6 +704,26 @@ pub async fn apply_library_patch(
     }
     if let Some(raw) = body.edition {
         active.edition = Set(sanitize_label(raw, EDITION_MAX_LEN));
+    }
+    if let Some(raw_genres) = body.genres {
+        if custom_genres_allowed {
+            // `null` (Some(None)) and an empty list both clear the column.
+            // A non-empty Vec runs through sanitize_genres for trim / dedup
+            // / per-entry cap / count cap before being comma-joined.
+            let cleaned = raw_genres
+                .map(sanitize_genres)
+                .unwrap_or_default();
+            let stored = if cleaned.is_empty() {
+                None
+            } else {
+                Some(cleaned.join(","))
+            };
+            active.genres = Set(stored);
+        }
+        // Non-custom rows: silently ignore. The frontend gates the UI on
+        // the same condition, so this branch only runs for stale or
+        // crafted requests; rejecting them with 4xx would be louder than
+        // necessary.
     }
     active.modified_on = Set(Utc::now());
     active.update(db).await.map_err(AppError::from)?;

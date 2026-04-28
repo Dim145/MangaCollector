@@ -84,10 +84,34 @@ fn user_router() -> Router<AppState> {
             patch(library::update_manga_owned),
         )
         .route("/library/{mal_id}", delete(library::delete_manga))
-        // Volume routes
+        // 来 · Manually pencil in an upcoming volume — runs alongside
+        // the API-cascade `refresh_upcoming` above, but works on
+        // custom series (mal_id < 0) too where the cascade can't.
+        .route(
+            "/library/{mal_id}/volumes/upcoming",
+            post(volume::add_upcoming_volume),
+        )
+        // Volume routes — note: the legacy `/volume/{mal_id}` is a list
+        // endpoint scoped by mal_id (returns every volume of a series),
+        // while `/volumes/{id}` (plural) targets a single volume by its
+        // primary key. We keep them distinct because Axum's router
+        // matches on parameter NAMES at the same depth — registering
+        // `/volume/{id}` alongside `/volume/{mal_id}` panics at startup
+        // with an "Insertion failed due to conflict" error. The plural
+        // namespace mirrors the existing convention for `/coffrets/{id}`
+        // and `/sessions/{session_id}`.
         .route("/volume", get(volume::get_all_volumes))
         .route("/volume/{mal_id}", get(volume::get_volumes_by_id))
         .route("/volume", patch(volume::update_volume))
+        // 来 · Edit / delete a manually-created upcoming volume by id.
+        // API-origin rows are still served by these routes, but the
+        // service layer rejects them with 409 so the nightly sweep
+        // keeps authority over what it produced.
+        .route(
+            "/volumes/{id}/upcoming",
+            patch(volume::update_upcoming_volume),
+        )
+        .route("/volumes/{id}", delete(volume::delete_volume))
         // Coffret routes — list/create scoped to a manga, delete by coffret id
         .route(
             "/library/{mal_id}/coffrets",

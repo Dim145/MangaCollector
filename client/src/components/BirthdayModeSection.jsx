@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { useWishlistPublic } from "@/hooks/useWishlistPublic.js";
 import { useOwnPublicSlug } from "@/hooks/usePublicProfile.js";
+import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -22,25 +22,26 @@ export default function BirthdayModeSection() {
   const t = useT();
   const { slug } = useOwnPublicSlug();
   const { until, isActive, pending, setDays, deactivate } = useWishlistPublic();
-  const [error, setError] = useState(null);
 
   const publicProfileOff = !slug;
 
+  // Errors here are rare (the only API failures are 4xx from the
+  // wishlist-public endpoint, which the SPA never sends out of contract)
+  // — surface them through the global toaster like every other server
+  // error rather than maintaining a per-section inline error block.
   const arm = async (days) => {
-    setError(null);
     try {
       await setDays(days);
     } catch (err) {
-      setError(err?.response?.data?.error ?? err?.message ?? "Failed");
+      notifySyncError(err, "birthday-arm");
     }
   };
 
   const stop = async () => {
-    setError(null);
     try {
       await deactivate();
     } catch (err) {
-      setError(err?.response?.data?.error ?? err?.message ?? "Failed");
+      notifySyncError(err, "birthday-stop");
     }
   };
 
@@ -178,12 +179,6 @@ export default function BirthdayModeSection() {
               </button>
             ))}
           </div>
-        )}
-
-        {error && (
-          <p className="mt-3 rounded-lg border border-hanko/30 bg-hanko/5 px-3 py-2 text-xs text-hanko-bright">
-            {error}
-          </p>
         )}
       </div>
     </section>

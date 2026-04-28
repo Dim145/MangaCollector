@@ -7,7 +7,7 @@ use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::compare::{CompareEntry, CompareResponse, CompareUser};
 use crate::models::library::{self, Entity as LibraryEntity, LibraryEntry};
-use crate::models::user::User;
+use crate::models::user::{User, derive_hanko};
 use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
 
 /// Genres that flag a series as adult. Mirrors the list used on the
@@ -21,30 +21,6 @@ fn is_adult(genres: &[String]) -> bool {
         let lower = g.trim().to_lowercase();
         PUBLIC_ADULT_GENRES.iter().any(|bad| *bad == lower)
     })
-}
-
-/// Extract the 2-char hanko initials from a display name / slug.
-/// Keep the logic here rather than importing from `users::build_public_profile`
-/// to avoid a circular dep and because the signature is tiny.
-fn derive_hanko(display_name: &str, fallback: &str) -> String {
-    let words: Vec<&str> = display_name.split_whitespace().collect();
-    if words.len() >= 2 {
-        let mut out = String::new();
-        for w in words.iter().take(2) {
-            if let Some(c) = w.chars().find(|c| c.is_alphabetic()) {
-                out.push(c.to_ascii_uppercase());
-            }
-        }
-        if out.chars().count() == 2 {
-            return out;
-        }
-    }
-    let source = if display_name.chars().any(|c| c.is_alphanumeric()) {
-        display_name
-    } else {
-        fallback
-    };
-    source.chars().take(2).collect::<String>().to_uppercase()
 }
 
 async fn load_entries(db: &Db, user_id: i32) -> Result<Vec<LibraryEntry>, AppError> {

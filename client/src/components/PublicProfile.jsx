@@ -160,6 +160,31 @@ function Masthead({ data, isLoading, slug }) {
   const t = useT();
   return (
     <header className="relative animate-fade-up">
+      {/* 公 (kou, "public / open to all") watermark — gold-tinted to
+          mirror the public-profile-canvas's gold-leaf halo.
+          IMPORTANT: the watermark lives in its OWN absolute clip-layer
+          (`overflow-hidden` here, NOT on the header) so the hanko stamp
+          sitting at the masthead's right edge — which legitimately
+          overflows via its rotation + drop-shadow + satellite dot — is
+          left alone. Putting `overflow-hidden` on the header itself
+          chopped the hanko's corner off, including the gold dot. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        {/* Anchored INSIDE the masthead bounds (no negative right /
+            bottom offset) so the 公 reads as a deliberate centerpiece
+            rather than a cropped fragment. Sized to fit the masthead's
+            natural height (~400 px on desktop) — `text-[20rem]` ≈ 320 px,
+            keeping a comfortable margin under the stat chips so the
+            character's lower stroke isn't shaved by the masthead's
+            bottom edge. */}
+        <span className="absolute right-4 top-4 select-none font-jp text-[20rem] font-bold leading-none text-gold/[0.07]">
+          公
+        </span>
+      </div>
+
+      <div className="relative">
       <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-washi-dim">
         {t("publicProfile.archiveOf")}{" "}
         <span className="text-hanko-bright">@{slug}</span>
@@ -238,6 +263,7 @@ function Masthead({ data, isLoading, slug }) {
           at someone ELSE's profile. Anonymous visitors and the
           profile's owner see nothing here. */}
       {!isLoading && data && <CompareCTA slug={slug} />}
+      </div>
     </header>
   );
 }

@@ -3,6 +3,10 @@ import { createPortal } from "react-dom";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useT } from "@/i18n/index.jsx";
 import { formatCurrency } from "@/utils/price.js";
+import { formatShortDate } from "@/utils/volume.js";
+import { useDeleteUpcomingVolume } from "@/hooks/useVolumes.js";
+import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
+import { acquireScrollLock, releaseScrollLock } from "@/lib/scrollLock.js";
 
 /**
  * Volume detail drawer — controlled by the parent (Volume). The drawer is
@@ -13,40 +17,17 @@ import { formatCurrency } from "@/utils/price.js";
 // Must match the `animate-drawer-out` CSS duration.
 const CLOSE_ANIM_MS = 240;
 
-// Reference-counted body-scroll lock — same pattern as <Modal>, so a Modal
-// opening over a Drawer (or vice-versa) doesn't fight over `overflow`.
-let activeDrawerCount = 0;
-let savedBodyOverflow = null;
-function acquireScrollLock() {
-  if (activeDrawerCount === 0) {
-    savedBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-  }
-  activeDrawerCount += 1;
-}
-function releaseScrollLock() {
-  activeDrawerCount = Math.max(0, activeDrawerCount - 1);
-  if (activeDrawerCount === 0) {
-    document.body.style.overflow = savedBodyOverflow ?? "";
-    savedBodyOverflow = null;
-  }
-}
-
-function formatReadDate(iso) {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return "";
-  }
-}
+// Body-scroll lock is shared with Modal via `lib/scrollLock.js` —
+// otherwise a Modal opening over a Drawer (or vice-versa) leaks an
+// `overflow: hidden` after both close, blocking the page until reload.
 
 export default function VolumeDetailDrawer({
   open,
   onClose,
+  // Volume row id — needed to wire the upcoming-manual edit/delete CTAs.
+  // Optional because some legacy callers don't pass it; the manual
+  // controls below only render when both `id` and `origin === "manual"`.
+  id,
   volNum,
   coverUrl,
   blurImage = false,
@@ -74,6 +55,12 @@ export default function VolumeDetailDrawer({
   origin = "manual",
   announcedAt = null,
   daysUntilRelease = null,
+  // 来 · "Edit announce" callback — only meaningful when origin = manual.
+  // The drawer shows an Edit CTA in the upcoming panel that fires this.
+  onEditUpcoming,
+  // 消 · Notify the parent that the row no longer exists so it can clean
+  // up its own state (e.g. close the drawer, drop edit-mode flags).
+  onAfterDelete,
 }) {
   const t = useT();
   // useId() avoids the `drawer-price-undefined` collision custom volumes hit.
@@ -332,7 +319,7 @@ export default function VolumeDetailDrawer({
                     来
                   </span>
                   <span>
-                    {formatReleaseDate(releaseDate)}
+                    {formatShortDate(releaseDate)}
                     {daysUntilRelease != null && daysUntilRelease > 0 && (
                       <> · J−{daysUntilRelease}</>
                     )}
@@ -437,6 +424,21 @@ export default function VolumeDetailDrawer({
                 </div>
               )}
             </dl>
+
+            {/* 来 · Manual-row management — only visible when this row
+                came from the user's hand (origin = "manual"). API rows
+                are managed by the nightly sweep; surfacing edit/delete
+                on those would set the user up for a "I deleted it but
+                it came back" frustration loop. */}
+            {origin === "manual" && (
+              <ManualUpcomingControls
+                id={id}
+                volNum={volNum}
+                onEdit={onEditUpcoming}
+                onAfterDelete={onAfterDelete}
+                t={t}
+              />
+            )}
           </div>
         ) : (
           <div className="relative z-10 flex-1 space-y-5 overflow-y-auto p-5">
@@ -509,7 +511,7 @@ export default function VolumeDetailDrawer({
                   <span className="block text-[11px] text-washi-muted">
                     {readStatus && readAt
                       ? t("volume.readSince", {
-                          date: formatReadDate(readAt),
+                          date: formatShortDate(readAt),
                         })
                       : t("volume.readingHint")}
                   </span>
@@ -741,19 +743,6 @@ function NoteField({ fieldId, value, onChange, t }) {
   );
 }
 
-function formatReleaseDate(iso) {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return "";
-  }
-}
-
 function formatFreshness(iso, t) {
   try {
     const announced = new Date(iso);
@@ -773,4 +762,126 @@ function formatFreshness(iso, t) {
   } catch {
     return "";
   }
+}
+
+/**
+ * 来 + 消 · Manual-row management block — shown inside the upcoming
+ * panel only when `origin === "manual"`. Two CTAs:
+ *   - **Edit announce** delegates back to the parent (which opens
+ *     the AddUpcomingVolumeModal in edit mode).
+ *   - **Delete** is two-step: first click stages the confirm UI
+ *     inline, second click fires the mutation. We intentionally
+ *     don't open a nested modal — the drawer is already a modal,
+ *     and stacking another would force the user through three
+ *     dismiss-clicks to back out of an accidental tap.
+ */
+function ManualUpcomingControls({ id, volNum, onEdit, onAfterDelete, t }) {
+  const deleteMutation = useDeleteUpcomingVolume();
+  const [confirming, setConfirming] = useState(false);
+
+  // Reset the confirm staging if the row id changes underneath us
+  // (defensive — the drawer remounts per-volume so this is rare).
+  useEffect(() => {
+    setConfirming(false);
+  }, [id]);
+
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await deleteMutation.mutateAsync({ id });
+      // The drawer doesn't have the series name in scope (it's the
+      // Volume parent that holds it via context). Emit just the volume
+      // number — the toast text handles a missing `name` gracefully via
+      // the i18n template, and the user just confirmed the action so
+      // they don't need a second cue of which series.
+      notifySyncInfo({
+        title: t("manga.upcomingDeletedTitle"),
+        body: `${t("volume.volume", { n: volNum })}`,
+      });
+      // Parent handles closing the drawer.
+      onAfterDelete?.();
+    } catch (err) {
+      notifySyncError(err, "manual-upcoming-delete");
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <div className="mt-5 border-t border-moegi/15 pt-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex items-center gap-1.5 rounded-full border border-moegi/40 bg-moegi/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-moegi transition hover:border-moegi/70 hover:bg-moegi/20 active:scale-95"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3 w-3"
+              aria-hidden="true"
+            >
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
+            {t("manga.upcomingSubmitEdit")}
+          </button>
+        )}
+
+        {/* Delete CTA — two-step. First click flips to confirm state.
+            Second click commits. Cancel restores the unstaged state. */}
+        {!confirming ? (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-transparent px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/10 active:scale-95"
+          >
+            <span aria-hidden="true" className="font-jp text-[12px] leading-none">
+              消
+            </span>
+            {t("manga.upcomingDeleteCta")}
+          </button>
+        ) : (
+          <div className="ml-auto flex flex-wrap items-center gap-2 rounded-lg border border-hanko/40 bg-hanko/10 px-3 py-1.5">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-hanko-bright">
+              {t("manga.upcomingDeleteConfirmTitle")}
+            </span>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                disabled={deleteMutation.isPending}
+                className="rounded-full border border-border bg-transparent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi disabled:opacity-50"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+                className="rounded-full bg-gradient-to-br from-hanko-deep to-hanko px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-washi shadow-[0_2px_8px_var(--hanko-glow)] transition hover:brightness-110 active:scale-95 disabled:opacity-60"
+              >
+                {deleteMutation.isPending ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
+                    {t("manga.upcomingDeleting")}
+                  </span>
+                ) : (
+                  t("manga.upcomingDeleteConfirm")
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      {confirming && (
+        <p className="mt-2 text-[11px] leading-snug text-washi-muted">
+          {t("manga.upcomingDeleteConfirmBody")}
+        </p>
+      )}
+    </div>
+  );
 }

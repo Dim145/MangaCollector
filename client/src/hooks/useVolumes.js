@@ -81,3 +81,69 @@ export function useUpdateVolume() {
     // mount — exactly the reported bug.
   });
 }
+
+/**
+ * 来 · Add a manually-pencilled upcoming volume.
+ *
+ * Online-only (no outbox queueing). Adding an upcoming volume is rare
+ * compared to per-volume toggles — gating on `online` keeps the flow
+ * simple: the Modal disables the submit button when offline, so the
+ * mutation never runs without a connection. On success we write the
+ * server's response straight into Dexie so the live view updates
+ * before the next React Query refetch lands.
+ */
+export function useAddUpcomingVolume() {
+  return useMutation({
+    mutationFn: async ({ mal_id, vol_num, release_date, release_isbn, release_url }) => {
+      const { data } = await axios.post(
+        `/api/user/library/${mal_id}/volumes/upcoming`,
+        { vol_num, release_date, release_isbn, release_url },
+      );
+      // Persist immediately so useLiveQuery surfaces the row without
+      // waiting for the next refetch / WS tick. `put` is upsert-safe
+      // if the WS event raced us (same primary key wins).
+      await db.volumes.put(data);
+      return data;
+    },
+  });
+}
+
+/**
+ * 来 · Edit the announce-side fields of a manual upcoming volume.
+ * The drawer's "Status / Reading / Edition / Price / Store" axes go
+ * through the regular `useUpdateVolume` path; this hook is dedicated
+ * to the metadata that's specific to the upcoming state.
+ */
+export function useUpdateUpcomingVolume() {
+  return useMutation({
+    mutationFn: async ({ id, release_date, release_isbn, release_url }) => {
+      // Plural `/volumes/{id}` — distinct namespace from the legacy
+      // `/volume/{mal_id}` list endpoint (Axum router conflict otherwise).
+      const { data } = await axios.patch(
+        `/api/user/volumes/${id}/upcoming`,
+        { release_date, release_isbn, release_url },
+      );
+      await db.volumes.put(data);
+      return data;
+    },
+  });
+}
+
+/**
+ * 消 · Delete a manual upcoming volume. The server refuses if
+ * `origin !== "manual"`, so we mirror the same guard at the call
+ * site (the drawer only surfaces the delete CTA on manual rows).
+ */
+export function useDeleteUpcomingVolume() {
+  return useMutation({
+    mutationFn: async ({ id }) => {
+      // Plural `/volumes/{id}` — see comment in useUpdateUpcomingVolume.
+      await axios.delete(`/api/user/volumes/${id}`);
+      // Drop from Dexie so the live view loses the card immediately.
+      // If the WS event re-arrives later carrying the same delete it's
+      // a quiet no-op — Dexie's `delete` on a missing key is harmless.
+      await db.volumes.delete(id);
+      return { id };
+    },
+  });
+}

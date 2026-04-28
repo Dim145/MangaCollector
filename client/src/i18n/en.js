@@ -1,6 +1,7 @@
 export default {
   common: {
     cancel: "Cancel",
+    copy: "Copy",
     save: "Save",
     saved: "Saved",
     saving: "Saving…",
@@ -20,6 +21,12 @@ export default {
     yes: "Yes",
     no: "No",
     openSettings: "Open Settings",
+    settingsSavedTitle: "Preference saved",
+    settingsSavedBody: "Your changes are synced across every device.",
+    apiKeySavedBody: "API key saved locally (never transmitted to the server).",
+    apiKeyClearedBody: "API key cleared from this device.",
+    restoreDoneTitle: "Archive restored",
+    restoreDoneBody: "Reloaded from the server — fresh slate ready.",
   },
   nav: {
     library: "Library",
@@ -165,6 +172,9 @@ export default {
     ongoing: "Ongoing",
     wishlist: "Wishlist",
     allCollector: "All volumes are collector",
+    addTag: "Add a tag",
+    addTagPlaceholder: "Type a genre…",
+    removeTag: "Remove this tag",
     publisherLabel: "Publisher",
     publisherPlaceholder: "Glénat, Viz, Kodansha…",
     editionLabel: "Edition",
@@ -234,6 +244,44 @@ export default {
     shelfBadgeCollector: "Collector edition",
     shelfBadgeLocked: "Inside a slipcase",
     shelfBadgeNote: "Personal note inscribed",
+    upcomingAddManual: "Add manually · 来",
+    upcomingAddManualHint:
+      "Pencil in an announced volume yourself — number, release date, optional ISBN and pre-order URL.",
+    upcomingAddManualOfflineHint:
+      "Reconnect to add an upcoming volume.",
+    upcomingModalEyebrow: "UPCOMING VOLUME · 来",
+    upcomingModalTitle: "Pencil in an upcoming volume",
+    upcomingModalLead:
+      "Anything you note here is yours alone — the auto-refresh will never overwrite a manual entry.",
+    upcomingModalSeries: "Series",
+    upcomingFieldVolNum: "Volume number",
+    upcomingFieldVolNumHint: "Suggested: next after your highest known volume.",
+    upcomingFieldDate: "Release date",
+    upcomingFieldDateHint: "Strictly in the future.",
+    upcomingFieldIsbn: "ISBN-13 (optional)",
+    upcomingFieldIsbnPlaceholder: "978-...",
+    upcomingFieldUrl: "Pre-order URL (optional)",
+    upcomingFieldUrlPlaceholder: "https://...",
+    upcomingSubmitCreate: "Stamp",
+    upcomingSubmitting: "Saving…",
+    upcomingSubmitEdit: "Update",
+    upcomingDeleteCta: "Delete this volume",
+    upcomingDeleteConfirmTitle: "Delete this upcoming volume?",
+    upcomingDeleteConfirmBody:
+      "This manual announcement will be removed from your archive. Irreversible — you'll need to recreate the entry if needed.",
+    upcomingDeleteConfirm: "Delete permanently",
+    upcomingDeleting: "Deleting…",
+    upcomingErrConflict: "A volume with that number already exists for this series.",
+    upcomingErrPastDate: "The date must be strictly in the future.",
+    upcomingErrIsbn: "Invalid ISBN — needs 10 or 13 digits.",
+    upcomingErrUrl: "URL must start with http:// or https://.",
+    upcomingErrGeneric: "Failed — please try again.",
+    upcomingCreatedTitle: "Volume {n} added",
+    upcomingCreatedBody: "Manual announcement for {name} · release {date}.",
+    upcomingUpdatedTitle: "Announcement updated",
+    upcomingUpdatedBody: "Volume {n} of {name} · new release {date}.",
+    upcomingDeletedTitle: "Announcement removed",
+    upcomingDeletedBody: "Volume {n} of {name} cleared from your archive.",
     upcomingRefresh: "Refresh upcoming · 来",
     upcomingRefreshing: "Refreshing…",
     upcomingRefreshHint:
@@ -597,6 +645,8 @@ export default {
     sec_vessels_title: "Vessels",
     sec_palette_kicker: "Colour names",
     sec_palette_title: "Palette",
+    sec_mokuji_kicker: "Navigation marks",
+    sec_mokuji_title: "Index",
 
     "states_全_literal": "all, entirety",
     "states_全_usage":
@@ -678,6 +728,28 @@ export default {
     "palette_桜_literal": "cherry blossom",
     "palette_桜_usage":
       "Wishlist accent — anticipation without arrival yet.",
+
+    "mokuji_目次_literal": "table of contents",
+    "mokuji_目次_usage":
+      "The vertical rail of the Settings page — each kanji jumps to a chapter. Hangs like a kakejiku scroll along the right edge on desktop; condenses to a sticky ribbon at the top on mobile.",
+    "mokuji_章_literal": "chapter",
+    "mokuji_章_usage":
+      "Unit of organisation on the Settings page — four total, each pressed under a vermillion hanko stamp bearing its ordinal 第○章.",
+    "mokuji_字典_literal": "kanji dictionary",
+    "mokuji_字典_usage":
+      "This very page — reached from Settings → Onboarding. The app's open vocabulary reference.",
+    "mokuji_風_literal": "wind, atmosphere",
+    "mokuji_風_usage":
+      "Settings chapter 1: theme, seasonal palette, ambient particles. Everything that touches the app's visual breath.",
+    "mokuji_文_literal": "writing, text",
+    "mokuji_文_usage":
+      "Settings chapter 2: language, currency, title format, adult-content filter, scanner key. How the app speaks to you, and what it calls things.",
+    "mokuji_館_literal": "hall, building",
+    "mokuji_館_usage":
+      "Settings chapter 3: public profile, archive, shelf labels, welcome tour. Everything tied to your account, or exported with it.",
+    "mokuji_危_literal": "danger, peril",
+    "mokuji_危_usage":
+      "Settings chapter 4: restore from server and account deletion. Actions that demand a careful hand — hence the heavier red stamp.",
   },
   season: {
     dismissAria: "Dismiss the season banner",
@@ -720,6 +792,18 @@ export default {
     heading: "SETTINGS · 設定",
     preferences: "Preferences",
     synced: "Synced",
+    tabsLabel: "Settings categories",
+    tabAppearance: "Appearance",
+    tabAppearanceHint: "Theme, season, atmosphere",
+    tabContent: "Content",
+    tabContentHint: "Language, currency, format",
+    tabAccount: "Account & data",
+    tabAccountHint: "Profile, archive, tools",
+    tabAdvanced: "Advanced",
+    tabAdvancedHint: "Restore & delete",
+    indexLabel: "Index",
+    indexAria: "Jump to chapter",
+    chapterLabel: "Chapter {n}",
     appearance: "Appearance",
     appearanceBody:
       "Dark ink or washi paper. Auto follows your operating system.",
@@ -899,7 +983,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.8.0 · Archive your collection",
+    version: "v2.9.0 · Archive your collection",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",
@@ -1036,6 +1120,14 @@ export default {
     remove: "Use initial",
     stillFetching: "Fetching more characters…",
     changeAria: "Change profile avatar",
+    searchPlaceholder: "Search a character…",
+    searchAria: "Search a character by name",
+    searchClear: "Clear search",
+    allSeries: "All",
+    seriesNavLabel: "Jump to a series",
+    countCharacters: "{n} portraits",
+    mainBadge: "MAIN",
+    seriesJumpAria: "Jump to series {name}",
     emptyNoLibrary: "No sources yet",
     emptyNoLibraryHint:
       "Add a series to your library and their characters will appear here.",
@@ -1044,6 +1136,9 @@ export default {
     emptyNoMain: "No main characters found",
     emptyNoMainHint:
       "Toggle the filter off to browse supporting characters as well.",
+    emptyNoSearch: "No matches",
+    emptyNoSearchHint:
+      "No character matches “{q}”. Try another name or clear the search.",
     emptyGeneric: "No portraits available",
     emptyGenericHint: "MyAnimeList has no character entries for these series.",
   },
@@ -1145,6 +1240,15 @@ export default {
     newlyGrantedOne: "A new seal has just been pressed.",
     newlyGrantedMany: "{n} new seals have just been pressed.",
     newlyGrantedHint: "Watch the ink dry on the pages below.",
+    nextHint: "Next seal · {name}",
+    rankLabel: "RANK · 階級",
+    rankNone: "Initiate",
+    rankSubtitle: "Your highest grade",
+    statSubtitle: "seals earned",
+    questLabel: "NEXT QUEST · 目標",
+    chapterPrefix: "Chapter {n} · 章",
+    chapterCleared: "CHAPTER CLEARED · 完",
+    chapterClearedHint: "Every drop of ink has dried on this page.",
     ceremonyAria: "Seal unlocked",
     ceremonyKicker: "Ceremony",
     ceremonyHeadingOne: "A new seal joins the journal.",

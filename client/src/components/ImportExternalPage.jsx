@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import { useExternalImport } from "@/hooks/useExternalImport.js";
+import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -75,9 +76,13 @@ export default function ImportExternalPage() {
       setPreview(resp.preview);
       setPhase("preview");
     } catch (e) {
-      setError(
-        e?.response?.data?.error ?? t("importExternal.genericError"),
-      );
+      // Inline display stays — multi-step UX needs the error visible
+      // next to the input the user just typed. Toast also fires so a
+      // user with focus elsewhere doesn't miss the failure.
+      const message =
+        e?.response?.data?.error ?? t("importExternal.genericError");
+      setError(message);
+      notifySyncError(message, "import-external-fetch");
     }
   };
 
@@ -89,9 +94,10 @@ export default function ImportExternalPage() {
       setCommitted(result);
       setPhase("done");
     } catch (e) {
-      setError(
-        e?.response?.data?.error ?? t("importExternal.genericError"),
-      );
+      const message =
+        e?.response?.data?.error ?? t("importExternal.genericError");
+      setError(message);
+      notifySyncError(message, "import-external-commit");
     }
   };
 
