@@ -25,19 +25,28 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 
 ### Collection
 - **MAL-powered library** — search MyAnimeList for any series, auto-fill volumes, cover, genres, demographics
-- **Custom entries** — add a series MAL doesn't have yet (assigned a negative `mal_id`)
-- **Per-volume tracking** — ownership flag, price paid, store of purchase, with multi-currency support (USD / EUR)
-- **Bulk volume editing** on the series page
-- **Coffrets / box sets** — group volumes that ship together (limited editions, slipcases, anniversary boxes), with cover, price and date metadata; writes are atomic and require connectivity to keep the server-side transaction consistent
-- **Custom poster upload** — replace the MAL cover with your own (stored in S3 / MinIO or local FS)
+- **MangaDex merged search** — falls back to MangaDex for series MAL doesn't have, with a small modal to capture missing fields like volume count
+- **Custom entries** — add a series neither MAL nor MangaDex have yet (assigned a negative `mal_id`)
+- **Per-volume tracking** — ownership, price paid, store, **read status**, **collector flag**, **per-volume cover**, **freeform notes**
+- **Bulk volume editing** on the series page, plus a volume detail drawer with consistent edit chrome across grid + shelf views
+- **Two view modes** for the volumes grid — *ledger* (compact tile list) and *shelf* (3D-stacked tankōbon spines)
+- **Coffrets / box sets** — group volumes that ship together (limited editions, slipcases, anniversary boxes), with cover, price, vendor and date metadata; writes are atomic and require connectivity to keep the server-side transaction consistent
+- **Publisher / edition metadata** — track the imprint (Glénat, Kana, Pika…) and the edition variant (Standard, Kanzenban, Perfect, Deluxe…) per series
+- **Genre editing** for custom-only rows — server-gated to entries that have no MAL or MangaDex link, so external syncs never clobber your manual tags
+- **Manual upcoming-volume entry** — pencil in a future tome you've heard about (title, release date, ISBN, vendor URL) without waiting for the auto-scrapers
+- **Custom poster upload** — replace the MAL cover with your own (stored in S3 / MinIO or local FS); custom uploads survive cross-device sync via a dedicated public poster endpoint
 - **Title preference** — Default / English / Japanese / Romaji per user
 - **Adult content filter** — 3 levels (off, blur, show)
 
 ### Discovery
-- **Barcode scanner** — scan ISBN on a tankōbon, looks up Google Books → matches against MAL → suggests adding the series with the right volume number, **gap-fills missing earlier volumes** if any
+- **Barcode scanner** — scan ISBN on a tankōbon, looks up Google Books → matches against MAL → suggests adding the series with the right volume number, **gap-fills missing earlier volumes** if any; manual ISBN entry tray as a fallback
 - **MAL recommendations** — aggregates `recommendations` from your top series, ranks by votes
 - **Gap suggestions** — series closest to completion ("only 2 volumes to go")
 - **Activity feed** — additions, removals, completion, milestones (10/25/50/100/250/500/1000/2500/5000 volumes; 5/10/25/50/100/250/500/1000 series)
+- **Library compare** at `/compare/{slug}` — three-bucket diff against another user's public profile (you have it / they have it / both), with one-click "add this to my library" on any series they own
+- **Upcoming volumes calendar** at `/calendar` — month grid of every announced future tome across your series, plus a rotatable **ICS subscription URL** for Google / Apple / Outlook calendars
+- **Auto-detected upcoming releases** — server-side scraper (MAL + MangaDex + Google Books cascade) surfaces a *next-volume* ribbon under series you've caught up on
+- **Glossary page** at `/glossary` — public kanji reference covering every glyph the UI uses (集 coffret, 来 upcoming, 印 seal, 願 wishlist, …) with tap-to-copy
 
 ### Offline-first PWA
 - **Installable** on Android (Chrome/Edge bannière), iOS Safari ("Sur l'écran d'accueil"), Desktop (Chrome/Edge install icon) with maskable icon for adaptive Android launchers
@@ -51,9 +60,16 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 ### Personalisation & sharing
 - **3 themes** — dark / light / auto (system) with zero-flash bootstrap
 - **3 languages** — English / French / Spanish (server-stored, localStorage-cached)
-- **Custom avatar** — pick a character portrait from the series you own (live from MAL via Jikan)
-- **Seals** — unlockable milestone trophies (volume / series / streak ladders) with a one-shot ceremony animation on the moment of unlock
-- **Public profiles** — opt-in shareable read-only view at `/u/{slug}`, with a dedicated `/public/u/{slug}/poster/{mal_id}` endpoint so user-uploaded covers stay visible to anonymous visitors without leaking the rest of the library
+- **Seasonal atmosphere** — opt-in ambient particles (sakura / fireflies / leaves / snow) that drift across the page based on the current season, astronomically accurate; honours `prefers-reduced-motion`
+- **Custom avatar** — pick a character portrait from the series you own (live from MAL via Jikan), with live search and per-series chip-rail navigation
+- **Seals** — 31 unlockable milestone trophies across 9 categories, 5 ink tiers (sumi → hanko → moegi → kin → shikkoku); newly-earned ones play an in-grid spotlight ceremony exactly once
+- **Public profiles** — opt-in shareable read-only view at `/u/{slug}` (3-32 chars, lowercase + hyphens, reserved-name list), with a dedicated `/public/u/{slug}/poster/{mal_id}` endpoint so user-uploaded covers stay visible to anonymous visitors without leaking the rest of the library
+- **Birthday mode** — time-bounded (7/30/90 days) public exposure of the wishlist so visitors can pick a gift from series you're tracking-but-don't-own-yet
+- **Year-in-Review poster** — annual stat sheet (volumes added, top series, spending) ready to share
+- **Shelf-sticker QR labels** — print-ready QR codes that deep-link to a series' page, sized for a real bookshelf
+- **Welcome tour** — first-visit walkthrough; non-blocking, dismissible
+- **Web Share Target + PWA shortcuts** — accept shared links from other apps and expose quick actions (scan, add manually) from the launcher menu
+- **Active sessions modal** — list every device currently signed in, revoke individual sessions; rotates the session id on login as a session-fixation defence
 
 ### Security & ops
 - Hardened containers: read-only rootfs, dropped Linux capabilities, `no-new-privileges`, non-root user (uid 65532), no package manager left in the runtime image
@@ -133,7 +149,10 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 │
 ├── docker-compose.yml     # Dev stack (db + redis + traefik + server + client)
 ├── docker-compose.prod.yml
-└── docs/screenshots/
+└── docs/
+    ├── TIMELINE.md            # Step-by-step development history (see end of README)
+    ├── release-calendar-proxy.md
+    └── screenshots/
 ```
 
 ---
@@ -253,6 +272,19 @@ The project was also a chance to push on:
 - Wishlist with pre-order tracking and price alerts
 - Native mobile wrapper via Capacitor (the PWA already covers the core experience)
 - Edition / coffret marketplace links (publisher pre-orders surfaced from the coffret detail view)
+
+---
+
+## Project history
+
+For a step-by-step view of how the project evolved — from a bare URL-cleanup
+fork through OAuth + Knex foundations, the full Rust port, the seal system,
+public profiles, realtime sync, and the Shōjo-Noir UI overhaul — see
+**[`docs/TIMELINE.md`](docs/TIMELINE.md)**.
+
+The timeline also marks the point at which development began with assistance
+from Claude (Anthropic) — every commit from that anchor onward was written
+in pair with the assistant.
 
 ---
 
