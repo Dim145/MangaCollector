@@ -1,6 +1,7 @@
 export default {
   common: {
     cancel: "Annuler",
+    copy: "Copier",
     save: "Enregistrer",
     saved: "Enregistré",
     saving: "Enregistrement…",
@@ -1260,6 +1261,7 @@ export default {
     newlyGrantedOne: "Un nouveau sceau vient d'être apposé.",
     newlyGrantedMany: "{n} nouveaux sceaux viennent d'être apposés.",
     newlyGrantedHint: "Regardez l'encre sécher sur les pages qui suivent.",
+    nextHint: "Prochain sceau · {name}",
     ceremonyAria: "Sceau débloqué",
     ceremonyKicker: "Cérémonie",
     ceremonyHeadingOne: "Un nouveau sceau rejoint le carnet.",

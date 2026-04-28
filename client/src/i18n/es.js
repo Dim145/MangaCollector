@@ -1,6 +1,7 @@
 export default {
   common: {
     cancel: "Cancelar",
+    copy: "Copiar",
     save: "Guardar",
     saved: "Guardado",
     saving: "Guardando…",
@@ -1245,6 +1246,7 @@ export default {
     newlyGrantedOne: "Un nuevo sello acaba de estamparse.",
     newlyGrantedMany: "{n} sellos nuevos acaban de estamparse.",
     newlyGrantedHint: "Observa la tinta secar en las páginas siguientes.",
+    nextHint: "Siguiente sello · {name}",
     ceremonyAria: "Sello desbloqueado",
     ceremonyKicker: "Ceremonia",
     ceremonyHeadingOne: "Un nuevo sello se une al cuaderno.",

@@ -1626,6 +1626,94 @@
     0 0 6px -1px oklch(0.82 0.13 78 / 0.5);
 }
 
+/* ─── Tier breakdown mini-bars (SealsPage) ───
+   Each `.tier-bar-{name}` sets the *inner* gradient that fills the
+   per-tier progress strip in the breakdown panel. Selectors target
+   `> div` because the markup is `<div class="tier-bar-X"><div w%/></div>`. */
+.tier-bar-sumi > div {
+  background: linear-gradient(90deg, var(--ink-3), var(--washi-dim));
+}
+.tier-bar-hanko > div {
+  background: linear-gradient(90deg, var(--hanko-deep), var(--hanko-bright));
+  box-shadow: 0 0 6px -1px var(--hanko-glow);
+}
+.tier-bar-moegi > div {
+  background: linear-gradient(90deg, var(--moegi-muted), var(--moegi));
+  box-shadow: 0 0 6px -1px oklch(0.78 0.16 140 / 0.4);
+}
+.tier-bar-kin > div {
+  background: linear-gradient(90deg, var(--gold-muted), var(--gold));
+  box-shadow: 0 0 8px -1px oklch(0.82 0.13 78 / 0.5);
+}
+.tier-bar-shikkoku > div {
+  background: linear-gradient(
+    90deg,
+    oklch(0.12 0.02 28),
+    oklch(0.32 0.06 28)
+  );
+  box-shadow:
+    inset 0 0 0 1px oklch(0.82 0.13 78 / 0.4),
+    0 0 6px -1px oklch(0.82 0.13 78 / 0.4);
+}
+
+/* ─── Watermark drift (SealsPage masthead 印) ───
+   Slow, subtle vertical drift + opacity pulse so the giant gold kanji
+   feels like it breathes. Period intentionally long (12s) — anything
+   shorter starts to read as a glitch rather than ambience. */
+@keyframes seal-watermark-drift {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-12px) rotate(-0.5deg);
+    opacity: 0.85;
+  }
+}
+
+/* ─── Floating sparks (SealsPage newly-granted banner) ───
+   Tiny dots that fade up + dim down. Used at staggered delays so a
+   row of three reads as one continuous shimmer rather than three
+   blinks in lockstep. */
+@keyframes seal-spark {
+  0%, 100% {
+    opacity: 0.25;
+    transform: translateY(0) scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.1);
+  }
+}
+
+/* ─── Progress marker pulse (SealsPage main progress rail) ───
+   The leading-edge dot of the progress bar slowly inhales/exhales the
+   hanko glow to draw the eye to the next-stamp boundary. */
+.seal-progress-marker {
+  animation: seal-progress-pulse 2.4s ease-in-out infinite;
+}
+@keyframes seal-progress-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px var(--hanko-glow);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    box-shadow: 0 0 16px var(--hanko-glow);
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+}
+
+/* ─── Reduce-motion safety ───
+   Honour the user's OS-level preference: drift / spark / pulse loops
+   freeze in their resting position rather than running indefinitely. */
+@media (prefers-reduced-motion: reduce) {
+  .seal-progress-marker,
+  [style*="seal-watermark-drift"],
+  [style*="seal-spark"] {
+    animation: none !important;
+  }
+}
+
 .animate-fade-up {
   animation: fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

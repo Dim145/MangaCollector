@@ -1,6 +1,7 @@
 export default {
   common: {
     cancel: "Cancel",
+    copy: "Copy",
     save: "Save",
     saved: "Saved",
     saving: "Saving…",
@@ -1236,6 +1237,7 @@ export default {
     newlyGrantedOne: "A new seal has just been pressed.",
     newlyGrantedMany: "{n} new seals have just been pressed.",
     newlyGrantedHint: "Watch the ink dry on the pages below.",
+    nextHint: "Next seal · {name}",
     ceremonyAria: "Seal unlocked",
     ceremonyKicker: "Ceremony",
     ceremonyHeadingOne: "A new seal joins the journal.",
