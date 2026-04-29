@@ -189,6 +189,17 @@ export function FilterButton({
               right: -9999,
               zIndex: 2147483620,
               width: "min(calc(100vw - 16px), 340px)",
+              // 遷 · Pin the popover to its own VT snapshot so the
+              // tag-toggle View Transition (which hoists every Manga
+              // card via `cover-{mal_id}`) doesn't paint card images
+              // *above* the popover for ~250ms. With its own name,
+              // the popover is captured as an independent snapshot
+              // with its semi-opaque `bg-ink-1/98` background baked
+              // in, and stays in its own pseudo-element layer.
+              // The CSS rule in `styles/index.css` pins the
+              // `::view-transition-group(tag-popover)` z-index above
+              // the cards so it always wins z-order during the morph.
+              viewTransitionName: "tag-popover",
             }}
             className="animate-slide-down flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl"
           >

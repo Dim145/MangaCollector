@@ -2110,6 +2110,26 @@
   }
 }
 
+/* ─── View Transitions — explicit z-stacking ───
+   By default, sibling pseudo-elements in the `::view-transition`
+   overlay are painted in DOM source order, which doesn't always
+   carry the original z-index of the underlying elements (especially
+   for portaled overlays like the tag-filter popover). Without
+   explicit z-index rules below, hoisted Manga cards can paint
+   *over* an open popover for the ~250ms a transition runs — the
+   exact bug the popover's `view-transition-name: tag-popover` was
+   added to fix. Pinning the popover and the app-header to high
+   z-indexes makes the layering deterministic across browsers. */
+::view-transition-group(tag-popover) {
+  z-index: 100;
+}
+::view-transition-group(app-header) {
+  z-index: 90;
+}
+::view-transition-group(app-bottom-nav) {
+  z-index: 90;
+}
+
 /* Seasonal-atmosphere particles. Each particle is a single
    absolutely-positioned `<span>` driven by per-particle CSS variables
    set in JSX (`--scale`, `--delay`, `--duration`, `--rot`); the four
