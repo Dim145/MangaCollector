@@ -286,6 +286,7 @@ export default function ComparePage() {
                   genres: res.genres ?? target?.genres ?? [],
                 },
               },
+              viewTransition: true,
             });
           }}
           adultLevel={adult_content_level}

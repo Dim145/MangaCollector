@@ -40,6 +40,7 @@ import { db } from "@/lib/db.js";
 import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
+import { coverTransitionName } from "@/lib/viewTransition.js";
 import { useT } from "@/i18n/index.jsx";
 
 export default function MangaPage({ manga, adult_content_level }) {
@@ -503,7 +504,10 @@ export default function MangaPage({ manga, adult_content_level }) {
       <div className="mx-auto max-w-6xl px-4 pt-4 pb-nav md:pb-16 sm:px-6 md:pt-10">
         {/* Back */}
         <button
-          onClick={() => navigate("/dashboard")}
+          // 戻 · `viewTransition: true` mirrors the forward navigation
+          // from the Dashboard so the hero cover morphs back into its
+          // tile position. Without it, the back nav was an instant cut.
+          onClick={() => navigate("/dashboard", { viewTransition: true })}
           className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
         >
           <svg
@@ -539,6 +543,13 @@ export default function MangaPage({ manga, adult_content_level }) {
           <div className="grid gap-6 md:grid-cols-[minmax(0,280px)_1fr] md:gap-10">
             <div className="mx-auto w-full max-w-[220px] md:mx-0 md:max-w-none">
               <div
+                // 遷 · `view-transition-name` matches the Dashboard
+                // card's cover wrapper for the same `mal_id`. When the
+                // user navigates here from the dashboard (or hits
+                // Back), the browser captures both snapshots and
+                // morphs the card → hero (and back). No-op without
+                // View Transitions support.
+                style={{ viewTransitionName: coverTransitionName(manga.mal_id) }}
                 className={`relative aspect-[2/3] overflow-hidden rounded-2xl border border-border shadow-2xl glow-red transition-colors ${
                   allCollector
                     ? "hover:border-gold/60"

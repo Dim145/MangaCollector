@@ -2,9 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { acquireScrollLock, releaseScrollLock } from "@/lib/scrollLock.js";
 
-/** Must match `animate-fade-out` / `animate-fade-down-out` duration in CSS. */
-const CLOSE_ANIM_MS = 220;
-
 export default function Modal({
   children,
   popupOpen,
@@ -18,16 +15,11 @@ export default function Modal({
   // no library dependency.
   const [mounted, setMounted] = useState(popupOpen);
   const [leaving, setLeaving] = useState(false);
-  const closeTimer = useRef(null);
 
   useEffect(() => {
     if (popupOpen) {
       // Opening (or cancelled a mid-flight close): make sure we're mounted
       // and NOT in exit-animation state.
-      if (closeTimer.current) {
-        clearTimeout(closeTimer.current);
-        closeTimer.current = null;
-      }
       setMounted(true);
       setLeaving(false);
       return;
@@ -38,17 +30,54 @@ export default function Modal({
     if (!mounted) return;
 
     setLeaving(true);
-    closeTimer.current = setTimeout(() => {
-      setMounted(false);
-      setLeaving(false);
-      closeTimer.current = null;
-    }, CLOSE_ANIM_MS);
+
+    // 終 · Wait for the CSS exit animation to actually finish before
+    // unmounting. Previously this was a `setTimeout(CLOSE_ANIM_MS=220)`
+    // that had to be kept in lock-step with the CSS keyframe duration —
+    // change one without the other and the modal either jumped (timer
+    // shorter than anim) or the user saw a frozen still after the
+    // anim ended (timer longer). Using `getAnimations({ subtree: true })`
+    // + `Promise.all(.finished)` makes the CSS the single source of
+    // truth: whatever duration the keyframe carries, we wait exactly
+    // that long.
+    //
+    // `requestAnimationFrame` defers one frame so React has rendered
+    // the new className (with the exit-anim class) and the browser has
+    // started the animation — `getAnimations()` called too early
+    // returns `[]` and the unmount fires instantly.
+    //
+    // Infinite animations are filtered out: a spinner inside the modal
+    // body never resolves its `.finished` promise, which would hang
+    // the unmount forever. Only finite (entry/exit) animations gate
+    // the close.
+    let cancelled = false;
+    const rafHandle = requestAnimationFrame(async () => {
+      if (cancelled) return;
+      const root = overlayRef.current;
+      const anims = root
+        ? root
+            .getAnimations({ subtree: true })
+            .filter((a) => {
+              const t = a.effect?.getComputedTiming?.();
+              return t && t.iterations !== Infinity;
+            })
+        : [];
+      try {
+        await Promise.all(anims.map((a) => a.finished));
+      } catch {
+        // Animation was cancelled (tab hidden, browser interrupted
+        // it, etc.). The finished promise rejects but we still want
+        // to unmount — falling through is the correct behaviour.
+      }
+      if (!cancelled) {
+        setMounted(false);
+        setLeaving(false);
+      }
+    });
 
     return () => {
-      if (closeTimer.current) {
-        clearTimeout(closeTimer.current);
-        closeTimer.current = null;
-      }
+      cancelled = true;
+      cancelAnimationFrame(rafHandle);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popupOpen]);

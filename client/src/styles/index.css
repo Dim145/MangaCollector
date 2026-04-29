@@ -2096,6 +2096,18 @@
   .atmo-particle {
     display: none !important;
   }
+  /* View Transitions API — the global `*` rule above doesn't reach
+     the `::view-transition-*` pseudo-element tree (it lives outside
+     the regular DOM). Without this override, navigations between
+     Dashboard ↔ MangaPage would still play the browser's default
+     ~250ms cross-fade for users who asked for reduced motion. The
+     DOM swap still happens (the JS callback runs); only the
+     animation gets suppressed. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 
 /* Seasonal-atmosphere particles. Each particle is a single

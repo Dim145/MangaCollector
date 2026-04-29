@@ -402,6 +402,7 @@ export default function ProfilePage({ googleUser }) {
                                 manga: row.manga,
                                 adult_content_level,
                               },
+                              viewTransition: true,
                             })
                           }
                           className="group flex w-full items-center gap-3 rounded-lg border border-border/60 bg-ink-2/30 px-2 py-1.5 text-left transition hover:border-hanko/50 hover:bg-ink-2/60"

@@ -271,6 +271,7 @@ export default function AddPage() {
           },
           adult_content_level,
         },
+        viewTransition: true,
       });
     }
   };
@@ -298,6 +299,7 @@ export default function AddPage() {
     if (res.success) {
       navigate("/mangapage", {
         state: { manga: res.newEntry, adult_content_level },
+        viewTransition: true,
       });
     }
   };

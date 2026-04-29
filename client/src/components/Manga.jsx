@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import CoverImage from "./ui/CoverImage.jsx";
 import { hasToBlurImage } from "@/utils/library.js";
+import { coverTransitionName } from "@/lib/viewTransition.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 
 export default function Manga({
@@ -50,7 +51,16 @@ export default function Manga({
   return (
     <button
       onClick={() =>
-        navigate("/mangapage", { state: { manga, adult_content_level } })
+        // 遷 · `viewTransition: true` asks React Router to wrap the
+        // navigation in `document.startViewTransition()` so the cover
+        // tile morphs smoothly into the MangaPage hero cover (both
+        // share the `view-transition-name` set on the inner div below).
+        // No-op on browsers that don't support View Transitions —
+        // navigation falls through to the existing instant transition.
+        navigate("/mangapage", {
+          state: { manga, adult_content_level },
+          viewTransition: true,
+        })
       }
       // `contain: layout` — the Library grid renders many of these
       // (now also lazy-paginated by 30s). `layout` containment keeps any
@@ -64,8 +74,14 @@ export default function Manga({
       // as the Volume.jsx corner-badge clipping fixed earlier.
       className="group relative flex flex-col text-left tap-none focus-visible:outline-none [contain:layout]"
     >
-      {/* Cover — tall aspect like a real manga volume */}
+      {/* Cover — tall aspect like a real manga volume.
+          `view-transition-name` lets the browser morph this tile into
+          the MangaPage hero cover when the user clicks through (and
+          back), provided View Transitions are supported. Each card
+          gets a unique name keyed on `mal_id` so the browser knows
+          which two snapshots to pair across the navigation. */}
       <div
+        style={{ viewTransitionName: coverTransitionName(manga.mal_id) }}
         className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg border bg-ink-2 shadow-lg transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-1 ${
           // Idle border tracks the wishlist state — a faint sakura ring on
           // an otherwise default border so the wished-for vs. owned

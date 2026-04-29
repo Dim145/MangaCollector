@@ -486,6 +486,7 @@ function ReleaseCard({ release, today, navigate, t, tilt = 0 }) {
         manga: { mal_id: release.mal_id, name: release.manga_name },
         openVolumeId: release.id,
       },
+      viewTransition: true,
     });
   };
 
@@ -739,6 +740,7 @@ function MonthGrid({ label, kanji, releases, today, navigate, t }) {
                         manga: { mal_id: rel.mal_id, name: rel.manga_name },
                         openVolumeId: rel.id,
                       },
+                      viewTransition: true,
                     })
                   }
                   title={`${rel.manga_name} · ${t("calendar.volumeLabel", { n: rel.vol_num })}`}

@@ -16,6 +16,7 @@ import Skeleton from "./ui/Skeleton.jsx";
 import WelcomeTour from "./WelcomeTour.jsx";
 import SeasonGreeting from "./SeasonGreeting.jsx";
 import { hasSeenTour } from "@/lib/tour.js";
+import { withViewTransition } from "@/lib/viewTransition.js";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
@@ -32,6 +33,33 @@ import { useT } from "@/i18n/index.jsx";
 // raw to skip the JSON cost.
 const DASHBOARD_STATE_KEY = "mc:dashboard:view";
 const DASHBOARD_SCROLL_KEY = "mc:dashboard:scrollY";
+const DASHBOARD_CARD_ANIM_KEY = "mc:dashboard:cardAnimPlayed";
+
+/**
+ * Returns true ONCE per browser tab — the very first time the
+ * Dashboard mounts. Subsequent mounts (back navigation from
+ * MangaPage, route bounce, etc.) return false.
+ *
+ * Used to gate the per-card `animate-fade-up` stagger. Without this
+ * gate, every back-nav re-triggered the CSS animation on the first
+ * 12 cards (which start at `opacity: 0` and fade up over ~600ms)
+ * while cards 13+ rendered instantly — producing a visible "the
+ * top 12 reappear, the rest are already here" flicker that read
+ * as a bug. The cold-start polish stays for the first arrival in
+ * the tab; back-navigations now snap into place.
+ */
+function consumeFirstMountFlag() {
+  if (typeof sessionStorage === "undefined") return true;
+  try {
+    if (sessionStorage.getItem(DASHBOARD_CARD_ANIM_KEY) === "1") {
+      return false;
+    }
+    sessionStorage.setItem(DASHBOARD_CARD_ANIM_KEY, "1");
+    return true;
+  } catch {
+    return true;
+  }
+}
 
 function readPersistedDashboardState() {
   if (typeof sessionStorage === "undefined") return null;
@@ -84,6 +112,13 @@ export default function Dashboard() {
   // each individually persisted in their own effect.
   const persisted = useMemo(() => readPersistedDashboardState(), []);
 
+  // Card stagger animation runs only on the first mount of the tab —
+  // see `consumeFirstMountFlag` for the rationale. `useState`'s lazy
+  // initialiser ensures the sessionStorage flag is consumed exactly
+  // once, even under React Strict Mode's double-invoke (the second
+  // mount sees the flag already set and resolves to `false`).
+  const [animateCardStagger] = useState(consumeFirstMountFlag);
+
   const [query, setQuery] = useState(() => persisted?.query ?? "");
   const [filter, setFilter] = useState(() => persisted?.filter ?? "all");
   // filter ∈ "all" | "inprogress" | "wishlist" | "complete" | "tsundoku"
@@ -104,16 +139,28 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const t = useT();
 
+  // 並 · Tag toggles wrap the state mutation in `withViewTransition`
+  // so the grid reorder animates as a smooth slide instead of a jump-
+  // cut. Each `<Manga>` card carries a `view-transition-name` keyed on
+  // its `mal_id`, which is what gives the browser the per-card
+  // FLIP-style morph between filter states. Search input is
+  // intentionally NOT wrapped — VTs trigger per keystroke would feel
+  // janky given each transition takes ~250ms.
   const toggleTag = useCallback((name) => {
-    setActiveTags((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
+    withViewTransition(() => {
+      setActiveTags((prev) => {
+        const next = new Set(prev);
+        if (next.has(name)) next.delete(name);
+        else next.add(name);
+        return next;
+      });
     });
   }, []);
 
-  const clearTags = useCallback(() => setActiveTags(new Set()), []);
+  const clearTags = useCallback(
+    () => withViewTransition(() => setActiveTags(new Set())),
+    [],
+  );
 
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const { data: allVolumes } = useAllVolumes();
@@ -608,9 +655,15 @@ export default function Dashboard() {
                   // is small enough that correctness wins.
                   style={{
                     animationDelay:
-                      i < 12 ? `${Math.min(i * 40, 440)}ms` : undefined,
+                      animateCardStagger && i < 12
+                        ? `${Math.min(i * 40, 440)}ms`
+                        : undefined,
                   }}
-                  className={i < 12 ? "animate-fade-up" : undefined}
+                  className={
+                    animateCardStagger && i < 12
+                      ? "animate-fade-up"
+                      : undefined
+                  }
                 >
                   <Manga
                     manga={manga}
