@@ -1151,6 +1151,20 @@ export default {
     emptyGenericHint:
       "MyAnimeList no tiene personajes registrados para estas series.",
   },
+  palette: {
+    placeholder: "Busca una serie o salta a una página…",
+    empty: "Sin resultados",
+    seriesTag: "SERIE",
+    hintNavigate: "navegar",
+    hintToggle: "abrir",
+    navDashboard: "Biblioteca",
+    navAdd: "Añadir manga",
+    navCalendar: "Calendario",
+    navProfile: "Perfil",
+    navSeals: "Sellos",
+    navSettings: "Ajustes",
+    navGlossary: "Glosario",
+  },
   install: {
     cta: "Instalar app",
     iosLabel: "AÑADIR A INICIO · iOS",

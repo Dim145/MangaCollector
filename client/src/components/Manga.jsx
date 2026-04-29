@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import CoverImage from "./ui/CoverImage.jsx";
 import { hasToBlurImage } from "@/utils/library.js";
 import { coverTransitionName } from "@/lib/viewTransition.js";
+import { prefetchMangaPage } from "@/lib/prefetch.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 
 export default function Manga({
@@ -62,6 +63,14 @@ export default function Manga({
           viewTransition: true,
         })
       }
+      // 予 · Predictive prefetch — start fetching the MangaPage chunk
+      // the moment the user shows intent (hover or keyboard focus).
+      // By the time `onClick` fires, the chunk is in cache and the
+      // route renders without a network round-trip. Idempotent on
+      // repeat fires; no-op on touch-only devices (which never hover)
+      // — those still pay the chunk fetch on click, same as before.
+      onMouseEnter={prefetchMangaPage}
+      onFocus={prefetchMangaPage}
       // `contain: layout` — the Library grid renders many of these
       // (now also lazy-paginated by 30s). `layout` containment keeps any
       // class change on one card (hover, ownership flip) from rippling

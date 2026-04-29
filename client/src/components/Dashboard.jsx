@@ -9,6 +9,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import Manga from "./Manga";
 import DefaultBackground from "./DefaultBackground";
+import PullToRefresh from "./ui/PullToRefresh.jsx";
+import { syncOutbox } from "@/lib/sync.js";
 import MangaSearchBar from "./MangaSearchBar";
 import GapSuggestions from "./GapSuggestions.jsx";
 import { FilterButton, ActiveChips } from "./TagFilter.jsx";
@@ -372,6 +374,16 @@ export default function Dashboard() {
   return (
     <DefaultBackground>
       <WelcomeTour open={tourOpen} onClose={() => setTourOpen(false)} />
+      {/* 引 · Pull-to-refresh — touch-only. Desktop pays nothing
+          (touch listeners no-op without a touch start). The refresh
+          callback drives the same `syncOutbox({ force: true })` the
+          sync runner uses internally, so any pending outbox writes
+          flush AND we pull a fresh server snapshot in one go. */}
+      <PullToRefresh
+        onRefresh={async () => {
+          await syncOutbox({ force: true });
+        }}
+      >
       <div className="mx-auto max-w-7xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
         {/* 季節 · Once-per-season banner. Self-renders nothing when
             the current season has already been greeted; sits above
@@ -690,6 +702,7 @@ export default function Dashboard() {
             zero layout cost. */}
         {!isInitialLoad && !isEmpty && <GapSuggestions />}
       </div>
+      </PullToRefresh>
     </DefaultBackground>
   );
 }

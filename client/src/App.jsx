@@ -30,6 +30,7 @@ import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
+import CommandPalette from "@/components/CommandPalette.jsx";
 
 // Lazy routes — each lands in its own JS chunk so first paint ships less.
 // Recharts rides with ProfilePage, @zxing rides with AddPage via its own
@@ -214,6 +215,7 @@ function AppShell() {
       <Header />
       <OfflineBanner />
       <SyncToaster />
+      <CommandPalette />
       <main className="relative">
         {/* 災 · ErrorBoundary outside Suspense so a chunk-load failure
             (deploy invalidated cached chunks, offline burst, …) shows

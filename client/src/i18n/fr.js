@@ -1166,6 +1166,20 @@ export default {
     emptyGenericHint:
       "MyAnimeList n'a pas de personnages référencés pour ces séries.",
   },
+  palette: {
+    placeholder: "Rechercher une série ou une page…",
+    empty: "Aucun résultat",
+    seriesTag: "SÉRIE",
+    hintNavigate: "naviguer",
+    hintToggle: "ouvrir",
+    navDashboard: "Bibliothèque",
+    navAdd: "Ajouter un manga",
+    navCalendar: "Calendrier",
+    navProfile: "Profil",
+    navSeals: "Sceaux",
+    navSettings: "Paramètres",
+    navGlossary: "Glossaire",
+  },
   install: {
     cta: "Installer l'app",
     iosLabel: "AJOUTER À L'ÉCRAN D'ACCUEIL · iOS",
