@@ -373,6 +373,7 @@ export async function enqueueSettingsUpdate(settings) {
         theme: settings.theme,
         language: settings.language,
         avatarUrl: settings.avatarUrl,
+        sound_enabled: settings.sound_enabled,
       },
       ts: Date.now(),
     });

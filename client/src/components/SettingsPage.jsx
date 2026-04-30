@@ -20,7 +20,7 @@ import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
 import { forceResyncFromServer, notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { getApiKey, setApiKey } from "@/lib/isbn.js";
 import { getHapticsEnabled, haptics, setHapticsEnabled } from "@/lib/haptics.js";
-import { setSoundEnabled, sounds } from "@/lib/sounds.js";
+import { setSoundEnabled } from "@/lib/sounds.js";
 import { formatCurrency } from "@/utils/price.js";
 import { LANGUAGES, useT } from "@/i18n/index.jsx";
 
@@ -251,11 +251,11 @@ export default function SettingsPage() {
   };
   const handleSoundChange = (value) => {
     setSoundEnabledState(value);
-    // Update the local mirror right away so a `success()` cue here can
-    // play through — the SettingsProvider effect would otherwise sync
-    // the flag a tick later, after this function returns.
+    // Update the local mirror right away so the success-toast sound
+    // (fired by SyncToaster after `save()` resolves) plays through on
+    // the toggle-on path. On toggle-off the mirror is already false by
+    // the time the toast lands → silent, which is the right behaviour.
     setSoundEnabled(value);
-    if (value) sounds.success();
     save({ ...baseSettings(), sound_enabled: value });
   };
   const handleCurrencyChange = (code) => {

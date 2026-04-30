@@ -113,7 +113,8 @@ export default function AddCoffretModal({
     } catch (err) {
       console.error("[coffret] create failed:", err?.message);
       haptics.error();
-      sounds.error();
+      // Sound is fired by SyncToaster on the toast that notifySyncError
+      // is about to emit — wiring it here would double-buzz.
       notifySyncError(err, "coffret-create");
     }
   };

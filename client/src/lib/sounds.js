@@ -86,6 +86,14 @@ export const sounds = {
     if (!enabled) return;
     tone(820, { release: 0.07, gain: 0.7 });
   },
+  /** 報 · Info — single mid-low tone for neutral toasts (acknowledgement,
+      "no changes", informational notice). Lower than `tap` so it doesn't
+      sound like a click; shorter than `success` so it doesn't claim a
+      win the action didn't earn. */
+  info: () => {
+    if (!enabled) return;
+    tone(523.25, { release: 0.1, gain: 0.55 });
+  },
   /** 成 · Success — two-tone perfect-fifth chime (C5 → G5). */
   success: () => {
     if (!enabled) return;
