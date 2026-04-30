@@ -5,7 +5,7 @@ use axum::{
 
 use crate::handlers::{
     activity, archive, auth as auth_handlers, calendar, coffret, compare, external,
-    external_import, health, library, public, realtime, seals, settings, storage,
+    external_import, health, library, public, public_config, realtime, seals, settings, storage,
     user_profile, volume,
 };
 use crate::state::AppState;
@@ -13,6 +13,11 @@ use crate::state::AppState;
 pub fn api_router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health::health))
+        // 設 · Public runtime config for the SPA — DSNs, Umami script
+        // URL/website ID, etc. No auth (the SPA fetches it before any
+        // session exists). Cached aggressively via the SW so an offline
+        // boot sees the last-known config instead of failing init.
+        .route("/public-config", get(public_config::get_public_config))
         // Unified search endpoint — merges MAL + MangaDex results
         .route("/external/search", get(external::search))
         // Read-only public profile — `/public/u/{slug}` — no auth.

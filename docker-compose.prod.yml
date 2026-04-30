@@ -41,3 +41,12 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=32m
       - /var/cache/nginx:rw,noexec,nosuid,size=16m
+    # FRONTEND_* env vars are read by docker-entrypoint.sh and templated
+    # into index.html + nginx.conf at startup. Set them at the host
+    # level (or via an env_file) and they pass through automatically.
+    environment:
+      - FRONTEND_UMAMI_SCRIPT_URL=${FRONTEND_UMAMI_SCRIPT_URL:-}
+      - FRONTEND_UMAMI_WEBSITE_ID=${FRONTEND_UMAMI_WEBSITE_ID:-}
+      - FRONTEND_UMAMI_ORIGIN=${FRONTEND_UMAMI_ORIGIN:-}
+      - FRONTEND_SENTRY_DSN=${FRONTEND_SENTRY_DSN:-}
+      - FRONTEND_BUGSINK_DSN=${FRONTEND_BUGSINK_DSN:-}
