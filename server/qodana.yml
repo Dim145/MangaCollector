@@ -1,0 +1,53 @@
+#-----------------------------------------------------------------#
+# Qodana — code quality scan for the Rust / Axum backend.         #
+# https://www.jetbrains.com/help/qodana/qodana-yaml.html          #
+#-----------------------------------------------------------------#
+#
+# This config is scoped to the `server/` subtree. Run via:
+#   cd server && qodana scan        # locally
+#   qodana scan --project-dir server # from repo root
+#   GitHub Action: pass `args: '--project-dir,server'`
+#
+# A sibling `qodana.yml` at the repo root handles the JS / React
+# frontend. Qodana doesn't multi-language-scan from a single config,
+# so the two configs ship as parallel CI jobs.
+
+version: "1.0"
+
+# qodana-rust wraps RustRover's full inspection set: clippy-class
+# lints, unused code, naming, lifetime / borrow hints, performance
+# suggestions, async-misuse patterns. Pulls type info from cargo's
+# own resolution — no manual `cargo build` needed in bootstrap.
+#
+# `rust-toolchain.toml` (channel = 1.94) is honoured by rustup inside
+# the image, so the analyzer matches the production toolchain.
+linter: jetbrains/qodana-rust:2026.1
+
+profile:
+  # Same default as the frontend config — high-signal, opinionated.
+  # If `qodana.recommended` ends up too noisy on the Rust side
+  # (clippy-style nits at warning level), drop to `qodana.starter`.
+  name: qodana.recommended
+
+exclude:
+  - name: All
+    paths:
+      # Cargo build artifacts — gigabytes of compiled deps, not source.
+      - target
+      # Raw SQL migrations — nothing for the Rust analyzer to chew on.
+      # CodeQL `sql/*` queries cover this surface separately if needed.
+      - migrations
+
+# No bootstrap — Qodana for Rust runs `cargo check` internally to
+# resolve types, and rustup picks up rust-toolchain.toml automatically.
+# Add a bootstrap line here if you ever need to pre-generate sources
+# (e.g. SQLx offline metadata, build scripts) before the analysis pass.
+
+# Failure threshold + baseline are intentionally not set — same
+# adoption-friendly stance as the frontend config. See ../qodana.yml
+# for the recommended baseline workflow when you're ready to gate
+# CI on new issues only.
+#
+# baseline: qodana.sarif.json
+# failThreshold:
+#   any: 0

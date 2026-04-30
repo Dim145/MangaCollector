@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { cacheAllVolumes, cacheVolumesForManga, db } from "@/lib/db.js";
+import { deriveListState } from "@/lib/queryState.js";
 import { enqueueVolumeUpdate } from "@/lib/sync.js";
 
 /** Live volumes for one manga, sorted by vol_num. */
@@ -22,17 +23,7 @@ export function useVolumesForManga(mal_id) {
     },
   });
 
-  const safe = data ?? [];
-  const dexieReady = data !== undefined;
-  const pending = query.isPending && mal_id != null;
-
-  return {
-    data: safe,
-    isInitialLoad: !dexieReady || (safe.length === 0 && pending),
-    isRefetching: query.isFetching && !pending && safe.length > 0,
-    isEmpty: dexieReady && safe.length === 0 && !pending,
-    isLoading: !dexieReady || (safe.length === 0 && pending),
-  };
+  return deriveListState(data, query, { enabled: mal_id != null });
 }
 
 /** All volumes across the user's library (for /profile). */
@@ -48,17 +39,7 @@ export function useAllVolumes() {
     },
   });
 
-  const safe = data ?? [];
-  const dexieReady = data !== undefined;
-  const pending = query.isPending;
-
-  return {
-    data: safe,
-    isInitialLoad: !dexieReady || (safe.length === 0 && pending),
-    isRefetching: query.isFetching && !pending && safe.length > 0,
-    isEmpty: dexieReady && safe.length === 0 && !pending,
-    isLoading: !dexieReady || (safe.length === 0 && pending),
-  };
+  return deriveListState(data, query);
 }
 
 /** Optimistic volume update. */

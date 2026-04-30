@@ -58,7 +58,10 @@ function resolve(bundle, path) {
 
 function interpolate(str, params) {
   if (!params) return str;
-  return String(str).replace(/\{(\w+)\}/g, (_, k) =>
+  // `\{` stays escaped (some regex linters tolerate it because `{n,m}`
+  // quantifiers exist); `}` doesn't need escaping outside that context,
+  // so the trailing `\}` was redundant — Qodana RegExpRedundantEscape.
+  return String(str).replace(/\{(\w+)}/g, (_, k) =>
     params[k] != null ? String(params[k]) : `{${k}}`,
   );
 }
