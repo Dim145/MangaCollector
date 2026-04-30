@@ -823,6 +823,13 @@ export default {
     hapticsGatingLabel: "Local storage",
     hapticsGatingDetail:
       "Preference stored per device — not synced to your account.",
+    soundTitle: "Interface sounds",
+    soundBody:
+      "Subtle sine-wave cues on key actions — volume toggle, coffret confirm. Off by default.",
+    soundToggleAria: "Toggle interface sounds",
+    soundGatingLabel: "Account",
+    soundGatingDetail:
+      "Preference stored on the server — synced across all your devices.",
     adultContent: "Adult content",
     adultBody: "How mature titles appear throughout your archive.",
     adultBlur: "Blur",

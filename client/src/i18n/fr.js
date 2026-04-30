@@ -840,6 +840,13 @@ export default {
     hapticsGatingLabel: "Mémoire locale",
     hapticsGatingDetail:
       "Préférence stockée par appareil — pas synchronisée avec votre compte.",
+    soundTitle: "Sons d'interface",
+    soundBody:
+      "Bips discrets en sine wave sur les actions clés — toggle de tome, validation de coffret. Désactivé par défaut.",
+    soundToggleAria: "Activer ou désactiver les sons d'interface",
+    soundGatingLabel: "Compte",
+    soundGatingDetail:
+      "Préférence stockée côté serveur — synchronisée sur tous vos appareils.",
     adultContent: "Contenu adulte",
     adultBody:
       "Comportement d'affichage des titres matures dans votre archive.",

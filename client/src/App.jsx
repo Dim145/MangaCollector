@@ -61,6 +61,7 @@ import { queryClient } from "@/lib/queryClient.js";
 import { installConnectivityWatcher } from "@/lib/connectivity.js";
 import { installSyncRunner } from "@/lib/sync.js";
 import { applyThemePreference, rememberThemePreference } from "@/lib/theme.js";
+import { setSoundEnabled } from "@/lib/sounds.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync.js";
@@ -119,6 +120,13 @@ function SettingsProvider({ children }) {
   useEffect(() => {
     if (settings?.language) rememberLanguage(settings.language);
   }, [settings?.language]);
+
+  // 音 · Mirror the DB-stored sound flag into the sounds module's
+  // local cache so call sites can early-out without subscribing to
+  // settings. Defaults to false (sound is opt-in).
+  useEffect(() => {
+    setSoundEnabled(Boolean(settings?.sound_enabled));
+  }, [settings?.sound_enabled]);
 
   return (
     <SettingsContext.Provider value={merged}>

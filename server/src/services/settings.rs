@@ -55,6 +55,7 @@ pub async fn get_user_settings(db: &Db, user_id: i32) -> Result<SettingRow, AppE
         theme: Some(DEFAULT_THEME.into()),
         language: Some(DEFAULT_LANGUAGE.into()),
         avatar_url: None,
+        sound_enabled: false,
     }))
 }
 
@@ -128,6 +129,8 @@ pub async fn update_user_settings(
         None => existing.avatar_url,
     };
 
+    let sound_enabled = req.sound_enabled.unwrap_or(existing.sound_enabled);
+
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),
@@ -138,6 +141,7 @@ pub async fn update_user_settings(
         theme: Set(Some(theme)),
         language: Set(Some(language)),
         avatar_url: Set(avatar_url),
+        sound_enabled: Set(sound_enabled),
         ..Default::default()
     };
 
@@ -149,6 +153,7 @@ pub async fn update_user_settings(
             setting::Column::Theme,
             setting::Column::Language,
             setting::Column::AvatarUrl,
+            setting::Column::SoundEnabled,
             setting::Column::ModifiedOn,
         ])
         .to_owned();

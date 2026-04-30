@@ -17,6 +17,7 @@ pub struct Model {
     pub theme: Option<String>,
     pub language: Option<String>,
     pub avatar_url: Option<String>,
+    pub sound_enabled: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -50,6 +51,7 @@ pub struct SettingsResponse {
     pub language: String,
     #[serde(rename = "avatarUrl")]
     pub avatar_url: Option<String>,
+    pub sound_enabled: bool,
     #[serde(rename = "authName")]
     pub auth_name: String,
     #[serde(rename = "authIcon")]
@@ -67,4 +69,5 @@ pub struct UpdateSettingsRequest {
     pub language: Option<String>,
     #[serde(rename = "avatarUrl")]
     pub avatar_url: Option<String>,
+    pub sound_enabled: Option<bool>,
 }

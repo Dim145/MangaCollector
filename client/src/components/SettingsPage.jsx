@@ -20,6 +20,7 @@ import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
 import { forceResyncFromServer, notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { getApiKey, setApiKey } from "@/lib/isbn.js";
 import { getHapticsEnabled, haptics, setHapticsEnabled } from "@/lib/haptics.js";
+import { setSoundEnabled, sounds } from "@/lib/sounds.js";
 import { formatCurrency } from "@/utils/price.js";
 import { LANGUAGES, useT } from "@/i18n/index.jsx";
 
@@ -92,6 +93,7 @@ export default function SettingsPage() {
   const [titleType, setTitleType] = useState("Default");
   const [theme, setTheme] = useState("dark");
   const [language, setLanguage] = useState("en");
+  const [soundEnabled, setSoundEnabledState] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -162,6 +164,7 @@ export default function SettingsPage() {
     setTitleType(settings?.titleType || "Default");
     setTheme(settings?.theme || "dark");
     setLanguage(settings?.language || "en");
+    setSoundEnabledState(Boolean(settings?.sound_enabled));
     seededRef.current = true;
   }, [settings]);
 
@@ -227,6 +230,7 @@ export default function SettingsPage() {
     titleType,
     theme,
     language,
+    sound_enabled: soundEnabled,
   });
 
   const handleAdultChange = (value) => {
@@ -244,6 +248,15 @@ export default function SettingsPage() {
   const handleLanguageChange = (value) => {
     setLanguage(value);
     save({ ...baseSettings(), language: value });
+  };
+  const handleSoundChange = (value) => {
+    setSoundEnabledState(value);
+    // Update the local mirror right away so a `success()` cue here can
+    // play through — the SettingsProvider effect would otherwise sync
+    // the flag a tick later, after this function returns.
+    setSoundEnabled(value);
+    if (value) sounds.success();
+    save({ ...baseSettings(), sound_enabled: value });
   };
   const handleCurrencyChange = (code) => {
     const nextCurrency = CURRENCY_FORMATS[code] ?? { code };
@@ -341,6 +354,11 @@ export default function SettingsPage() {
             <HapticsSection
               enabled={hapticsOn}
               onToggle={handleHapticsToggle}
+              t={t}
+            />
+            <SoundSection
+              enabled={soundEnabled}
+              onToggle={handleSoundChange}
               t={t}
             />
           </Chapter>
@@ -1007,6 +1025,62 @@ function CurrencySection({ currency, onChange, t }) {
         ))}
       </div>
     </Card>
+  );
+}
+
+function SoundSection({ enabled, onToggle, t }) {
+  return (
+    <section
+      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+      style={{ animationDelay: "360ms" }}
+    >
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-gold/20 font-jp text-[10px] font-bold text-gold"
+          >
+            音
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-semibold text-washi">
+              {t("settings.soundTitle")}
+            </h2>
+            <p className="mt-1 text-xs text-washi-muted">
+              {t("settings.soundBody")}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={t("settings.soundToggleAria")}
+          onClick={() => onToggle(!enabled)}
+          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${
+            enabled
+              ? "border-gold bg-gold/80"
+              : "border-border bg-ink-2"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
+              enabled
+                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
+                : "left-0.5 bg-washi-dim"
+            }`}
+          />
+        </button>
+      </div>
+
+      <p className="mt-2 rounded-lg border border-border bg-ink-0/40 px-3 py-2 text-[11px] leading-relaxed text-washi-muted">
+        <span className="font-mono uppercase tracking-[0.2em] text-washi-dim">
+          {t("settings.soundGatingLabel")}
+        </span>{" "}
+        {t("settings.soundGatingDetail")}
+      </p>
+    </section>
   );
 }
 

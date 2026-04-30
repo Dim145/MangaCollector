@@ -829,6 +829,13 @@ export default {
     hapticsGatingLabel: "Almacenamiento local",
     hapticsGatingDetail:
       "Preferencia guardada por dispositivo — no se sincroniza con tu cuenta.",
+    soundTitle: "Sonidos de interfaz",
+    soundBody:
+      "Bips discretos en sine wave en acciones clave — toggle de tomo, confirmación de cofre. Desactivado por defecto.",
+    soundToggleAria: "Activar o desactivar los sonidos de interfaz",
+    soundGatingLabel: "Cuenta",
+    soundGatingDetail:
+      "Preferencia guardada en el servidor — sincronizada en todos tus dispositivos.",
     adultContent: "Contenido adulto",
     adultBody: "Cómo aparecen los títulos para adultos en tu archivo.",
     adultBlur: "Difuminar",
