@@ -4,6 +4,7 @@ import Seal from "./ui/Seal.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import { useSeals } from "@/hooks/useSeals.js";
 import { SEALS_BY_CATEGORY, SEAL_CATALOG, TIERS } from "@/lib/sealsCatalog.js";
+import { sounds } from "@/lib/sounds.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -113,6 +114,12 @@ export default function SealsPage() {
         } catch {
           /* haptic unsupported — silent */
         }
+        // 印 · Ceremonial chime — tier drives note count + bass so a
+        // shikkoku unlock feels meaningfully heavier than a sumi.
+        // Fired in the same beat as the haptic so the audio + buzz
+        // land with the spotlight stamp on screen.
+        const sealMeta = SEAL_CATALOG.find((s) => s.code === code);
+        sounds.seal(sealMeta?.tier ?? 1);
         await interruptible(2400);
       }
       if (!cancelled) setCeremonyIndex(-1);

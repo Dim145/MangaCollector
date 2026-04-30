@@ -106,6 +106,36 @@ export const sounds = {
     tone(329.63, { release: 0.09, gain: 0.7 });
     tone(233.08, { delay: 0.07, release: 0.14, gain: 0.7 });
   },
+  /**
+   * 印 · Seal ceremony — tier-aware ascending chime fired alongside
+   * the spotlight + stamp animation when a freshly-earned seal is
+   * being celebrated. Longer release (~0.5s) so the cue "rings"
+   * rather than clicks; tone count and bass register grow with the
+   * tier so a tier-5 shikkoku feels meaningfully heavier than a
+   * tier-1 sumi without a separate audio asset per tier.
+   *
+   * Harmony: D-major arpeggio (D5, F#5, A5, D6) — open and reverent
+   * rather than triumphal-march bombastic, in keeping with the
+   * project's restrained brush-and-ink aesthetic. Tier 5 lays a
+   * D3 bass underneath the arpeggio for legendary weight.
+   */
+  seal: (tier = 1) => {
+    if (!enabled) return;
+    const stagger = 0.16;
+    const release = 0.5;
+    const gain = 0.7;
+    if (tier >= 5) {
+      // Bass tail starts first and rings under the whole arpeggio.
+      tone(146.83, { release: 1.1, gain: 0.5 });
+    }
+    // Ascending arpeggio — note count grows with tier so a tier-1
+    // sumi reads as a single chime, a tier-3 moegi as a full D-major
+    // triad, a tier-4+ kin/shikkoku as a triad capped with the octave.
+    tone(587.33, { release, gain });                                   // D5
+    if (tier >= 2) tone(739.99, { delay: stagger, release, gain });    // F#5
+    if (tier >= 3) tone(880.0, { delay: stagger * 2, release, gain }); // A5
+    if (tier >= 4) tone(1174.66, { delay: stagger * 3, release: release + 0.2, gain }); // D6
+  },
 };
 
 export default sounds;
