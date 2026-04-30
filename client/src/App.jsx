@@ -31,6 +31,7 @@ import SyncToaster from "@/components/SyncToaster.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import CommandPalette from "@/components/CommandPalette.jsx";
+import MangaPageSkeleton from "@/components/MangaPageSkeleton.jsx";
 
 // Lazy routes — each lands in its own JS chunk so first paint ships less.
 // Recharts rides with ProfilePage, @zxing rides with AddPage via its own
@@ -169,9 +170,11 @@ function MangaPageRoute({ stateManga, adult_content_level }) {
   }
 
   // Wait for Dexie before deciding the row doesn't exist — a fresh tab
-  // races hydration against this render.
+  // races hydration against this render. Skeleton mirrors the hero
+  // layout so the swap to real data is a crossfade-in-place rather
+  // than a "blank → content" pop.
   if (libLoading) {
-    return null;
+    return <MangaPageSkeleton />;
   }
 
   const resolved = library?.find((m) => m.mal_id === malId);

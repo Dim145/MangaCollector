@@ -411,6 +411,7 @@ export default function ProfilePage({ googleUser }) {
                             <CoverImage
                               src={row.manga.image_url_jpg}
                               alt=""
+                              paletteSeed={row.manga.mal_id}
                               imgClassName="h-full w-full object-cover"
                             />
                           </span>

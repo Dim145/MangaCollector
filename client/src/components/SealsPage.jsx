@@ -757,27 +757,59 @@ function CategorySection({
   );
 }
 
+/**
+ * Skeleton mirrors the real `<CategorySection>` structure published
+ * in the festival redesign: chapter eyebrow + brushstroke divider +
+ * medallion / title / counter row + per-tile cover-and-name grid.
+ * Each block uses the same Tailwind dimensions as the real elements
+ * so the layout doesn't shift when the data resolves and the real
+ * sections take over (no CLS).
+ */
 function SealsPageSkeleton() {
   return (
-    <div className="space-y-10">
+    <div className="space-y-14">
       {[0, 1, 2].map((i) => (
-        <div key={i}>
-          <div className="mb-5 flex items-center gap-4">
-            <Skeleton className="h-16 w-16 rounded-lg" />
-            <div className="flex-1">
-              <Skeleton className="h-6 w-48 rounded" />
-              <Skeleton className="mt-1 h-3 w-60 rounded" />
-            </div>
+        <section key={i} className="relative">
+          {/* Chapter eyebrow + dotted divider — matches the real
+              `flex items-baseline gap-3` row above each section */}
+          <div className="mb-3 flex items-baseline gap-3">
+            <Skeleton className="h-3 w-24 rounded" />
+            <span className="h-px flex-1 bg-gradient-to-r from-border via-border/40 to-transparent" />
+            <Skeleton className="h-3 w-4 rounded" />
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {[0, 1, 2, 3, 4].map((j) => (
+
+          {/* Header row: medallion + title block + score */}
+          <div className="mb-6 flex items-center gap-4">
+            <Skeleton className="h-16 w-16 rounded-lg" />
+            <div className="min-w-0 flex-1">
+              <Skeleton className="h-7 w-48 rounded" />
+              <Skeleton className="mt-1.5 h-3 w-64 rounded" />
+            </div>
+            <Skeleton className="h-9 w-14 rounded" />
+          </div>
+
+          {/* Tile grid — same columns as the real seal grid so the
+              skeleton occupies exactly the slots the data will. The
+              kanji-bearing rounded squares are h-24/h-28 with a name
+              line beneath; we mirror both. */}
+          <div
+            className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+            aria-hidden="true"
+          >
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((j) => (
               <div key={j} className="flex flex-col items-center">
-                <Skeleton className="h-24 w-24 rounded-md lg:h-28 lg:w-28" />
+                <Skeleton
+                  className="h-24 w-24 rounded-md lg:h-28 lg:w-28"
+                  // Stagger the shimmer phase so the row reads as
+                  // a wave instead of a single block of pulses.
+                  style={{ animationDelay: `${j * 80}ms` }}
+                />
                 <Skeleton className="mt-3 h-3 w-20 rounded" />
+                <Skeleton className="mt-1 h-2 w-12 rounded opacity-60" />
               </div>
             ))}
           </div>
-        </div>
+        </section>
       ))}
     </div>
   );

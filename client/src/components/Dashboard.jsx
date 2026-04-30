@@ -35,33 +35,6 @@ import { useT } from "@/i18n/index.jsx";
 // raw to skip the JSON cost.
 const DASHBOARD_STATE_KEY = "mc:dashboard:view";
 const DASHBOARD_SCROLL_KEY = "mc:dashboard:scrollY";
-const DASHBOARD_CARD_ANIM_KEY = "mc:dashboard:cardAnimPlayed";
-
-/**
- * Returns true ONCE per browser tab — the very first time the
- * Dashboard mounts. Subsequent mounts (back navigation from
- * MangaPage, route bounce, etc.) return false.
- *
- * Used to gate the per-card `animate-fade-up` stagger. Without this
- * gate, every back-nav re-triggered the CSS animation on the first
- * 12 cards (which start at `opacity: 0` and fade up over ~600ms)
- * while cards 13+ rendered instantly — producing a visible "the
- * top 12 reappear, the rest are already here" flicker that read
- * as a bug. The cold-start polish stays for the first arrival in
- * the tab; back-navigations now snap into place.
- */
-function consumeFirstMountFlag() {
-  if (typeof sessionStorage === "undefined") return true;
-  try {
-    if (sessionStorage.getItem(DASHBOARD_CARD_ANIM_KEY) === "1") {
-      return false;
-    }
-    sessionStorage.setItem(DASHBOARD_CARD_ANIM_KEY, "1");
-    return true;
-  } catch {
-    return true;
-  }
-}
 
 function readPersistedDashboardState() {
   if (typeof sessionStorage === "undefined") return null;
@@ -113,13 +86,6 @@ export default function Dashboard() {
   // every piece of view state below. Subsequent state changes are
   // each individually persisted in their own effect.
   const persisted = useMemo(() => readPersistedDashboardState(), []);
-
-  // Card stagger animation runs only on the first mount of the tab —
-  // see `consumeFirstMountFlag` for the rationale. `useState`'s lazy
-  // initialiser ensures the sessionStorage flag is consumed exactly
-  // once, even under React Strict Mode's double-invoke (the second
-  // mount sees the flag already set and resolves to `false`).
-  const [animateCardStagger] = useState(consumeFirstMountFlag);
 
   const [query, setQuery] = useState(() => persisted?.query ?? "");
   const [filter, setFilter] = useState(() => persisted?.filter ?? "all");
@@ -648,43 +614,25 @@ export default function Dashboard() {
               onClearTags={clearTags}
             />
           ) : (
+            // Cards mount at full opacity. A previous version
+            // staggered an `animate-fade-up` over the first 12 tiles,
+            // but that left those tiles invisible until their delay
+            // fired — on slow networks it read as holes in the grid
+            // while later tiles were already visible. The
+            // `<CoverImage>` LQIP swatch is the loading signal now.
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filtered.map((manga, i) => (
-                <div
+                <Manga
                   // Custom series can share `mal_id = null` until the
                   // server mints a negative id, so we prefer the Dexie
                   // primary key.
                   key={manga.id ?? manga.mal_id ?? `idx-${i}`}
-                  // `content-visibility: auto` was here for off-screen
-                  // perf (skip rendering of cards below the fold). It
-                  // *also* clips paint to the wrapper's box in Chrome's
-                  // implementation — even when the element is on-screen
-                  // and the spec says no containment should apply. The
-                  // Manga card translates `-translate-y-1` on hover, and
-                  // those 4px were getting chopped at the top of the
-                  // wrapper, killing the hover border. Since the grid
-                  // is already paginated to 30 cards, the perf benefit
-                  // is small enough that correctness wins.
-                  style={{
-                    animationDelay:
-                      animateCardStagger && i < 12
-                        ? `${Math.min(i * 40, 440)}ms`
-                        : undefined,
-                  }}
-                  className={
-                    animateCardStagger && i < 12
-                      ? "animate-fade-up"
-                      : undefined
-                  }
-                >
-                  <Manga
-                    manga={manga}
-                    adult_content_level={adult_content_level}
-                    allCollector={allCollectorSet.has(manga.mal_id)}
-                    tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
-                    nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
-                  />
-                </div>
+                  manga={manga}
+                  adult_content_level={adult_content_level}
+                  allCollector={allCollectorSet.has(manga.mal_id)}
+                  tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
+                  nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
+                />
               ))}
             </div>
           )}

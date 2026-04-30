@@ -118,6 +118,7 @@ export default function Manga({
           src={manga.image_url_jpg}
           alt=""
           blur={blur}
+          paletteSeed={manga.mal_id}
           imgClassName="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
         />
         {/* Tooltip-target for the placeholder — only meaningful when
