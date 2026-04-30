@@ -833,6 +833,13 @@ export default {
     language: "Langue",
     languageBody:
       "La langue utilisée pour tous les libellés et messages de l'interface.",
+    hapticsTitle: "Retour haptique",
+    hapticsBody:
+      "Vibration brève sur les actions clés — toggle de tome, validation de coffret. Sans effet sur les appareils sans moteur.",
+    hapticsToggleAria: "Activer ou désactiver le retour haptique",
+    hapticsGatingLabel: "Mémoire locale",
+    hapticsGatingDetail:
+      "Préférence stockée par appareil — pas synchronisée avec votre compte.",
     adultContent: "Contenu adulte",
     adultBody:
       "Comportement d'affichage des titres matures dans votre archive.",

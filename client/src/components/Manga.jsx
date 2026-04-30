@@ -81,7 +81,12 @@ export default function Manga({
       // any badge near top:0) outside the contained box and made the
       // top edge of the moegi/hanko hover-border vanish. Same bug class
       // as the Volume.jsx corner-badge clipping fixed earlier.
-      className="group relative flex flex-col text-left tap-none focus-visible:outline-none [contain:layout]"
+      //
+      // Focus-visible ring traces the cover's `rounded-lg` curve at a
+      // 3px offset so keyboard tab-through has a clear target — the
+      // global `:focus-visible` rule in index.css uses a 4px radius
+      // that wouldn't match the cover's 8px and read as misaligned.
+      className="group relative flex flex-col text-left tap-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko focus-visible:ring-offset-2 focus-visible:ring-offset-ink-0 [contain:layout]"
     >
       {/* Cover — tall aspect like a real manga volume.
           `view-transition-name` lets the browser morph this tile into

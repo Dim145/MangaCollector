@@ -19,6 +19,7 @@ import { usePendingCount } from "@/hooks/usePendingCount.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
 import { forceResyncFromServer, notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { getApiKey, setApiKey } from "@/lib/isbn.js";
+import { getHapticsEnabled, haptics, setHapticsEnabled } from "@/lib/haptics.js";
 import { formatCurrency } from "@/utils/price.js";
 import { LANGUAGES, useT } from "@/i18n/index.jsx";
 
@@ -103,6 +104,18 @@ export default function SettingsPage() {
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [apiKeyRevealed, setApiKeyRevealed] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
+
+  // 振 · Haptics is a localStorage-only preference (device-specific —
+  // see lib/haptics.js for the rationale). Lazy initialiser reads the
+  // flag once at mount; toggles below write through and fire a buzz so
+  // the user feels what they just enabled.
+  const [hapticsOn, setHapticsOn] = useState(getHapticsEnabled);
+
+  const handleHapticsToggle = (next) => {
+    setHapticsOn(next);
+    setHapticsEnabled(next);
+    if (next) haptics.success();
+  };
 
   // Scroll-spy: which chapter is currently in view (drives the index
   // rail's active state + writes back to the URL hash).
@@ -325,6 +338,11 @@ export default function SettingsPage() {
             />
             <SeasonSection />
             <AtmosphereSection />
+            <HapticsSection
+              enabled={hapticsOn}
+              onToggle={handleHapticsToggle}
+              t={t}
+            />
           </Chapter>
 
           <Chapter
@@ -989,6 +1007,62 @@ function CurrencySection({ currency, onChange, t }) {
         ))}
       </div>
     </Card>
+  );
+}
+
+function HapticsSection({ enabled, onToggle, t }) {
+  return (
+    <section
+      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+      style={{ animationDelay: "300ms" }}
+    >
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-hanko/20 font-jp text-[10px] font-bold text-hanko-bright"
+          >
+            振
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-semibold text-washi">
+              {t("settings.hapticsTitle")}
+            </h2>
+            <p className="mt-1 text-xs text-washi-muted">
+              {t("settings.hapticsBody")}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={t("settings.hapticsToggleAria")}
+          onClick={() => onToggle(!enabled)}
+          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${
+            enabled
+              ? "border-hanko bg-hanko/80"
+              : "border-border bg-ink-2"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
+              enabled
+                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
+                : "left-0.5 bg-washi-dim"
+            }`}
+          />
+        </button>
+      </div>
+
+      <p className="mt-2 rounded-lg border border-border bg-ink-0/40 px-3 py-2 text-[11px] leading-relaxed text-washi-muted">
+        <span className="font-mono uppercase tracking-[0.2em] text-washi-dim">
+          {t("settings.hapticsGatingLabel")}
+        </span>{" "}
+        {t("settings.hapticsGatingDetail")}
+      </p>
+    </section>
   );
 }
 

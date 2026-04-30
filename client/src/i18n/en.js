@@ -816,6 +816,13 @@ export default {
     language: "Language",
     languageBody:
       "The language used across all the interface labels and messages.",
+    hapticsTitle: "Haptic feedback",
+    hapticsBody:
+      "Short vibration on key actions — volume toggle, coffret confirm. Silent on devices without a motor.",
+    hapticsToggleAria: "Toggle haptic feedback",
+    hapticsGatingLabel: "Local storage",
+    hapticsGatingDetail:
+      "Preference stored per device — not synced to your account.",
     adultContent: "Adult content",
     adultBody: "How mature titles appear throughout your archive.",
     adultBlur: "Blur",

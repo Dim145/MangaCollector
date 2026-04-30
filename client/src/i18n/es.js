@@ -822,6 +822,13 @@ export default {
     language: "Idioma",
     languageBody:
       "El idioma usado en todas las etiquetas y mensajes de la interfaz.",
+    hapticsTitle: "Respuesta háptica",
+    hapticsBody:
+      "Vibración breve en acciones clave — toggle de tomo, confirmación de cofre. Sin efecto en dispositivos sin motor.",
+    hapticsToggleAria: "Activar o desactivar la respuesta háptica",
+    hapticsGatingLabel: "Almacenamiento local",
+    hapticsGatingDetail:
+      "Preferencia guardada por dispositivo — no se sincroniza con tu cuenta.",
     adultContent: "Contenido adulto",
     adultBody: "Cómo aparecen los títulos para adultos en tu archivo.",
     adultBlur: "Difuminar",

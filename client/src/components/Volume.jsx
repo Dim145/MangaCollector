@@ -1,10 +1,11 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import Tooltip from "./ui/Tooltip.jsx";
 import VolumeDetailDrawer from "./VolumeDetailDrawer.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoverPreviewGesture } from "@/hooks/useCoverPreviewGesture.js";
 import { formatCurrency } from "@/utils/price.js";
 import { formatShortDate } from "@/utils/volume.js";
+import { haptics } from "@/lib/haptics.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -46,6 +47,38 @@ function VolumeImpl({
   const [collectorStatus, setCollectorStatus] = useState(Boolean(collector));
   const [readStatus, setReadStatus] = useState(Boolean(readAt));
   const [noteDraft, setNoteDraft] = useState(note ?? "");
+
+  // 確 · Confirmation feedback for Volume toggleOwned.
+  //   - tickKey: monotonic counter that increments on each owned-flip
+  //     to TRUE. Mounted as the `<span key={tickKey}>` of the tick
+  //     overlay so the CSS keyframe replays from frame 0 every time
+  //     (a same-key element wouldn't re-trigger its animation).
+  //   - tickRevision: tracks which key was *applied* — tick visible
+  //     only when current. Auto-clears 800ms later (matches keyframe
+  //     length) so the unmounted element stops occupying the layer.
+  //   - coverButtonRef: imperative target for the WAAPI bump on flip,
+  //     fired in either direction. Imperative-only because re-firing
+  //     a CSS animation on the same element requires class toggle +
+  //     reflow gymnastics; .animate() restarts cleanly every call.
+  const [tickKey, setTickKey] = useState(0);
+  const [tickVisible, setTickVisible] = useState(false);
+  const coverButtonRef = useRef(null);
+
+  function playOwnedFeedback(toOwned) {
+    coverButtonRef.current?.animate(
+      [
+        { transform: "scale(1)" },
+        { transform: "scale(1.08)" },
+        { transform: "scale(1)" },
+      ],
+      { duration: 240, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
+    );
+    if (toOwned) {
+      setTickKey((k) => k + 1);
+      setTickVisible(true);
+      setTimeout(() => setTickVisible(false), 800);
+    }
+  }
 
   const updateVolume = useUpdateVolume();
   const isLoading = updateVolume.isPending;
@@ -92,6 +125,12 @@ function VolumeImpl({
     if (preview.consumeClick()) return;
     const next = !ownedStatus;
     setOwnedStatus(next);
+    // Haptic + visual bump fire on the optimistic flip — same frame
+    // as the colour shift so the feedback lands with the click, not
+    // 200 ms later when the network round-trip resolves. The tick
+    // overlay only shows on toOwned (the celebratory direction).
+    next ? haptics.bump() : haptics.tap();
+    playOwnedFeedback(next);
     await persist(next, price, purchaseLocation, collectorStatus, true);
   };
 
@@ -102,6 +141,7 @@ function VolumeImpl({
     // read status freely; the persist below preserves the coffret-owned axes.
     const next = !readStatus;
     setReadStatus(next);
+    haptics.tap();
     // Auto-own on mark-read, but never on a locked (coffret) volume.
     let nextOwned = ownedStatus;
     let ownedChanged = false;
@@ -257,6 +297,7 @@ function VolumeImpl({
       <div className="flex items-center gap-3 p-4">
         {coverUrl ? (
           <button
+            ref={coverButtonRef}
             onClick={toggleOwned}
             disabled={isEditing || isLoading || locked || isUpcoming}
             aria-label={
@@ -339,6 +380,32 @@ function VolumeImpl({
               </span>
             )}
 
+            {/* 確 · Confirmation tick — pops over the cover for ~800ms
+                each time the user marks the volume as owned. Keyed on
+                tickKey so a rapid toggle (own → unown → own) replays
+                the animation from frame 0 instead of skipping. */}
+            {tickVisible && (
+              <span
+                key={tickKey}
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 grid place-items-center"
+              >
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-hanko/95 text-washi shadow-[0_2px_12px_rgba(220,38,38,0.55)] ring-1 ring-hanko-bright animate-volume-tick">
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-3.5 w-3.5"
+                  >
+                    <polyline points="3 8.5 7 12 13 4.5" />
+                  </svg>
+                </span>
+              </span>
+            )}
+
             <span
               className={`pointer-events-none absolute bottom-0.5 right-0.5 grid min-h-4 min-w-4 place-items-center rounded-sm px-1 font-mono text-[9px] font-bold leading-none shadow ${
                 isUpcoming
@@ -357,6 +424,7 @@ function VolumeImpl({
           </button>
         ) : (
           <button
+            ref={coverButtonRef}
             onClick={toggleOwned}
             disabled={isEditing || isLoading || locked || isUpcoming}
             aria-label={
