@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLazyImage } from "@/hooks/useLazyImage.js";
 import { coverPaletteFor } from "@/lib/coverPalette.js";
 
 /**
@@ -28,6 +29,11 @@ export default function CoverImage({
 }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // 遅 · Defer the actual `<img>` mount until the slot approaches the
+  // viewport (200px buffer). Skips the network request entirely for
+  // off-screen slots in a virtualized grid; the LQIP swatch fills the
+  // visible space until then.
+  const { ref: lazyRef, near } = useLazyImage();
 
   useEffect(() => {
     setFailed(false);
@@ -41,6 +47,7 @@ export default function CoverImage({
   if (showImg) {
     return (
       <span
+        ref={lazyRef}
         // `relative block h-full w-full` is the baseline so the span
         // always fills its container (callers wrap us in an
         // aspect-ratio box and expect the slot to be filled). Caller-
@@ -57,23 +64,30 @@ export default function CoverImage({
             : undefined,
         }}
       >
-        <img
-          src={src}
-          alt={alt}
-          loading={loading}
-          decoding="async"
-          fetchpriority={fetchPriority}
-          draggable={draggable}
-          // MangaDex and a few other hosts 403 cross-origin requests
-          // that carry a Referer they don't recognise; the page-level
-          // Referrer-Policy stays strict and only this tag opts out.
-          referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
-          onLoad={() => setLoaded(true)}
-          className={`${imgClassName} ${blur ? "blur-md" : ""} ${
-            placeholderColor ? "transition-opacity duration-300" : ""
-          } ${placeholderColor && !loaded ? "opacity-0" : "opacity-100"}`.trim()}
-        />
+        {near && (
+          <img
+            src={src}
+            alt={alt}
+            // Native `loading="lazy"` stays as a safety net — on the
+            // off-chance our IntersectionObserver fires too early
+            // (e.g. extreme `rootMargin` accidents) the browser still
+            // defers the fetch until the slot is genuinely close to
+            // the viewport.
+            loading={loading}
+            decoding="async"
+            fetchpriority={fetchPriority}
+            draggable={draggable}
+            // MangaDex and a few other hosts 403 cross-origin requests
+            // that carry a Referer they don't recognise; the page-level
+            // Referrer-Policy stays strict and only this tag opts out.
+            referrerPolicy="no-referrer"
+            onError={() => setFailed(true)}
+            onLoad={() => setLoaded(true)}
+            className={`${imgClassName} ${blur ? "blur-md" : ""} ${
+              placeholderColor ? "transition-opacity duration-300" : ""
+            } ${placeholderColor && !loaded ? "opacity-0" : "opacity-100"}`.trim()}
+          />
+        )}
       </span>
     );
   }
