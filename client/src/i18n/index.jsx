@@ -15,9 +15,6 @@
  * trade-off is worth it for readability.
  */
 import { createContext, useContext, useMemo } from "react";
-import en from "./en.js";
-import fr from "./fr.js";
-import es from "./es.js";
 
 /*
  * Lightweight i18n — no external dependency, ~1 KB runtime.
@@ -31,6 +28,13 @@ import es from "./es.js";
  * key string so something is always rendered.
  *
  * `{placeholder}` tokens in the strings are replaced with params values.
+ *
+ * Bundles are LAZY-LOADED so the main JS chunk doesn't ship every
+ * language to every visitor. The English bundle is treated specially as
+ * the fallback for missing keys — `loadLanguage(lang)` resolves once
+ * the requested bundle (and English, if different) is in cache, and
+ * the React render must wait on that promise before mounting the
+ * provider. Each `import(...)` resolves to its own code-split chunk.
  */
 
 export const LANGUAGES = [
@@ -39,7 +43,48 @@ export const LANGUAGES = [
   { code: "es", label: "Español", flag: "🇪🇸" },
 ];
 
-const BUNDLES = { en, fr, es };
+const LOADERS = {
+  en: () => import("./en.js"),
+  fr: () => import("./fr.js"),
+  es: () => import("./es.js"),
+};
+
+// Module-scoped cache of resolved bundles. Populated as `loadLanguage`
+// resolves; read synchronously by `I18nProvider` from that point on.
+// Mutated through `loadLanguage` rather than directly.
+const BUNDLES = {};
+
+/**
+ * Resolve a language's bundle, fetching its chunk on first call and
+ * caching it for subsequent calls. Returns the bundle object so callers
+ * can also do their own thing with it; the side-effect of populating
+ * `BUNDLES[lang]` is what `I18nProvider` actually reads from later.
+ *
+ * Always co-loads English when the requested lang isn't English — the
+ * `t()` helper falls back to English for missing keys, and we want
+ * that fallback to be synchronous (no flash of raw keys) once the
+ * provider is mounted.
+ */
+export async function loadLanguage(lang) {
+  const code = LOADERS[lang] ? lang : "en";
+  const tasks = [];
+  if (!BUNDLES[code]) {
+    tasks.push(
+      LOADERS[code]().then((mod) => {
+        BUNDLES[code] = mod.default;
+      }),
+    );
+  }
+  if (code !== "en" && !BUNDLES.en) {
+    tasks.push(
+      LOADERS.en().then((mod) => {
+        BUNDLES.en = mod.default;
+      }),
+    );
+  }
+  if (tasks.length) await Promise.all(tasks);
+  return BUNDLES[code];
+}
 
 const I18nContext = createContext({
   lang: "en",

@@ -18,6 +18,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import {
   bootstrapLanguage,
   I18nProvider,
+  loadLanguage,
   rememberLanguage,
 } from "@/i18n/index.jsx";
 import { useLibrary } from "@/hooks/useLibrary.js";
@@ -172,7 +173,17 @@ function I18nBoundary({ children }) {
 
   useEffect(() => {
     const next = settings?.language;
-    if (next && next !== lang) setLang(next);
+    if (!next || next === lang) return;
+    // Bundles are lazy: ensure the new language's chunk is in cache
+    // before flipping the provider, otherwise the first render after
+    // the switch would fall back to the raw key strings.
+    let cancelled = false;
+    loadLanguage(next).then(() => {
+      if (!cancelled) setLang(next);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [settings?.language, lang]);
 
   return <I18nProvider lang={lang}>{children}</I18nProvider>;
