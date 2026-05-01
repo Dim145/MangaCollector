@@ -21,6 +21,7 @@ import { forceResyncFromServer, notifySyncError, notifySyncInfo } from "@/lib/sy
 import { getApiKey, setApiKey } from "@/lib/isbn.js";
 import { getHapticsEnabled, haptics, setHapticsEnabled } from "@/lib/haptics.js";
 import { setSoundEnabled } from "@/lib/sounds.js";
+import { ACCENTS, DEFAULT_ACCENT } from "@/lib/accent.js";
 import { formatCurrency } from "@/utils/price.js";
 import { LANGUAGES, useT } from "@/i18n/index.jsx";
 
@@ -94,6 +95,8 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState("dark");
   const [language, setLanguage] = useState("en");
   const [soundEnabled, setSoundEnabledState] = useState(false);
+  const [accentColor, setAccentColor] = useState(DEFAULT_ACCENT);
+  const [shelf3d, setShelf3d] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -165,6 +168,8 @@ export default function SettingsPage() {
     setTheme(settings?.theme || "dark");
     setLanguage(settings?.language || "en");
     setSoundEnabledState(Boolean(settings?.sound_enabled));
+    setAccentColor(settings?.accent_color || DEFAULT_ACCENT);
+    setShelf3d(Boolean(settings?.shelf_3d_enabled));
     seededRef.current = true;
   }, [settings]);
 
@@ -231,6 +236,11 @@ export default function SettingsPage() {
     theme,
     language,
     sound_enabled: soundEnabled,
+    // Server treats `""` as "reset to default" (NULL in DB) and any
+    // unrecognised name as a no-op. The default-shu name maps to
+    // `null` server-side via the empty-string convention.
+    accent_color: accentColor === DEFAULT_ACCENT ? "" : accentColor,
+    shelf_3d_enabled: shelf3d,
   });
 
   const handleAdultChange = (value) => {
@@ -248,6 +258,17 @@ export default function SettingsPage() {
   const handleLanguageChange = (value) => {
     setLanguage(value);
     save({ ...baseSettings(), language: value });
+  };
+  const handleAccentChange = (name) => {
+    setAccentColor(name);
+    save({
+      ...baseSettings(),
+      accent_color: name === DEFAULT_ACCENT ? "" : name,
+    });
+  };
+  const handleShelf3dChange = (value) => {
+    setShelf3d(value);
+    save({ ...baseSettings(), shelf_3d_enabled: value });
   };
   const handleSoundChange = (value) => {
     setSoundEnabledState(value);
@@ -347,6 +368,16 @@ export default function SettingsPage() {
               options={THEME_OPTIONS}
               value={theme}
               onChange={handleThemeChange}
+              t={t}
+            />
+            <AccentSection
+              value={accentColor}
+              onChange={handleAccentChange}
+              t={t}
+            />
+            <Shelf3DSection
+              enabled={shelf3d}
+              onToggle={handleShelf3dChange}
               t={t}
             />
             <SeasonSection />
@@ -1080,6 +1111,150 @@ function SoundSection({ enabled, onToggle, t }) {
         </span>{" "}
         {t("settings.soundGatingDetail")}
       </p>
+    </section>
+  );
+}
+
+function AccentSection({ value, onChange, t }) {
+  return (
+    <section
+      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+      style={{ animationDelay: "180ms" }}
+    >
+      <div className="mb-4 flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-hanko/20 font-jp text-[10px] font-bold text-hanko-bright"
+        >
+          朱
+        </span>
+        <div className="min-w-0">
+          <h2 className="font-display text-lg font-semibold text-washi">
+            {t("settings.accentTitle")}
+          </h2>
+          <p className="mt-1 text-xs text-washi-muted">
+            {t("settings.accentBody")}
+          </p>
+        </div>
+      </div>
+
+      {/*
+        4-up grid on mobile, 8-up on lg so the full palette fits in a
+        single row when the viewport allows. Each chip is a vertical
+        column of: kanji glyph at large size (the hook), swatch dot,
+        latin label.
+
+        Selection treatment: ring in the chosen accent's own colour
+        + raised z to break out of the grid plane. The kanji also
+        gets `text-hanko-bright` once selected so the rest of the UI
+        previews as a coherent palette.
+      */}
+      <div
+        role="radiogroup"
+        aria-label={t("settings.accentTitle")}
+        className="grid grid-cols-4 gap-2 sm:grid-cols-8"
+      >
+        {ACCENTS.map((opt) => {
+          const active = value === opt.name;
+          return (
+            <button
+              key={opt.name}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(opt.name)}
+              title={opt.description}
+              className={`group relative flex aspect-[3/4] flex-col items-center justify-between rounded-xl border bg-ink-0/40 p-2 transition-all ${
+                active
+                  ? "border-transparent ring-2 shadow-[0_8px_22px_-8px_rgba(0,0,0,0.6)] -translate-y-0.5"
+                  : "border-border hover:border-border/80 hover:-translate-y-0.5"
+              }`}
+              style={
+                active
+                  ? {
+                      // Set the ring colour from the accent swatch
+                      // so the picker's own visual selection state
+                      // aligns with what the rest of the app will
+                      // become on confirm. Inline because Tailwind
+                      // can't synthesise dynamic OKLCH classes.
+                      "--tw-ring-color": opt.swatch,
+                    }
+                  : undefined
+              }
+            >
+              <span
+                aria-hidden="true"
+                className={`font-jp text-2xl font-bold leading-none transition-colors ${
+                  active ? "text-washi" : "text-washi-dim group-hover:text-washi"
+                }`}
+              >
+                {opt.kanji}
+              </span>
+              <span
+                aria-hidden="true"
+                className="h-3 w-3 rounded-full ring-1 ring-washi/15"
+                style={{ backgroundColor: opt.swatch }}
+              />
+              <span
+                className={`font-mono text-[9px] uppercase tracking-[0.2em] transition-colors ${
+                  active ? "text-washi" : "text-washi-dim"
+                }`}
+              >
+                {opt.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function Shelf3DSection({ enabled, onToggle, t }) {
+  return (
+    <section
+      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+      style={{ animationDelay: "210ms" }}
+    >
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-hanko/20 font-jp text-[10px] font-bold text-hanko-bright"
+          >
+            棚
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-semibold text-washi">
+              {t("settings.shelf3dTitle")}
+            </h2>
+            <p className="mt-1 text-xs text-washi-muted">
+              {t("settings.shelf3dBody")}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={t("settings.shelf3dToggleAria")}
+          onClick={() => onToggle(!enabled)}
+          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${
+            enabled
+              ? "border-hanko bg-hanko/80"
+              : "border-border bg-ink-2"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
+              enabled
+                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
+                : "left-0.5 bg-washi-dim"
+            }`}
+          />
+        </button>
+      </div>
     </section>
   );
 }

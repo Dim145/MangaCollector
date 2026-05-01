@@ -17,6 +17,7 @@ import MangaSearchBar from "./MangaSearchBar";
 import GapSuggestions from "./GapSuggestions.jsx";
 import { FilterButton, ActiveChips } from "./TagFilter.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
+import EmptyStateGlyph from "./ui/EmptyStateGlyph.jsx";
 import WelcomeTour from "./WelcomeTour.jsx";
 import SeasonGreeting from "./SeasonGreeting.jsx";
 import { hasSeenTour } from "@/lib/tour.js";
@@ -24,6 +25,7 @@ import { withViewTransition } from "@/lib/viewTransition.js";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
+import { useStreak } from "@/hooks/useStreak.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -178,7 +180,7 @@ export default function Dashboard() {
   const [activeTags, setActiveTags] = useState(
     () => new Set(persisted?.activeTags ?? []),
   );
-  const { adult_content_level } = useContext(SettingsContext);
+  const { adult_content_level, shelf_3d_enabled } = useContext(SettingsContext);
   const navigate = useNavigate();
   const t = useT();
 
@@ -516,6 +518,7 @@ export default function Dashboard() {
               loading={isInitialLoad}
               width="5ch"
             />
+            <StreakChip />
           </div>
 
           <h1 className="mt-3 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl">
@@ -813,6 +816,7 @@ export default function Dashboard() {
               selectedIds={selectedIds}
               onToggleSelect={toggleSelected}
               onEnterSelection={enterSelectionWith}
+              shelf3d={Boolean(shelf_3d_enabled)}
             />
           )}
         </section>
@@ -914,6 +918,7 @@ function MangaGrid({
   selectedIds,
   onToggleSelect,
   onEnterSelection,
+  shelf3d,
 }) {
   const cardProps = {
     adult_content_level,
@@ -924,10 +929,18 @@ function MangaGrid({
     selectedIds,
     onToggleSelect,
     onEnterSelection,
+    shelf3d,
   };
+  // 棚 · The `.shelf-3d` class adds perspective + per-card tilt +
+  // wood-grain shadow ribs, layered on top of the existing grid.
+  // Selection mode forces flat (the tilt would fight the selection
+  // ring + checkbox overlay for visual priority).
+  const gridClass = `grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 ${
+    shelf3d && !selectionMode ? "shelf-3d" : ""
+  }`;
   if (filtered.length <= VIRTUALIZE_THRESHOLD) {
     return (
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      <div className={gridClass}>
         {filtered.map((manga, i) => (
           <Manga
             // Custom series can share `mal_id = null` until the server
@@ -960,6 +973,7 @@ function VirtualMangaGrid({
   selectedIds,
   onToggleSelect,
   onEnterSelection,
+  shelf3d,
 }) {
   const parentRef = useRef(null);
   // Initial offset of the grid relative to the document — passed to
@@ -1026,6 +1040,11 @@ function VirtualMangaGrid({
             key={virtualRow.key}
             data-index={virtualRow.index}
             ref={virtualizer.measureElement}
+            // Per-row 3D class — applies the same tilt + wood-grain
+            // baseline as the simple grid's `.shelf-3d` does. Skipped
+            // in selection mode for the same reason as the simple
+            // path: tilted cards fight the selection ring overlay.
+            className={shelf3d && !selectionMode ? "shelf-3d" : undefined}
             // Position rows in document coordinates (window virtualizer
             // measures against window.scrollY, then we subtract the
             // grid's own offset to translate inside the parent).
@@ -1065,6 +1084,66 @@ function VirtualMangaGrid({
   );
 }
 
+/**
+ * 連 · Activity streak chip — slips into the masthead ribbon next to
+ * the count stats. Hidden when the streak is 0 (no activity yet) so
+ * a brand-new account doesn't see a "0 days" mortifier.
+ *
+ * The chip carries:
+ *   - 連 *ren* kanji (continuous, ongoing) as the visual hook
+ *   - the day count
+ *   - tooltip with best-streak comparison ("Best: 47 days")
+ *
+ * Tone: hanko-bright (the active accent), so when the user has
+ * customised their accent (Tier 8.1) the chip re-tints with the
+ * palette they picked. Pulse animation when the streak ≥ 7 days
+ * — small reward, calibrated to not be intrusive.
+ */
+function StreakChip() {
+  const t = useT();
+  // Dexie-backed; returns `null` until the cache or the network has
+  // answered, then the StreakInfo shape.
+  const data = useStreak();
+  if (!data) return null;
+  const current = data.current_streak ?? 0;
+  const best = data.best_streak ?? 0;
+  if (current <= 0) return null;
+  const onFire = current >= 7;
+  const tooltip =
+    best > current
+      ? t("dashboard.streakTooltipBest", { current, best })
+      : t("dashboard.streakTooltipCurrent", { n: current });
+  return (
+    <>
+      <span aria-hidden="true" className="text-washi-dim/40">·</span>
+      <span
+        title={tooltip}
+        aria-label={tooltip}
+        className={`inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.18em] ${
+          onFire ? "text-hanko-bright" : "text-washi-muted"
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className={`font-jp text-[14px] not-uppercase tracking-normal leading-none ${
+            onFire ? "text-hanko-bright animate-pulse-glow" : "text-washi-muted"
+          }`}
+        >
+          連
+        </span>
+        <span className="text-washi-dim">{t("dashboard.streakLabel")}</span>
+        <span
+          className={`font-mono text-sm font-semibold tracking-normal ${
+            onFire ? "text-hanko-bright" : "text-washi"
+          }`}
+        >
+          {current}
+        </span>
+      </span>
+    </>
+  );
+}
+
 function RibbonStat({ label, value, accent, loading, width }) {
   const accentClass =
     accent === "hanko"
@@ -1088,8 +1167,18 @@ function RibbonStat({ label, value, accent, loading, width }) {
 
 function EmptyState({ hasQuery, hasActiveTags, onAdd, onClearTags }) {
   const t = useT();
-  // Three flavours: filtered-by-tags (loosen the tags), searched (try different
-  // query), or truly empty archive (add first series).
+  // Three flavours: filtered-by-tags (loosen the tags), searched
+  // (try a different query), or truly empty archive (add first
+  // series). Each gets its own kanji backdrop — the brush-stroke
+  // SVG carries the affective weight; the title/body just nail
+  // down the action.
+  //   空 kara — empty / void          (truly empty archive)
+  //   探 saku — to search / seek      (no search match)
+  //   濾 ro   — to filter / strain    (no tag-filter match)
+  const glyph = hasActiveTags ? "濾" : hasQuery ? "探" : "空";
+  // Light per-state tilt so the three states don't all land at
+  // the same angle when rendered via i18n switching mid-session.
+  const rotation = hasActiveTags ? 4 : hasQuery ? -2 : -3;
   const title = hasActiveTags
     ? t("dashboard.noTagMatchTitle")
     : hasQuery
@@ -1101,44 +1190,52 @@ function EmptyState({ hasQuery, hasActiveTags, onAdd, onClearTags }) {
       ? t("dashboard.noMatchBody")
       : t("dashboard.emptyBody");
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-ink-1/30 px-6 py-16 text-center animate-fade-up">
-      <div
-        className="hanko-seal mb-4 grid h-16 w-16 place-items-center rounded-md font-display text-xl"
-        title={t("badges.empty")}
+    <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border bg-ink-1/30 px-6 py-20 text-center animate-fade-up">
+      {/* Kanji backdrop — sits behind the textual content via
+          absolute positioning + low opacity. Pointer-events none
+          so the CTA stays clickable. */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 z-0 grid place-items-center text-hanko/[0.09]"
       >
-        空
-      </div>
-      <h2 className="font-display text-2xl italic text-washi">{title}</h2>
-      <p className="mt-2 max-w-md text-sm text-washi-muted">{body}</p>
-      {hasActiveTags ? (
-        <button
-          onClick={onClearTags}
-          className="mt-6 inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko/20 hover:border-hanko"
-        >
-          <span aria-hidden="true" className="font-jp text-base leading-none">
-            解
-          </span>
-          {t("dashboard.clearTags")}
-        </button>
-      ) : !hasQuery ? (
-        <button
-          onClick={onAdd}
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-4 w-4"
+        <EmptyStateGlyph glyph={glyph} rotation={rotation} />
+      </span>
+
+      <div className="relative z-10 flex flex-col items-center">
+        <h2 className="font-display text-2xl italic text-washi md:text-3xl">
+          {title}
+        </h2>
+        <p className="mt-2 max-w-md text-sm text-washi-muted">{body}</p>
+        {hasActiveTags ? (
+          <button
+            onClick={onClearTags}
+            className="mt-6 inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko/20 hover:border-hanko"
           >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          {t("dashboard.addFirst")}
-        </button>
-      ) : null}
+            <span aria-hidden="true" className="font-jp text-base leading-none">
+              解
+            </span>
+            {t("dashboard.clearTags")}
+          </button>
+        ) : !hasQuery ? (
+          <button
+            onClick={onAdd}
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {t("dashboard.addFirst")}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

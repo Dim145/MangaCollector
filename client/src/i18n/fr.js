@@ -148,6 +148,13 @@ export default {
     lensSleepingHint: "aucune activité depuis plus de 6 mois",
     lensWishlistAged: "Wishlist > 1 an",
     lensWishlistAgedHint: "sur la liste depuis plus d'un an, jamais commencé",
+    // 連 · Label volontairement distinct de « Séries » (manga) qui
+    // est déjà utilisé dans le ribbon stats deux items plus loin.
+    // « Suite » conserve la sémantique « succession ininterrompue ».
+    streakLabel: "Suite",
+    streakTooltipCurrent: "{n} jours consécutifs d'activité",
+    streakTooltipBest:
+      "{current} jours d'affilée — record personnel : {best}",
     searchPlaceholder: "Rechercher dans votre bibliothèque…",
     clearFilter: "Effacer",
     addManga: "Ajouter un manga",
@@ -854,6 +861,13 @@ export default {
     language: "Langue",
     languageBody:
       "La langue utilisée pour tous les libellés et messages de l'interface.",
+    accentTitle: "Couleur d'accent",
+    accentBody:
+      "Le rouge hanko par défaut peut être remplacé par une autre tonalité — chaque palette est calibrée pour préserver les contrastes du reste de l'interface.",
+    shelf3dTitle: "Vue étagère 3D",
+    shelf3dBody:
+      "Les cartes du tableau de bord adoptent une légère perspective avec des ombres de tranche, posées sur une ligne de bois — comme une vraie étagère parcourue à l'œil. Désactivé en mode sélection multiple.",
+    shelf3dToggleAria: "Activer la vue étagère 3D",
     hapticsTitle: "Retour haptique",
     hapticsBody:
       "Vibration brève sur les actions clés — toggle de tome, validation de coffret. Sans effet sur les appareils sans moteur.",

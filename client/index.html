@@ -120,6 +120,30 @@
     </script>
 
     <!--
+      朱 Accent bootstrap — runs synchronously here (NOT inside the
+      deferred `main.jsx` module) so the `data-accent` attribute is on
+      <html> before any stylesheet layout paints. Without this, the
+      page renders one frame with the default hanko red, then `main.jsx`
+      lands and applies the user's accent → visible flash.
+
+      Mirrors the lib/accent.js logic minus validation — an unknown
+      stored value simply doesn't match any `:root[data-accent="…"]`
+      rule, falling back gracefully to the baked-in shu/hanko palette.
+    -->
+    <script>
+      (function () {
+        try {
+          var accent = localStorage.getItem("mc:accent");
+          if (accent && accent !== "shu") {
+            document.documentElement.setAttribute("data-accent", accent);
+          }
+        } catch (_) {
+          /* private mode / quota — base palette stays in charge */
+        }
+      })();
+    </script>
+
+    <!--
       設 · Runtime config injection — Umami analytics.
       The `${...}` placeholders are substituted by `envsubst` at the
       nginx container's startup (see `client/docker-entrypoint.sh`).

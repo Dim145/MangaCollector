@@ -150,6 +150,13 @@ fn user_router() -> Router<AppState> {
         .route("/settings", post(settings::update_settings))
         // Activity feed
         .route("/activity", get(activity::list_activity))
+        // 連 · Streak summary — current/best consecutive UTC days
+        // with at least one activity-log entry. Lives inside the
+        // already-nested `/user` router (see `api_router()` above),
+        // so the path is just `/streak` here — full URL resolves to
+        // `/api/user/streak`. Adding `/user/streak` literally would
+        // double-nest into `/api/user/user/streak` and 404.
+        .route("/streak", get(activity::get_streak))
         // 印鑑帳 — Carnet de sceaux (ceremonial achievements)
         .route("/seals", get(seals::list_seals))
         // 暦 · Upcoming-volume calendar feed. Optional `?from=YYYY-MM`

@@ -145,6 +145,10 @@ export default {
     lensSleepingHint: "sin actividad desde hace más de 6 meses",
     lensWishlistAged: "Wishlist > 1 año",
     lensWishlistAgedHint: "en tu lista desde hace más de un año, sin empezar",
+    streakLabel: "Racha",
+    streakTooltipCurrent: "{n} días consecutivos de actividad",
+    streakTooltipBest:
+      "{current} días seguidos — récord personal: {best}",
     searchPlaceholder: "Busca en tu biblioteca…",
     clearFilter: "Limpiar",
     addManga: "Añadir manga",
@@ -843,6 +847,13 @@ export default {
     language: "Idioma",
     languageBody:
       "El idioma usado en todas las etiquetas y mensajes de la interfaz.",
+    accentTitle: "Color de acento",
+    accentBody:
+      "El rojo hanko por defecto puede sustituirse por otra paleta — cada una está calibrada para preservar el contraste del resto de la interfaz.",
+    shelf3dTitle: "Vista estantería 3D",
+    shelf3dBody:
+      "Las tarjetas del panel adoptan una ligera inclinación con sombras laterales, apoyadas en una línea de madera — como recorrer una estantería de verdad. Desactivado en modo selección múltiple.",
+    shelf3dToggleAria: "Activar la vista estantería 3D",
     hapticsTitle: "Respuesta háptica",
     hapticsBody:
       "Vibración breve en acciones clave — toggle de tomo, confirmación de cofre. Sin efecto en dispositivos sin motor.",

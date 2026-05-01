@@ -12,6 +12,13 @@ const VALID_THEMES: &[&str] = &["dark", "light", "auto"];
 const DEFAULT_LANGUAGE: &str = "en";
 const VALID_LANGUAGES: &[&str] = &["en", "fr", "es"];
 
+/// 朱 · Curated accent palette names. Mirror this list in
+/// `client/src/lib/accent.js` and the CHECK constraint in the
+/// migration — three places to keep in sync, but the alternative
+/// (free-form colour input) loses contrast guarantees.
+const VALID_ACCENT_COLORS: &[&str] =
+    &["shu", "kin", "moegi", "sakura", "ai", "kuro", "murasaki", "akane"];
+
 pub fn get_currency_by_code(code: &str) -> Option<CurrencyInfo> {
     match code {
         "USD" => Some(CurrencyInfo {
@@ -56,6 +63,8 @@ pub async fn get_user_settings(db: &Db, user_id: i32) -> Result<SettingRow, AppE
         language: Some(DEFAULT_LANGUAGE.into()),
         avatar_url: None,
         sound_enabled: false,
+        accent_color: None,
+        shelf_3d_enabled: false,
     }))
 }
 
@@ -131,6 +140,19 @@ pub async fn update_user_settings(
 
     let sound_enabled = req.sound_enabled.unwrap_or(existing.sound_enabled);
 
+    // Accent: `None` (absent) keeps existing; `Some("")` resets to
+    // default (column NULL); `Some(name)` validates against the
+    // curated set or falls back to existing on a typo. The CHECK
+    // constraint catches anything that slips through.
+    let accent_color = match req.accent_color.as_deref() {
+        None => existing.accent_color,
+        Some("") => None,
+        Some(name) if VALID_ACCENT_COLORS.contains(&name) => Some(name.to_string()),
+        Some(_) => existing.accent_color,
+    };
+
+    let shelf_3d_enabled = req.shelf_3d_enabled.unwrap_or(existing.shelf_3d_enabled);
+
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),
@@ -142,6 +164,8 @@ pub async fn update_user_settings(
         language: Set(Some(language)),
         avatar_url: Set(avatar_url),
         sound_enabled: Set(sound_enabled),
+        accent_color: Set(accent_color),
+        shelf_3d_enabled: Set(shelf_3d_enabled),
         ..Default::default()
     };
 
@@ -154,6 +178,8 @@ pub async fn update_user_settings(
             setting::Column::Language,
             setting::Column::AvatarUrl,
             setting::Column::SoundEnabled,
+            setting::Column::AccentColor,
+            setting::Column::Shelf3dEnabled,
             setting::Column::ModifiedOn,
         ])
         .to_owned();

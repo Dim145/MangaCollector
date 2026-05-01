@@ -62,6 +62,7 @@ import { queryClient } from "@/lib/queryClient.js";
 import { installConnectivityWatcher } from "@/lib/connectivity.js";
 import { installSyncRunner } from "@/lib/sync.js";
 import { applyThemePreference, rememberThemePreference } from "@/lib/theme.js";
+import { applyAccentToDocument, rememberAccent } from "@/lib/accent.js";
 import { setSoundEnabled } from "@/lib/sounds.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
@@ -116,6 +117,29 @@ function SettingsProvider({ children }) {
     applyThemePreference(pref);
     rememberThemePreference(pref);
   }, [settings?.theme]);
+
+  // 朱 · Accent — same cold-start mirror pattern. Falls back to the
+  // baked-in shu (hanko) tokens when unset; clearing the localStorage
+  // mirror at the same time avoids a stale reapply on the next visit.
+  //
+  // Critical: the early-return on `accent === undefined` distinguishes
+  // "settings not loaded yet" from "loaded with the default (null)
+  // accent". Without it, the first render of this component (before
+  // useUserSettings has resolved from Dexie / network) would call
+  // `applyAccentToDocument(null)` → `removeAttribute("data-accent")`
+  // → the inline bootstrap's setting evaporates → the page flashes
+  // back to the default `:root` red until settings lands and the
+  // effect fires a second time. `null` (Dexie row exists but
+  // accent_color is null) IS a valid state we want to honour — it
+  // means the user picked the default — and we still drop the
+  // attribute in that case. Only `undefined` (still loading) is
+  // skipped.
+  useEffect(() => {
+    const accent = settings?.accent_color;
+    if (accent === undefined) return;
+    applyAccentToDocument(accent);
+    rememberAccent(accent);
+  }, [settings?.accent_color]);
 
   // Language — stash the latest authoritative value in localStorage so the
   // next cold-start picks the right bundle synchronously (see I18nBoundary).

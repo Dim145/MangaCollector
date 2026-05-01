@@ -18,6 +18,14 @@ pub struct Model {
     pub language: Option<String>,
     pub avatar_url: Option<String>,
     pub sound_enabled: bool,
+    /// 朱 · User-customisable accent palette name. NULL = default
+    /// (hanko / shu). See `VALID_ACCENT_COLORS` in `services/settings.rs`
+    /// for the full list. Validated server-side; the column also carries
+    /// a CHECK constraint as defence-in-depth.
+    pub accent_color: Option<String>,
+    /// 棚 · Toggle the 3D "shelf" rendering on Dashboard cards.
+    /// Off by default — the flat grid is the canonical layout.
+    pub shelf_3d_enabled: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -52,6 +60,8 @@ pub struct SettingsResponse {
     #[serde(rename = "avatarUrl")]
     pub avatar_url: Option<String>,
     pub sound_enabled: bool,
+    pub accent_color: Option<String>,
+    pub shelf_3d_enabled: bool,
     #[serde(rename = "authName")]
     pub auth_name: String,
     #[serde(rename = "authIcon")]
@@ -70,4 +80,10 @@ pub struct UpdateSettingsRequest {
     #[serde(rename = "avatarUrl")]
     pub avatar_url: Option<String>,
     pub sound_enabled: Option<bool>,
+    /// 朱 · Accent palette pick. `None` means "leave it" (PATCH
+    /// semantics); `Some("")` means "reset to default"; `Some("kin")`
+    /// (or any other valid name) sets the new accent.
+    pub accent_color: Option<String>,
+    /// 棚 · Toggle the 3D shelf view on Dashboard.
+    pub shelf_3d_enabled: Option<bool>,
 }

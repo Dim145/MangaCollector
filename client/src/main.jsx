@@ -4,15 +4,17 @@ import { BrowserRouter } from "react-router-dom";
 import "./styles/index.css";
 import App from "./App.jsx";
 import { bootstrapThemeFromStorage } from "./lib/theme.js";
+import { bootstrapAccentFromStorage } from "./lib/accent.js";
 import { captureDeepLinkIntentFromUrl } from "./lib/deepLinks.js";
 import { initErrorTracking } from "./lib/errorTracking.js";
 import { initAnalytics } from "./lib/analytics.js";
 import { fetchPublicConfig } from "./lib/publicConfig.js";
 
-// Apply the user's last-known theme before React mounts so the first paint
-// never flashes the wrong palette. The authoritative value arrives a bit
-// later from the server-side settings.
+// Apply the user's last-known theme + accent before React mounts so
+// the first paint never flashes the wrong palette. The authoritative
+// values arrive a bit later from the server-side settings.
 bootstrapThemeFromStorage();
+bootstrapAccentFromStorage();
 
 // 共有 · Capture deep-link query params (PWA shortcut, Web Share Target)
 // to sessionStorage and strip them from the URL BEFORE React mounts.

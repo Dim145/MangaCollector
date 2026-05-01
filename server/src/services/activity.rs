@@ -49,6 +49,100 @@ pub async fn record(
     }
 }
 
+/// 連 · Distinct activity days + streak summary.
+///
+/// `current_streak` counts the number of consecutive UTC days
+/// ending at TODAY (or YESTERDAY — if the user did nothing today
+/// yet, the streak isn't broken until midnight UTC) where the user
+/// has at least one activity-log entry.
+///
+/// `best_streak` is the maximum consecutive run ever recorded.
+/// Useful for the heatmap subtitle ("personal best: 47 days").
+///
+/// `last_active_date` is the most recent UTC day with activity,
+/// formatted as ISO-8601 (`YYYY-MM-DD`) for the JSON wire — Rust's
+/// chrono date serialises this way by default.
+#[derive(Debug, serde::Serialize)]
+pub struct StreakInfo {
+    pub current_streak: i32,
+    pub best_streak: i32,
+    pub last_active_date: Option<chrono::NaiveDate>,
+}
+
+pub async fn compute_streak(db: &Db, user_id: i32) -> Result<StreakInfo, AppError> {
+    // Pulls every activity row for the user, then folds into a set
+    // of distinct UTC dates. For a power user with ~10k events that's
+    // still well under a millisecond of memory work, and the I/O cost
+    // (one indexed query) stays bounded — way simpler than a window-
+    // function CTE without giving up much on hot paths.
+    let rows = ActivityEntity::find()
+        .filter(activity::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+
+    if rows.is_empty() {
+        return Ok(StreakInfo {
+            current_streak: 0,
+            best_streak: 0,
+            last_active_date: None,
+        });
+    }
+
+    let mut days: std::collections::BTreeSet<chrono::NaiveDate> = rows
+        .into_iter()
+        .map(|r| r.created_on.date_naive())
+        .collect();
+
+    let last = days.iter().next_back().copied();
+    let today = Utc::now().date_naive();
+
+    // Best streak — single pass through the sorted set.
+    let mut best = 0i32;
+    let mut run = 0i32;
+    let mut prev: Option<chrono::NaiveDate> = None;
+    for &d in days.iter() {
+        run = match prev {
+            Some(p) if d.signed_duration_since(p).num_days() == 1 => run + 1,
+            _ => 1,
+        };
+        if run > best {
+            best = run;
+        }
+        prev = Some(d);
+    }
+
+    // Current streak — walk backwards from today/yesterday.
+    let mut current = 0i32;
+    // Allow a one-day grace at the start of the day (UTC) so the
+    // streak doesn't visually "break" between midnight and the
+    // user's first activity of the new day.
+    let anchor = if days.contains(&today) {
+        Some(today)
+    } else {
+        let yesterday = today.pred_opt();
+        yesterday.filter(|d| days.contains(d))
+    };
+    if let Some(mut d) = anchor {
+        loop {
+            if !days.remove(&d) {
+                break;
+            }
+            current += 1;
+            match d.pred_opt() {
+                Some(p) => d = p,
+                None => break,
+            }
+        }
+    }
+
+    Ok(StreakInfo {
+        current_streak: current,
+        best_streak: best,
+        last_active_date: last,
+    })
+}
+
 pub async fn list_for_user(
     db: &Db,
     user_id: i32,

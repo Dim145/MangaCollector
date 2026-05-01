@@ -379,6 +379,8 @@ export async function enqueueSettingsUpdate(settings) {
         language: settings.language,
         avatarUrl: settings.avatarUrl,
         sound_enabled: settings.sound_enabled,
+        accent_color: settings.accent_color,
+        shelf_3d_enabled: settings.shelf_3d_enabled,
       },
       ts: Date.now(),
     });
@@ -754,6 +756,7 @@ export async function forceResyncFromServer() {
       db.outboxVolumes,
       db.outboxSettings,
       db.outboxBulkMark,
+      db.streak,
     ],
     async () => {
       await db.outboxLibrary.clear();
@@ -763,6 +766,10 @@ export async function forceResyncFromServer() {
       await db.library.clear();
       await db.volumes.clear();
       await db.settings.clear();
+      // 連 · Wipe the cached streak too — a "force resync" implies
+      // the local mirror is suspect. The server-derived chip will
+      // re-populate from `useStreak` on the next mount.
+      await db.streak.clear();
 
       if (libRes.data?.length) await db.library.bulkPut(libRes.data);
       if (volRes.data?.length) await db.volumes.bulkPut(volRes.data);

@@ -145,6 +145,10 @@ export default {
     lensSleepingHint: "no activity for more than 6 months",
     lensWishlistAged: "Wishlist > 1y",
     lensWishlistAgedHint: "on your list for over a year, never started",
+    streakLabel: "Streak",
+    streakTooltipCurrent: "{n} consecutive days of activity",
+    streakTooltipBest:
+      "{current} consecutive days — personal best: {best}",
     searchPlaceholder: "Search your library…",
     clearFilter: "Clear",
     addManga: "Add manga",
@@ -837,6 +841,13 @@ export default {
     language: "Language",
     languageBody:
       "The language used across all the interface labels and messages.",
+    accentTitle: "Accent colour",
+    accentBody:
+      "The default hanko red can be swapped for another palette — each one is calibrated to preserve contrast across the rest of the interface.",
+    shelf3dTitle: "3D shelf view",
+    shelf3dBody:
+      "Dashboard cards take on a light perspective tilt with edge shadows, resting on a wood-grain line — like browsing an actual bookshelf. Disabled in multi-select mode.",
+    shelf3dToggleAria: "Toggle 3D shelf view",
     hapticsTitle: "Haptic feedback",
     hapticsBody:
       "Short vibration on key actions — volume toggle, coffret confirm. Silent on devices without a motor.",

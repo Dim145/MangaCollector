@@ -155,7 +155,29 @@ db.version(8).stores({
   seals: "key",
 });
 
+// v9 — `streak` cache. Single row keyed by "user" holding the
+// last-known StreakInfo from the server. Survives offline reload
+// the same way `settings` and `seals` do, so the masthead chip
+// renders immediately with cached numbers and the network refetch
+// updates them in the background.
+db.version(9).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+});
+
 export const SETTINGS_KEY = "user";
+export const STREAK_KEY = "user";
 
 /** Replace the entire library cache. */
 export async function cacheLibrary(library) {
@@ -189,6 +211,22 @@ export async function cacheSettings(settings) {
 
 export async function readSettings() {
   const row = await db.settings.get(SETTINGS_KEY);
+  if (!row) return null;
+  // eslint-disable-next-line no-unused-vars
+  const { key, ...rest } = row;
+  return rest;
+}
+
+/** 連 · Store / fetch the single streak row. Same shape as the
+ *  server-side `StreakInfo`: { current_streak, best_streak,
+ *  last_active_date }. */
+export async function cacheStreak(streak) {
+  if (!streak) return;
+  await db.streak.put({ key: STREAK_KEY, ...streak });
+}
+
+export async function readStreak() {
+  const row = await db.streak.get(STREAK_KEY);
   if (!row) return null;
   // eslint-disable-next-line no-unused-vars
   const { key, ...rest } = row;
@@ -230,6 +268,7 @@ export async function clearAllUserData() {
         db.malRecommendations,
         db.mangaCharacters,
         db.seals,
+        db.streak,
       ],
       async () => {
         await db.library.clear();
@@ -243,6 +282,7 @@ export async function clearAllUserData() {
         await db.malRecommendations.clear();
         await db.mangaCharacters.clear();
         await db.seals.clear();
+        await db.streak.clear();
       },
     );
   } catch (err) {
