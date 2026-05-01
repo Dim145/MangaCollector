@@ -38,6 +38,15 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 - **Title preference** — Default / English / Japanese / Romaji per user
 - **Adult content filter** — 3 levels (off, blur, show)
 
+### Power-user productivity
+- **Command palette** at `⌘K` / `Ctrl+K` — fuzzy search across routes, series in your library, settings and quick actions; mounted globally so it works from any page
+- **Keyboard shortcuts** + `g`-chord navigation — `g d` (dashboard), `g l` (library), `g c` (calendrier), `g s` (settings), … press `?` to reveal the full cheat sheet
+- **Quick-add paste** — paste a MAL URL or ISBN anywhere in the app and the add-flow opens pre-filled
+- **Bulk select & cascade actions** — multi-select on the dashboard, then mark every volume in the chosen series as owned / unowned / read / unread, or delete; works offline via the Dexie outbox + chronological replay on reconnect
+- **View Transitions API** — page-to-page navigation cross-fades and slides natively where the browser supports it; falls back to plain navigation otherwise
+- **Predictive prefetch** — likely-next routes warm in the background based on hover / intent signals
+- **Pull-to-refresh** — native-feeling touch gesture on mobile to re-sync the dashboard
+
 ### Discovery
 - **Barcode scanner** — scan ISBN on a tankōbon, looks up Google Books → matches against MAL → suggests adding the series with the right volume number, **gap-fills missing earlier volumes** if any; manual ISBN entry tray as a fallback
 - **MAL recommendations** — aggregates `recommendations` from your top series, ranks by votes
@@ -50,8 +59,8 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 
 ### Offline-first PWA
 - **Installable** on Android (Chrome/Edge bannière), iOS Safari ("Sur l'écran d'accueil"), Desktop (Chrome/Edge install icon) with maskable icon for adaptive Android launchers
-- **Works offline** — Dexie (IndexedDB) caches the entire library + volumes + settings, plus already-earned seals so the trophy shelf stays warm without a network
-- **Optimistic mutations** — changes apply locally instantly; an outbox flushes them to the server when reachable
+- **Works offline** — Dexie (IndexedDB) caches the entire library + volumes + settings + already-earned seals + streak data so the dashboard stays warm without a network; lazy i18n bundles are precached too
+- **Optimistic mutations** — changes apply locally instantly; an outbox flushes them to the server when reachable. Bulk operations (mark owned / unowned / read / unread / delete across a whole series) replay chronologically on reconnect
 - **Cross-device live sync** — authenticated WebSocket pushes invalidations from the server, so a change made on your phone is reflected on your laptop within milliseconds (with exponential-backoff reconnect when the tab regains focus)
 - **Smart connectivity** — detects "server unreachable" not just "navigator offline"
 - **Pending logout** — queues logout when offline, fires it as soon as the server comes back
@@ -59,13 +68,17 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 
 ### Personalisation & sharing
 - **3 themes** — dark / light / auto (system) with zero-flash bootstrap
-- **3 languages** — English / French / Spanish (server-stored, localStorage-cached)
+- **8 accent colours** — pick the app's accent between eight traditional Japanese hues (朱 *shu*, 金 *kin*, 萌黄 *moegi*, 桜 *sakura*, 藍 *ai*, 黒 *kuro*, 紫 *murasaki*, 茜 *akane*); persisted server-side and applied synchronously at boot via inline `<script>` (no flash on cold start)
+- **3 languages** — English / French / Spanish (server-stored, localStorage-cached); each language is its own lazy-loaded code-split chunk so visitors download only what they need
 - **Seasonal atmosphere** — opt-in ambient particles (sakura / fireflies / leaves / snow) that drift across the page based on the current season, astronomically accurate; honours `prefers-reduced-motion`
+- **3D shelf view (棚)** — optional perspective tilt for the volume shelf with per-row offsets and a wood-grain backdrop; honours `prefers-reduced-motion`
 - **Custom avatar** — pick a character portrait from the series you own (live from MAL via Jikan), with live search and per-series chip-rail navigation
-- **Seals** — 31 unlockable milestone trophies across 9 categories, 5 ink tiers (sumi → hanko → moegi → kin → shikkoku); newly-earned ones play an in-grid spotlight ceremony exactly once
+- **Seals** — 31 unlockable milestone trophies across 9 categories, 5 ink tiers (sumi → hanko → moegi → kin → shikkoku); newly-earned ones play an in-grid spotlight ceremony with a tier-aware ceremonial chime exactly once
+- **Daily streak (連)** — current and best activity streak surfaced as a chip on the dashboard; server-computed, Dexie-cached, offline-friendly
+- **Configurable sound + haptics** — opt-in audio cues (Web Audio API, no asset downloads) and vibration on key actions; centralised through `SyncToaster` so notifications, sync events and ceremonies share one envelope shape
 - **Public profiles** — opt-in shareable read-only view at `/u/{slug}` (3-32 chars, lowercase + hyphens, reserved-name list), with a dedicated `/public/u/{slug}/poster/{mal_id}` endpoint so user-uploaded covers stay visible to anonymous visitors without leaking the rest of the library
 - **Birthday mode** — time-bounded (7/30/90 days) public exposure of the wishlist so visitors can pick a gift from series you're tracking-but-don't-own-yet
-- **Year-in-Review poster** — annual stat sheet (volumes added, top series, spending) ready to share
+- **Year-in-Review poster** + **Shelf snapshot** — annual stat sheet *and* an on-demand 1080×1350 poster of your top covers + stats + accent-coloured progress, sharable via Web Share API or one-tap download
 - **Shelf-sticker QR labels** — print-ready QR codes that deep-link to a series' page, sized for a real bookshelf
 - **Welcome tour** — first-visit walkthrough; non-blocking, dismissible
 - **Web Share Target + PWA shortcuts** — accept shared links from other apps and expose quick actions (scan, add manually) from the launcher menu
@@ -78,6 +91,11 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 - Runs from `scratch` (no shell, no libc, no package manager)
 - HEALTHCHECK self-implemented as a `--health` subcommand (no curl/wget needed in the image)
 
+### Self-hostable observability *(opt-in)*
+- **Umami analytics** — privacy-first pageviews; configured via `UMAMI_HOST` + `UMAMI_WEBSITE_ID` env vars on the **frontend** container. The values are rendered into the nginx-served `index.html` at container start (envsubst), so a single image works for cloud, self-host, and air-gapped deployments
+- **Sentry / Bugsink** — wire-compatible error tracking through a single SDK path; configured via `SENTRY_DSN` *or* `BUGSINK_DSN` on the **backend**. The backend enforces a **mutex** (`SENTRY_DSN` XOR `BUGSINK_DSN`, never both), and the loader fails silently when the configured endpoint is unreachable so a dead DSN can never break the cold-start experience
+- All four variables are unset by default; absence silently disables the corresponding integration
+
 ---
 
 ## Tech Stack
@@ -89,11 +107,14 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 | Styling | **Tailwind CSS v4** (CSS-first config), custom OKLCH palette, custom Fraunces + Instrument Sans + JetBrains Mono + Noto Serif JP type stack |
 | Routing | React Router 7 (lazy-loaded routes via `React.lazy`) |
 | Server state | **TanStack Query 5** (offline-first network mode) + WebSocket-driven invalidations |
-| Local cache | **Dexie 4** (IndexedDB) + `dexie-react-hooks` — library, volumes, settings, seals |
+| Local cache | **Dexie 9** (IndexedDB) + `dexie-react-hooks` — library, volumes, settings, seals, streak, bulk-mark outbox |
 | Charts | Recharts 3 |
+| Virtualization | `@tanstack/react-virtual` (windowed manga grid past 100 entries, overscan tuned for View Transitions compatibility) |
 | PWA | `vite-plugin-pwa` (peer-dep override against Vite 8 until upstream 1.3.0 lands) + Workbox runtime caching (Google Fonts, MAL CDN, Jikan API, user posters) |
 | Barcode | Native `BarcodeDetector` API with the **`barcode-detector`** WASM polyfill as a unified fallback |
-| i18n | Custom `I18nProvider` + `useT` hook, 3 dictionaries |
+| i18n | Custom `I18nProvider` + `useT` hook, 3 dictionaries — each language is its own lazy-loaded code-split chunk; a custom Vite plugin injects `<link rel="modulepreload">` for the active language at HTML parse time so the lazy-load adds no RTT cost |
+| Animation | View Transitions API (browsers that support it) + WAAPI for ceremony / micro-interactions |
+| Observability *(opt-in)* | Umami analytics (frontend, runtime-configured via envsubst at nginx start) + wire-compatible Sentry/Bugsink SDK (backend, mutex-enforced) |
 | Build / lint | Node 24 (via nvm — `.nvmrc` provided), ESLint 10, Prettier 3.8 |
 
 ### Backend
@@ -213,6 +234,8 @@ All server config lives in environment variables (see [`server/.env.example`](se
 | `S3_*` | If set instead, use S3/MinIO for poster uploads |
 | `REDIS_URL` | Optional. When set (e.g. `redis://redis:6379/1`), enables the response cache layer; otherwise the server runs cache-less |
 | `APP_UNSECURE_HEALTHCHECK` | Set to `true` to allow non-loopback `/api/health` (e.g. for Uptime Kuma) |
+| `SENTRY_DSN` *or* `BUGSINK_DSN` | Optional, mutually exclusive. Enables wire-compatible error tracking on the backend. Setting both refuses to start |
+| `UMAMI_HOST` + `UMAMI_WEBSITE_ID` | Optional. Set on the **frontend** container; rendered into `index.html` at container start (envsubst) to enable Umami analytics. Both unset = no tracking |
 
 ---
 
@@ -262,7 +285,8 @@ The project was also a chance to push on:
 - **Hardened container delivery** — scratch image, dropped capabilities, read-only rootfs, OCI security labels, and a fully Rustls / `aws-lc-rs` TLS stack so OpenSSL CVEs simply don't apply
 - **Distinctive visual identity** — committing to a single bold direction (Shōjo Noir) rather than the default "indigo gradient + Inter" SaaS look
 - **Full-stack Rust backend** — Axum, SeaORM, openidconnect, AWS SDK, all on the latest stable releases
-- **Modern build pipeline** — Vite 8 / Rolldown produces a complete production build (≈140 chunks + a Workbox-driven service worker precaching ~50 assets) in under half a second
+- **Modern build pipeline** — Vite 8 / Rolldown produces a complete production build (≈140 chunks + a Workbox-driven service worker precaching ~85 assets) in under half a second
+- **Surgical bundle splitting** — main JS chunk kept under 400 kB through manual vendor chunks, route-level lazy-loading, lazy-loaded i18n bundles, and a custom Vite plugin that injects `<link rel="modulepreload">` for the active language at HTML parse time so the lazy-load adds zero RTT cost
 
 ---
 

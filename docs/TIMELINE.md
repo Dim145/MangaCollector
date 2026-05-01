@@ -2,13 +2,13 @@
 
 A condensed history of every meaningful change since the project was
 forked, walking from the bare-bones URL-cleanup commit through the
-v2.9.0 release.
+v2.10.0 release.
 
-**208 commits across two distinct development phases**:
+**226 commits across two distinct development phases**:
 - **Phase 1 (solo)**: 62 commits laying the auth, storage and metadata
   foundations.
-- **Phase 2 (AI-assisted)**: 146 commits — feature explosion, full Rust
-  port, full UI redesign, eight version bumps.
+- **Phase 2 (AI-assisted)**: 164 commits — feature explosion, full Rust
+  port, full UI redesign, nine version bumps.
 
 ---
 
@@ -164,6 +164,91 @@ The single largest day in the project's history: 29 commits.
   XSS (no `dangerouslySetInnerHTML` anywhere), SSRF (all external URLs
   config-derived), path traversal (storage paths built from i32s only).
 
+### Step 14 — Polish, power & celebration (v2.10.0)
+A wide release combining a heavy performance pass, a power-user
+productivity layer, a visual-delight tier, and a self-hostable
+observability stack. **18 commits**, **+7 845 / −468 lines** across
+**92 files**. Every new user-controllable setting persists to the
+database — no hidden localStorage state.
+
+#### Performance & rendering
+- **View Transitions API** — page-to-page navigation cross-fades and
+  slides natively where the browser supports it; falls back to plain
+  navigation otherwise.
+- **Virtualized manga grid** — windowed rendering via
+  `@tanstack/react-virtual` past 100 entries, overscan tuned for
+  View Transitions compatibility.
+- **LQIP placeholders** + richer skeletons — `CoverImage` shows a
+  blurred low-quality preview during the actual fetch;
+  `MangaPageSkeleton` mimics the final layout shape (zero CLS).
+- **Predictive prefetch** + **pull-to-refresh** — likely-next routes
+  warm in the background; a native-feeling touch gesture re-syncs
+  the dashboard on mobile.
+- **Lazy-loaded i18n bundles** — each language is its own code-split
+  chunk, with a Vite plugin injecting `<link rel="modulepreload">` at
+  HTML parse time so visitors download only what they need without an
+  RTT penalty. Main JS chunk dropped from **578 kB → 383 kB** (−34%).
+
+#### Power-user productivity
+- **Command palette** at `⌘K` / `Ctrl+K` — fuzzy search across routes,
+  series, settings, quick actions; mounted globally.
+- **Keyboard shortcuts** + `g`-chord nav — `g d` (dashboard), `g l`
+  (library), `g c` (calendrier), `g s` (settings), … `?` opens the
+  full cheat sheet.
+- **Quick-add paste** — paste a MAL URL or ISBN anywhere; the
+  add-flow opens pre-filled.
+- **Bulk select & cascade actions** — toggle owned / unowned / read /
+  unread / delete on every volume in a series in one gesture, fully
+  **offline-capable** via Dexie outbox + chronological replay.
+
+#### Visual delight
+- **Eight accent colours** — switch the app's red between traditional
+  Japanese hues (朱・金・萌黄・桜・藍・黒・紫・茜) through OKLCH CSS
+  variables; persisted server-side, applied synchronously at boot via
+  inline `<script>` (no FOUC).
+- **3D shelf view (棚)** — optional perspective tilt on the volume
+  shelf with per-row offsets and a wood-grain backdrop; honours
+  `prefers-reduced-motion`.
+- **Streak (連)** — current and best daily-activity streak surfaced
+  as a chip; server-computed, Dexie-cached, offline-friendly. Local
+  label "Suite" (FR) chosen to avoid collision with "séries" (mangas).
+- **Tier-aware seal chime** — bronze / silver / gold / platinum /
+  legendary stamps each ring with their own note count + bass weight,
+  synthesised on the Web Audio graph.
+- **Configurable haptics + sounds** — opt-in vibration and audio cues
+  centralised through `SyncToaster` so notification, sync, ceremony
+  share one envelope shape.
+- **Shelf snapshot** — generate a 1080×1350 PNG poster of your top
+  covers + stats + accent-coloured progress, sharable via Web Share
+  API or one-tap download.
+
+#### Self-hostable observability
+- **Umami analytics** — opt-in privacy-first pageviews. Configured via
+  `UMAMI_HOST` + `UMAMI_WEBSITE_ID` env vars rendered into the
+  nginx-served `index.html` at container start (envsubst), so the
+  same image works for cloud, self-host, and air-gapped deploys.
+- **Sentry / Bugsink** — wire-compatible error tracking via a single
+  SDK path. Backend enforces a **mutex**: `SENTRY_DSN` XOR
+  `BUGSINK_DSN`, never both. Loader fails silently when unreachable
+  on first paint.
+
+#### Fixes & internals
+- **`sanitize_genres` allocation** — bounded `Vec::with_capacity` to
+  the genre cap (CodeQL `rust/uncontrolled-allocation-size`).
+- **Italic gradient paint** on the SealsPage hero — italic Fraunces
+  digits' rightward slant escapes `background-clip: text` paint area;
+  fixed with `pr-[0.3em]` on the gradient span and a matching
+  `-mr-[0.3em]` on the wrapper to preserve kerning.
+- **Accent FOUC** + **calendar route 404** + **streak route nesting**
+  — three boot-path bugs caught and fixed.
+- **Qodana** configs added for both frontend and backend.
+- **Dexie schema → v9** — `streak` cache table + `outboxBulkMark`
+  table; `outboxTags` dropped (Tier 7.4 user-tags reverted as too
+  confusing alongside genres).
+- **Glossary expansion** — 10 new kanji entries (連・新・眠・慕 in
+  states; 選・削・鍵・解・確 in actions; 棚 in vessels) across all
+  three locales.
+
 ---
 
 ## Stats
@@ -171,5 +256,5 @@ The single largest day in the project's history: 29 commits.
 | Phase | Commits | Notable |
 |---|---|---|
 | 1 (solo) | 62 | OAuth, Knex, MAL sync, posters |
-| 2 (AI-assisted) | 146 | Rust port, 31-seal system, public profiles, realtime, full UI redesign |
-| **Total** | **208** | 8 minor releases, v1 → v2.9 |
+| 2 (AI-assisted) | 164 | Rust port, 31-seal system, public profiles, realtime, full UI redesign, performance + delight tiers, observability stack |
+| **Total** | **226** | 9 minor releases, v1 → v2.10 |
