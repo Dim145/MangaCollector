@@ -33,6 +33,39 @@ pub async fn get_all_volumes(
     Ok(Json(serde_json::to_value(volumes).unwrap()))
 }
 
+/// Body for `POST /api/user/library/{mal_id}/volumes/bulk-mark`.
+/// Both fields are optional — passing neither is a no-op. Passing
+/// `read: false` clears the read timestamp; `read: true` stamps now.
+#[derive(Debug, Deserialize)]
+pub struct BulkMarkRequest {
+    #[serde(default)]
+    pub owned: Option<bool>,
+    #[serde(default)]
+    pub read: Option<bool>,
+}
+
+/// POST /api/user/library/{mal_id}/volumes/bulk-mark
+///
+/// Cascade `owned` / `read` to every released volume of the series in
+/// one round-trip. Powers the dashboard's bulk-actions bar — the
+/// alternative (PATCH per volume from the client) would be ~30 calls
+/// per series and forces the client to first fetch the volume list.
+pub async fn bulk_mark_volumes(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Path(mal_id): Path<i32>,
+    Json(body): Json<BulkMarkRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    volume::bulk_mark_for_series(&state.db, user.id, mal_id, body.owned, body.read).await?;
+
+    // Realtime fan-out: both the library counter and the volume rows
+    // moved, so subscribed sessions need to re-pull both feeds.
+    state.broker.publish(user.id, SyncKind::Library).await;
+    state.broker.publish(user.id, SyncKind::Volumes).await;
+
+    Ok(Json(json!({ "status": "ok" })))
+}
+
 /// GET /api/user/volume/:mal_id
 pub async fn get_volumes_by_id(
     State(state): State<AppState>,

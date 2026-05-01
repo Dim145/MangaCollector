@@ -749,6 +749,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 )
               )}
 
+
               {/* 出版社 · Publisher / edition strip.
                   Read mode: a single quiet line "Glénat · Édition deluxe"
                   in mono micro — only rendered when at least one field is

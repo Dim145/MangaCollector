@@ -113,6 +113,48 @@ db.version(6).stores({
   seals: "key",
 });
 
+// v7 — user-defined tags table existed briefly in 2026-05 but was
+// rolled back: the feature collided semantically with the existing
+// `genres` axis (also user-editable on custom rows) and confused
+// users. We bump to v7 and EXPLICITLY drop the table by passing
+// `null` to the store name — Dexie deletes the IndexedDB store on
+// upgrade for any browser that cached the previous schema.
+db.version(7).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxTags: null,
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+});
+
+// v8 — `outboxBulkMark` for the dashboard's bulk-actions bar. One
+// pending op per series (PK on mal_id), so rapid re-clicks on the
+// same series coalesce to the latest desired state instead of
+// queueing every intermediate. `ts` index lets the flusher walk
+// in chronological order across series so the server cascade
+// applies in the same order the user produced.
+db.version(8).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+});
+
 export const SETTINGS_KEY = "user";
 
 /** Replace the entire library cache. */
@@ -183,6 +225,7 @@ export async function clearAllUserData() {
         db.outboxLibrary,
         db.outboxVolumes,
         db.outboxSettings,
+        db.outboxBulkMark,
         db.activity,
         db.malRecommendations,
         db.mangaCharacters,
@@ -195,6 +238,7 @@ export async function clearAllUserData() {
         await db.outboxLibrary.clear();
         await db.outboxVolumes.clear();
         await db.outboxSettings.clear();
+        await db.outboxBulkMark.clear();
         await db.activity.clear();
         await db.malRecommendations.clear();
         await db.mangaCharacters.clear();

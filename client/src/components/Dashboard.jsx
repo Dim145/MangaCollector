@@ -9,6 +9,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import Manga from "./Manga";
+import BulkActionsBar from "./BulkActionsBar.jsx";
 import DefaultBackground from "./DefaultBackground";
 import PullToRefresh from "./ui/PullToRefresh.jsx";
 import { syncOutbox } from "@/lib/sync.js";
@@ -37,6 +38,17 @@ import { useT } from "@/i18n/index.jsx";
 const DASHBOARD_STATE_KEY = "mc:dashboard:view";
 const DASHBOARD_SCROLL_KEY = "mc:dashboard:scrollY";
 
+// Lens predicates lean on `created_on` / `modified_on` from the
+// library rows. Cheap shared helpers — `parseTs` returns 0 (epoch)
+// for missing or malformed values so the comparisons safely degrade
+// to "never matches" rather than throwing.
+const DAY_MS = 24 * 60 * 60 * 1000;
+function parseTs(value) {
+  if (!value) return 0;
+  const n = new Date(value).getTime();
+  return Number.isFinite(n) ? n : 0;
+}
+
 function readPersistedDashboardState() {
   if (typeof sessionStorage === "undefined") return null;
   try {
@@ -47,6 +59,11 @@ function readPersistedDashboardState() {
       query: typeof parsed.query === "string" ? parsed.query : "",
       filter: typeof parsed.filter === "string" ? parsed.filter : "all",
       activeTags: Array.isArray(parsed.activeTags) ? parsed.activeTags : [],
+      // 鏡 · Lens (time-based smart filter). Mutex with `filter`: a
+      // lens forces `filter = "all"` so the two axes don't compose
+      // ambiguously. Old persisted states without the field default
+      // to null (no lens) — backwards-compatible.
+      lens: typeof parsed.lens === "string" ? parsed.lens : null,
     };
   } catch {
     return null;
@@ -98,6 +115,63 @@ export default function Dashboard() {
   // The filters are mutually exclusive; "inprogress" used to also catch
   // wishlist series (owned === 0), which made the ladder ambiguous. The
   // new contract gives wishlist its own bucket.
+
+  // 鏡 · Lens — time-based "smart filter" that's mutex with the rank
+  // filter above. When a lens is set, `filter` is forced to "all" so
+  // the two axes don't compose ambiguously (e.g. "complete AND
+  // recent" is well-defined but harder to surface in the UI than a
+  // single chip; v1 keeps it strictly mutex).
+  //   recent         → series added in the last 30 days
+  //   sleeping       → series untouched 6+ months
+  //   wishlist_aged  → wishlist items > 1 year old
+  const [lens, setLens] = useState(() => persisted?.lens ?? null);
+
+  // 一括 · Bulk-select state. NOT persisted — selection is a transient
+  // UI mode tied to the current tab; reloading the page clears it on
+  // purpose so a forgotten selection doesn't auto-apply on the next
+  // visit. `selectionMode` is the gate (set on first long-press /
+  // Cmd-click) and `selectedIds` is the Set<mal_id> of picks. The
+  // BulkActionsBar at the bottom of the page reads both.
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+
+  const exitSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelected = useCallback((mal_id) => {
+    if (mal_id == null) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(mal_id)) next.delete(mal_id);
+      else next.add(mal_id);
+      return next;
+    });
+  }, []);
+
+  const enterSelectionWith = useCallback((mal_id) => {
+    if (mal_id == null) return;
+    setSelectionMode(true);
+    setSelectedIds(new Set([mal_id]));
+  }, []);
+
+  // ESC exits selection mode globally (independent of any modal's
+  // own ESC handling). The keydown listener is gated on
+  // `selectionMode` so it doesn't compete with the focus-trap inside
+  // open modals — those install their own ESC + the global one
+  // here just sees the synthetic event as a no-op.
+  useEffect(() => {
+    if (!selectionMode) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        exitSelection();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectionMode, exitSelection]);
   // Genre filter — Set<string>. Multi-select with AND intersection (series
   // must carry every selected tag to remain visible). Kept as Set for O(1)
   // membership checks in the hot filter path below.
@@ -237,7 +311,30 @@ export default function Dashboard() {
     if (q) {
       result = result.filter((m) => m.name?.toLowerCase().includes(q));
     }
-    if (filter === "complete") {
+    // 鏡 · Lens takes precedence over the rank filter (mutex). Rank
+    // is only consulted when no lens is engaged — the UI mirrors
+    // that by forcing `filter = "all"` whenever a lens is selected.
+    if (lens === "recent") {
+      // 新 · Added in the last 30 days. Uses `created_on` from the
+      // server-side library row.
+      const cutoff = Date.now() - 30 * DAY_MS;
+      result = result.filter((m) => parseTs(m.created_on) > cutoff);
+    } else if (lens === "sleeping") {
+      // 眠 · Untouched in the last 6 months — `modified_on` covers
+      // any volume mutation, ownership flip, or metadata edit.
+      const cutoff = Date.now() - 180 * DAY_MS;
+      result = result.filter((m) => parseTs(m.modified_on) < cutoff);
+    } else if (lens === "wishlist_aged") {
+      // 慕 · Wishlist longing for > 1 year. Same predicate as the
+      // wishlist rank but layered with a creation-age guard.
+      const cutoff = Date.now() - 365 * DAY_MS;
+      result = result.filter(
+        (m) =>
+          (m.volumes_owned ?? 0) === 0 &&
+          (m.volumes ?? 0) > 0 &&
+          parseTs(m.created_on) < cutoff,
+      );
+    } else if (filter === "complete") {
       result = result.filter(
         (m) => (m.volumes ?? 0) > 0 && (m.volumes_owned ?? 0) >= m.volumes,
       );
@@ -284,16 +381,18 @@ export default function Dashboard() {
     return result;
     // `tsundokuByMal` is a memoised Map; including it as a dep lets
     // the filter recompute when the tsundoku slice changes (a volume
-    // flip toggles a row in/out of the "積" bucket).
-  }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal]);
+    // flip toggles a row in/out of the "積" bucket). `lens` is on the
+    // dep list so engaging a smart filter triggers a recompute.
+  }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal, lens]);
 
   useEffect(() => {
     writePersistedDashboardState({
       query,
       filter,
       activeTags: Array.from(activeTags),
+      lens,
     });
-  }, [query, filter, activeTags]);
+  }, [query, filter, activeTags, lens]);
 
   useEffect(() => {
     let pending = false;
@@ -512,9 +611,14 @@ export default function Dashboard() {
                     aria-selected={active}
                     aria-label={tab.label}
                     title={tab.tooltip ?? tab.label}
-                    onClick={() => setFilter(tab.id)}
+                    onClick={() => {
+                      // Picking a rank tab clears any active lens —
+                      // the two axes are mutex (see `lens` state docstring).
+                      setFilter(tab.id);
+                      setLens(null);
+                    }}
                     className={`group/tab inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold uppercase tracking-wider transition sm:min-h-0 sm:py-1.5 ${
-                      active ? activeBg : "text-washi-muted hover:text-washi"
+                      active && !lens ? activeBg : "text-washi-muted hover:text-washi"
                     }`}
                   >
                     <span
@@ -551,6 +655,79 @@ export default function Dashboard() {
               </svg>
               {t("dashboard.addManga")}
             </button>
+          </div>
+
+          {/* 鏡 · Lens row — time-based "smart filters" sitting one
+              level below the rank tablist. Visually distinct (smaller
+              chips, thinner border, no opaque background) so they read
+              as a refinement rather than a peer of the primary axis.
+              Mutex with rank: clicking a lens forces rank → all and
+              vice-versa, making the active filter unambiguous. */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="font-mono text-[9px] uppercase tracking-[0.25em] text-washi-dim"
+            >
+              {t("dashboard.lensLabel")}
+            </span>
+            {[
+              {
+                id: "recent",
+                glyph: "新",
+                label: t("dashboard.lensRecent"),
+                tooltip: t("dashboard.lensRecentHint"),
+                accent: "moegi",
+              },
+              {
+                id: "sleeping",
+                glyph: "眠",
+                label: t("dashboard.lensSleeping"),
+                tooltip: t("dashboard.lensSleepingHint"),
+                accent: "washi",
+              },
+              {
+                id: "wishlist_aged",
+                glyph: "慕",
+                label: t("dashboard.lensWishlistAged"),
+                tooltip: t("dashboard.lensWishlistAgedHint"),
+                accent: "sakura",
+              },
+            ].map((opt) => {
+              const active = lens === opt.id;
+              const accentRing =
+                opt.accent === "sakura"
+                  ? "border-sakura/70 text-sakura"
+                  : opt.accent === "moegi"
+                    ? "border-moegi/70 text-moegi"
+                    : "border-washi/40 text-washi";
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setLens(active ? null : opt.id);
+                    if (!active) setFilter("all");
+                  }}
+                  title={opt.tooltip}
+                  aria-pressed={active}
+                  className={`group inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition ${
+                    active
+                      ? `${accentRing} bg-ink-0/40`
+                      : "border-border text-washi-muted hover:text-washi hover:border-border/80"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`font-jp text-[12px] font-bold leading-none ${
+                      active ? "" : "text-washi-dim group-hover:text-washi"
+                    }`}
+                  >
+                    {opt.glyph}
+                  </span>
+                  <span>{opt.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Editorial gloss — only rendered for filters whose name carries
@@ -632,6 +809,10 @@ export default function Dashboard() {
               allCollectorSet={allCollectorSet}
               tsundokuByMal={tsundokuByMal}
               nextUpcomingByMal={nextUpcomingByMal}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelected}
+              onEnterSelection={enterSelectionWith}
             />
           )}
         </section>
@@ -649,6 +830,18 @@ export default function Dashboard() {
         {!isInitialLoad && !isEmpty && <GapSuggestions />}
       </div>
       </PullToRefresh>
+
+      {/* 一括 · Bulk-actions bar — fixed at the viewport bottom while
+          selection mode is engaged. Renders outside the
+          PullToRefresh wrapper so the slide-up animation doesn't
+          fight the pull-to-refresh hit zone. */}
+      {selectionMode && (
+        <BulkActionsBar
+          library={library}
+          selectedIds={selectedIds}
+          onClose={exitSelection}
+        />
+      )}
     </DefaultBackground>
   );
 }
@@ -717,7 +910,21 @@ function MangaGrid({
   allCollectorSet,
   tsundokuByMal,
   nextUpcomingByMal,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
+  onEnterSelection,
 }) {
+  const cardProps = {
+    adult_content_level,
+    allCollectorSet,
+    tsundokuByMal,
+    nextUpcomingByMal,
+    selectionMode,
+    selectedIds,
+    onToggleSelect,
+    onEnterSelection,
+  };
   if (filtered.length <= VIRTUALIZE_THRESHOLD) {
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -727,24 +934,20 @@ function MangaGrid({
             // mints a negative id, so we prefer the Dexie primary key.
             key={manga.id ?? manga.mal_id ?? `idx-${i}`}
             manga={manga}
-            adult_content_level={adult_content_level}
-            allCollector={allCollectorSet.has(manga.mal_id)}
-            tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
-            nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
+            adult_content_level={cardProps.adult_content_level}
+            allCollector={cardProps.allCollectorSet.has(manga.mal_id)}
+            tsundokuCount={cardProps.tsundokuByMal.get(manga.mal_id) ?? 0}
+            nextUpcoming={cardProps.nextUpcomingByMal.get(manga.mal_id)}
+            selectionMode={selectionMode}
+            isSelected={selectedIds.has(manga.mal_id)}
+            onToggleSelect={onToggleSelect}
+            onEnterSelection={onEnterSelection}
           />
         ))}
       </div>
     );
   }
-  return (
-    <VirtualMangaGrid
-      filtered={filtered}
-      adult_content_level={adult_content_level}
-      allCollectorSet={allCollectorSet}
-      tsundokuByMal={tsundokuByMal}
-      nextUpcomingByMal={nextUpcomingByMal}
-    />
-  );
+  return <VirtualMangaGrid filtered={filtered} {...cardProps} />;
 }
 
 function VirtualMangaGrid({
@@ -753,6 +956,10 @@ function VirtualMangaGrid({
   allCollectorSet,
   tsundokuByMal,
   nextUpcomingByMal,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
+  onEnterSelection,
 }) {
   const parentRef = useRef(null);
   // Initial offset of the grid relative to the document — passed to
@@ -845,6 +1052,10 @@ function VirtualMangaGrid({
                 allCollector={allCollectorSet.has(manga.mal_id)}
                 tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
                 nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
+                selectionMode={selectionMode}
+                isSelected={selectedIds.has(manga.mal_id)}
+                onToggleSelect={onToggleSelect}
+                onEnterSelection={onEnterSelection}
               />
             ))}
           </div>

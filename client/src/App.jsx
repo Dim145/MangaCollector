@@ -31,6 +31,7 @@ import SyncToaster from "@/components/SyncToaster.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import CommandPalette from "@/components/CommandPalette.jsx";
+import ShortcutsCheatSheet from "@/components/ShortcutsCheatSheet.jsx";
 import MangaPageSkeleton from "@/components/MangaPageSkeleton.jsx";
 
 // Lazy routes — each lands in its own JS chunk so first paint ships less.
@@ -64,6 +65,7 @@ import { applyThemePreference, rememberThemePreference } from "@/lib/theme.js";
 import { setSoundEnabled } from "@/lib/sounds.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync.js";
 import axios from "@/utils/axios.js";
 import {
@@ -199,6 +201,12 @@ function AppShell() {
   const navType = useNavigationType();
   const { manga, adult_content_level } = location.state || {};
   const [googleUser, setGoogleUser] = useState(null);
+  const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
+
+  // 鍵 · `?` opens the cheat sheet, `g` chord navigates to a route.
+  // The hook is mounted once at the shell level so the bindings are
+  // available on every page. See `hooks/useGlobalShortcuts.js`.
+  useGlobalShortcuts({ onOpenCheatSheet: () => setCheatSheetOpen(true) });
 
   // Scroll handling: top on PUSH/REPLACE; on POP we leave it alone so
   // each destination page can run its own data-aware restore (see
@@ -227,6 +235,10 @@ function AppShell() {
       <OfflineBanner />
       <SyncToaster />
       <CommandPalette />
+      <ShortcutsCheatSheet
+        open={cheatSheetOpen}
+        onClose={() => setCheatSheetOpen(false)}
+      />
       <main className="relative">
         {/* 災 · ErrorBoundary outside Suspense so a chunk-load failure
             (deploy invalidated cached chunks, offline burst, …) shows

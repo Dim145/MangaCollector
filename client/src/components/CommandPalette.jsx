@@ -59,7 +59,7 @@ export default function CommandPalette() {
     () => [
       { id: "nav-dashboard", kanji: "棚", label: t("palette.navDashboard"), path: "/dashboard" },
       { id: "nav-add", kanji: "加", label: t("palette.navAdd"), path: "/addmanga" },
-      { id: "nav-calendar", kanji: "暦", label: t("palette.navCalendar"), path: "/calendar" },
+      { id: "nav-calendar", kanji: "暦", label: t("palette.navCalendar"), path: "/calendrier" },
       { id: "nav-profile", kanji: "個", label: t("palette.navProfile"), path: "/profile" },
       { id: "nav-seals", kanji: "印", label: t("palette.navSeals"), path: "/seals" },
       { id: "nav-settings", kanji: "設", label: t("palette.navSettings"), path: "/settings" },

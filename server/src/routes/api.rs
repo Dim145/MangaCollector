@@ -96,6 +96,13 @@ fn user_router() -> Router<AppState> {
             "/library/{mal_id}/volumes/upcoming",
             post(volume::add_upcoming_volume),
         )
+        // 一括 · Bulk-mark cascade — sets `owned` and/or `read` on
+        // every released volume of a series in one round-trip.
+        // Powers the dashboard's bulk-actions bar.
+        .route(
+            "/library/{mal_id}/volumes/bulk-mark",
+            post(volume::bulk_mark_volumes),
+        )
         // Volume routes — note: the legacy `/volume/{mal_id}` is a list
         // endpoint scoped by mal_id (returns every volume of a series),
         // while `/volumes/{id}` (plural) targets a single volume by its

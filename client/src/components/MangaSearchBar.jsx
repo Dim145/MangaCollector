@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { detectPasteIntent } from "@/lib/pasteDetect.js";
 
 export default function MangaSearchBar({
   query,
@@ -14,6 +15,13 @@ export default function MangaSearchBar({
   // Used by the welcome tour's "Add your first series" step so the
   // user lands ready-to-type instead of having to find the input first.
   autoFocus = false,
+  // 貼 · Optional callback fired when a paste matches a known shape
+  // (MAL / MangaDex / AniList URL, ISBN). Receives `{ kind, query }`.
+  // When set, the native paste is preventDefault'd and the consumer
+  // is in charge of populating the input + triggering the search.
+  // Dashboard's local-filter input doesn't pass this — it lets the
+  // raw text land in the field for fuzzy in-memory matching.
+  onPasteIntent,
 }) {
   const inputRef = useRef(null);
 
@@ -47,6 +55,15 @@ export default function MangaSearchBar({
     }
   };
 
+  const handlePaste = (e) => {
+    if (!onPasteIntent) return;
+    const pasted = e.clipboardData?.getData("text");
+    const intent = detectPasteIntent(pasted);
+    if (!intent) return;
+    e.preventDefault();
+    onPasteIntent(intent);
+  };
+
   return (
     <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
       {/* Search Input */}
@@ -72,6 +89,7 @@ export default function MangaSearchBar({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           className="w-full rounded-full border border-border bg-ink-1/60 py-3 pl-12 pr-28 text-sm text-washi placeholder:text-washi-dim backdrop-blur-md transition-all focus:border-hanko/50 focus:bg-ink-1/90 focus:outline-none focus:ring-2 focus:ring-hanko/30"
         />
         {query && (
