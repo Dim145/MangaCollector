@@ -47,9 +47,15 @@ export function initErrorTracking(config) {
     sendDefaultPii: false,
   });
 
-  console.info(
-    `[observability] error tracking enabled · provider=${config.provider} · traces=${tracesSampleRate} · replay=${Boolean(config.replay)}`,
-  );
+  // Dev-only — production builds shouldn't litter the user's
+  // devtools console with an init banner. The information is still
+  // useful for local debugging (verifying the right DSN / sample
+  // rate landed) but doesn't belong on a deployed customer build.
+  if (import.meta.env.DEV) {
+    console.info(
+      `[observability] error tracking enabled · provider=${config.provider} · traces=${tracesSampleRate} · replay=${Boolean(config.replay)}`,
+    );
+  }
 }
 
 function clampSampleRate(n) {

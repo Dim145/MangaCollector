@@ -336,7 +336,7 @@ pub async fn build_public_profile(
     // Sort library — newest-added first (modified/created DESC would be
     // ideal but we don't expose timestamps publicly; alpha by name is a
     // deterministic fallback that's also pleasant to browse).
-    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    entries.sort_by_key(|a| a.name.to_lowercase());
 
     let since = format!(
         "{:04}-{:02}",
@@ -466,11 +466,10 @@ pub async fn ensure_calendar_token(
         .await
         .map_err(AppError::from)?
         .ok_or(AppError::Unauthorized)?;
-    if let Some(existing) = row.calendar_token.as_ref() {
-        if !existing.is_empty() {
+    if let Some(existing) = row.calendar_token.as_ref()
+        && !existing.is_empty() {
             return Ok(existing.clone());
         }
-    }
 
     let token = uuid::Uuid::new_v4().to_string();
     let mut active: ActiveModel = row.into();
@@ -541,6 +540,40 @@ pub async fn create(
         ..Default::default()
     };
     model.insert(db).await.map_err(AppError::from)
+}
+
+/// 競 · Race-free find-or-create for OAuth callbacks.
+///
+/// Two simultaneous callbacks for the same provider_id (e.g. user
+/// double-clicks the sign-in link, or a CDN replays a request) both
+/// passing through `find_by_provider_id → None → create` would have
+/// the second `create` trip the `users.google_id` unique constraint
+/// and surface as a 500. Solution: try the find, then on miss try
+/// the insert; if the insert fails (only realistic cause: the
+/// concurrent insert just won the race), retry the find — now the
+/// row exists. Idempotent in either order.
+pub async fn find_or_create(
+    db: &Db,
+    provider_id: &str,
+    email: Option<&str>,
+    name: Option<&str>,
+) -> Result<User, AppError> {
+    if let Some(u) = find_by_provider_id(db, provider_id).await? {
+        return Ok(u);
+    }
+    match create(db, provider_id, email, name).await {
+        Ok(u) => Ok(u),
+        Err(create_err) => {
+            // Re-query — if a concurrent callback won the race, the
+            // row is now there and we just adopt it. If the row is
+            // STILL missing, the original error was something else
+            // (DB down, schema drift, …) and we surface it.
+            match find_by_provider_id(db, provider_id).await? {
+                Some(u) => Ok(u),
+                None => Err(create_err),
+            }
+        }
+    }
 }
 
 /// Hard-delete every row belonging to this user + every custom poster

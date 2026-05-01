@@ -205,8 +205,17 @@ export async function lookupISBN(rawIsbn) {
   });
   if (apiKey) params.set("key", apiKey);
 
+  // 鍵 · `referrerPolicy: "no-referrer"` keeps the API key out of the
+  // `Referer` header travelling to Google. The key is already in the
+  // URL query string (Google's own contract — they support both this
+  // and the `key=` query approach), so the Referer would otherwise
+  // round-trip the same secret to any redirect target Google might
+  // bounce us through. The cover-image elements separately set
+  // `referrerPolicy="no-referrer"` on `<img>`; this aligns the JS
+  // fetch with the same policy.
   const res = await fetch(`${GOOGLE_BOOKS}?${params.toString()}`, {
     headers: { Accept: "application/json" },
+    referrerPolicy: "no-referrer",
   });
 
   if (res.status === 429) {

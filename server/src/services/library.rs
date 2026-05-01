@@ -131,12 +131,11 @@ async fn maybe_upgrade_cover_for_adult(
         // custom entry — no mal_id to cross-reference
         return None;
     }
-    if let Some(url) = current_url {
-        if !is_external_http_url(url) {
+    if let Some(url) = current_url
+        && !is_external_http_url(url) {
             // user-uploaded custom path — don't touch
             return None;
         }
-    }
 
     match mangadex_api::find_cover_url_by_mal_id(client, cache, id, title_hint).await {
         Ok(url) => url,
@@ -210,8 +209,8 @@ pub async fn add_to_user_library(
     // existing row rather than erroring with a unique constraint violation.
     // This matters when the offline outbox replays an add op whose first
     // attempt already succeeded before losing the network.
-    if let Some(m) = mal_id {
-        if let Some(existing) = LibraryEntity::find()
+    if let Some(m) = mal_id
+        && let Some(existing) = LibraryEntity::find()
             .filter(library::Column::UserId.eq(user_id))
             .filter(library::Column::MalId.eq(m))
             .one(&txn)
@@ -221,7 +220,6 @@ pub async fn add_to_user_library(
             txn.commit().await.map_err(AppError::from)?;
             return Ok(LibraryEntry::from(existing));
         }
-    }
 
     // Pre-sanitize the editorial metadata coming in from the request.
     // Trim + clamp + empty-to-None so the column never holds whitespace
@@ -644,10 +642,10 @@ pub async fn get_total_volumes(
 
 /// Apply a partial update to a library row. Each field of the request
 /// is honoured only when present:
-///   - `volumes`   → routes to `update_manga_volumes` (which mutates
-///                   user_volumes alongside the count)
-///   - `publisher` → trims, clamps, persists via ActiveModel
-///   - `edition`   → same contract as publisher
+///    - `volumes`   → routes to `update_manga_volumes` (which mutates
+///      user_volumes alongside the count)
+///    - `publisher` → trims, clamps, persists via ActiveModel
+///    - `edition`   → same contract as publisher
 ///
 /// All three may be sent in the same request; the volume mutation runs
 /// first so the publisher / edition update can ride on the freshly
@@ -705,8 +703,8 @@ pub async fn apply_library_patch(
     if let Some(raw) = body.edition {
         active.edition = Set(sanitize_label(raw, EDITION_MAX_LEN));
     }
-    if let Some(raw_genres) = body.genres {
-        if custom_genres_allowed {
+    if let Some(raw_genres) = body.genres
+        && custom_genres_allowed {
             // `null` (Some(None)) and an empty list both clear the column.
             // A non-empty Vec runs through sanitize_genres for trim / dedup
             // / per-entry cap / count cap before being comma-joined.
@@ -724,7 +722,6 @@ pub async fn apply_library_patch(
         // the same condition, so this branch only runs for stale or
         // crafted requests; rejecting them with 4xx would be louder than
         // necessary.
-    }
     active.modified_on = Set(Utc::now());
     active.update(db).await.map_err(AppError::from)?;
     Ok(())
@@ -746,24 +743,29 @@ pub async fn update_manga_volumes(
         return Ok(());
     }
 
+    // 一括 · Wrap every per-volume INSERT/DELETE plus the library row
+    // update in a single transaction. A failure mid-loop (DB blip, row
+    // lock contention) used to leave the library row's `volumes` count
+    // out of sync with the actual `user_volumes` rows; the dashboard
+    // would render N volumes while the MangaPage shelf only had N-K
+    // entries. Atomic now: either every change lands or none.
+    let txn = db.begin().await.map_err(AppError::from)?;
+
     if old_total > new_volumes {
-        // Remove volumes that are now out of range
         for vol_num in (new_volumes + 1)..=old_total {
-            volume::remove_volume_by_num(db, user_id, mal_id, vol_num).await?;
+            volume::remove_volume_by_num_tx(&txn, user_id, mal_id, vol_num).await?;
         }
     } else {
-        // Add missing volumes
         for vol_num in (old_total + 1)..=new_volumes {
-            volume::add_volume(db, user_id, mal_id, vol_num).await?;
+            volume::add_volume_tx(&txn, user_id, mal_id, vol_num).await?;
         }
     }
 
     let now = Utc::now();
-    // Partial update — use ActiveModel with only changed fields
     let row = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(library::Column::MalId.eq(mal_id))
-        .one(db)
+        .one(&txn)
         .await
         .map_err(AppError::from)?;
 
@@ -771,9 +773,10 @@ pub async fn update_manga_volumes(
         let mut active: ActiveModel = existing.into();
         active.volumes = Set(new_volumes);
         active.modified_on = Set(now);
-        active.update(db).await.map_err(AppError::from)?;
+        active.update(&txn).await.map_err(AppError::from)?;
     }
 
+    txn.commit().await.map_err(AppError::from)?;
     Ok(())
 }
 
@@ -933,11 +936,10 @@ pub async fn update_infos_from_mal(
 
     for row in rows {
         // Update volumes if MAL has a different count
-        if let Some(mal_volumes) = mal_data.volumes {
-            if row.volumes != mal_volumes {
+        if let Some(mal_volumes) = mal_data.volumes
+            && row.volumes != mal_volumes {
                 update_manga_volumes(db, mal_id, user_id, mal_volumes).await?;
             }
-        }
 
         let now = Utc::now();
         // Only overwrite image if no custom poster set

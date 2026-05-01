@@ -52,8 +52,8 @@ fn sanitize_user_agent(raw: &str) -> String {
 /// Called from the OAuth callback handler ONCE — the first time a
 /// session id is bound to a user. ON CONFLICT updates the user_agent
 /// + last_seen_at (just in case the same session id is being re-bound
-/// to the same user, which can happen if the user re-clicks "sign in"
-/// on a stale tab without losing the cookie).
+///   to the same user, which can happen if the user re-clicks "sign in"
+///   on a stale tab without losing the cookie).
 ///
 /// 印 · `user_id` is **NOT** in the conflict-update column list. The
 /// previous version included it, which meant a request hitting
@@ -380,15 +380,13 @@ fn derive_browser_label(ua: &str) -> Option<String> {
         Some("LibreWolf".into())
     } else if ua.contains("Zen/") {
         Some("Zen".into())
-    } else if ua.contains("FxiOS/") {
-        // Firefox on iOS uses a distinct token; the "Firefox/" path
-        // below would never see it on iOS Safari WebKit.
+    } else if ua.contains("FxiOS/") || ua.contains("Firefox/") {
+        // FxiOS = Firefox on iOS (uses Safari/WebKit under the hood
+        // but identifies as a Firefox build); Firefox/ is the desktop
+        // / Android Gecko UA. Both fold to the same display label.
         Some("Firefox".into())
-    } else if ua.contains("Firefox/") {
-        Some("Firefox".into())
-    } else if ua.contains("CriOS/") {
-        Some("Chrome".into())
-    } else if ua.contains("Chrome/") {
+    } else if ua.contains("CriOS/") || ua.contains("Chrome/") {
+        // CriOS = Chrome on iOS; Chrome/ is the desktop / Android UA.
         Some("Chrome".into())
     } else if ua.contains("Safari/") {
         // Bare Safari only after Chrome / FxiOS have been ruled out:

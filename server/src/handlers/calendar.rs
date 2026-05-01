@@ -215,21 +215,21 @@ pub async fn ics_feed_by_token(
         [
             (
                 header::CONTENT_TYPE,
-                "text/calendar; charset=utf-8".parse::<http::HeaderValue>().unwrap(),
+                http::HeaderValue::from_static("text/calendar; charset=utf-8"),
             ),
             // Same noindex policy as the public profile + poster.
             // The feed is per-user data; search-engine indexing is
             // strictly out of scope.
             (
                 header::HeaderName::from_static("x-robots-tag"),
-                "noindex, nofollow, noarchive".parse().unwrap(),
+                http::HeaderValue::from_static("noindex, nofollow, noarchive"),
             ),
             // 1h client cache. Subscriber clients (Apple Calendar)
             // typically refresh every 15 min anyway; this caps the
             // burst rate without making the feed feel stale.
             (
                 header::CACHE_CONTROL,
-                "private, max-age=3600".parse().unwrap(),
+                http::HeaderValue::from_static("private, max-age=3600"),
             ),
         ],
         ics,

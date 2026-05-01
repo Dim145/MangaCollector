@@ -101,8 +101,8 @@ pub async fn find_volume(
         language_iso
     );
 
-    if let Some(cache) = cache {
-        if let Some(cached) =
+    if let Some(cache) = cache
+        && let Some(cached) =
             cache.get::<Option<GoogleBooksHit>>(&cache_key).await
         {
             // Re-apply the future filter on cache hit — the cache
@@ -110,7 +110,6 @@ pub async fn find_volume(
             // wrote it.
             return Ok(cached.filter(|h| h.release_date > Utc::now()));
         }
-    }
 
     // Query string. `intitle:` makes Google Books prioritise titles
     // containing the series name, the loose `Vol N` term tightens

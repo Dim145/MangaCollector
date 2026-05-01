@@ -4,6 +4,64 @@ import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
+/**
+ * 言 · i18n preload injector — eliminates the cold-start RTT cost of
+ * lazy-loading language bundles.
+ *
+ * Without this plugin, the browser timeline on first visit is:
+ *
+ *   HTML parse → fetch main.js → parse → loadLanguage() fires
+ *                                            ↓
+ *                                       fetch lang chunk (+1 RTT)
+ *                                            ↓
+ *                                       React mounts
+ *
+ * The lang chunk fetch is serial after main.js parses because the
+ * dynamic `import()` is invisible to the HTML parser — Vite/Rolldown
+ * doesn't generate `<link rel="modulepreload">` for chunks reached only
+ * via runtime `import()`.
+ *
+ * This plugin captures the emitted lang chunk filenames at
+ * `generateBundle` time, then injects an inline `<script>` into
+ * `<head>` that:
+ *   1. Reads `localStorage["mc:lang"]` (same key as `bootstrapLanguage`)
+ *   2. Injects `<link rel="modulepreload">` for the active language
+ *      AND English (the fallback) before main.js even starts fetching
+ *
+ * Result: the lang chunks fetch in PARALLEL with main.js, so by the
+ * time `loadLanguage()` is called, the bundle is already in the
+ * browser cache. No RTT cost. Cost on visits 2+ is zero anyway because
+ * the SW precache serves the chunks instantly.
+ *
+ * Build-only: `apply: "build"` skips this in dev where chunks don't
+ * have stable filenames.
+ */
+function i18nPreloadInjector() {
+  let manifest = null;
+  return {
+    name: "i18n-preload-injector",
+    apply: "build",
+    generateBundle(_, bundle) {
+      manifest = {};
+      for (const [fileName, chunk] of Object.entries(bundle)) {
+        if (chunk.type !== "chunk") continue;
+        const id = chunk.facadeModuleId ?? "";
+        if (id.endsWith("/i18n/en.js")) manifest.en = `/${fileName}`;
+        else if (id.endsWith("/i18n/fr.js")) manifest.fr = `/${fileName}`;
+        else if (id.endsWith("/i18n/es.js")) manifest.es = `/${fileName}`;
+      }
+    },
+    transformIndexHtml: {
+      order: "post",
+      handler(html) {
+        if (!manifest || Object.keys(manifest).length === 0) return html;
+        const script = `\n    <script>\n      (function () {\n        try {\n          var m = ${JSON.stringify(manifest)};\n          var stored = localStorage.getItem("mc:lang");\n          var lang = stored && m[stored] ? stored : "en";\n          var add = function (href) {\n            var l = document.createElement("link");\n            l.rel = "modulepreload";\n            l.crossOrigin = "";\n            l.href = href;\n            document.head.appendChild(l);\n          };\n          if (m[lang]) add(m[lang]);\n          if (lang !== "en" && m.en) add(m.en);\n        } catch (_) {}\n      })();\n    </script>`;
+        return html.replace("</head>", `${script}\n  </head>`);
+      },
+    },
+  };
+}
+
 /*
  * Vite 8 + vite-plugin-pwa override.
  *
@@ -27,6 +85,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    i18nPreloadInjector(),
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",

@@ -100,7 +100,7 @@ pub async fn update_user_settings(
     let currency_code = req
         .currency
         .as_deref()
-        .and_then(|c| get_currency_by_code(c))
+        .and_then(get_currency_by_code)
         .map(|c| c.code)
         .unwrap_or(existing.currency);
 

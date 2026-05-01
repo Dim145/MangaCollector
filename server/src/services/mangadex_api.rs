@@ -117,11 +117,10 @@ pub async fn find_cover_url_by_mal_id(
     }
 
     let cache_key = format!("mangadex:cover:{}", mal_id);
-    if let Some(cache) = cache {
-        if let Some(cached) = cache.get::<Option<String>>(&cache_key).await {
+    if let Some(cache) = cache
+        && let Some(cached) = cache.get::<Option<String>>(&cache_key).await {
             return Ok(cached);
         }
-    }
 
     let results = fetch_mangadex_search(client, title_hint).await?;
     let mal_str = mal_id.to_string();
@@ -161,11 +160,10 @@ pub async fn search_by_title(
     }
 
     let cache_key = format!("mangadex:search:{}", trimmed.to_lowercase());
-    if let Some(cache) = cache {
-        if let Some(cached) = cache.get::<Vec<MangadexResult>>(&cache_key).await {
+    if let Some(cache) = cache
+        && let Some(cached) = cache.get::<Vec<MangadexResult>>(&cache_key).await {
             return Ok(cached);
         }
-    }
 
     let results = fetch_mangadex_search(client, trimmed).await?;
     if let Some(cache) = cache {
@@ -198,11 +196,10 @@ pub async fn fetch_all_covers_for_manga(
     mangadex_id: &str,
 ) -> anyhow::Result<Vec<MdCoverEntry>> {
     let cache_key = format!("mangadex:allcovers:{}", mangadex_id);
-    if let Some(cache) = cache {
-        if let Some(cached) = cache.get::<Vec<MdCoverEntry>>(&cache_key).await {
+    if let Some(cache) = cache
+        && let Some(cached) = cache.get::<Vec<MdCoverEntry>>(&cache_key).await {
             return Ok(cached);
         }
-    }
 
     let response = client
         .get("https://api.mangadex.org/cover")
@@ -291,11 +288,10 @@ pub async fn get_by_id(
     mangadex_id: &str,
 ) -> anyhow::Result<Option<MangadexResult>> {
     let cache_key = format!("mangadex:byid:{}", mangadex_id);
-    if let Some(cache) = cache {
-        if let Some(cached) = cache.get::<Option<MangadexResult>>(&cache_key).await {
+    if let Some(cache) = cache
+        && let Some(cached) = cache.get::<Option<MangadexResult>>(&cache_key).await {
             return Ok(cached);
         }
-    }
 
     let url = format!("https://api.mangadex.org/manga/{}", mangadex_id);
     let response = client

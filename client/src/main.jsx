@@ -9,6 +9,7 @@ import { captureDeepLinkIntentFromUrl } from "./lib/deepLinks.js";
 import { initErrorTracking } from "./lib/errorTracking.js";
 import { initAnalytics } from "./lib/analytics.js";
 import { fetchPublicConfig } from "./lib/publicConfig.js";
+import { bootstrapLanguage, loadLanguage } from "./i18n/index.jsx";
 
 // Apply the user's last-known theme + accent before React mounts so
 // the first paint never flashes the wrong palette. The authoritative
@@ -45,10 +46,20 @@ fetchPublicConfig().then((config) => {
   if (config?.errorTracking) initErrorTracking(config.errorTracking);
 });
 
-createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </StrictMode>,
-);
+// 言 · Pre-load the active language bundle (and English fallback if
+// different) BEFORE the React tree mounts. Each language is its own
+// code-split chunk, so visitors only download what they need — English
+// users skip ~100 KB of FR/ES translations, etc. The await is bounded
+// by the network round-trip on first visit; after that, the SW
+// precache + browser cache make it instant. While this resolves, the
+// inline boot script in index.html is already painting the right
+// theme/accent so the user sees a styled splash immediately.
+loadLanguage(bootstrapLanguage()).then(() => {
+  createRoot(document.getElementById("root")).render(
+    <StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </StrictMode>,
+  );
+});

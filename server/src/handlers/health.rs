@@ -24,7 +24,7 @@ pub async fn health(
             v6.is_loopback()
                 || v6
                     .to_ipv4_mapped()
-                    .map_or(false, |v4| v4.is_loopback())
+                    .is_some_and(|v4| v4.is_loopback())
         }
     };
 

@@ -935,6 +935,210 @@
   }
 }
 
+/* 押 · Welcome-tour kanji stamp impression. Mimics a hanko being
+   pressed onto wet paper: starts blurry + small + over-tilted, hits
+   an overshoot at 50 % (ink fully transferred, paper still bouncing
+   back), then settles at scale 1 with a permanent slight tilt — like
+   the way real hanko marks always sit a bit crooked. The cubic-bezier
+   is the project's signature "impulse settle" curve. */
+@keyframes tour-stamp-press {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) rotate(-12deg);
+    filter: blur(8px);
+  }
+  45% {
+    opacity: 0.95;
+    transform: scale(1.12) rotate(-4deg);
+    filter: blur(0);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.97) rotate(-2deg);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-3deg);
+    filter: blur(0);
+  }
+}
+
+/* 環 · Concentric ink-glow ring that blooms once on stamp-press and
+   fades. Companion to tour-stamp-press, fired from the same trigger
+   on a small absolute span behind the kanji so the ink "spreads"
+   into the paper for half a second after impact. */
+@keyframes tour-ink-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  35% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+/* 漂 · Floating ink-particle drift. Used for ambient atmosphere on
+   the modal backdrop — 12 small dots traveling along bezier-ish paths
+   to give the page the feel of light incense smoke without crossing
+   into "screen saver" territory. Each instance gets randomised
+   delay + duration via inline style so they don't pulse in unison. */
+@keyframes tour-particle-drift {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  10% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.4;
+    transform: translate3d(18px, -32px, 0) rotate(180deg);
+  }
+  90% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-12px, -64px, 0) rotate(360deg);
+  }
+}
+
+/* 揺 · Card-tilt rest state. Each feature card rests at a slightly
+   different rotation so the row feels hand-arranged, not laid out in
+   a CAD program. The class doesn't animate by itself — it's the rest
+   transform that the hover state interrupts (rotation goes back to 0,
+   y lifts up, the gold ring fades in). */
+.tour-card-tilt-a {
+  transform: rotate(-1.2deg);
+}
+.tour-card-tilt-b {
+  transform: rotate(0.5deg);
+}
+.tour-card-tilt-c {
+  transform: rotate(-0.6deg);
+}
+.tour-card-tilt-a,
+.tour-card-tilt-b,
+.tour-card-tilt-c {
+  transition:
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 320ms ease,
+    border-color 320ms ease;
+}
+.tour-card-tilt-a:hover,
+.tour-card-tilt-b:hover,
+.tour-card-tilt-c:hover,
+.tour-card-tilt-a:focus-visible,
+.tour-card-tilt-b:focus-visible,
+.tour-card-tilt-c:focus-visible {
+  transform: translateY(-6px) rotate(0deg);
+}
+
+/* 印 · Hanko-corner stamp on each card. Sits at top-left of the card,
+   slightly rotated, with a subtle drop-shadow + inset ring to read as
+   a real ink stamp pressed onto cream paper. The stamp's own rotation
+   is per-card via class A/B/C above so they don't all lean the same
+   way. */
+.tour-stamp-corner {
+  background: radial-gradient(
+    circle at 35% 35%,
+    var(--hanko-bright) 0%,
+    var(--hanko) 55%,
+    var(--hanko-deep) 100%
+  );
+  box-shadow:
+    inset 0 0 0 1.5px rgba(0, 0, 0, 0.15),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.2),
+    0 2px 8px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+/* 角 · Card corner-fold. Pure overlay (no clip-path on the card) —
+   a triangular ::after pinned to the bottom-right corner suggests a
+   dog-eared page without actually cutting into the card body. Using
+   `clip-path` on the pseudo (instead of on the card) means the fold
+   is visible AND the rest of the card still paints normally. The
+   gradient's diagonal hard line at 50 % is the visible "crease". */
+.tour-card-fold {
+  /* Card itself is just position:relative for the ::after anchor.
+     The hover state recolouring lives below on the pseudo. */
+}
+.tour-card-fold::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  /* The triangle shape: top-right corner → bottom-right → bottom-left
+     of the 22 × 22 box. Visually reads as a folded corner. */
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  background: linear-gradient(
+    315deg,
+    var(--hanko-deep) 0%,
+    var(--ink-1) 55%,
+    rgba(0, 0, 0, 0.5) 100%
+  );
+  border-bottom-right-radius: 0.85rem;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+  transition: background 320ms ease;
+}
+.tour-card-fold:hover::after,
+.tour-card-fold:focus-visible::after {
+  background: linear-gradient(
+    315deg,
+    var(--hanko-bright) 0%,
+    var(--hanko) 55%,
+    rgba(0, 0, 0, 0.5) 100%
+  );
+}
+
+/* 線 · Tour progress line — a horizontal sumi-ink trail with a 印
+   marker that travels along it. The trail itself is a single linear-
+   gradient on the parent; the marker is a positioned span that gets
+   its `left:` from inline style. The "drawn" portion glows; the
+   pending portion is a fading dotted line. */
+.tour-progress-track {
+  background: linear-gradient(
+    to right,
+    color-mix(in oklch, var(--border) 55%, transparent) 0%,
+    color-mix(in oklch, var(--border) 55%, transparent) 100%
+  );
+  background-size: 6px 1px;
+  background-repeat: repeat-x;
+  background-position: 0 50%;
+}
+.tour-progress-fill {
+  background: linear-gradient(
+    90deg,
+    var(--hanko-deep) 0%,
+    var(--hanko) 50%,
+    var(--hanko-bright) 100%
+  );
+  box-shadow: 0 0 8px var(--hanko-glow);
+  transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-stamp-press-target,
+  .tour-stamp-press-bloom,
+  .tour-particle {
+    animation: none !important;
+  }
+  .tour-card-tilt-a,
+  .tour-card-tilt-b,
+  .tour-card-tilt-c {
+    transform: none;
+    transition: none;
+  }
+}
+
 /* Seal ceremony — heavier than plain stamp. Used ONCE on newly-earned
    seals in the 印鑑帳 journal, so it's an emphatic motion: the sceau
    drops from scale 1.6 with a bigger tilt, overshoots into a reverse
@@ -2298,6 +2502,33 @@
 .animate-tour-bob {
   animation: tour-bob 1.6s ease-in-out infinite;
   display: inline-block;
+}
+
+/* WelcomeTour — kanji stamp impression. Long duration (900ms) +
+   stiff easing (cubic-bezier(0.16, 1, 0.3, 1)) is what gives the
+   "ink hits paper, paper bounces, ink settles" feel. The class is
+   keyed on `pageIndex` in the JSX so changing pages remounts the
+   element and re-fires the animation from frame 0. */
+.tour-stamp-press-target {
+  animation: tour-stamp-press 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* The bloom ring fired alongside the stamp — slightly longer
+   (1100 ms) so the ring is still expanding when the kanji has
+   already settled, mimicking ink bleeding into the paper after the
+   stamp lifts away. */
+.tour-stamp-press-bloom {
+  animation: tour-ink-bloom 1100ms cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+
+/* Floating ink particles — see `tour-particle-drift` keyframe. The
+   inline-style approach (per-instance delay/duration) means we don't
+   need a media query; the unanimated baseline (no animation property)
+   is itself acceptable as a static dot. */
+.tour-particle {
+  animation-name: tour-particle-drift;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
 }
 
 /* Motion preferences */

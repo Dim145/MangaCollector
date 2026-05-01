@@ -107,6 +107,11 @@ pub struct UpcomingChange {
 ///
 /// `language_iso` is the 2-letter Google Books locale (`en`, `fr`,
 /// `es`, `ja`). Unknown / empty falls back to `"en"`.
+// 9 positional args — acknowledged. Each is a distinct concern
+// (HTTP client, cache, API key, query, scope, locale, identity,
+// proxy) and wrapping into one params struct hides which ones are
+// optional vs required. Internal callers only.
+#[allow(clippy::too_many_arguments)]
 pub async fn discover_upcoming_with_locale(
     client: &reqwest::Client,
     cache: Option<&CacheStore>,
@@ -235,7 +240,7 @@ pub async fn discover_upcoming_with_locale(
     }
 
     let mut out: Vec<DiscoveredVolume> = google_hits.into_values().collect();
-    out.sort_by(|a, b| a.vol_num.cmp(&b.vol_num));
+    out.sort_by_key(|a| a.vol_num);
     Ok(out)
 }
 
