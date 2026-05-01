@@ -1,0 +1,59 @@
+#-----------------------------------------------------------------#
+# Qodana — code quality scan for the React 19 / Vite frontend.    #
+# https://www.jetbrains.com/help/qodana/qodana-yaml.html          #
+#-----------------------------------------------------------------#
+
+version: "1.0"
+
+# qodana-js covers JavaScript, TypeScript, HTML, CSS, JSON, Vue, React.
+# A separate `server/qodana.yml` handles the Rust backend — Qodana
+# can't multi-language-scan from a single config, so the two ship as
+# parallel CI jobs. CodeQL `rust/*` queries also run upstream in
+# GitHub code-scanning as a complementary security pass.
+linter: jetbrains/qodana-js:2026.1
+
+profile:
+  # `qodana.recommended` covers the high-signal inspection set:
+  # probable bugs, performance suggestions, dead code, code duplication,
+  # React anti-patterns, accessibility hints, regex sanity. Lighter
+  # alternatives if recommended turns out too noisy:
+  #   qodana.starter — bug-fixing essentials only (ships fewer rules)
+  #   qodana.sanity  — minimal compile-broken-class checks
+  name: qodana.recommended
+
+# Skip Rust + build artifacts. qodana-js auto-skips non-JS file
+# extensions, but excluding entire dirs cuts indexing time and avoids
+# noise from unrelated content (Cargo target, Dexie precache assets,
+# the worktrees we use for parallel Claude sessions).
+exclude:
+  - name: All
+    paths:
+      - server
+      - client/node_modules
+      - client/dist
+      - .claude
+
+# Bootstrap runs in the linter container BEFORE the analysis pass.
+# Pnpm is the project's pinned package manager (`packageManager`
+# field in client/package.json) — activated via corepack, which
+# ships with the Node bundle in the qodana-js image. Without
+# `node_modules` Qodana's import-resolver flags every `@/components/…`
+# alias as unresolved, drowning the report in false positives.
+bootstrap: cd client && corepack enable && pnpm install --frozen-lockfile
+
+# Failure threshold for CI. Commented out so the first run is
+# advisory — it surfaces the current state of the codebase without
+# blocking merges. The recommended adoption path is:
+#
+#   1. Run Qodana once locally or in a CI dry-run:
+#        qodana scan --save-report --report-dir qodana-report
+#   2. Copy `qodana-report/qodana.sarif.json` to repo root as
+#      `qodana.sarif.json` and commit it.
+#   3. Uncomment `baseline:` below.
+#   4. Re-enable `failThreshold` — future runs fail only on issues
+#      NOT in the baseline → adoption without a blast-radius on day one.
+#
+# baseline: qodana.sarif.json
+#
+# failThreshold:
+#   any: 0

@@ -286,6 +286,7 @@ export default function ComparePage() {
                   genres: res.genres ?? target?.genres ?? [],
                 },
               },
+              viewTransition: true,
             });
           }}
           adultLevel={adult_content_level}
@@ -332,6 +333,7 @@ function AddToMyLibraryModal({
                 src={candidate.image_url_jpg}
                 alt=""
                 blur={blur}
+                paletteSeed={candidate.mal_id}
                 imgClassName="h-full w-full object-cover"
               />
             </div>
@@ -644,6 +646,7 @@ function MiniCard({
           src={entry.image_url_jpg}
           alt=""
           blur={blur}
+          paletteSeed={entry.mal_id}
           imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-ink-0 via-ink-0/50 to-transparent" />

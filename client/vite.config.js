@@ -251,6 +251,24 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          // 設 · Public runtime config (Umami / Sentry / Bugsink DSNs
+          // exposed by the backend at boot). StaleWhileRevalidate so
+          // the SPA boot is instant on every reload after the first
+          // online visit AND survives offline — the cached payload
+          // is the last-known-good config from the backend. Single-
+          // entry bucket because there's only ever one URL.
+          {
+            urlPattern: /\/api\/public-config$/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "public-config",
+              expiration: {
+                maxEntries: 1,
+                maxAgeSeconds: 60 * 60 * 24 * 7,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           // User-uploaded posters via backend — cache so covers stay
           // visible offline. Same bucket name as before so existing
           // installs don't lose their cached covers on update.

@@ -63,7 +63,17 @@ pub fn sanitize_label(value: Option<String>, max_len: usize) -> Option<String> {
 /// the comma-joined `genres` column (`Vec::is_empty()` → empty string,
 /// rendered as `Option::<String>::None` upstream).
 pub fn sanitize_genres(values: Vec<String>) -> Vec<String> {
-    let mut out: Vec<String> = Vec::with_capacity(values.len().min(GENRES_MAX_COUNT));
+    // Pre-allocate the constant upper bound (`GENRES_MAX_COUNT`) rather
+    // than `values.len().min(GENRES_MAX_COUNT)`. The two were
+    // arithmetically equivalent — the loop below enforces the same cap
+    // via `out.len() >= GENRES_MAX_COUNT` — but CodeQL's
+    // `rust/uncontrolled-allocation-size` taint tracker doesn't propagate
+    // `.min()` as a sink-side bound, so it flagged `values.len()` as a
+    // user-controlled allocation size. Allocating the constant directly
+    // removes the user-input source from the data flow entirely. Cost: a
+    // few bytes of unused capacity when the input has fewer than 30
+    // entries (the common case) — negligible vs. a Vec<String> reallocation.
+    let mut out: Vec<String> = Vec::with_capacity(GENRES_MAX_COUNT);
     for raw in values {
         let trimmed: String = raw.trim().chars().take(GENRE_MAX_LEN).collect();
         if trimmed.is_empty() {

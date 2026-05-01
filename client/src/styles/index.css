@@ -108,6 +108,80 @@
   --scroll-thumb: var(--ink-3);
 }
 
+/* 朱 · Accent palette overrides — applied via `data-accent` on <html>.
+   Each rule rotates the four `--hanko-*` tokens to a different
+   OKLCH family. Every component that styles via `bg-hanko`,
+   `text-hanko-bright`, `border-hanko-deep`, etc. picks up the new
+   accent without code changes — the `@theme` block at the bottom
+   maps Tailwind utilities back to these CSS vars.
+
+   Lightness budget: base ~0.55-0.78 to clear the AA-on-ink-0
+   contrast threshold for body-sized labels. -bright sits ~+0.08
+   lighter for hover/active states; -deep ~-0.12 darker for
+   pressed and seal-like accents; -glow is the same hue at α=0.35
+   for box-shadow halos.
+
+   These rules also override the `--bg-glow-red`, `--scene-red`,
+   `--scene-vignette` ambience tokens so the DefaultBackground glow
+   re-tints with the chosen accent — no half-rebrand where the
+   buttons turn purple but the page glow stays red. */
+:root[data-accent="kin"] {
+  --hanko: oklch(0.78 0.15 78);
+  --hanko-bright: oklch(0.86 0.16 78);
+  --hanko-deep: oklch(0.62 0.14 78);
+  --hanko-glow: oklch(0.78 0.15 78 / 0.35);
+  --bg-glow-red: oklch(0.78 0.15 78 / 0.08);
+  --scene-red: oklch(0.78 0.15 78 / 0.32);
+}
+:root[data-accent="moegi"] {
+  --hanko: oklch(0.7 0.18 140);
+  --hanko-bright: oklch(0.78 0.2 140);
+  --hanko-deep: oklch(0.56 0.16 140);
+  --hanko-glow: oklch(0.7 0.18 140 / 0.35);
+  --bg-glow-red: oklch(0.7 0.18 140 / 0.08);
+  --scene-red: oklch(0.7 0.18 140 / 0.32);
+}
+:root[data-accent="sakura"] {
+  --hanko: oklch(0.78 0.13 12);
+  --hanko-bright: oklch(0.84 0.14 12);
+  --hanko-deep: oklch(0.6 0.12 12);
+  --hanko-glow: oklch(0.78 0.13 12 / 0.35);
+  --bg-glow-red: oklch(0.78 0.13 12 / 0.08);
+  --scene-red: oklch(0.78 0.13 12 / 0.32);
+}
+:root[data-accent="ai"] {
+  --hanko: oklch(0.58 0.16 250);
+  --hanko-bright: oklch(0.66 0.18 250);
+  --hanko-deep: oklch(0.46 0.14 250);
+  --hanko-glow: oklch(0.58 0.16 250 / 0.35);
+  --bg-glow-red: oklch(0.58 0.16 250 / 0.08);
+  --scene-red: oklch(0.58 0.16 250 / 0.32);
+}
+:root[data-accent="kuro"] {
+  --hanko: oklch(0.5 0.06 60);
+  --hanko-bright: oklch(0.6 0.08 60);
+  --hanko-deep: oklch(0.36 0.05 60);
+  --hanko-glow: oklch(0.5 0.06 60 / 0.4);
+  --bg-glow-red: oklch(0.5 0.06 60 / 0.08);
+  --scene-red: oklch(0.5 0.06 60 / 0.3);
+}
+:root[data-accent="murasaki"] {
+  --hanko: oklch(0.56 0.18 310);
+  --hanko-bright: oklch(0.64 0.2 310);
+  --hanko-deep: oklch(0.44 0.16 310);
+  --hanko-glow: oklch(0.56 0.18 310 / 0.35);
+  --bg-glow-red: oklch(0.56 0.18 310 / 0.08);
+  --scene-red: oklch(0.56 0.18 310 / 0.32);
+}
+:root[data-accent="akane"] {
+  --hanko: oklch(0.58 0.2 15);
+  --hanko-bright: oklch(0.66 0.22 15);
+  --hanko-deep: oklch(0.46 0.18 15);
+  --hanko-glow: oklch(0.58 0.2 15 / 0.35);
+  --bg-glow-red: oklch(0.58 0.2 15 / 0.08);
+  --scene-red: oklch(0.58 0.2 15 / 0.32);
+}
+
 /* ─────────────────────────────────────────────
    Light theme — Washi paper
    Inverted palette keeping the hanko red + gold leaf. Sakura tone shifts
@@ -555,6 +629,115 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* 棚 · 3D shelf view — applied to the Dashboard grid container
+     when the user opts into the setting. Each direct-child card
+     receives a perspective-driven tilt (deterministic per mal_id
+     via :nth-child parity), a heavier book-spine shadow, and a
+     hover transform that "pops" the card toward the viewer. The
+     wood-grain divider line under each row is faked with a
+     repeating-linear-gradient on the parent.
+
+     The flat grid stays visually identical when this class is
+     absent — the toggle is a strict additive lens.
+
+     Why per-card transforms inside `.shelf-3d` rather than each
+     <Manga> mounting its own style:
+       - keeps the JS-side React state lean
+       - lets us flip the entire view in a single class toggle
+       - the `nth-child` pattern stays stable through filter +
+         search re-renders because the cards' DOM positions are
+         deterministic from `filtered.map(...)` order
+   */
+  .shelf-3d {
+    perspective: 1400px;
+    perspective-origin: 50% 80%;
+    /* Wood-grain "shelf" baseline — repeated across each row via the
+       grid's auto-flow. The `linear-gradient` mimics a dark wood plank
+       (warm sumi tones from the existing palette) with a faint
+       highlight line at the leading edge. Pinned to the bottom of
+       the grid so the cards visually rest on it. */
+    background-image:
+      linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent calc(100% - 14px),
+        oklch(0.18 0.025 60 / 0.9) calc(100% - 14px),
+        oklch(0.12 0.02 50 / 0.95) calc(100% - 6px),
+        oklch(0.08 0.015 40 / 1) 100%
+      );
+    background-repeat: no-repeat;
+    background-size: 100% 270px;
+    background-position: 0 270px;
+    /* Tile the shelf line behind every grid row by repeating the
+       gradient with `repeating-linear-gradient` along the Y-axis. */
+    background-image:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 256px,
+        oklch(0.18 0.025 60 / 0.5) 256px,
+        oklch(0.1 0.02 50 / 0.85) 262px,
+        oklch(0.06 0.015 40 / 0.4) 270px,
+        transparent 270px,
+        transparent 286px
+      );
+    padding-bottom: 16px;
+  }
+  .shelf-3d > * {
+    transform-style: preserve-3d;
+    transition:
+      transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      filter 380ms ease;
+  }
+  /* Alternating tilt — left-leaning on odd children, right on even.
+     The perspective-origin at 80% (deep on the page) means the tilt
+     reads as "books leaning slightly on the shelf" rather than a
+     neutral 3D rotation. Magnitude kept under 4° so the labels
+     stay legible. */
+  .shelf-3d > *:nth-child(odd) {
+    transform: rotateY(-2.2deg) rotateX(0.5deg);
+  }
+  .shelf-3d > *:nth-child(even) {
+    transform: rotateY(2.4deg) rotateX(0.5deg);
+  }
+  /* Every fifth card gets a slightly deeper tilt — adds an
+     irregular cadence so the row doesn't look like wallpaper. */
+  .shelf-3d > *:nth-child(5n + 3) {
+    transform: rotateY(-3.4deg) rotateX(0.8deg);
+  }
+  /* Hover / focus-within: the card pops out of the shelf toward
+     the viewer. translateZ leverages the parent's perspective —
+     positive Z brings the card forward, the slight scale gives
+     hover-card affordance. Skip the `nth-child` rotation here so
+     the hovered card aligns square to the camera. */
+  .shelf-3d > *:hover,
+  .shelf-3d > *:focus-within {
+    transform: translateZ(40px) rotateY(0deg) rotateX(0deg) scale(1.02);
+    filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.55));
+    z-index: 5;
+  }
+
+  /* Reduced-motion: skip the per-card tilt + transition entirely so
+     the layout reads flat. The wood-grain backdrop stays — it's
+     ambient texture, not motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .shelf-3d {
+      perspective: none;
+    }
+    .shelf-3d > *,
+    .shelf-3d > *:nth-child(odd),
+    .shelf-3d > *:nth-child(even),
+    .shelf-3d > *:nth-child(5n + 3) {
+      transform: none;
+      transition: none;
+    }
+    .shelf-3d > *:hover,
+    .shelf-3d > *:focus-within {
+      transform: none;
+      filter: none;
+    }
+  }
+
   /* Mobile-safe bottom padding (accounts for bottom nav + safe area) */
   .pb-safe {
     padding-bottom: calc(1rem + env(safe-area-inset-bottom));
@@ -652,6 +835,32 @@
   }
   50% {
     box-shadow: 0 0 40px -4px var(--hanko-glow);
+  }
+}
+
+/* 確 · Volume tick — momentary "confirmed" stamp that pops over a
+   freshly-owned volume tile. The overlay scales in from below 1 so
+   the user reads it as "landing" rather than "appearing", then
+   fades out so the persistent owned-state styling (border, badge,
+   un-greyscaled cover) carries the meaning. Single-fire — the
+   element is keyed on a flip counter and remounted on each
+   transition, so the animation always plays from frame 0. */
+@keyframes volume-tick-pop {
+  0% {
+    transform: scale(0.4) rotate(-8deg);
+    opacity: 0;
+  }
+  35% {
+    transform: scale(1.15) rotate(-2deg);
+    opacity: 1;
+  }
+  60% {
+    transform: scale(1) rotate(-2deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-2deg);
+    opacity: 0;
   }
 }
 
@@ -2056,6 +2265,16 @@
 .animate-pulse-glow {
   animation: pulse-glow 2.5s ease-in-out infinite;
 }
+.animate-volume-tick {
+  animation: volume-tick-pop 800ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-volume-tick {
+    /* Honour reduced-motion: skip the bouncy stamp, keep a brief
+       opacity flash so the user still gets confirmation. */
+    animation: fade-in 200ms ease-out forwards;
+  }
+}
 .animate-stamp {
   animation: stamp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
@@ -2096,6 +2315,38 @@
   .atmo-particle {
     display: none !important;
   }
+  /* View Transitions API — the global `*` rule above doesn't reach
+     the `::view-transition-*` pseudo-element tree (it lives outside
+     the regular DOM). Without this override, navigations between
+     Dashboard ↔ MangaPage would still play the browser's default
+     ~250ms cross-fade for users who asked for reduced motion. The
+     DOM swap still happens (the JS callback runs); only the
+     animation gets suppressed. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* ─── View Transitions — explicit z-stacking ───
+   By default, sibling pseudo-elements in the `::view-transition`
+   overlay are painted in DOM source order, which doesn't always
+   carry the original z-index of the underlying elements (especially
+   for portaled overlays like the tag-filter popover). Without
+   explicit z-index rules below, hoisted Manga cards can paint
+   *over* an open popover for the ~250ms a transition runs — the
+   exact bug the popover's `view-transition-name: tag-popover` was
+   added to fix. Pinning the popover and the app-header to high
+   z-indexes makes the layering deterministic across browsers. */
+::view-transition-group(tag-popover) {
+  z-index: 100;
+}
+::view-transition-group(app-header) {
+  z-index: 90;
+}
+::view-transition-group(app-bottom-nav) {
+  z-index: 90;
 }
 
 /* Seasonal-atmosphere particles. Each particle is a single

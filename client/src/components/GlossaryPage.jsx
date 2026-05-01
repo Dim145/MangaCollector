@@ -42,6 +42,15 @@ const SECTIONS = [
       { char: "来", romaji: "rai" },
       { char: "積読", romaji: "tsundoku" },
       { char: "限", romaji: "gen" },
+      // 連 + the time-based lens trio sit at the end of the states
+      // section because they're "axes onto the library" rather than
+      // first-order ownership states. 連 anchors the streak chip in
+      // the masthead; 新 / 眠 / 慕 anchor the lens chips below the
+      // rank tablist on the dashboard.
+      { char: "連", romaji: "ren" },
+      { char: "新", romaji: "shin" },
+      { char: "眠", romaji: "nemuri" },
+      { char: "慕", romaji: "shitau" },
     ],
   },
   {
@@ -54,6 +63,14 @@ const SECTIONS = [
       { char: "印", romaji: "in" },
       { char: "追加", romaji: "tsuika" },
       { char: "編集", romaji: "henshū" },
+      // Bulk + keyboard ergonomics added in the productivity tier —
+      // the user invokes them deliberately, hence "actions" rather
+      // than "states".
+      { char: "選", romaji: "sen" },
+      { char: "削", romaji: "saku" },
+      { char: "鍵", romaji: "kagi" },
+      { char: "解", romaji: "toku" },
+      { char: "確", romaji: "kaku" },
     ],
   },
   {
@@ -77,6 +94,10 @@ const SECTIONS = [
       { char: "盒", romaji: "gō" },
       { char: "印鑑帳", romaji: "inkanchō" },
       { char: "あと少し", romaji: "ato sukoshi" },
+      // 棚 standalone names the shelf as an object — distinct from
+      // 本棚 (bookshelf, the dashboard surface) which sits in places.
+      // Anchors the 3D shelf view + the snapshot watermark.
+      { char: "棚", romaji: "tana" },
     ],
   },
   {

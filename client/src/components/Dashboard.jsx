@@ -7,18 +7,25 @@ import {
   useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import Manga from "./Manga";
+import BulkActionsBar from "./BulkActionsBar.jsx";
 import DefaultBackground from "./DefaultBackground";
+import PullToRefresh from "./ui/PullToRefresh.jsx";
+import { syncOutbox } from "@/lib/sync.js";
 import MangaSearchBar from "./MangaSearchBar";
 import GapSuggestions from "./GapSuggestions.jsx";
 import { FilterButton, ActiveChips } from "./TagFilter.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
+import EmptyStateGlyph from "./ui/EmptyStateGlyph.jsx";
 import WelcomeTour from "./WelcomeTour.jsx";
 import SeasonGreeting from "./SeasonGreeting.jsx";
 import { hasSeenTour } from "@/lib/tour.js";
+import { withViewTransition } from "@/lib/viewTransition.js";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
+import { useStreak } from "@/hooks/useStreak.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -33,6 +40,17 @@ import { useT } from "@/i18n/index.jsx";
 const DASHBOARD_STATE_KEY = "mc:dashboard:view";
 const DASHBOARD_SCROLL_KEY = "mc:dashboard:scrollY";
 
+// Lens predicates lean on `created_on` / `modified_on` from the
+// library rows. Cheap shared helpers — `parseTs` returns 0 (epoch)
+// for missing or malformed values so the comparisons safely degrade
+// to "never matches" rather than throwing.
+const DAY_MS = 24 * 60 * 60 * 1000;
+function parseTs(value) {
+  if (!value) return 0;
+  const n = new Date(value).getTime();
+  return Number.isFinite(n) ? n : 0;
+}
+
 function readPersistedDashboardState() {
   if (typeof sessionStorage === "undefined") return null;
   try {
@@ -43,6 +61,11 @@ function readPersistedDashboardState() {
       query: typeof parsed.query === "string" ? parsed.query : "",
       filter: typeof parsed.filter === "string" ? parsed.filter : "all",
       activeTags: Array.isArray(parsed.activeTags) ? parsed.activeTags : [],
+      // 鏡 · Lens (time-based smart filter). Mutex with `filter`: a
+      // lens forces `filter = "all"` so the two axes don't compose
+      // ambiguously. Old persisted states without the field default
+      // to null (no lens) — backwards-compatible.
+      lens: typeof parsed.lens === "string" ? parsed.lens : null,
     };
   } catch {
     return null;
@@ -94,26 +117,95 @@ export default function Dashboard() {
   // The filters are mutually exclusive; "inprogress" used to also catch
   // wishlist series (owned === 0), which made the ladder ambiguous. The
   // new contract gives wishlist its own bucket.
+
+  // 鏡 · Lens — time-based "smart filter" that's mutex with the rank
+  // filter above. When a lens is set, `filter` is forced to "all" so
+  // the two axes don't compose ambiguously (e.g. "complete AND
+  // recent" is well-defined but harder to surface in the UI than a
+  // single chip; v1 keeps it strictly mutex).
+  //   recent         → series added in the last 30 days
+  //   sleeping       → series untouched 6+ months
+  //   wishlist_aged  → wishlist items > 1 year old
+  const [lens, setLens] = useState(() => persisted?.lens ?? null);
+
+  // 一括 · Bulk-select state. NOT persisted — selection is a transient
+  // UI mode tied to the current tab; reloading the page clears it on
+  // purpose so a forgotten selection doesn't auto-apply on the next
+  // visit. `selectionMode` is the gate (set on first long-press /
+  // Cmd-click) and `selectedIds` is the Set<mal_id> of picks. The
+  // BulkActionsBar at the bottom of the page reads both.
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+
+  const exitSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelected = useCallback((mal_id) => {
+    if (mal_id == null) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(mal_id)) next.delete(mal_id);
+      else next.add(mal_id);
+      return next;
+    });
+  }, []);
+
+  const enterSelectionWith = useCallback((mal_id) => {
+    if (mal_id == null) return;
+    setSelectionMode(true);
+    setSelectedIds(new Set([mal_id]));
+  }, []);
+
+  // ESC exits selection mode globally (independent of any modal's
+  // own ESC handling). The keydown listener is gated on
+  // `selectionMode` so it doesn't compete with the focus-trap inside
+  // open modals — those install their own ESC + the global one
+  // here just sees the synthetic event as a no-op.
+  useEffect(() => {
+    if (!selectionMode) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        exitSelection();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectionMode, exitSelection]);
   // Genre filter — Set<string>. Multi-select with AND intersection (series
   // must carry every selected tag to remain visible). Kept as Set for O(1)
   // membership checks in the hot filter path below.
   const [activeTags, setActiveTags] = useState(
     () => new Set(persisted?.activeTags ?? []),
   );
-  const { adult_content_level } = useContext(SettingsContext);
+  const { adult_content_level, shelf_3d_enabled } = useContext(SettingsContext);
   const navigate = useNavigate();
   const t = useT();
 
+  // 並 · Tag toggles wrap the state mutation in `withViewTransition`
+  // so the grid reorder animates as a smooth slide instead of a jump-
+  // cut. Each `<Manga>` card carries a `view-transition-name` keyed on
+  // its `mal_id`, which is what gives the browser the per-card
+  // FLIP-style morph between filter states. Search input is
+  // intentionally NOT wrapped — VTs trigger per keystroke would feel
+  // janky given each transition takes ~250ms.
   const toggleTag = useCallback((name) => {
-    setActiveTags((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
+    withViewTransition(() => {
+      setActiveTags((prev) => {
+        const next = new Set(prev);
+        if (next.has(name)) next.delete(name);
+        else next.add(name);
+        return next;
+      });
     });
   }, []);
 
-  const clearTags = useCallback(() => setActiveTags(new Set()), []);
+  const clearTags = useCallback(
+    () => withViewTransition(() => setActiveTags(new Set())),
+    [],
+  );
 
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const { data: allVolumes } = useAllVolumes();
@@ -221,7 +313,30 @@ export default function Dashboard() {
     if (q) {
       result = result.filter((m) => m.name?.toLowerCase().includes(q));
     }
-    if (filter === "complete") {
+    // 鏡 · Lens takes precedence over the rank filter (mutex). Rank
+    // is only consulted when no lens is engaged — the UI mirrors
+    // that by forcing `filter = "all"` whenever a lens is selected.
+    if (lens === "recent") {
+      // 新 · Added in the last 30 days. Uses `created_on` from the
+      // server-side library row.
+      const cutoff = Date.now() - 30 * DAY_MS;
+      result = result.filter((m) => parseTs(m.created_on) > cutoff);
+    } else if (lens === "sleeping") {
+      // 眠 · Untouched in the last 6 months — `modified_on` covers
+      // any volume mutation, ownership flip, or metadata edit.
+      const cutoff = Date.now() - 180 * DAY_MS;
+      result = result.filter((m) => parseTs(m.modified_on) < cutoff);
+    } else if (lens === "wishlist_aged") {
+      // 慕 · Wishlist longing for > 1 year. Same predicate as the
+      // wishlist rank but layered with a creation-age guard.
+      const cutoff = Date.now() - 365 * DAY_MS;
+      result = result.filter(
+        (m) =>
+          (m.volumes_owned ?? 0) === 0 &&
+          (m.volumes ?? 0) > 0 &&
+          parseTs(m.created_on) < cutoff,
+      );
+    } else if (filter === "complete") {
       result = result.filter(
         (m) => (m.volumes ?? 0) > 0 && (m.volumes_owned ?? 0) >= m.volumes,
       );
@@ -268,16 +383,18 @@ export default function Dashboard() {
     return result;
     // `tsundokuByMal` is a memoised Map; including it as a dep lets
     // the filter recompute when the tsundoku slice changes (a volume
-    // flip toggles a row in/out of the "積" bucket).
-  }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal]);
+    // flip toggles a row in/out of the "積" bucket). `lens` is on the
+    // dep list so engaging a smart filter triggers a recompute.
+  }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal, lens]);
 
   useEffect(() => {
     writePersistedDashboardState({
       query,
       filter,
       activeTags: Array.from(activeTags),
+      lens,
     });
-  }, [query, filter, activeTags]);
+  }, [query, filter, activeTags, lens]);
 
   useEffect(() => {
     let pending = false;
@@ -325,6 +442,16 @@ export default function Dashboard() {
   return (
     <DefaultBackground>
       <WelcomeTour open={tourOpen} onClose={() => setTourOpen(false)} />
+      {/* 引 · Pull-to-refresh — touch-only. Desktop pays nothing
+          (touch listeners no-op without a touch start). The refresh
+          callback drives the same `syncOutbox({ force: true })` the
+          sync runner uses internally, so any pending outbox writes
+          flush AND we pull a fresh server snapshot in one go. */}
+      <PullToRefresh
+        onRefresh={async () => {
+          await syncOutbox({ force: true });
+        }}
+      >
       <div className="mx-auto max-w-7xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
         {/* 季節 · Once-per-season banner. Self-renders nothing when
             the current season has already been greeted; sits above
@@ -391,6 +518,7 @@ export default function Dashboard() {
               loading={isInitialLoad}
               width="5ch"
             />
+            <StreakChip />
           </div>
 
           <h1 className="mt-3 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl">
@@ -486,9 +614,14 @@ export default function Dashboard() {
                     aria-selected={active}
                     aria-label={tab.label}
                     title={tab.tooltip ?? tab.label}
-                    onClick={() => setFilter(tab.id)}
+                    onClick={() => {
+                      // Picking a rank tab clears any active lens —
+                      // the two axes are mutex (see `lens` state docstring).
+                      setFilter(tab.id);
+                      setLens(null);
+                    }}
                     className={`group/tab inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold uppercase tracking-wider transition sm:min-h-0 sm:py-1.5 ${
-                      active ? activeBg : "text-washi-muted hover:text-washi"
+                      active && !lens ? activeBg : "text-washi-muted hover:text-washi"
                     }`}
                   >
                     <span
@@ -525,6 +658,79 @@ export default function Dashboard() {
               </svg>
               {t("dashboard.addManga")}
             </button>
+          </div>
+
+          {/* 鏡 · Lens row — time-based "smart filters" sitting one
+              level below the rank tablist. Visually distinct (smaller
+              chips, thinner border, no opaque background) so they read
+              as a refinement rather than a peer of the primary axis.
+              Mutex with rank: clicking a lens forces rank → all and
+              vice-versa, making the active filter unambiguous. */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="font-mono text-[9px] uppercase tracking-[0.25em] text-washi-dim"
+            >
+              {t("dashboard.lensLabel")}
+            </span>
+            {[
+              {
+                id: "recent",
+                glyph: "新",
+                label: t("dashboard.lensRecent"),
+                tooltip: t("dashboard.lensRecentHint"),
+                accent: "moegi",
+              },
+              {
+                id: "sleeping",
+                glyph: "眠",
+                label: t("dashboard.lensSleeping"),
+                tooltip: t("dashboard.lensSleepingHint"),
+                accent: "washi",
+              },
+              {
+                id: "wishlist_aged",
+                glyph: "慕",
+                label: t("dashboard.lensWishlistAged"),
+                tooltip: t("dashboard.lensWishlistAgedHint"),
+                accent: "sakura",
+              },
+            ].map((opt) => {
+              const active = lens === opt.id;
+              const accentRing =
+                opt.accent === "sakura"
+                  ? "border-sakura/70 text-sakura"
+                  : opt.accent === "moegi"
+                    ? "border-moegi/70 text-moegi"
+                    : "border-washi/40 text-washi";
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setLens(active ? null : opt.id);
+                    if (!active) setFilter("all");
+                  }}
+                  title={opt.tooltip}
+                  aria-pressed={active}
+                  className={`group inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition ${
+                    active
+                      ? `${accentRing} bg-ink-0/40`
+                      : "border-border text-washi-muted hover:text-washi hover:border-border/80"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`font-jp text-[12px] font-bold leading-none ${
+                      active ? "" : "text-washi-dim group-hover:text-washi"
+                    }`}
+                  >
+                    {opt.glyph}
+                  </span>
+                  <span>{opt.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Editorial gloss — only rendered for filters whose name carries
@@ -589,39 +795,29 @@ export default function Dashboard() {
               onClearTags={clearTags}
             />
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {filtered.map((manga, i) => (
-                <div
-                  // Custom series can share `mal_id = null` until the
-                  // server mints a negative id, so we prefer the Dexie
-                  // primary key.
-                  key={manga.id ?? manga.mal_id ?? `idx-${i}`}
-                  // `content-visibility: auto` was here for off-screen
-                  // perf (skip rendering of cards below the fold). It
-                  // *also* clips paint to the wrapper's box in Chrome's
-                  // implementation — even when the element is on-screen
-                  // and the spec says no containment should apply. The
-                  // Manga card translates `-translate-y-1` on hover, and
-                  // those 4px were getting chopped at the top of the
-                  // wrapper, killing the hover border. Since the grid
-                  // is already paginated to 30 cards, the perf benefit
-                  // is small enough that correctness wins.
-                  style={{
-                    animationDelay:
-                      i < 12 ? `${Math.min(i * 40, 440)}ms` : undefined,
-                  }}
-                  className={i < 12 ? "animate-fade-up" : undefined}
-                >
-                  <Manga
-                    manga={manga}
-                    adult_content_level={adult_content_level}
-                    allCollector={allCollectorSet.has(manga.mal_id)}
-                    tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
-                    nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
-                  />
-                </div>
-              ))}
-            </div>
+            // Cards mount at full opacity. A previous version
+            // staggered an `animate-fade-up` over the first 12 tiles,
+            // but that left those tiles invisible until their delay
+            // fired — on slow networks it read as holes in the grid
+            // while later tiles were already visible. The
+            // `<CoverImage>` LQIP swatch is the loading signal now.
+            //
+            // Beyond `VIRTUALIZE_THRESHOLD` items the grid switches
+            // to windowed virtualization (TanStack react-virtual) —
+            // small libraries keep the simple render path for zero
+            // overhead.
+            <MangaGrid
+              filtered={filtered}
+              adult_content_level={adult_content_level}
+              allCollectorSet={allCollectorSet}
+              tsundokuByMal={tsundokuByMal}
+              nextUpcomingByMal={nextUpcomingByMal}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelected}
+              onEnterSelection={enterSelectionWith}
+              shelf3d={Boolean(shelf_3d_enabled)}
+            />
           )}
         </section>
 
@@ -637,6 +833,19 @@ export default function Dashboard() {
             zero layout cost. */}
         {!isInitialLoad && !isEmpty && <GapSuggestions />}
       </div>
+      </PullToRefresh>
+
+      {/* 一括 · Bulk-actions bar — fixed at the viewport bottom while
+          selection mode is engaged. Renders outside the
+          PullToRefresh wrapper so the slide-up animation doesn't
+          fight the pull-to-refresh hit zone. */}
+      {selectionMode && (
+        <BulkActionsBar
+          library={library}
+          selectedIds={selectedIds}
+          onClose={exitSelection}
+        />
+      )}
     </DefaultBackground>
   );
 }
@@ -657,6 +866,284 @@ export default function Dashboard() {
  * baseline doesn't jitter when the placeholder swaps in for the
  * real value.
  */
+/**
+ * 格 · Manga grid — switches between a classic CSS grid and a
+ * windowed virtualizer based on item count.
+ *
+ * Below `VIRTUALIZE_THRESHOLD` items the simple grid wins on every
+ * axis: zero overhead, native CSS grid auto-layout, no reflow on
+ * resize. Above threshold, virtualization caps the rendered DOM at
+ * the viewport plus an overscan buffer, which is what keeps the
+ * Dashboard responsive at 500+ series.
+ *
+ * Two careful design choices for the virtualized path:
+ *   - Generous `overscan` (8 rows ≈ 30+ cards). View Transitions API
+ *     needs the source element rendered at the moment the navigation
+ *     starts — Cmd+K's "scroll to + click" sequence fires the route
+ *     change before the scroll's RAF settles, so we keep extra rows
+ *     above and below the viewport so the source card is in the DOM
+ *     for the cross-route morph.
+ *   - Responsive lanes computed from `window.innerWidth` rather than
+ *     leaning on Tailwind's `grid-cols-*` classes. Each virtualized
+ *     row needs to know exactly how many cards to render, and the
+ *     library's `useVirtualizer` doesn't introspect CSS — so we drop
+ *     the responsive utility classes here and use inline
+ *     `gridTemplateColumns: repeat(${lanes}, ...)`.
+ */
+const VIRTUALIZE_THRESHOLD = 100;
+const LANE_BREAKPOINTS = [
+  // Mirror of the Tailwind classes used in the simple-grid branch:
+  // 2 / sm:3 / md:4 / lg:5 / xl:6.
+  { min: 1280, lanes: 6 },
+  { min: 1024, lanes: 5 },
+  { min: 768, lanes: 4 },
+  { min: 640, lanes: 3 },
+  { min: 0, lanes: 2 },
+];
+
+function laneCountForWidth(width) {
+  for (const bp of LANE_BREAKPOINTS) {
+    if (width >= bp.min) return bp.lanes;
+  }
+  return 2;
+}
+
+function MangaGrid({
+  filtered,
+  adult_content_level,
+  allCollectorSet,
+  tsundokuByMal,
+  nextUpcomingByMal,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
+  onEnterSelection,
+  shelf3d,
+}) {
+  const cardProps = {
+    adult_content_level,
+    allCollectorSet,
+    tsundokuByMal,
+    nextUpcomingByMal,
+    selectionMode,
+    selectedIds,
+    onToggleSelect,
+    onEnterSelection,
+    shelf3d,
+  };
+  // 棚 · The `.shelf-3d` class adds perspective + per-card tilt +
+  // wood-grain shadow ribs, layered on top of the existing grid.
+  // Selection mode forces flat (the tilt would fight the selection
+  // ring + checkbox overlay for visual priority).
+  const gridClass = `grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 ${
+    shelf3d && !selectionMode ? "shelf-3d" : ""
+  }`;
+  if (filtered.length <= VIRTUALIZE_THRESHOLD) {
+    return (
+      <div className={gridClass}>
+        {filtered.map((manga, i) => (
+          <Manga
+            // Custom series can share `mal_id = null` until the server
+            // mints a negative id, so we prefer the Dexie primary key.
+            key={manga.id ?? manga.mal_id ?? `idx-${i}`}
+            manga={manga}
+            adult_content_level={cardProps.adult_content_level}
+            allCollector={cardProps.allCollectorSet.has(manga.mal_id)}
+            tsundokuCount={cardProps.tsundokuByMal.get(manga.mal_id) ?? 0}
+            nextUpcoming={cardProps.nextUpcomingByMal.get(manga.mal_id)}
+            selectionMode={selectionMode}
+            isSelected={selectedIds.has(manga.mal_id)}
+            onToggleSelect={onToggleSelect}
+            onEnterSelection={onEnterSelection}
+          />
+        ))}
+      </div>
+    );
+  }
+  return <VirtualMangaGrid filtered={filtered} {...cardProps} />;
+}
+
+function VirtualMangaGrid({
+  filtered,
+  adult_content_level,
+  allCollectorSet,
+  tsundokuByMal,
+  nextUpcomingByMal,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
+  onEnterSelection,
+  shelf3d,
+}) {
+  const parentRef = useRef(null);
+  // Initial offset of the grid relative to the document — passed to
+  // the virtualizer as `scrollMargin` so virtual rows are positioned
+  // in document coordinates, not relative to the parent.
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const [lanes, setLanes] = useState(() =>
+    typeof window !== "undefined" ? laneCountForWidth(window.innerWidth) : 4,
+  );
+
+  // Resize listener. Throttled via rAF so a fast window-drag doesn't
+  // recompute lanes on every pixel — once per frame is plenty.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let rafHandle = null;
+    const recompute = () => {
+      rafHandle = null;
+      setLanes(laneCountForWidth(window.innerWidth));
+      if (parentRef.current) {
+        const rect = parentRef.current.getBoundingClientRect();
+        setScrollMargin(rect.top + window.scrollY);
+      }
+    };
+    const onResize = () => {
+      if (rafHandle != null) return;
+      rafHandle = requestAnimationFrame(recompute);
+    };
+    // Initial measure (after first paint so layout has settled).
+    rafHandle = requestAnimationFrame(recompute);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      if (rafHandle != null) cancelAnimationFrame(rafHandle);
+    };
+  }, []);
+
+  const rowCount = Math.ceil(filtered.length / lanes);
+
+  const virtualizer = useWindowVirtualizer({
+    count: rowCount,
+    estimateSize: () => 270,
+    // 8 rows * up to 6 cols = 48 cards buffer above/below the
+    // viewport. Comfortably covers the "Cmd+K → navigate" race
+    // condition where View Transitions need the source card to
+    // still be rendered when the route change fires.
+    overscan: 8,
+    scrollMargin,
+  });
+
+  return (
+    <div
+      ref={parentRef}
+      style={{
+        height: virtualizer.getTotalSize(),
+        position: "relative",
+        width: "100%",
+      }}
+    >
+      {virtualizer.getVirtualItems().map((virtualRow) => {
+        const start = virtualRow.index * lanes;
+        const rowItems = filtered.slice(start, start + lanes);
+        return (
+          <div
+            key={virtualRow.key}
+            data-index={virtualRow.index}
+            ref={virtualizer.measureElement}
+            // Per-row 3D class — applies the same tilt + wood-grain
+            // baseline as the simple grid's `.shelf-3d` does. Skipped
+            // in selection mode for the same reason as the simple
+            // path: tilted cards fight the selection ring overlay.
+            className={shelf3d && !selectionMode ? "shelf-3d" : undefined}
+            // Position rows in document coordinates (window virtualizer
+            // measures against window.scrollY, then we subtract the
+            // grid's own offset to translate inside the parent).
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${virtualRow.start - scrollMargin}px)`,
+              display: "grid",
+              gridTemplateColumns: `repeat(${lanes}, minmax(0, 1fr))`,
+              // Match the simple grid's gap (gap-3 mobile, gap-4 sm+).
+              gap: lanes === 2 ? "0.75rem" : "1rem",
+              // Bottom padding equal to gap so the last row of a row
+              // doesn't run flush against the next section.
+              paddingBottom: lanes === 2 ? "0.75rem" : "1rem",
+            }}
+          >
+            {rowItems.map((manga, i) => (
+              <Manga
+                key={manga.id ?? manga.mal_id ?? `idx-${start + i}`}
+                manga={manga}
+                adult_content_level={adult_content_level}
+                allCollector={allCollectorSet.has(manga.mal_id)}
+                tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}
+                nextUpcoming={nextUpcomingByMal.get(manga.mal_id)}
+                selectionMode={selectionMode}
+                isSelected={selectedIds.has(manga.mal_id)}
+                onToggleSelect={onToggleSelect}
+                onEnterSelection={onEnterSelection}
+              />
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * 連 · Activity streak chip — slips into the masthead ribbon next to
+ * the count stats. Hidden when the streak is 0 (no activity yet) so
+ * a brand-new account doesn't see a "0 days" mortifier.
+ *
+ * The chip carries:
+ *   - 連 *ren* kanji (continuous, ongoing) as the visual hook
+ *   - the day count
+ *   - tooltip with best-streak comparison ("Best: 47 days")
+ *
+ * Tone: hanko-bright (the active accent), so when the user has
+ * customised their accent (Tier 8.1) the chip re-tints with the
+ * palette they picked. Pulse animation when the streak ≥ 7 days
+ * — small reward, calibrated to not be intrusive.
+ */
+function StreakChip() {
+  const t = useT();
+  // Dexie-backed; returns `null` until the cache or the network has
+  // answered, then the StreakInfo shape.
+  const data = useStreak();
+  if (!data) return null;
+  const current = data.current_streak ?? 0;
+  const best = data.best_streak ?? 0;
+  if (current <= 0) return null;
+  const onFire = current >= 7;
+  const tooltip =
+    best > current
+      ? t("dashboard.streakTooltipBest", { current, best })
+      : t("dashboard.streakTooltipCurrent", { n: current });
+  return (
+    <>
+      <span aria-hidden="true" className="text-washi-dim/40">·</span>
+      <span
+        title={tooltip}
+        aria-label={tooltip}
+        className={`inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.18em] ${
+          onFire ? "text-hanko-bright" : "text-washi-muted"
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className={`font-jp text-[14px] not-uppercase tracking-normal leading-none ${
+            onFire ? "text-hanko-bright animate-pulse-glow" : "text-washi-muted"
+          }`}
+        >
+          連
+        </span>
+        <span className="text-washi-dim">{t("dashboard.streakLabel")}</span>
+        <span
+          className={`font-mono text-sm font-semibold tracking-normal ${
+            onFire ? "text-hanko-bright" : "text-washi"
+          }`}
+        >
+          {current}
+        </span>
+      </span>
+    </>
+  );
+}
+
 function RibbonStat({ label, value, accent, loading, width }) {
   const accentClass =
     accent === "hanko"
@@ -680,8 +1167,18 @@ function RibbonStat({ label, value, accent, loading, width }) {
 
 function EmptyState({ hasQuery, hasActiveTags, onAdd, onClearTags }) {
   const t = useT();
-  // Three flavours: filtered-by-tags (loosen the tags), searched (try different
-  // query), or truly empty archive (add first series).
+  // Three flavours: filtered-by-tags (loosen the tags), searched
+  // (try a different query), or truly empty archive (add first
+  // series). Each gets its own kanji backdrop — the brush-stroke
+  // SVG carries the affective weight; the title/body just nail
+  // down the action.
+  //   空 kara — empty / void          (truly empty archive)
+  //   探 saku — to search / seek      (no search match)
+  //   濾 ro   — to filter / strain    (no tag-filter match)
+  const glyph = hasActiveTags ? "濾" : hasQuery ? "探" : "空";
+  // Light per-state tilt so the three states don't all land at
+  // the same angle when rendered via i18n switching mid-session.
+  const rotation = hasActiveTags ? 4 : hasQuery ? -2 : -3;
   const title = hasActiveTags
     ? t("dashboard.noTagMatchTitle")
     : hasQuery
@@ -693,44 +1190,52 @@ function EmptyState({ hasQuery, hasActiveTags, onAdd, onClearTags }) {
       ? t("dashboard.noMatchBody")
       : t("dashboard.emptyBody");
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-ink-1/30 px-6 py-16 text-center animate-fade-up">
-      <div
-        className="hanko-seal mb-4 grid h-16 w-16 place-items-center rounded-md font-display text-xl"
-        title={t("badges.empty")}
+    <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border bg-ink-1/30 px-6 py-20 text-center animate-fade-up">
+      {/* Kanji backdrop — sits behind the textual content via
+          absolute positioning + low opacity. Pointer-events none
+          so the CTA stays clickable. */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 z-0 grid place-items-center text-hanko/[0.09]"
       >
-        空
-      </div>
-      <h2 className="font-display text-2xl italic text-washi">{title}</h2>
-      <p className="mt-2 max-w-md text-sm text-washi-muted">{body}</p>
-      {hasActiveTags ? (
-        <button
-          onClick={onClearTags}
-          className="mt-6 inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko/20 hover:border-hanko"
-        >
-          <span aria-hidden="true" className="font-jp text-base leading-none">
-            解
-          </span>
-          {t("dashboard.clearTags")}
-        </button>
-      ) : !hasQuery ? (
-        <button
-          onClick={onAdd}
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-4 w-4"
+        <EmptyStateGlyph glyph={glyph} rotation={rotation} />
+      </span>
+
+      <div className="relative z-10 flex flex-col items-center">
+        <h2 className="font-display text-2xl italic text-washi md:text-3xl">
+          {title}
+        </h2>
+        <p className="mt-2 max-w-md text-sm text-washi-muted">{body}</p>
+        {hasActiveTags ? (
+          <button
+            onClick={onClearTags}
+            className="mt-6 inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko/20 hover:border-hanko"
           >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          {t("dashboard.addFirst")}
-        </button>
-      ) : null}
+            <span aria-hidden="true" className="font-jp text-base leading-none">
+              解
+            </span>
+            {t("dashboard.clearTags")}
+          </button>
+        ) : !hasQuery ? (
+          <button
+            onClick={onAdd}
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {t("dashboard.addFirst")}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -119,6 +119,52 @@
       })();
     </script>
 
+    <!--
+      朱 Accent bootstrap — runs synchronously here (NOT inside the
+      deferred `main.jsx` module) so the `data-accent` attribute is on
+      <html> before any stylesheet layout paints. Without this, the
+      page renders one frame with the default hanko red, then `main.jsx`
+      lands and applies the user's accent → visible flash.
+
+      Mirrors the lib/accent.js logic minus validation — an unknown
+      stored value simply doesn't match any `:root[data-accent="…"]`
+      rule, falling back gracefully to the baked-in shu/hanko palette.
+    -->
+    <script>
+      (function () {
+        try {
+          var accent = localStorage.getItem("mc:accent");
+          if (accent && accent !== "shu") {
+            document.documentElement.setAttribute("data-accent", accent);
+          }
+        } catch (_) {
+          /* private mode / quota — base palette stays in charge */
+        }
+      })();
+    </script>
+
+    <!--
+      設 · Runtime config injection — Umami analytics.
+      The `${...}` placeholders are substituted by `envsubst` at the
+      nginx container's startup (see `client/docker-entrypoint.sh`).
+      When the operator hasn't set the env vars they resolve to empty
+      strings, and the frontend's analytics module skips Umami init
+      gracefully. This synchronous path means Umami pageviews are
+      tracked from the very first navigation — no blocking fetch, no
+      blind spot, even on a brand-new install with no SW cache.
+
+      Sentry/Bugsink config takes a different path (async fetch from
+      `/api/public-config`) — see `lib/publicConfig.js` for why.
+    -->
+    <script>
+      window.__APP_CONFIG__ = {
+        umami: {
+          scriptUrl: "${FRONTEND_UMAMI_SCRIPT_URL}",
+          websiteId: "${FRONTEND_UMAMI_WEBSITE_ID}",
+        },
+      };
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="./src/assets/logo.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />

@@ -138,6 +138,17 @@ export default {
     tabHintWishlist: "series que sigues sin haber adquirido todavía ningún tomo",
     tabHintTsundoku: "el placer tranquilo de las pilas sin leer — series con al menos un tomo en posesión pero aún sin leer",
     tabHintUpcoming: "series con al menos un tomo anunciado todavía sin publicar",
+    lensLabel: "Filtros temporales",
+    lensRecent: "Reciente",
+    lensRecentHint: "añadido en los últimos 30 días",
+    lensSleeping: "En reposo",
+    lensSleepingHint: "sin actividad desde hace más de 6 meses",
+    lensWishlistAged: "Wishlist > 1 año",
+    lensWishlistAgedHint: "en tu lista desde hace más de un año, sin empezar",
+    streakLabel: "Racha",
+    streakTooltipCurrent: "{n} días consecutivos de actividad",
+    streakTooltipBest:
+      "{current} días seguidos — récord personal: {best}",
     searchPlaceholder: "Busca en tu biblioteca…",
     clearFilter: "Limpiar",
     addManga: "Añadir manga",
@@ -314,6 +325,20 @@ export default {
     syncFromMangadex: "Desde MangaDex",
     malLink: "MAL #{id}",
     mangadexLink: "MangaDex",
+  },
+  bulk: {
+    regionLabel: "Acciones en bloque",
+    countSelected: "{n} seleccionada(s)",
+    markOwned: "Marcar como poseído",
+    markUnowned: "Marcar como no poseído",
+    markRead: "Marcar como leído",
+    markUnread: "Marcar como no leído",
+    delete: "Eliminar",
+    cancel: "Cancelar",
+    deleteConfirm: "¿Eliminar permanentemente {n} series?",
+    deleteConfirmYes: "Confirmar",
+    offlineRequired:
+      "Esta acción requiere conexión — la cascada de tomos la gestiona el servidor.",
   },
   volume: {
     volume: "Tomo {n}",
@@ -597,6 +622,7 @@ export default {
     reader: "Lector",
     byline: "Tu archivo de un vistazo — curado con cariño, tomo a tomo.",
     yearReviewCta: "Retrospectiva {year}",
+    snapshotCta: "Compartir mi estantería",
     series: "Series",
     inArchive: "En el archivo",
     volumes: "Tomos",
@@ -674,6 +700,18 @@ export default {
     "states_限_literal": "límite, contorno",
     "states_限_usage":
       "Edición limitada / coleccionista. Aparece como un pequeño sello 限 en la esquina de los tomos marcados.",
+    "states_連_literal": "vínculo, sucesión ininterrumpida",
+    "states_連_usage":
+      "Contador de días consecutivos con al menos una actividad. Aparece en la cinta del panel — discreto mientras mantienes el ritmo, encendido a partir de siete días seguidos.",
+    "states_新_literal": "nuevo, recién llegado",
+    "states_新_usage":
+      "Filtro temporal « Reciente » — series añadidas a la biblioteca en los últimos treinta días. Útil para recordar tus entusiasmos más frescos.",
+    "states_眠_literal": "sueño, latencia",
+    "states_眠_usage":
+      "Filtro « En reposo » — series sin actividad desde hace más de seis meses. La pila silenciosa que quizá convenga despertar.",
+    "states_慕_literal": "anhelar desde lejos, suspirar por",
+    "states_慕_usage":
+      "Filtro « Wishlist > 1 año » — series en la lista de deseos desde hace más de un año, sin empezar. La nostalgia paciente.",
 
     "actions_始_literal": "comenzar, iniciar",
     "actions_始_usage":
@@ -689,6 +727,21 @@ export default {
       "Añadir una nueva serie o un nuevo tomo a la colección.",
     "actions_編集_literal": "editar, compilar",
     "actions_編集_usage": "Modificar los detalles de una serie o un tomo.",
+    "actions_選_literal": "elegir, seleccionar",
+    "actions_選_usage":
+      "Modo de selección múltiple en el panel — pulsación larga en móvil, Cmd-clic en escritorio. La barra de acciones en bloque emerge desde abajo.",
+    "actions_削_literal": "recortar, suprimir",
+    "actions_削_usage":
+      "Acción de eliminación — disponible en la barra de acciones en bloque y en el detalle de una serie. Siempre con confirmación previa.",
+    "actions_鍵_literal": "llave, atajo",
+    "actions_鍵_usage":
+      "El recordatorio de atajos de teclado — se abre con « ? » desde cualquier página. Lista los chords « g d / g c / g p » y los atajos de los modales.",
+    "actions_解_literal": "deshacer, liberar",
+    "actions_解_usage":
+      "Limpiar los filtros activos — el chip « Limpiar » que aparece cuando un género o un filtro restringe la estantería.",
+    "actions_確_literal": "confirmar, certeza",
+    "actions_確_usage":
+      "El sello que confirma que un tomo acaba de entrar en la colección — un destello breve sobre la portada en el momento de marcarlo en posesión.",
 
     "places_本棚_literal": "estantería de libros",
     "places_本棚_usage":
@@ -718,6 +771,9 @@ export default {
     "vessels_あと少し_literal": "un poco más",
     "vessels_あと少し_usage":
       "Estante casi completo — series a las que solo les faltan unos pocos tomos para terminar.",
+    "vessels_棚_literal": "estante, balda",
+    "vessels_棚_usage":
+      "El estante en sí — ancla del modo 3D del panel (perspectiva + veta de madera) y de la captura compartible del perfil. Distinto de 本棚 (estantería de libros), que nombra la página entera.",
 
     "palette_漆黒_literal": "negro lacado, tinta china",
     "palette_漆黒_usage":
@@ -822,6 +878,27 @@ export default {
     language: "Idioma",
     languageBody:
       "El idioma usado en todas las etiquetas y mensajes de la interfaz.",
+    accentTitle: "Color de acento",
+    accentBody:
+      "El rojo hanko por defecto puede sustituirse por otra paleta — cada una está calibrada para preservar el contraste del resto de la interfaz.",
+    shelf3dTitle: "Vista estantería 3D",
+    shelf3dBody:
+      "Las tarjetas del panel adoptan una ligera inclinación con sombras laterales, apoyadas en una línea de madera — como recorrer una estantería de verdad. Desactivado en modo selección múltiple.",
+    shelf3dToggleAria: "Activar la vista estantería 3D",
+    hapticsTitle: "Respuesta háptica",
+    hapticsBody:
+      "Vibración breve en acciones clave — toggle de tomo, confirmación de cofre. Sin efecto en dispositivos sin motor.",
+    hapticsToggleAria: "Activar o desactivar la respuesta háptica",
+    hapticsGatingLabel: "Almacenamiento local",
+    hapticsGatingDetail:
+      "Preferencia guardada por dispositivo — no se sincroniza con tu cuenta.",
+    soundTitle: "Sonidos de interfaz",
+    soundBody:
+      "Bips discretos en sine wave en acciones clave — toggle de tomo, confirmación de cofre. Desactivado por defecto.",
+    soundToggleAria: "Activar o desactivar los sonidos de interfaz",
+    soundGatingLabel: "Cuenta",
+    soundGatingDetail:
+      "Preferencia guardada en el servidor — sincronizada en todos tus dispositivos.",
     adultContent: "Contenido adulto",
     adultBody: "Cómo aparecen los títulos para adultos en tu archivo.",
     adultBlur: "Difuminar",
@@ -990,7 +1067,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.9.0 · Archiva tu colección",
+    version: "v2.10.0 · Archiva tu colección",
     heroStart: "Cada",
     heroAccent: "tomo",
     heroEnd1: ",",
@@ -1150,6 +1227,58 @@ export default {
     emptyGeneric: "No hay retratos disponibles",
     emptyGenericHint:
       "MyAnimeList no tiene personajes registrados para estas series.",
+  },
+  palette: {
+    placeholder: "Busca una serie o salta a una página…",
+    empty: "Sin resultados",
+    seriesTag: "SERIE",
+    hintNavigate: "navegar",
+    hintToggle: "abrir",
+    navDashboard: "Biblioteca",
+    navAdd: "Añadir manga",
+    navCalendar: "Calendario",
+    navProfile: "Perfil",
+    navSeals: "Sellos",
+    navSettings: "Ajustes",
+    navGlossary: "Glosario",
+  },
+  snapshot: {
+    eyebrow: "Captura · 棚",
+    title: "Comparte tu estantería",
+    byline:
+      "Una tarjeta 4:5 de tu archivo — lista para Instagram, X o un intercambio discreto con un amigo.",
+    rendering: "Componiendo…",
+    renderError:
+      "No se pudo generar la imagen. Vuelve a intentarlo en un momento.",
+    helper:
+      "Las portadas que no permiten descarga cross-origin recurren al tono LQIP — la composición queda coherente.",
+    previewAlt: "Vista previa de tu estantería como imagen para compartir",
+    share: "Compartir",
+    download: "Descargar",
+    statLabelVolumes: "Tomos",
+    statLabelSeries: "Series",
+    statLabelComplete: "Progreso",
+  },
+  shortcuts: {
+    eyebrow: "Atajos · 鍵",
+    title: "Teclado",
+    byline: "Muévete más rápido — sin levantar las manos del teclado.",
+    navTitle: "Navegación",
+    searchTitle: "Búsqueda",
+    modalTitle: "Modales",
+    helpTitle: "Ayuda",
+    gotoDashboard: "Ir al panel",
+    gotoCalendar: "Ir al calendario",
+    gotoProfile: "Ir al perfil",
+    gotoSettings: "Ir a los ajustes",
+    gotoAdd: "Ir a añadir manga",
+    openPalette: "Abrir la paleta de comandos",
+    openPaletteAlt: "Abrir la paleta (Windows / Linux)",
+    closeModal: "Cerrar la modal actual",
+    tabForward: "Siguiente elemento interactivo",
+    tabBack: "Elemento interactivo anterior",
+    openCheatSheet: "Mostrar este recordatorio",
+    footer: "Los atajos se desactivan mientras escribes en un campo.",
   },
   install: {
     cta: "Instalar app",

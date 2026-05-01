@@ -4,6 +4,8 @@ import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useCreateCoffret } from "@/hooks/useCoffrets.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { notifySyncError } from "@/lib/sync.js";
+import { haptics } from "@/lib/haptics.js";
+import { sounds } from "@/lib/sounds.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -105,9 +107,14 @@ export default function AddCoffretModal({
       setPrice("");
       setStore("");
       setCollector(false);
+      haptics.success();
+      sounds.success();
       onClose?.();
     } catch (err) {
       console.error("[coffret] create failed:", err?.message);
+      haptics.error();
+      // Sound is fired by SyncToaster on the toast that notifySyncError
+      // is about to emit — wiring it here would double-buzz.
       notifySyncError(err, "coffret-create");
     }
   };
@@ -267,7 +274,11 @@ export default function AddCoffretModal({
               collector feature (orthogonal to coffret grouping). */}
           <button
             type="button"
-            onClick={() => setCollector((c) => !c)}
+            onClick={() => {
+              setCollector((c) => !c);
+              haptics.bump();
+              sounds.bump();
+            }}
             aria-pressed={collector}
             className={`group flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
               collector

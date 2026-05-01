@@ -24,6 +24,19 @@ export default function VolumesViewToggle() {
             type="button"
             role="radio"
             aria-checked={active}
+            // Plain `setMode` — no `withViewTransition` here. The
+            // hero cover at the top of MangaPage carries a
+            // `view-transition-name: cover-{mal_id}` so the
+            // Dashboard ↔ MangaPage morph works. Triggering a VT for
+            // an in-page state change (the toggle below) would also
+            // hoist that cover into the overlay pseudo-layer for
+            // ~250ms, which (a) raises the cover above the page
+            // header and (b) breaks the masthead's `backdrop-blur`
+            // because its filter source moves out of its compositing
+            // context — the title behind the blur briefly bleeds
+            // through. Cross-fade between view modes simply isn't
+            // worth that flicker; an instant swap is the correct
+            // local choice.
             onClick={() => setMode(opt.id)}
             title={t(`manga.viewMode.${opt.id}`)}
             className={`group relative inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${

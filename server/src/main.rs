@@ -4,6 +4,7 @@ mod db;
 mod errors;
 mod handlers;
 mod models;
+mod observability;
 mod routes;
 mod services;
 mod state;
@@ -42,10 +43,24 @@ async fn main() -> anyhow::Result<()> {
         std::process::exit(run_health_check().await);
     }
 
+    // Error tracking — initialise BEFORE the tracing subscriber so the
+    // sentry-tracing layer can hook into it and forward `tracing::error!`
+    // events as Sentry breadcrumbs. The guard must outlive `main()`; on
+    // drop it flushes pending events with a short timeout. Hard-fails on
+    // misconfiguration (e.g. both DSN env vars set) — see `observability`.
+    let _sentry_guard = observability::init()?;
+
+    // Frontend observability config — resolved here so misconfigurations
+    // (FRONTEND_SENTRY_DSN + FRONTEND_BUGSINK_DSN both set) abort the
+    // boot rather than surfacing later as a 500 from /api/public-config.
+    // Stashed in AppState; the handler returns it verbatim.
+    let frontend_obs_config = std::sync::Arc::new(observability::frontend_config()?);
+
     // Initialise tracing
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .with(tracing_subscriber::fmt::layer())
+        .with(sentry::integrations::tracing::layer())
         .init();
 
     // Load configuration
@@ -178,6 +193,7 @@ async fn main() -> anyhow::Result<()> {
         http_client,
         cache,
         broker,
+        frontend_config: frontend_obs_config,
         start_time: Instant::now(),
     };
 
@@ -604,6 +620,30 @@ async fn main() -> anyhow::Result<()> {
     } else {
         app
     };
+
+    // ── Sentry tower layers ──────────────────────────────────────────────
+    // Outermost in the stack so Sentry sees every request — including the
+    // ones that get rejected by upstream middleware (governor, csrf,
+    // body-limit). When `observability::init` returned `Ok(None)`
+    // (neither DSN configured) the layers still attach but the global
+    // sentry client is a no-op, so events fall on the floor — the per-
+    // request overhead of building the Hub is negligible.
+    //
+    // Layer order matters:
+    //   1. SentryHttpLayer (inner of the two)  — captures HTTP request
+    //      data + opens a transaction when traces are enabled.
+    //   2. NewSentryLayer (outermost)          — forks a fresh Hub per
+    //      request so events/breadcrumbs from concurrent requests don't
+    //      bleed into each other. This MUST be the outer of the two so
+    //      the Hub exists before SentryHttpLayer runs.
+    // `enable_transaction()` is unconditional — whether transactions are
+    // actually transmitted is gated by `traces_sample_rate` in the Sentry
+    // client options (0.0 by default → built locally then discarded, no
+    // network cost). The conditional builder pattern would over-engineer
+    // for that single sample-rate flag.
+    let app = app
+        .layer(sentry_tower::SentryHttpLayer::new().enable_transaction())
+        .layer(sentry_tower::NewSentryLayer::new_from_top());
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("Server running on port {}", port);

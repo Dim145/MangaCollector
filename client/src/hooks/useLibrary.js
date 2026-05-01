@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { cacheLibrary, db } from "@/lib/db.js";
+import { deriveListState } from "@/lib/queryState.js";
 import {
   enqueueLibraryDelete,
   enqueueLibraryPatch,
@@ -37,18 +38,7 @@ export function useLibrary() {
     },
   });
 
-  const safe = data ?? [];
-  const dexieReady = data !== undefined;
-  const pending = query.isPending;
-
-  return {
-    data: safe,
-    isInitialLoad: !dexieReady || (safe.length === 0 && pending),
-    isRefetching: query.isFetching && !pending && safe.length > 0,
-    isEmpty: dexieReady && safe.length === 0 && !pending,
-    // Backwards-compat alias — some call sites still use `isLoading`
-    isLoading: !dexieReady || (safe.length === 0 && pending),
-  };
+  return deriveListState(data, query);
 }
 
 export function useSearchLibrary(query) {

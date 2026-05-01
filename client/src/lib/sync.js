@@ -43,12 +43,13 @@ function emit(name, detail) {
 
 /** Count all pending ops across outbox tables. */
 export async function pendingCount() {
-  const [lib, vol, set] = await Promise.all([
+  const [lib, vol, set, bulk] = await Promise.all([
     db.outboxLibrary.count(),
     db.outboxVolumes.count(),
     db.outboxSettings.count(),
+    db.outboxBulkMark.count(),
   ]);
-  return lib + vol + set;
+  return lib + vol + set + bulk;
 }
 
 export function notifyPendingChanged() {
@@ -140,11 +141,15 @@ export async function enqueueLibraryDelete(mal_id) {
     db.volumes,
     db.outboxLibrary,
     db.outboxVolumes,
+    db.outboxBulkMark,
     async () => {
       await db.library.delete(mal_id);
       await db.volumes.where("mal_id").equals(mal_id).delete();
-      // Discard any pending volume ops for the deleted manga
+      // Discard any pending per-volume + bulk-mark ops — replaying
+      // them after the cascade-delete would 404 noisily without
+      // changing the outcome (server already wiped the rows).
       await db.outboxVolumes.where("mal_id").equals(mal_id).delete();
+      await db.outboxBulkMark.delete(mal_id);
       await db.outboxLibrary.put({
         mal_id,
         op: "delete",
@@ -373,10 +378,96 @@ export async function enqueueSettingsUpdate(settings) {
         theme: settings.theme,
         language: settings.language,
         avatarUrl: settings.avatarUrl,
+        sound_enabled: settings.sound_enabled,
+        accent_color: settings.accent_color,
+        shelf_3d_enabled: settings.shelf_3d_enabled,
       },
       ts: Date.now(),
     });
   });
+  notifyPendingChanged();
+  triggerSync();
+}
+
+/*
+ * ─── Bulk operations outbox ───────────────────────────────────────────────
+ *
+ * 一括 · `enqueueBulkMark` is the offline-first entry point for the
+ * dashboard's bulk-actions bar. Each call:
+ *   1. Writes the desired state to Dexie OPTIMISTICALLY — every
+ *      released volume row of the series is patched, and the
+ *      library counter is recomputed. The UI reflects the change
+ *      immediately, even offline.
+ *   2. Coalesces into `outboxBulkMark` (PK on mal_id) so multiple
+ *      rapid clicks on the same series produce a single pending op
+ *      with the latest desired state.
+ *
+ * `flushBulkMark` POSTs the cascade to the server when online,
+ * which lets the backend re-apply the same logic authoritatively
+ * (and emits the SERIES_COMPLETED activity / volume-milestone seal
+ * checks that only fire server-side). On rejection, the local
+ * library + volume rows are refetched so the optimistic state
+ * snaps back to the server's truth.
+ *
+ * Upcoming volumes (`release_date` > now) are intentionally
+ * excluded both client-side and server-side — they're announced-
+ * but-not-shipped tomes, and bulk ops shouldn't break their
+ * ownership invariants.
+ */
+async function applyBulkMarkLocal(mal_id, { owned, read }) {
+  const nowIso = new Date().toISOString();
+  const nowMs = Date.now();
+  const volumes = await db.volumes.where("mal_id").equals(mal_id).toArray();
+  let ownedCount = 0;
+  const updates = [];
+  for (const vol of volumes) {
+    const releaseMs = vol.release_date
+      ? new Date(vol.release_date).getTime()
+      : null;
+    const isUpcoming = releaseMs != null && releaseMs > nowMs;
+    if (isUpcoming) {
+      // Untouched — but still counts toward `volumes_owned` if it
+      // was already owned (vanishingly rare, but accurate).
+      if (vol.owned) ownedCount++;
+      continue;
+    }
+    const next = { ...vol };
+    if (typeof owned === "boolean") next.owned = owned;
+    if (typeof read === "boolean") next.read_at = read ? nowIso : null;
+    updates.push(next);
+    if (next.owned) ownedCount++;
+  }
+  if (updates.length > 0) await db.volumes.bulkPut(updates);
+  if (typeof owned === "boolean") {
+    const lib = await db.library.get(mal_id);
+    if (lib) await db.library.put({ ...lib, volumes_owned: ownedCount });
+  }
+}
+
+export async function enqueueBulkMark(mal_id, { owned, read }) {
+  if (typeof owned !== "boolean" && typeof read !== "boolean") return;
+  await db.transaction(
+    "rw",
+    db.library,
+    db.volumes,
+    db.outboxBulkMark,
+    async () => {
+      await applyBulkMarkLocal(mal_id, { owned, read });
+      // Coalesce: merge with any pending op for the same series so
+      // a "mark owned" followed by "mark read" produces a single
+      // op carrying both fields. A repeat for the same field
+      // (e.g. owned: true then owned: false) replaces — the latest
+      // intent wins.
+      const existing = await db.outboxBulkMark.get(mal_id);
+      const merged = {
+        mal_id,
+        owned: typeof owned === "boolean" ? owned : existing?.owned,
+        read: typeof read === "boolean" ? read : existing?.read,
+        ts: Date.now(),
+      };
+      await db.outboxBulkMark.put(merged);
+    },
+  );
   notifyPendingChanged();
   triggerSync();
 }
@@ -526,6 +617,54 @@ async function flushSettings() {
   }
 }
 
+async function flushBulkMark() {
+  // 一括 · Replays pending bulk-mark cascades. The order is
+  // chronological by `ts` so two ops on different series apply in
+  // the same order the user produced them. After each successful
+  // POST we refetch volumes for that series — the server's cascade
+  // is the authoritative source for `read_at` timestamps + the
+  // SERIES_COMPLETED activity record, which the optimistic local
+  // path can't reproduce exactly.
+  const ops = await db.outboxBulkMark.orderBy("ts").toArray();
+  for (const op of ops) {
+    try {
+      const body = {};
+      if (typeof op.owned === "boolean") body.owned = op.owned;
+      if (typeof op.read === "boolean") body.read = op.read;
+      if (Object.keys(body).length === 0) {
+        // Nothing meaningful to send (defensive — coalescing should
+        // never produce a no-op, but a corrupted Dexie row could).
+        await db.outboxBulkMark.delete(op.mal_id);
+        continue;
+      }
+      await axios.post(
+        `/api/user/library/${op.mal_id}/volumes/bulk-mark`,
+        body,
+      );
+      await db.outboxBulkMark.delete(op.mal_id);
+      await refetchVolumes(op.mal_id).catch(() => {});
+      await refetchLibrary().catch(() => {});
+      notifyPendingChanged();
+    } catch (err) {
+      if (isUnretriable(err)) {
+        await db.outboxBulkMark.delete(op.mal_id);
+        // Server rejected the cascade — pull the authoritative
+        // state so the optimistic local diff snaps back.
+        await refetchVolumes(op.mal_id).catch(() => {});
+        await refetchLibrary().catch(() => {});
+        emit(SYNC_ERROR_EVENT, {
+          op: "bulk-mark",
+          mal_id: op.mal_id,
+          message: err?.response?.data?.error ?? err.message ?? "Sync failed",
+        });
+        notifyPendingChanged();
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 async function refetchLibrary() {
   const { data } = await axios.get(`/api/user/library`);
   await cacheLibrary(data);
@@ -565,6 +704,7 @@ export async function syncOutbox({ force = false } = {}) {
     await flushLibrary();
     await flushVolumes();
     await flushSettings();
+    await flushBulkMark();
     // Only pull fresh server state when we actually pushed something —
     // otherwise the read hooks already have what they need.
     await Promise.all([
@@ -615,14 +755,21 @@ export async function forceResyncFromServer() {
       db.outboxLibrary,
       db.outboxVolumes,
       db.outboxSettings,
+      db.outboxBulkMark,
+      db.streak,
     ],
     async () => {
       await db.outboxLibrary.clear();
       await db.outboxVolumes.clear();
       await db.outboxSettings.clear();
+      await db.outboxBulkMark.clear();
       await db.library.clear();
       await db.volumes.clear();
       await db.settings.clear();
+      // 連 · Wipe the cached streak too — a "force resync" implies
+      // the local mirror is suspect. The server-derived chip will
+      // re-populate from `useStreak` on the next mount.
+      await db.streak.clear();
 
       if (libRes.data?.length) await db.library.bulkPut(libRes.data);
       if (volRes.data?.length) await db.volumes.bulkPut(volRes.data);

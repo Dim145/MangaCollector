@@ -113,7 +113,71 @@ db.version(6).stores({
   seals: "key",
 });
 
+// v7 — user-defined tags table existed briefly in 2026-05 but was
+// rolled back: the feature collided semantically with the existing
+// `genres` axis (also user-editable on custom rows) and confused
+// users. We bump to v7 and EXPLICITLY drop the table by passing
+// `null` to the store name — Dexie deletes the IndexedDB store on
+// upgrade for any browser that cached the previous schema.
+db.version(7).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxTags: null,
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+});
+
+// v8 — `outboxBulkMark` for the dashboard's bulk-actions bar. One
+// pending op per series (PK on mal_id), so rapid re-clicks on the
+// same series coalesce to the latest desired state instead of
+// queueing every intermediate. `ts` index lets the flusher walk
+// in chronological order across series so the server cascade
+// applies in the same order the user produced.
+db.version(8).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+});
+
+// v9 — `streak` cache. Single row keyed by "user" holding the
+// last-known StreakInfo from the server. Survives offline reload
+// the same way `settings` and `seals` do, so the masthead chip
+// renders immediately with cached numbers and the network refetch
+// updates them in the background.
+db.version(9).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+});
+
 export const SETTINGS_KEY = "user";
+export const STREAK_KEY = "user";
 
 /** Replace the entire library cache. */
 export async function cacheLibrary(library) {
@@ -153,6 +217,22 @@ export async function readSettings() {
   return rest;
 }
 
+/** 連 · Store / fetch the single streak row. Same shape as the
+ *  server-side `StreakInfo`: { current_streak, best_streak,
+ *  last_active_date }. */
+export async function cacheStreak(streak) {
+  if (!streak) return;
+  await db.streak.put({ key: STREAK_KEY, ...streak });
+}
+
+export async function readStreak() {
+  const row = await db.streak.get(STREAK_KEY);
+  if (!row) return null;
+  // eslint-disable-next-line no-unused-vars
+  const { key, ...rest } = row;
+  return rest;
+}
+
 /**
  * Wipe every trace of the current user from local storage.
  *
@@ -183,10 +263,12 @@ export async function clearAllUserData() {
         db.outboxLibrary,
         db.outboxVolumes,
         db.outboxSettings,
+        db.outboxBulkMark,
         db.activity,
         db.malRecommendations,
         db.mangaCharacters,
         db.seals,
+        db.streak,
       ],
       async () => {
         await db.library.clear();
@@ -195,10 +277,12 @@ export async function clearAllUserData() {
         await db.outboxLibrary.clear();
         await db.outboxVolumes.clear();
         await db.outboxSettings.clear();
+        await db.outboxBulkMark.clear();
         await db.activity.clear();
         await db.malRecommendations.clear();
         await db.mangaCharacters.clear();
         await db.seals.clear();
+        await db.streak.clear();
       },
     );
   } catch (err) {

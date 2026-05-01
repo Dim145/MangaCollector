@@ -228,6 +228,119 @@ pub async fn update_by_id(
     Ok(())
 }
 
+/// 一括 · Cascade `owned` and/or `read` to every released volume of a
+/// series in one shot. Used by the dashboard's bulk-actions bar so a
+/// "mark this series as fully owned" click sets every individual
+/// volume row (not just the denormalised counter on the library row).
+///
+/// Upcoming volumes (`release_date > now`) are intentionally excluded:
+/// they're announced-but-not-shipped tomes, and the rest of the
+/// system enforces `owned = false` / `read_at = NULL` on them. A bulk
+/// op shouldn't break that invariant.
+///
+/// `owned` and `read` are independent and both `Option`. Passing
+/// `None` for either leaves it untouched. Passing `Some(false)` for
+/// `read` clears the timestamp (NULL); `Some(true)` stamps `now()`.
+///
+/// After the cascade the library's `volumes_owned` counter is
+/// recomputed from the actual volume rows to keep the dashboard's
+/// progress numbers in sync.
+pub async fn bulk_mark_for_series(
+    db: &Db,
+    user_id: i32,
+    mal_id: i32,
+    owned: Option<bool>,
+    read: Option<bool>,
+) -> Result<(), AppError> {
+    use sea_orm::{Condition, PaginatorTrait, sea_query::Expr};
+
+    if owned.is_none() && read.is_none() {
+        return Ok(());
+    }
+
+    let now = Utc::now();
+
+    // Released-only filter: NULL release_date (no announcement → it
+    // shipped) or release_date <= now. Same predicate the per-row
+    // path uses to gate the upcoming guardrail.
+    let released_filter = Condition::any()
+        .add(volume::Column::ReleaseDate.is_null())
+        .add(volume::Column::ReleaseDate.lte(now));
+
+    // SeaORM's `update_many` accepts a chain of `.col_expr` calls. We
+    // build the chain conditionally so a partial update (just
+    // `owned`, or just `read`) doesn't write columns the caller
+    // didn't ask for.
+    let mut updater = VolumeEntity::update_many()
+        .filter(volume::Column::UserId.eq(user_id))
+        .filter(volume::Column::MalId.eq(mal_id))
+        .filter(released_filter);
+
+    if let Some(o) = owned {
+        updater = updater.col_expr(volume::Column::Owned, Expr::value(o));
+    }
+    if let Some(r) = read {
+        let value: Option<chrono::DateTime<chrono::Utc>> = if r { Some(now) } else { None };
+        updater = updater.col_expr(volume::Column::ReadAt, Expr::value(value));
+    }
+    updater = updater.col_expr(volume::Column::ModifiedOn, Expr::value(now));
+    updater.exec(db).await.map_err(AppError::from)?;
+
+    // Recompute the library counter when ownership was the lever
+    // changed — a true cascade should reflect on the dashboard's
+    // "x / y volumes" stat without a separate refetch.
+    if owned.is_some() {
+        let owned_count = VolumeEntity::find()
+            .filter(volume::Column::UserId.eq(user_id))
+            .filter(volume::Column::MalId.eq(mal_id))
+            .filter(volume::Column::Owned.eq(true))
+            .count(db)
+            .await
+            .map_err(AppError::from)? as i32;
+
+        let lib_row = LibraryEntity::find()
+            .filter(library_mod::Column::UserId.eq(user_id))
+            .filter(library_mod::Column::MalId.eq(mal_id))
+            .one(db)
+            .await
+            .map_err(AppError::from)?;
+
+        if let Some(existing) = lib_row {
+            let total_volumes = existing.volumes;
+            let previous_owned = existing.volumes_owned;
+            let series_name = existing.name.clone();
+            let mut active: library_mod::ActiveModel = existing.into();
+            active.volumes_owned = Set(owned_count);
+            active.modified_on = Set(now);
+            active.update(db).await.map_err(AppError::from)?;
+
+            // Completion milestone — same trigger as the per-row
+            // `update_volumes_owned`. Bulk ops can flip a series to
+            // complete in one click; we want the activity feed +
+            // seal grant to fire just once.
+            if total_volumes > 0
+                && previous_owned < total_volumes
+                && owned_count >= total_volumes
+            {
+                activity::record(
+                    db,
+                    user_id,
+                    event_types::SERIES_COMPLETED,
+                    Some(mal_id),
+                    None,
+                    Some(series_name),
+                    Some(total_volumes),
+                )
+                .await;
+            }
+        }
+
+        activity::check_volume_milestone(db, user_id).await;
+    }
+
+    Ok(())
+}
+
 /// 来 · Manually create an upcoming-volume row.
 ///
 /// Mirrors the API-cascade insert path in `services::releases::reconcile_user`,

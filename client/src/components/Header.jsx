@@ -132,6 +132,20 @@ export default function Header() {
     <>
       {/* Top header */}
       <header
+        // 遷 · `view-transition-name` pins the header to its own
+        // snapshot during route transitions. Without it, the header
+        // was captured as part of the root snapshot — and because
+        // the MangaPage hero cover (which carries its own
+        // `view-transition-name`) gets hoisted out of that root
+        // snapshot during the morph, the header's `backdrop-blur`
+        // in the snapshot blurs a *different* background than it
+        // does live (the cover position becomes transparent),
+        // making the header appear to flicker / become extra
+        // transparent for ~250ms. Giving the header its own name
+        // captures it as a standalone snapshot with `backdrop-blur`
+        // already baked in, so source ↔ dest cross-fade is
+        // continuous.
+        style={{ viewTransitionName: "app-header" }}
         // `backdrop-blur-md` instead of `xl` — the sticky header sits
         // over scrolling content so every scroll frame re-composites
         // the blur. 24px → 12px radius is ~4× cheaper and visually
@@ -200,6 +214,10 @@ export default function Header() {
       {/* Mobile bottom nav */}
       {isAuthenticated && (
         <nav
+          // Same VT-pinning rationale as the top header above —
+          // prevents the bottom nav's `backdrop-blur` from flickering
+          // while route transitions are in flight on mobile.
+          style={{ viewTransitionName: "app-bottom-nav" }}
           className="fixed bottom-0 left-0 right-0 z-40 md:hidden"
           aria-label="Main mobile"
         >

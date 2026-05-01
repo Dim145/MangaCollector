@@ -26,3 +26,14 @@ pub async fn list_activity(
     let rows = activity::list_for_user(&state.db, user.id, limit, q.before).await?;
     Ok(Json(serde_json::to_value(rows).unwrap()))
 }
+
+/// GET /api/user/streak
+/// 連 · Computes consecutive-day activity streak from the activity log.
+/// See `services::activity::compute_streak` for the rule set.
+pub async fn get_streak(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+) -> Result<Json<activity::StreakInfo>, AppError> {
+    let info = activity::compute_streak(&state.db, user.id).await?;
+    Ok(Json(info))
+}

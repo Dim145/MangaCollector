@@ -9,6 +9,7 @@ pub mod external_import;
 pub mod health;
 pub mod library;
 pub mod public;
+pub mod public_config;
 pub mod realtime;
 pub mod seals;
 pub mod settings;

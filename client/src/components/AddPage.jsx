@@ -271,6 +271,7 @@ export default function AddPage() {
           },
           adult_content_level,
         },
+        viewTransition: true,
       });
     }
   };
@@ -298,6 +299,7 @@ export default function AddPage() {
     if (res.success) {
       navigate("/mangapage", {
         state: { manga: res.newEntry, adult_content_level },
+        viewTransition: true,
       });
     }
   };
@@ -772,6 +774,15 @@ export default function AddPage() {
             placeholder={
               online ? t("add.searchPlaceholder") : t("add.offlinePlaceholder")
             }
+            // 貼 · Quick-add — pasting an MAL/MangaDex/AniList URL or a
+            // bare ISBN auto-fills the input with a sanitised query
+            // (slug → spaces, ISBN → digits-only) and runs the search
+            // immediately. Skipped silently when offline since the
+            // search would 502 anyway.
+            onPasteIntent={(intent) => {
+              setQuery(intent.query);
+              if (online) runSearch(intent.query);
+            }}
           />
 
           {loading ? (

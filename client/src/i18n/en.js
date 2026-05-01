@@ -138,6 +138,17 @@ export default {
     tabHintWishlist: "series you're tracking but haven't started owning yet",
     tabHintTsundoku: "the quiet joy of unread piles — series with at least one acquired-but-unread volume",
     tabHintUpcoming: "series with at least one announced volume that hasn't shipped yet",
+    lensLabel: "Time-based lenses",
+    lensRecent: "Recent",
+    lensRecentHint: "added in the last 30 days",
+    lensSleeping: "Sleeping",
+    lensSleepingHint: "no activity for more than 6 months",
+    lensWishlistAged: "Wishlist > 1y",
+    lensWishlistAgedHint: "on your list for over a year, never started",
+    streakLabel: "Streak",
+    streakTooltipCurrent: "{n} consecutive days of activity",
+    streakTooltipBest:
+      "{current} consecutive days — personal best: {best}",
     searchPlaceholder: "Search your library…",
     clearFilter: "Clear",
     addManga: "Add manga",
@@ -313,6 +324,20 @@ export default {
     syncFromMangadex: "From MangaDex",
     malLink: "MAL #{id}",
     mangadexLink: "MangaDex",
+  },
+  bulk: {
+    regionLabel: "Bulk actions",
+    countSelected: "{n} selected",
+    markOwned: "Mark owned",
+    markUnowned: "Mark not owned",
+    markRead: "Mark read",
+    markUnread: "Mark unread",
+    delete: "Delete",
+    cancel: "Cancel",
+    deleteConfirm: "Permanently delete {n} series?",
+    deleteConfirmYes: "Confirm",
+    offlineRequired:
+      "This action needs a connection — the volume cascade is handled server-side.",
   },
   volume: {
     volume: "Volume {n}",
@@ -592,6 +617,7 @@ export default {
     reader: "Reader",
     byline: "Your archive at a glance — curated with care, volume by volume.",
     yearReviewCta: "{year} in review",
+    snapshotCta: "Share my shelf",
     series: "Series",
     inArchive: "In archive",
     volumes: "Volumes",
@@ -669,6 +695,18 @@ export default {
     "states_限_literal": "limit, bound",
     "states_限_usage":
       "Limited / collector edition. Appears as a small 限 seal pinned to the corner of marked volumes.",
+    "states_連_literal": "link, unbroken sequence",
+    "states_連_usage":
+      "Counter of consecutive days with at least one activity. Appears in the dashboard masthead — quiet while you keep the cadence, glowing once you cross seven days in a row.",
+    "states_新_literal": "new, freshly arrived",
+    "states_新_usage":
+      "Time-based lens « Recent » — series added to your library in the last thirty days. A way to recall your most recent enthusiasms.",
+    "states_眠_literal": "sleep, dormancy",
+    "states_眠_usage":
+      "Lens « Sleeping » — series with no activity for more than six months. The quiet pile you might want to wake up.",
+    "states_慕_literal": "to long for, to yearn from afar",
+    "states_慕_usage":
+      "Lens « Wishlist > 1y » — series on the wishlist for over a year, never started. The patient longing.",
 
     "actions_始_literal": "begin, start",
     "actions_始_usage":
@@ -684,6 +722,21 @@ export default {
       "Add a new series or a new volume to your collection.",
     "actions_編集_literal": "to edit, to compile",
     "actions_編集_usage": "Edit a series or volume's details.",
+    "actions_選_literal": "to choose, to select",
+    "actions_選_usage":
+      "Multi-select mode on the dashboard — long-press on mobile, Cmd-click on desktop. The bulk-actions bar slides up from the bottom once at least one card is picked.",
+    "actions_削_literal": "to trim, to remove",
+    "actions_削_usage":
+      "Delete action — available in the bulk-actions bar and on a series' detail surface. Always preceded by a confirmation step.",
+    "actions_鍵_literal": "key, passkey",
+    "actions_鍵_usage":
+      "The keyboard-shortcut cheat sheet — open it with « ? » from any page. Lists the « g d / g c / g p » chords and the modal shortcuts.",
+    "actions_解_literal": "to undo, to release",
+    "actions_解_usage":
+      "Clear active filters — the « Clear » chip that surfaces when a genre or lens narrows the shelf.",
+    "actions_確_literal": "to confirm, certainty",
+    "actions_確_usage":
+      "The seal that confirms a volume just landed in the collection — a brief flash over the cover the moment you mark it owned.",
 
     "places_本棚_literal": "bookshelf",
     "places_本棚_usage":
@@ -712,6 +765,9 @@ export default {
     "vessels_あと少し_literal": "a little more to go",
     "vessels_あと少し_usage":
       "Near-completion shelf — series only a few volumes away from being finished.",
+    "vessels_棚_literal": "shelf, rack",
+    "vessels_棚_usage":
+      "The shelf as an object — anchors the 3D dashboard mode (perspective + wood grain) and the shareable profile snapshot. Distinct from 本棚 (bookshelf), which names the dashboard surface itself.",
 
     "palette_漆黒_literal": "lacquer black, jet ink",
     "palette_漆黒_usage":
@@ -816,6 +872,27 @@ export default {
     language: "Language",
     languageBody:
       "The language used across all the interface labels and messages.",
+    accentTitle: "Accent colour",
+    accentBody:
+      "The default hanko red can be swapped for another palette — each one is calibrated to preserve contrast across the rest of the interface.",
+    shelf3dTitle: "3D shelf view",
+    shelf3dBody:
+      "Dashboard cards take on a light perspective tilt with edge shadows, resting on a wood-grain line — like browsing an actual bookshelf. Disabled in multi-select mode.",
+    shelf3dToggleAria: "Toggle 3D shelf view",
+    hapticsTitle: "Haptic feedback",
+    hapticsBody:
+      "Short vibration on key actions — volume toggle, coffret confirm. Silent on devices without a motor.",
+    hapticsToggleAria: "Toggle haptic feedback",
+    hapticsGatingLabel: "Local storage",
+    hapticsGatingDetail:
+      "Preference stored per device — not synced to your account.",
+    soundTitle: "Interface sounds",
+    soundBody:
+      "Subtle sine-wave cues on key actions — volume toggle, coffret confirm. Off by default.",
+    soundToggleAria: "Toggle interface sounds",
+    soundGatingLabel: "Account",
+    soundGatingDetail:
+      "Preference stored on the server — synced across all your devices.",
     adultContent: "Adult content",
     adultBody: "How mature titles appear throughout your archive.",
     adultBlur: "Blur",
@@ -983,7 +1060,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.9.0 · Archive your collection",
+    version: "v2.10.0 · Archive your collection",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",
@@ -1141,6 +1218,57 @@ export default {
       "No character matches “{q}”. Try another name or clear the search.",
     emptyGeneric: "No portraits available",
     emptyGenericHint: "MyAnimeList has no character entries for these series.",
+  },
+  palette: {
+    placeholder: "Search a series or jump to a page…",
+    empty: "No matches",
+    seriesTag: "SERIES",
+    hintNavigate: "navigate",
+    hintToggle: "open",
+    navDashboard: "Library",
+    navAdd: "Add manga",
+    navCalendar: "Calendar",
+    navProfile: "Profile",
+    navSeals: "Seals",
+    navSettings: "Settings",
+    navGlossary: "Glossary",
+  },
+  snapshot: {
+    eyebrow: "Snapshot · 棚",
+    title: "Share your shelf",
+    byline:
+      "A 4:5 card of your archive — ready for Instagram, X, or a quiet share with a friend.",
+    rendering: "Composing…",
+    renderError: "Couldn't generate the image. Try again in a moment.",
+    helper:
+      "Covers that don't allow cross-origin download fall back to the LQIP tint — the composition stays coherent.",
+    previewAlt: "Preview of your shelf as a shareable image",
+    share: "Share",
+    download: "Download",
+    statLabelVolumes: "Volumes",
+    statLabelSeries: "Series",
+    statLabelComplete: "Progress",
+  },
+  shortcuts: {
+    eyebrow: "Shortcuts · 鍵",
+    title: "Keyboard",
+    byline: "Move faster — without lifting your hands off the keyboard.",
+    navTitle: "Navigation",
+    searchTitle: "Search",
+    modalTitle: "Modals",
+    helpTitle: "Help",
+    gotoDashboard: "Go to dashboard",
+    gotoCalendar: "Go to calendar",
+    gotoProfile: "Go to profile",
+    gotoSettings: "Go to settings",
+    gotoAdd: "Go to add manga",
+    openPalette: "Open the command palette",
+    openPaletteAlt: "Open the palette (Windows / Linux)",
+    closeModal: "Close the current modal",
+    tabForward: "Next interactive element",
+    tabBack: "Previous interactive element",
+    openCheatSheet: "Show this cheat sheet",
+    footer: "Shortcuts are disabled while typing in a field.",
   },
   install: {
     cta: "Install app",

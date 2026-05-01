@@ -5,8 +5,8 @@ import { useT } from "@/i18n/index.jsx";
 import { formatCurrency } from "@/utils/price.js";
 import { formatShortDate } from "@/utils/volume.js";
 import { useDeleteUpcomingVolume } from "@/hooks/useVolumes.js";
+import { useFocusTrap } from "@/hooks/useFocusTrap.js";
 import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
-import { acquireScrollLock, releaseScrollLock } from "@/lib/scrollLock.js";
 
 /**
  * Volume detail drawer — controlled by the parent (Volume). The drawer is
@@ -98,90 +98,13 @@ export default function VolumeDetailDrawer({
   }, [open]);
 
   const panelRef = useRef(null);
-  const lastFocusedBeforeOpenRef = useRef(null);
   // Distinguishes a true backdrop click from a text-selection drag-out so
   // releasing the selection past the panel edge doesn't cancel the edit.
   const backdropMouseDownRef = useRef(false);
 
-  // Mirror onClose into a ref to avoid re-binding the keyup listener on every
-  // parent render (would otherwise drop a keystroke in the one-frame gap).
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!mounted) return;
-
-    const handleKeyUp = (e) => {
-      if (e.key === "Escape") {
-        const close = onCloseRef.current;
-        if (typeof close === "function") close();
-      }
-    };
-
-    const handleKeyDown = (e) => {
-      if (e.key !== "Tab") return;
-      const root = panelRef.current;
-      if (!root) return;
-      const selector =
-        'a[href], area[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, audio[controls], video[controls], [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])';
-      const tabbables = root.querySelectorAll(selector);
-      if (!tabbables.length) {
-        // No tabbables (loading state disables every button) → park focus on
-        // the panel itself so keystrokes stay scoped until controls re-enable.
-        e.preventDefault();
-        if (typeof root.focus === "function") root.focus();
-        return;
-      }
-      const first = tabbables[0];
-      const last = tabbables[tabbables.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    lastFocusedBeforeOpenRef.current = document.activeElement;
-
-    acquireScrollLock();
-    window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("keydown", handleKeyDown);
-
-    requestAnimationFrame(() => {
-      const root = panelRef.current;
-      if (!root) return;
-      const preferred = root.querySelector("[data-autofocus]");
-      if (preferred && typeof preferred.focus === "function") {
-        preferred.focus();
-      } else if (typeof root.focus === "function") {
-        root.focus();
-      }
-    });
-
-    return () => {
-      releaseScrollLock();
-      window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("keydown", handleKeyDown);
-      const opener = lastFocusedBeforeOpenRef.current;
-      if (
-        opener &&
-        typeof opener.focus === "function" &&
-        document.contains(opener)
-      ) {
-        try {
-          opener.focus();
-        } catch {
-          /* opener detached — ignore */
-        }
-      }
-      lastFocusedBeforeOpenRef.current = null;
-    };
-    // Handlers come off refs — only the mount transition is a real dep.
-  }, [mounted]);
+  // Scroll lock + ESC + Tab cycling + initial focus + opener restore —
+  // all delegated to the shared hook. See `hooks/useFocusTrap.js`.
+  useFocusTrap(mounted, panelRef, onClose);
 
   if (!mounted) return null;
   if (typeof document === "undefined") return null;

@@ -374,6 +374,7 @@ function PublicCard({ entry, index, blurAdult }) {
         <CoverImage
           src={entry.image_url_jpg}
           alt=""
+          paletteSeed={entry.mal_id}
           imgClassName={`h-full w-full object-cover transition-all duration-700 group-hover:scale-105 ${
             isMuted ? "blur-xl scale-110 brightness-50" : ""
           }`}

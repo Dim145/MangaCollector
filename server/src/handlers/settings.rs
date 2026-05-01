@@ -24,6 +24,9 @@ pub async fn get_settings(
         theme: row.theme.unwrap_or_else(|| "dark".into()),
         language: row.language.unwrap_or_else(|| "en".into()),
         avatar_url: row.avatar_url,
+        sound_enabled: row.sound_enabled,
+        accent_color: row.accent_color,
+        shelf_3d_enabled: row.shelf_3d_enabled,
         auth_name: state.config.auth_name.clone(),
         auth_icon: state.config.auth_icon.clone(),
     }))
@@ -48,6 +51,9 @@ pub async fn update_settings(
         theme: row.theme.unwrap_or_else(|| "dark".into()),
         language: row.language.unwrap_or_else(|| "en".into()),
         avatar_url: row.avatar_url,
+        sound_enabled: row.sound_enabled,
+        accent_color: row.accent_color,
+        shelf_3d_enabled: row.shelf_3d_enabled,
         auth_name: state.config.auth_name.clone(),
         auth_icon: state.config.auth_icon.clone(),
     }))

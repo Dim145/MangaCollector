@@ -5,7 +5,7 @@ use axum::{
 
 use crate::handlers::{
     activity, archive, auth as auth_handlers, calendar, coffret, compare, external,
-    external_import, health, library, public, realtime, seals, settings, storage,
+    external_import, health, library, public, public_config, realtime, seals, settings, storage,
     user_profile, volume,
 };
 use crate::state::AppState;
@@ -13,6 +13,11 @@ use crate::state::AppState;
 pub fn api_router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health::health))
+        // 設 · Public runtime config for the SPA — DSNs, Umami script
+        // URL/website ID, etc. No auth (the SPA fetches it before any
+        // session exists). Cached aggressively via the SW so an offline
+        // boot sees the last-known config instead of failing init.
+        .route("/public-config", get(public_config::get_public_config))
         // Unified search endpoint — merges MAL + MangaDex results
         .route("/external/search", get(external::search))
         // Read-only public profile — `/public/u/{slug}` — no auth.
@@ -91,6 +96,13 @@ fn user_router() -> Router<AppState> {
             "/library/{mal_id}/volumes/upcoming",
             post(volume::add_upcoming_volume),
         )
+        // 一括 · Bulk-mark cascade — sets `owned` and/or `read` on
+        // every released volume of a series in one round-trip.
+        // Powers the dashboard's bulk-actions bar.
+        .route(
+            "/library/{mal_id}/volumes/bulk-mark",
+            post(volume::bulk_mark_volumes),
+        )
         // Volume routes — note: the legacy `/volume/{mal_id}` is a list
         // endpoint scoped by mal_id (returns every volume of a series),
         // while `/volumes/{id}` (plural) targets a single volume by its
@@ -138,6 +150,13 @@ fn user_router() -> Router<AppState> {
         .route("/settings", post(settings::update_settings))
         // Activity feed
         .route("/activity", get(activity::list_activity))
+        // 連 · Streak summary — current/best consecutive UTC days
+        // with at least one activity-log entry. Lives inside the
+        // already-nested `/user` router (see `api_router()` above),
+        // so the path is just `/streak` here — full URL resolves to
+        // `/api/user/streak`. Adding `/user/streak` literally would
+        // double-nest into `/api/user/user/streak` and 404.
+        .route("/streak", get(activity::get_streak))
         // 印鑑帳 — Carnet de sceaux (ceremonial achievements)
         .route("/seals", get(seals::list_seals))
         // 暦 · Upcoming-volume calendar feed. Optional `?from=YYYY-MM`

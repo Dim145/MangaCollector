@@ -4,12 +4,17 @@ import { BrowserRouter } from "react-router-dom";
 import "./styles/index.css";
 import App from "./App.jsx";
 import { bootstrapThemeFromStorage } from "./lib/theme.js";
+import { bootstrapAccentFromStorage } from "./lib/accent.js";
 import { captureDeepLinkIntentFromUrl } from "./lib/deepLinks.js";
+import { initErrorTracking } from "./lib/errorTracking.js";
+import { initAnalytics } from "./lib/analytics.js";
+import { fetchPublicConfig } from "./lib/publicConfig.js";
 
-// Apply the user's last-known theme before React mounts so the first paint
-// never flashes the wrong palette. The authoritative value arrives a bit
-// later from the server-side settings.
+// Apply the user's last-known theme + accent before React mounts so
+// the first paint never flashes the wrong palette. The authoritative
+// values arrive a bit later from the server-side settings.
 bootstrapThemeFromStorage();
+bootstrapAccentFromStorage();
 
 // 共有 · Capture deep-link query params (PWA shortcut, Web Share Target)
 // to sessionStorage and strip them from the URL BEFORE React mounts.
@@ -22,6 +27,23 @@ bootstrapThemeFromStorage();
 //      shared text — untrusted user input from another app — never
 //      reaches the IdP as referer data.
 captureDeepLinkIntentFromUrl();
+
+// 計 · Umami init — synchronous, reads `window.__APP_CONFIG__.umami`
+// populated by the inline `<script>` block in index.html (templated by
+// the nginx entrypoint). No fetch, no blind spot — pageviews start
+// being tracked from the very first navigation.
+initAnalytics();
+
+// 監 · Sentry / Bugsink — non-blocking. `fetchPublicConfig()` runs in
+// parallel with the React mount; when it resolves, the SDK init runs
+// against whatever errors are already in flight. Trade-off: the ~5–50 ms
+// between mount and SDK init aren't covered by Sentry on a brand-new
+// install (no SW cache yet), but the perceived boot is unchanged from
+// "no observability at all" — and per the spec, a silent fetch failure
+// just leaves the feature disabled for this session.
+fetchPublicConfig().then((config) => {
+  if (config?.errorTracking) initErrorTracking(config.errorTracking);
+});
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

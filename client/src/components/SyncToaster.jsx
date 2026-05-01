@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { onSyncError, onSyncInfo } from "@/lib/sync.js";
+import { sounds } from "@/lib/sounds.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -33,6 +34,10 @@ export default function SyncToaster() {
   useEffect(() => {
     // 失 · Failure stream — mirrors the original behaviour, just
     // reshaped through the unified toast-row schema below.
+    // 音 · Toast appearance is the canonical "something happened in the
+    // bottom-right" event, so audio cues live HERE rather than at every
+    // notifySync* call site. One source of truth → no double-fire when
+    // a call site emits both a toast and an explicit sound.
     const offError = onSyncError((e) => {
       const id = `err-${Date.now()}-${Math.random()}`;
       setToasts((prev) => [
@@ -46,6 +51,7 @@ export default function SyncToaster() {
           footer: t("sync.locallyResynced"),
         },
       ]);
+      sounds.error();
       // Auto-dismiss; the user can also close manually.
       setTimeout(
         () => setToasts((prev) => prev.filter((x) => x.id !== id)),
@@ -58,17 +64,19 @@ export default function SyncToaster() {
     const offInfo = onSyncInfo((e) => {
       const p = e.detail || {};
       const id = `info-${Date.now()}-${Math.random()}`;
+      const tone = p.tone === "neutral" ? "neutral" : "success";
       setToasts((prev) => [
         ...prev,
         {
           id,
           kind: "info",
-          tone: p.tone === "neutral" ? "neutral" : "success",
+          tone,
           icon: p.icon,
           title: p.title || t("sync.infoDefaultTitle"),
           body: p.body,
         },
       ]);
+      tone === "success" ? sounds.success() : sounds.info();
       setTimeout(
         () => setToasts((prev) => prev.filter((x) => x.id !== id)),
         INFO_TTL_MS,

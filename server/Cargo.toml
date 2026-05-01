@@ -1,6 +1,6 @@
 [package]
 name = "manga-collector-server"
-version = "2.9.0"
+version = "2.10.0"
 edition = "2024"
 
 [[bin]]
@@ -171,6 +171,34 @@ csv = "1"
 # reverse proxy (Traefik/Nginx) must ensure the correct X-Forwarded-For
 # handling upstream so buckets are per-client, not per-proxy.
 tower_governor = "0.8"
+
+# Error tracking — Sentry SDK. The DSN can point at the official cloud,
+# a self-hosted Sentry, OR a Bugsink instance (wire-compatible). The
+# choice between the three is operator-controlled at boot via env vars
+# (SENTRY_DSN xor BUGSINK_DSN — see `observability::init`).
+#
+# `default-features = false` drops two unwanted defaults at once:
+#   1. `native-tls` (transport feature pulls it) — the project is rustls-
+#      only across reqwest, sqlx, and aws-sdk-s3, so we'd never want a
+#      second TLS implementation linked just for Sentry events.
+#   2. `reqwest` transport — sentry 0.48 hardcodes `reqwest 0.13` as its
+#      HTTP client, which would shove a SECOND reqwest major into the
+#      binary alongside the 0.12 we hold for openidconnect. Using `ureq`
+#      keeps reqwest single-versioned. Sentry's transport runs on a
+#      background worker thread regardless, so sync ureq is a no-op
+#      perf-wise for the rest of the server.
+sentry = { version = "0.48", default-features = false, features = [
+    "backtrace",
+    "contexts",
+    "debug-images",
+    "panic",
+    "release-health",
+    "ureq",
+    "rustls",
+    "tracing",
+    "anyhow",
+] }
+sentry-tower = { version = "0.48", features = ["http", "axum", "axum-matched-path"] }
 
 [profile.release]
 opt-level = 3

@@ -27,8 +27,23 @@ LABEL org.opencontainers.image.title="MangaCollector Frontend" \
       security.caps.required="CHOWN,SETUID,SETGID,NET_BIND_SERVICE" \
       security.no-new-privileges="required"
 
+# `gettext` ships `envsubst`, used by docker-entrypoint.sh to template
+# the runtime config (Umami) into index.html + nginx.conf at startup.
+# `--no-cache` keeps the layer minimal — gettext is a one-shot build
+# tool here, not a runtime dependency for nginx itself.
+RUN apk add --no-cache gettext
+
 COPY --from=build /client/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
+COPY docker-entrypoint.sh /mc-entrypoint.sh
+RUN chmod +x /mc-entrypoint.sh
+
+# Override the upstream nginx ENTRYPOINT (which iterates
+# `/docker-entrypoint.d/*` and execs `nginx -g 'daemon off;'` with the
+# default config path). Ours mirrors the templated config to /tmp and
+# starts nginx via `-c /tmp/nginx.conf` — the upstream wrapper can't
+# pass that flag.
+ENTRYPOINT ["/mc-entrypoint.sh"]
 
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=1s --retries=3 \

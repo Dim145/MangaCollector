@@ -138,5 +138,14 @@ services:
       - /var/cache/nginx:rw,noexec,nosuid,size=16m
     environment:
       FRONTEND_URL: http://localhost:12000
+      # Forwarded to docker-entrypoint.sh which envsubsts them into
+      # index.html (window.__APP_CONFIG__) and nginx.conf (CSP). Empty
+      # values leave the integrations disabled — they're commented out
+      # below as the documented operator switches.
+      # FRONTEND_UMAMI_SCRIPT_URL: https://umami.example.com/script.js
+      # FRONTEND_UMAMI_WEBSITE_ID: 00000000-0000-0000-0000-000000000000
+      # FRONTEND_UMAMI_ORIGIN: https://umami.example.com
+      # FRONTEND_SENTRY_DSN: https://xxx@o0.ingest.sentry.io/000
+      # FRONTEND_BUGSINK_DSN: https://xxx@bugsink.example.com/0
     ports:
       - "5173:80"

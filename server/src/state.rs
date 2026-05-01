@@ -4,6 +4,7 @@ use std::time::Instant;
 use crate::auth::OidcState;
 use crate::config::Config;
 use crate::db::{Db, DbPool};
+use crate::observability::FrontendObservabilityConfig;
 use crate::services::cache::CacheStore;
 use crate::services::realtime::SyncBroker;
 use crate::storage::StorageBackend;
@@ -26,6 +27,12 @@ pub struct AppState {
     /// devices. Always present; Redis is an optional scale-out
     /// backend under the hood.
     pub broker: SyncBroker,
+    /// Snapshot of the FRONTEND_* env vars resolved at boot. Served
+    /// verbatim by `GET /api/public-config` so the SPA can wire its
+    /// SDKs at runtime without rebuilding the bundle. Wrapped in `Arc`
+    /// because every request handler clones `AppState` and we don't
+    /// want to clone the inner strings on every fetch.
+    pub frontend_config: Arc<FrontendObservabilityConfig>,
     pub start_time: Instant,
 }
 

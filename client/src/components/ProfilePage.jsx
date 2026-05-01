@@ -22,6 +22,11 @@ const ReadingChart = lazy(() => import("./analytics/ReadingChart.jsx"));
 const CompositionPies = lazy(() => import("./analytics/CompositionPies.jsx"));
 // Modal — only needed on click, deferred so it doesn't bloat the profile chunk.
 const AvatarPicker = lazy(() => import("./AvatarPicker.jsx"));
+// 棚 · Snapshot modal — same lazy treatment as AvatarPicker. The
+// canvas renderer + the modal chrome together weigh ~10 KB; keeping
+// them out of the initial /profile chunk costs nothing and saves
+// the bytes for users who never open the modal.
+const ShelfSnapshotModal = lazy(() => import("./ShelfSnapshotModal.jsx"));
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
@@ -38,6 +43,7 @@ export default function ProfilePage({ googleUser }) {
   const { data: settings } = useUserSettings();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
   const navigate = useNavigate();
   const t = useT();
 
@@ -274,19 +280,43 @@ export default function ProfilePage({ googleUser }) {
                   when there's not enough story for the current year),
                   with the harvest kanji acting as the conceptual
                   signpost. */}
-              <Link
-                to="/year-in-review"
-                className="mt-3 inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-gold transition hover:border-gold/70 hover:bg-gold/10 hover:text-gold-muted"
-              >
-                <span
-                  aria-hidden="true"
-                  className="font-jp text-sm font-bold leading-none not-italic"
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  to="/year-in-review"
+                  className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-gold transition hover:border-gold/70 hover:bg-gold/10 hover:text-gold-muted"
                 >
-                  収
-                </span>
-                {t("profile.yearReviewCta", { year: new Date().getFullYear() })}
-                <span aria-hidden="true">→</span>
-              </Link>
+                  <span
+                    aria-hidden="true"
+                    className="font-jp text-sm font-bold leading-none not-italic"
+                  >
+                    収
+                  </span>
+                  {t("profile.yearReviewCta", { year: new Date().getFullYear() })}
+                  <span aria-hidden="true">→</span>
+                </Link>
+                {/* 棚 · Shelf snapshot — opens a modal that renders the
+                    library as a 4:5 PNG ready to share on social. The
+                    button keeps the same outline-chip vocabulary as the
+                    Year-in-Review entry point so they read as a peer
+                    pair of "stats / sharing" hooks rather than competing
+                    primary CTAs. Disabled until the library has data —
+                    a snapshot of an empty shelf reads as broken. */}
+                <button
+                  type="button"
+                  onClick={() => setSnapshotOpen(true)}
+                  disabled={loading || (library?.length ?? 0) === 0}
+                  className="inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-hanko/5 disabled:hover:border-hanko/40"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="font-jp text-sm font-bold leading-none not-italic"
+                  >
+                    棚
+                  </span>
+                  {t("profile.snapshotCta")}
+                  <span aria-hidden="true">→</span>
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -296,6 +326,36 @@ export default function ProfilePage({ googleUser }) {
             <AvatarPicker
               open={pickerOpen}
               onClose={() => setPickerOpen(false)}
+            />
+          </Suspense>
+        )}
+
+        {snapshotOpen && (
+          <Suspense fallback={null}>
+            <ShelfSnapshotModal
+              open={snapshotOpen}
+              onClose={() => setSnapshotOpen(false)}
+              library={library ?? []}
+              userName={settings?.username || googleUser?.name || ""}
+              // New labelled-stats shape — each segment carries its
+              // own eyebrow so the snapshot footer reads stand-alone
+              // ("56 %" without a label was ambiguous to anyone who
+              // didn't already know the app).
+              stats={[
+                {
+                  value: `${totalVolumesOwned} 巻`,
+                  label: t("snapshot.statLabelVolumes"),
+                },
+                {
+                  value: `${totalSeries}`,
+                  label: t("snapshot.statLabelSeries"),
+                },
+                {
+                  value: `${completionRate.toFixed(0)} %`,
+                  label: t("snapshot.statLabelComplete"),
+                  accent: true,
+                },
+              ]}
             />
           </Suspense>
         )}
@@ -402,6 +462,7 @@ export default function ProfilePage({ googleUser }) {
                                 manga: row.manga,
                                 adult_content_level,
                               },
+                              viewTransition: true,
                             })
                           }
                           className="group flex w-full items-center gap-3 rounded-lg border border-border/60 bg-ink-2/30 px-2 py-1.5 text-left transition hover:border-hanko/50 hover:bg-ink-2/60"
@@ -410,6 +471,7 @@ export default function ProfilePage({ googleUser }) {
                             <CoverImage
                               src={row.manga.image_url_jpg}
                               alt=""
+                              paletteSeed={row.manga.mal_id}
                               imgClassName="h-full w-full object-cover"
                             />
                           </span>

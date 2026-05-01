@@ -30,6 +30,9 @@ import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
+import CommandPalette from "@/components/CommandPalette.jsx";
+import ShortcutsCheatSheet from "@/components/ShortcutsCheatSheet.jsx";
+import MangaPageSkeleton from "@/components/MangaPageSkeleton.jsx";
 
 // Lazy routes — each lands in its own JS chunk so first paint ships less.
 // Recharts rides with ProfilePage, @zxing rides with AddPage via its own
@@ -59,8 +62,11 @@ import { queryClient } from "@/lib/queryClient.js";
 import { installConnectivityWatcher } from "@/lib/connectivity.js";
 import { installSyncRunner } from "@/lib/sync.js";
 import { applyThemePreference, rememberThemePreference } from "@/lib/theme.js";
+import { applyAccentToDocument, rememberAccent } from "@/lib/accent.js";
+import { setSoundEnabled } from "@/lib/sounds.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync.js";
 import axios from "@/utils/axios.js";
 import {
@@ -112,11 +118,41 @@ function SettingsProvider({ children }) {
     rememberThemePreference(pref);
   }, [settings?.theme]);
 
+  // 朱 · Accent — same cold-start mirror pattern. Falls back to the
+  // baked-in shu (hanko) tokens when unset; clearing the localStorage
+  // mirror at the same time avoids a stale reapply on the next visit.
+  //
+  // Critical: the early-return on `accent === undefined` distinguishes
+  // "settings not loaded yet" from "loaded with the default (null)
+  // accent". Without it, the first render of this component (before
+  // useUserSettings has resolved from Dexie / network) would call
+  // `applyAccentToDocument(null)` → `removeAttribute("data-accent")`
+  // → the inline bootstrap's setting evaporates → the page flashes
+  // back to the default `:root` red until settings lands and the
+  // effect fires a second time. `null` (Dexie row exists but
+  // accent_color is null) IS a valid state we want to honour — it
+  // means the user picked the default — and we still drop the
+  // attribute in that case. Only `undefined` (still loading) is
+  // skipped.
+  useEffect(() => {
+    const accent = settings?.accent_color;
+    if (accent === undefined) return;
+    applyAccentToDocument(accent);
+    rememberAccent(accent);
+  }, [settings?.accent_color]);
+
   // Language — stash the latest authoritative value in localStorage so the
   // next cold-start picks the right bundle synchronously (see I18nBoundary).
   useEffect(() => {
     if (settings?.language) rememberLanguage(settings.language);
   }, [settings?.language]);
+
+  // 音 · Mirror the DB-stored sound flag into the sounds module's
+  // local cache so call sites can early-out without subscribing to
+  // settings. Defaults to false (sound is opt-in).
+  useEffect(() => {
+    setSoundEnabled(Boolean(settings?.sound_enabled));
+  }, [settings?.sound_enabled]);
 
   return (
     <SettingsContext.Provider value={merged}>
@@ -168,9 +204,11 @@ function MangaPageRoute({ stateManga, adult_content_level }) {
   }
 
   // Wait for Dexie before deciding the row doesn't exist — a fresh tab
-  // races hydration against this render.
+  // races hydration against this render. Skeleton mirrors the hero
+  // layout so the swap to real data is a crossfade-in-place rather
+  // than a "blank → content" pop.
   if (libLoading) {
-    return null;
+    return <MangaPageSkeleton />;
   }
 
   const resolved = library?.find((m) => m.mal_id === malId);
@@ -187,6 +225,12 @@ function AppShell() {
   const navType = useNavigationType();
   const { manga, adult_content_level } = location.state || {};
   const [googleUser, setGoogleUser] = useState(null);
+  const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
+
+  // 鍵 · `?` opens the cheat sheet, `g` chord navigates to a route.
+  // The hook is mounted once at the shell level so the bindings are
+  // available on every page. See `hooks/useGlobalShortcuts.js`.
+  useGlobalShortcuts({ onOpenCheatSheet: () => setCheatSheetOpen(true) });
 
   // Scroll handling: top on PUSH/REPLACE; on POP we leave it alone so
   // each destination page can run its own data-aware restore (see
@@ -214,6 +258,11 @@ function AppShell() {
       <Header />
       <OfflineBanner />
       <SyncToaster />
+      <CommandPalette />
+      <ShortcutsCheatSheet
+        open={cheatSheetOpen}
+        onClose={() => setCheatSheetOpen(false)}
+      />
       <main className="relative">
         {/* 災 · ErrorBoundary outside Suspense so a chunk-load failure
             (deploy invalidated cached chunks, offline burst, …) shows
