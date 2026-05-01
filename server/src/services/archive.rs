@@ -380,9 +380,22 @@ pub async fn apply_import_merge(
         // "I've got tomes 1 through N" convention, which matches how
         // `update_manga_volumes` reseeds the rows when the user edits
         // the total manually).
-        if !series.volumes_detail.is_empty() {
-            for v in &series.volumes_detail {
-                let active = volume_mod::ActiveModel {
+        // 一括 · Volumes & coffrets are batched via `insert_many` —
+        // a long series with `series_volumes_detail` carrying 200
+        // tomes used to fire 200 round-trips through SeaORM; a single
+        // multi-row INSERT slashes that to one. Postgres' parameter
+        // limit is 65535 per statement: at ~10 columns per volume,
+        // we'd hit that ceiling around 6500 rows — the per-series
+        // ceiling is `clamp_volumes` = 10 000, so we chunk in batches
+        // of 500 to stay comfortably below the limit while keeping
+        // each statement's plan cache hot.
+        const BULK_INSERT_CHUNK: usize = 500;
+
+        let volume_models: Vec<volume_mod::ActiveModel> = if !series.volumes_detail.is_empty() {
+            series
+                .volumes_detail
+                .iter()
+                .map(|v| volume_mod::ActiveModel {
                     user_id: Set(user.id),
                     mal_id: Set(assigned_mal),
                     vol_num: Set(v.vol_num),
@@ -395,13 +408,12 @@ pub async fn apply_import_merge(
                     created_on: Set(now),
                     modified_on: Set(now),
                     ..Default::default()
-                };
-                active.insert(&txn).await.map_err(AppError::from)?;
-            }
+                })
+                .collect()
         } else if series_volumes > 0 {
             let owned_up_to = series_volumes_owned;
-            for vol_num in 1..=series_volumes {
-                let active = volume_mod::ActiveModel {
+            (1..=series_volumes)
+                .map(|vol_num| volume_mod::ActiveModel {
                     user_id: Set(user.id),
                     mal_id: Set(assigned_mal),
                     vol_num: Set(vol_num),
@@ -413,30 +425,49 @@ pub async fn apply_import_merge(
                     created_on: Set(now),
                     modified_on: Set(now),
                     ..Default::default()
-                };
-                active.insert(&txn).await.map_err(AppError::from)?;
-            }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        for chunk in volume_models.chunks(BULK_INSERT_CHUNK) {
+            VolumeEntity::insert_many(chunk.to_vec())
+                .exec(&txn)
+                .await
+                .map_err(AppError::from)?;
         }
 
         // Coffrets — names & ranges only. Volumes aren't re-linked to
         // a coffret_id here; doing so would require a second pass and
         // the v1 import contract is "restore metadata, user can
         // re-assign coffrets if needed". The per-volume `in_coffret`
-        // flag in the bundle is advisory for future versions.
-        for c in &series.coffrets {
-            let active = coffret::ActiveModel {
-                user_id: Set(user.id),
-                mal_id: Set(assigned_mal.unwrap_or(0)),
-                name: Set(c.name.clone()),
-                vol_start: Set(c.vol_start),
-                vol_end: Set(c.vol_end),
-                price: Set(c.price),
-                store: Set(c.store.clone()),
-                created_on: Set(now),
-                modified_on: Set(now),
-                ..Default::default()
-            };
-            active.insert(&txn).await.map_err(AppError::from)?;
+        // flag in the bundle is advisory for future versions. Same
+        // bulk-insert pattern as volumes — a coffret-heavy series can
+        // legitimately ship 50+ slipcases.
+        if !series.coffrets.is_empty() {
+            let coffret_models: Vec<coffret::ActiveModel> = series
+                .coffrets
+                .iter()
+                .map(|c| coffret::ActiveModel {
+                    user_id: Set(user.id),
+                    mal_id: Set(assigned_mal.unwrap_or(0)),
+                    name: Set(c.name.clone()),
+                    vol_start: Set(c.vol_start),
+                    vol_end: Set(c.vol_end),
+                    price: Set(c.price),
+                    store: Set(c.store.clone()),
+                    created_on: Set(now),
+                    modified_on: Set(now),
+                    ..Default::default()
+                })
+                .collect();
+            for chunk in coffret_models.chunks(BULK_INSERT_CHUNK) {
+                CoffretEntity::insert_many(chunk.to_vec())
+                    .exec(&txn)
+                    .await
+                    .map_err(AppError::from)?;
+            }
         }
     }
 
