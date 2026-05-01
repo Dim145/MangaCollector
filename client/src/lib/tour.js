@@ -24,6 +24,7 @@ export const TOUR_STEPS = Object.freeze({
   LIBRARY: "library", // → focus the AddPage search input
   SCAN: "scan", // → open the AddPage barcode scanner
   AVATAR: "avatar", // → spotlight the ProfilePage avatar button
+  SNAPSHOT: "snapshot", // → spotlight the ProfilePage shelf-snapshot button
 });
 
 const VALID_STEPS = new Set(Object.values(TOUR_STEPS));

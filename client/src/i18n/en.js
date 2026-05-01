@@ -827,7 +827,7 @@ export default {
     headingPre: "Begin your",
     headingAccent: "archive",
     intro:
-      "Three ways to start curating your collection — pick whichever feels closest. You can switch between them at any time.",
+      "Four chapters to discover the app at your own pace. Skip any section that doesn't interest you — nothing here is mandatory.",
     s1Title: "Add your first series",
     s1Body:
       "Search MyAnimeList, auto-fill volumes, covers and genres in one click.",
@@ -841,8 +841,71 @@ export default {
       "Choose an avatar from any character in the series you own — your seal across the app.",
     s3Cta: "Visit your profile",
     skip: "Maybe later",
-    replayHint: "You can replay this anytime from Settings.",
+    replayHint: "You can replay this tour anytime from Settings.",
     spotlightAvatar: "Click here",
+    // Pagination + section skipping
+    chapterLabel: "Chapter",
+    beginCta: "Begin tour",
+    next: "Next",
+    prev: "Back",
+    skipSection: "Skip section",
+    // Categories
+    cat1Title: "Build your library",
+    cat1Body:
+      "Where your collection comes to life — search, scan, plan upcoming releases.",
+    cat2Title: "Make it yours",
+    cat2Body:
+      "Identity, traditional Japanese palette, seasonal atmosphere, sensory feedback.",
+    cat3Title: "Power-user keys",
+    cat3Body:
+      "Speed, keyboard navigation, bulk actions — for serious collectors.",
+    cat4Title: "Share & celebrate",
+    cat4Body: "Public profile, shelf snapshots, earned seals.",
+    // New features (added in v2.10)
+    fCalendarTitle: "Release calendar",
+    fCalendarBody:
+      "Every announced tome, by month — ICS subscription for Google/Apple/Outlook.",
+    fCalendarCta: "Open calendar",
+    fAccentTitle: "Accent color",
+    fAccentBody:
+      "Eight traditional Japanese hues. Recolours the whole UI, saved to your account.",
+    fAccentCta: "Open settings",
+    fFeedbackTitle: "Sound & haptics",
+    fFeedbackBody:
+      "Audio (Web Audio) and tactile feedback on key actions. Opt-in, silent by default.",
+    fFeedbackCta: "Open settings",
+    fPaletteTitle: "Command palette",
+    fPaletteBody:
+      "⌘K opens instant search — series, pages, actions, anywhere in the app.",
+    fPaletteCta: "Try it now",
+    fShortcutsTitle: "Keyboard shortcuts",
+    fShortcutsBody:
+      "Press ? for the full list. Linear-style g + letter navigation.",
+    fShortcutsCta: "Show cheat sheet",
+    fBulkTitle: "Bulk operations",
+    fBulkBody:
+      "Multi-select on the dashboard, cascade marks across volumes. Works offline.",
+    fBulkCta: "Open dashboard",
+    fPublicTitle: "Public profile",
+    fPublicBody:
+      "Share your shelf at /u/your-handle. Anonymous visitors, free browsing.",
+    fPublicCta: "Open settings",
+    fSnapshotTitle: "Shelf snapshot",
+    fSnapshotBody:
+      "1080×1350 PNG poster ready to share — top covers + stats + progress.",
+    fSnapshotCta: "Open profile",
+    fSealsTitle: "Seals (印鑑帳)",
+    fSealsBody:
+      "31 trophies across 9 categories, 5 ink tiers. Track your progress.",
+    fSealsCta: "View seals",
+    // Outro
+    outroKicker: "Done",
+    outroTitle: "You're all set",
+    outroBody:
+      "The app is yours now. Here are a couple more doors to explore — or start collecting.",
+    outroDone: "Begin collecting",
+    outroGlossary: "Kanji glossary",
+    outroSettings: "All settings",
   },
   settings: {
     heading: "SETTINGS · 設定",

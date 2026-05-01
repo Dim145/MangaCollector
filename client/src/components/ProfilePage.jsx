@@ -55,7 +55,9 @@ export default function ProfilePage({ googleUser }) {
   // to click, not to skip the click; otherwise the user never builds
   // the muscle memory for next time.
   const avatarRef = useRef(null);
+  const snapshotRef = useRef(null);
   const [tourSpotlight, setTourSpotlight] = useState(false);
+  const [snapshotSpotlight, setSnapshotSpotlight] = useState(false);
   // 探 · Peek-then-consume so the AVATAR tour step survives a delayed
   // ref binding (the avatar button mounts after the user query
   // resolves). The previous code consumed eagerly at mount, so a
@@ -91,6 +93,33 @@ export default function ProfilePage({ googleUser }) {
     // without polling. Once consumed, the peek returns null and the
     // effect early-returns on subsequent re-renders.
   }, [googleUser]);
+
+  // 棚 · Welcome-tour spotlight on the shelf-snapshot button.
+  // Same peek-then-consume pattern as the avatar above — the button
+  // mounts after the library query resolves, so we wait for the ref
+  // before atomically consuming the step. We also gate on
+  // `library?.length` because the button is `disabled` on an empty
+  // library; spotlighting a disabled control is worse than skipping
+  // the spotlight entirely (the user would think the click is broken).
+  useEffect(() => {
+    if (peekTourStep() !== TOUR_STEPS.SNAPSHOT) return;
+    if (!snapshotRef.current) return;
+    if ((library?.length ?? 0) === 0) return;
+    const consumed = consumeTourStep();
+    if (consumed !== TOUR_STEPS.SNAPSHOT) return;
+    setSnapshotSpotlight(true);
+    const raf = requestAnimationFrame(() => {
+      snapshotRef.current?.scrollIntoView({
+        block: "center",
+        behavior: "smooth",
+      });
+    });
+    const timer = setTimeout(() => setSnapshotSpotlight(false), 7000);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [googleUser, library?.length]);
 
   const loading = loadingLib || loadingVol;
 
@@ -300,22 +329,44 @@ export default function ProfilePage({ googleUser }) {
                     Year-in-Review entry point so they read as a peer
                     pair of "stats / sharing" hooks rather than competing
                     primary CTAs. Disabled until the library has data —
-                    a snapshot of an empty shelf reads as broken. */}
-                <button
-                  type="button"
-                  onClick={() => setSnapshotOpen(true)}
-                  disabled={loading || (library?.length ?? 0) === 0}
-                  className="inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-hanko/5 disabled:hover:border-hanko/40"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="font-jp text-sm font-bold leading-none not-italic"
+                    a snapshot of an empty shelf reads as broken.
+
+                    `tour-pulse` (defined in styles/index.css alongside the
+                    avatar spotlight) adds the hanko ring pulse when the
+                    welcome tour just landed here — same animation
+                    language as the avatar so the two follow targets
+                    feel like siblings. */}
+                <div className="relative">
+                  <button
+                    ref={snapshotRef}
+                    type="button"
+                    onClick={() => {
+                      setSnapshotSpotlight(false);
+                      setSnapshotOpen(true);
+                    }}
+                    disabled={loading || (library?.length ?? 0) === 0}
+                    className={`inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-hanko/5 disabled:hover:border-hanko/40 ${
+                      snapshotSpotlight ? "tour-pulse ring-hanko" : ""
+                    }`}
                   >
-                    棚
-                  </span>
-                  {t("profile.snapshotCta")}
-                  <span aria-hidden="true">→</span>
-                </button>
+                    <span
+                      aria-hidden="true"
+                      className="font-jp text-sm font-bold leading-none not-italic"
+                    >
+                      棚
+                    </span>
+                    {t("profile.snapshotCta")}
+                    <span aria-hidden="true">→</span>
+                  </button>
+                  {snapshotSpotlight && (
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-hanko/50 bg-ink-1/95 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-hanko-bright shadow-[0_4px_14px_var(--hanko-glow)] animate-fade-up"
+                    >
+                      {t("tour.fSnapshotCta")}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

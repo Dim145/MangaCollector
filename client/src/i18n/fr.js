@@ -847,7 +847,7 @@ export default {
     headingPre: "Commencez votre",
     headingAccent: "archive",
     intro:
-      "Trois manières de débuter votre collection — choisissez celle qui vous parle. Vous pourrez passer de l'une à l'autre à tout moment.",
+      "Quatre chapitres pour découvrir l'app à votre rythme. Vous pouvez sauter une section qui ne vous concerne pas — rien n'est obligatoire.",
     s1Title: "Ajouter votre première série",
     s1Body:
       "Cherchez sur MyAnimeList, on remplit tomes, couvertures et genres d'un clic.",
@@ -861,8 +861,71 @@ export default {
       "Adoptez l'avatar d'un personnage des séries que vous possédez — votre sceau partout dans l'app.",
     s3Cta: "Voir mon profil",
     skip: "Plus tard",
-    replayHint: "Vous pouvez rejouer ce tour depuis les Réglages.",
+    replayHint: "Vous pouvez rejouer cette visite depuis les Réglages.",
     spotlightAvatar: "Cliquez ici",
+    // Pagination + section skipping
+    chapterLabel: "Chapitre",
+    beginCta: "Commencer la visite",
+    next: "Suivant",
+    prev: "Précédent",
+    skipSection: "Passer la section",
+    // Categories
+    cat1Title: "Bâtir votre bibliothèque",
+    cat1Body:
+      "Là où la collection prend vie — chercher, scanner, anticiper les sorties.",
+    cat2Title: "Personnaliser l'expérience",
+    cat2Body:
+      "Identité, palette japonaise, ambiance saisonnière, retours sensoriels.",
+    cat3Title: "Raccourcis puissants",
+    cat3Body:
+      "Vitesse, navigation au clavier, actions en masse — pour les utilisateurs assidus.",
+    cat4Title: "Partager & célébrer",
+    cat4Body: "Profil public, captures d'étagère, sceaux gagnés.",
+    // New features (added in v2.10)
+    fCalendarTitle: "Calendrier des sorties",
+    fCalendarBody:
+      "Tous les tomes annoncés, par mois — abonnement ICS pour Google/Apple/Outlook.",
+    fCalendarCta: "Ouvrir le calendrier",
+    fAccentTitle: "Couleur d'accent",
+    fAccentBody:
+      "Huit nuances japonaises traditionnelles. Repeint l'app entière, sauvegardé sur votre compte.",
+    fAccentCta: "Ouvrir les paramètres",
+    fFeedbackTitle: "Son & vibrations",
+    fFeedbackBody:
+      "Retour audio (Web Audio) et haptique sur les actions clés. Activable et silencieux par défaut.",
+    fFeedbackCta: "Ouvrir les paramètres",
+    fPaletteTitle: "Palette de commandes",
+    fPaletteBody:
+      "⌘K ouvre la recherche instantanée — séries, pages, actions, partout dans l'app.",
+    fPaletteCta: "Essayer maintenant",
+    fShortcutsTitle: "Raccourcis clavier",
+    fShortcutsBody:
+      "Frappez ? pour la liste complète. Navigation g + lettre, façon Linear.",
+    fShortcutsCta: "Voir la liste",
+    fBulkTitle: "Actions groupées",
+    fBulkBody:
+      "Multi-sélection sur le tableau de bord, marquage en cascade. Marche hors ligne.",
+    fBulkCta: "Ouvrir le dashboard",
+    fPublicTitle: "Profil public",
+    fPublicBody:
+      "Partagez votre étagère via /u/votre-pseudo. Visiteurs anonymes, navigation libre.",
+    fPublicCta: "Ouvrir les paramètres",
+    fSnapshotTitle: "Capture d'étagère",
+    fSnapshotBody:
+      "Affiche PNG 1080×1350 prête à partager — top covers + statistiques + progression.",
+    fSnapshotCta: "Ouvrir le profil",
+    fSealsTitle: "Sceaux (印鑑帳)",
+    fSealsBody:
+      "31 trophées sur 9 catégories, 5 niveaux d'encre. Suivez votre progression.",
+    fSealsCta: "Voir les sceaux",
+    // Outro
+    outroKicker: "Terminé",
+    outroTitle: "Vous êtes prêt",
+    outroBody:
+      "L'app est entre vos mains. Voici quelques portes pour explorer encore — ou commencez à collectionner.",
+    outroDone: "Commencer à collectionner",
+    outroGlossary: "Glossaire kanji",
+    outroSettings: "Tous les paramètres",
   },
   settings: {
     heading: "PARAMÈTRES · 設定",
