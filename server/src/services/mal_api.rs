@@ -61,11 +61,10 @@ pub async fn get_manga_from_mal(
     // Cache lookup: on a hit we return immediately without touching Jikan.
     // `Option<MalMangaData>` serialization handles both the "found" case and
     // the "known-absent" case (JSON `null`).
-    if let Some(cache) = cache {
-        if let Some(cached) = cache.get::<Option<MalMangaData>>(&cache_key).await {
+    if let Some(cache) = cache
+        && let Some(cached) = cache.get::<Option<MalMangaData>>(&cache_key).await {
             return Ok(cached);
         }
-    }
 
     let url = format!("https://api.jikan.moe/v4/manga/{}/full", mal_id);
     let response = client
@@ -107,11 +106,10 @@ pub async fn get_pictures(
     mal_id: i32,
 ) -> anyhow::Result<Vec<String>> {
     let cache_key = format!("mal:pictures:{}", mal_id);
-    if let Some(cache) = cache {
-        if let Some(cached) = cache.get::<Vec<String>>(&cache_key).await {
+    if let Some(cache) = cache
+        && let Some(cached) = cache.get::<Vec<String>>(&cache_key).await {
             return Ok(cached);
         }
-    }
 
     let url = format!("https://api.jikan.moe/v4/manga/{}/pictures", mal_id);
     let response = client
@@ -186,11 +184,10 @@ pub async fn search_by_title(
     }
 
     let cache_key = format!("mal:search:{}", trimmed.to_lowercase());
-    if let Some(cache) = cache {
-        if let Some(cached) = cache.get::<Vec<MalSearchResult>>(&cache_key).await {
+    if let Some(cache) = cache
+        && let Some(cached) = cache.get::<Vec<MalSearchResult>>(&cache_key).await {
             return Ok(cached);
         }
-    }
 
     let response = client
         .get("https://api.jikan.moe/v4/manga")

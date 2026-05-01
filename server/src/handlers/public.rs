@@ -33,11 +33,14 @@ use crate::state::AppState;
 fn no_index_header() -> (header::HeaderName, http::HeaderValue) {
     (
         header::HeaderName::from_static("x-robots-tag"),
-        "noindex, nofollow, noarchive".parse().unwrap(),
+        http::HeaderValue::from_static("noindex, nofollow, noarchive"),
     )
 }
 fn private_no_store_header() -> (header::HeaderName, http::HeaderValue) {
-    (header::CACHE_CONTROL, "private, no-store".parse().unwrap())
+    (
+        header::CACHE_CONTROL,
+        http::HeaderValue::from_static("private, no-store"),
+    )
 }
 
 /// GET /public/u/{slug}
@@ -171,7 +174,7 @@ pub async fn get_public_poster(
         [
             (
                 header::CONTENT_TYPE,
-                "image/jpeg".parse::<http::HeaderValue>().unwrap(),
+                http::HeaderValue::from_static("image/jpeg"),
             ),
             (
                 // `public` — this blob is identical for every visitor.
@@ -181,7 +184,7 @@ pub async fn get_public_poster(
                 // URL-stable-but-mtime-shifted response; browsers will
                 // re-fetch at most 24h later.
                 header::CACHE_CONTROL,
-                "public, max-age=86400".parse().unwrap(),
+                http::HeaderValue::from_static("public, max-age=86400"),
             ),
             // Same noindex policy as the JSON profile — Image Search
             // shouldn't surface user posters either, especially while

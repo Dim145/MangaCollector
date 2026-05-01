@@ -45,6 +45,7 @@ impl CacheStore {
     /// - Miss: no key in Redis → returns `None`
     /// - Known-absent: key exists with JSON `null` → returns `Some(None)`
     ///   when `T = Option<U>`, because serde sees `null` as `None`.
+    ///
     /// This lets callers negatively-cache "series not on MangaDex" without
     /// repeatedly hitting the external API.
     pub async fn get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {

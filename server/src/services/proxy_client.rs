@@ -84,11 +84,10 @@ pub async fn fetch_upcoming(
     if let Some(id) = mal_id {
         push_param("mal_id", &id.to_string());
     }
-    if let Some(id) = mangadex_id {
-        if !id.is_empty() {
+    if let Some(id) = mangadex_id
+        && !id.is_empty() {
             push_param("mangadex_id", id);
         }
-    }
     if !locales.is_empty() {
         push_param("locales", &locales.join(","));
     }

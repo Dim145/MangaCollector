@@ -31,9 +31,19 @@ import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
-import CommandPalette from "@/components/CommandPalette.jsx";
-import ShortcutsCheatSheet from "@/components/ShortcutsCheatSheet.jsx";
 import MangaPageSkeleton from "@/components/MangaPageSkeleton.jsx";
+
+// 鍵 · CommandPalette + ShortcutsCheatSheet are gated behind global
+// keypresses (`⌘K` and `?`) — they're never on screen at first paint.
+// Lazy-loading them defers ~10 KB gzip from the main entry chunk to a
+// post-mount fetch on the first user gesture, with no perceptible UX
+// delay (the chunk is small and the fetch happens once per session).
+// Wrapped in <Suspense fallback={null}> below so the chunk-load is
+// invisible.
+const CommandPalette = lazy(() => import("@/components/CommandPalette.jsx"));
+const ShortcutsCheatSheet = lazy(() =>
+  import("@/components/ShortcutsCheatSheet.jsx"),
+);
 
 // Lazy routes — each lands in its own JS chunk so first paint ships less.
 // Recharts rides with ProfilePage, @zxing rides with AddPage via its own
@@ -269,11 +279,19 @@ function AppShell() {
       <Header />
       <OfflineBanner />
       <SyncToaster />
-      <CommandPalette />
-      <ShortcutsCheatSheet
-        open={cheatSheetOpen}
-        onClose={() => setCheatSheetOpen(false)}
-      />
+      {/* Keypress-gated overlays — wrapped in their own Suspense so a
+          chunk-load failure (offline at the moment of first ⌘K) doesn't
+          crash the whole tree. `fallback={null}` is intentional: the
+          first ⌘K press has nothing to show during the network fetch,
+          and the second press will hit the cached chunk and open
+          instantly. */}
+      <Suspense fallback={null}>
+        <CommandPalette />
+        <ShortcutsCheatSheet
+          open={cheatSheetOpen}
+          onClose={() => setCheatSheetOpen(false)}
+        />
+      </Suspense>
       <main className="relative">
         {/* 災 · ErrorBoundary outside Suspense so a chunk-load failure
             (deploy invalidated cached chunks, offline burst, …) shows

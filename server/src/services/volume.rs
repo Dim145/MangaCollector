@@ -50,6 +50,12 @@ pub async fn get_all_for_user_by_mal_id(
         .map_err(AppError::from)
 }
 
+// 9 positional args — acknowledged. Wrapping in a struct here would
+// require touching every caller (handler + activity emitter + test
+// fixture); the call site is also internal, never user-facing API.
+// The named record is the *contract* in models::volume::PatchVolume,
+// this fn is the dispatcher behind it.
+#[allow(clippy::too_many_arguments)]
 pub async fn update_by_id(
     db: &Db,
     id: i32,
@@ -182,8 +188,8 @@ pub async fn update_by_id(
 
     // Log ownership transitions only — price/store edits alone don't produce
     // an activity entry.
-    if let Some(prev) = existing {
-        if prev.owned != owned {
+    if let Some(prev) = existing
+        && prev.owned != owned {
             let mal_id = prev.mal_id.unwrap_or(0);
             // Series name is a nice-to-have for the activity feed —
             // failing to fetch it shouldn't block the ownership flip,
@@ -223,7 +229,6 @@ pub async fn update_by_id(
             )
             .await;
         }
-    }
 
     Ok(())
 }
@@ -580,22 +585,6 @@ pub async fn delete_manual_volume(
     Ok(())
 }
 
-pub async fn add_volume(db: &Db, user_id: i32, mal_id: i32, vol_num: i32) -> Result<Volume, AppError> {
-    let now = Utc::now();
-    let model = ActiveModel {
-        created_on: Set(now),
-        modified_on: Set(now),
-        user_id: Set(user_id),
-        mal_id: Set(Some(mal_id)),
-        vol_num: Set(vol_num),
-        owned: Set(false),
-        price: Set(None),
-        store: Set(Some(String::new())),
-        ..Default::default()
-    };
-    model.insert(db).await.map_err(AppError::from)
-}
-
 pub async fn add_volume_tx(
     conn: &impl ConnectionTrait,
     user_id: i32,
@@ -632,8 +621,8 @@ pub async fn delete_all_for_user_by_mal_id_tx(
     Ok(())
 }
 
-pub async fn remove_volume_by_num(
-    db: &Db,
+pub async fn remove_volume_by_num_tx(
+    conn: &impl ConnectionTrait,
     user_id: i32,
     mal_id: i32,
     vol_num: i32,
@@ -642,7 +631,7 @@ pub async fn remove_volume_by_num(
         .filter(volume::Column::UserId.eq(user_id))
         .filter(volume::Column::MalId.eq(mal_id))
         .filter(volume::Column::VolNum.eq(vol_num))
-        .exec(db)
+        .exec(conn)
         .await
         .map_err(AppError::from)?;
     Ok(())

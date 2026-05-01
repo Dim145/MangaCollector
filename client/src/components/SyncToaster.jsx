@@ -27,6 +27,21 @@ import { useT } from "@/i18n/index.jsx";
 const ERROR_TTL_MS = 6_000;
 const INFO_TTL_MS = 5_000;
 
+// 印 · Toast id generator. Two events firing in the same millisecond
+// (e.g. an outbox flush settling several mutations together) need
+// distinct keys for React's reconciliation. `crypto.randomUUID()`
+// gives us a collision-proof token in modern browsers; the
+// `Math.random` fallback keeps the toast working in older WebView
+// surfaces (notably some embedded browsers and very old Safari) at
+// the cost of a theoretical collision window which is acceptable
+// because toast ids never leave the React tree.
+function randomToken() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2);
+}
+
 export default function SyncToaster() {
   const [toasts, setToasts] = useState([]);
   const t = useT();
@@ -39,7 +54,7 @@ export default function SyncToaster() {
     // notifySync* call site. One source of truth → no double-fire when
     // a call site emits both a toast and an explicit sound.
     const offError = onSyncError((e) => {
-      const id = `err-${Date.now()}-${Math.random()}`;
+      const id = `err-${Date.now()}-${randomToken()}`;
       setToasts((prev) => [
         ...prev,
         {
@@ -63,7 +78,7 @@ export default function SyncToaster() {
     // we don't have to keep an op-to-message switch in the toaster.
     const offInfo = onSyncInfo((e) => {
       const p = e.detail || {};
-      const id = `info-${Date.now()}-${Math.random()}`;
+      const id = `info-${Date.now()}-${randomToken()}`;
       const tone = p.tone === "neutral" ? "neutral" : "success";
       setToasts((prev) => [
         ...prev,

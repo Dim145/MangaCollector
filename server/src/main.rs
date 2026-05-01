@@ -20,7 +20,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Router;
 use http::{HeaderValue, Method, StatusCode};
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, DefaultOnResponse, TraceLayer};
 use tower_sessions::cookie::time::Duration;
@@ -424,15 +424,33 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    // CORS
+    // CORS — explicitly allow only the methods + headers the SPA
+    // actually uses. The earlier `Any` permission was already gated by
+    // the CSRF Origin guard, but defence-in-depth: a future endpoint
+    // that forgets the guard still benefits from a tight CORS contract.
     let origin: HeaderValue = frontend_url
         .parse()
         .expect("FRONTEND_URL must be a valid header value");
 
     let cors = CorsLayer::new()
         .allow_origin(origin)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_credentials(true)
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PATCH,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::ORIGIN,
+            axum::http::header::COOKIE,
+            axum::http::header::HeaderName::from_static("x-requested-with"),
+        ]);
 
     // Router
     //

@@ -14,6 +14,7 @@
 
 use chrono::Utc;
 use serde::Deserialize;
+use std::time::Duration;
 
 use crate::errors::AppError;
 use crate::models::archive::{
@@ -24,6 +25,15 @@ use crate::models::archive::{
 /// limits. Any list longer is truncated and the client is informed via
 /// the preview (which reports `total_in_file`).
 const MAX_ENTRIES: usize = 500;
+
+/// Per-request timeout for outbound calls (Jikan, AniList, MangaDex).
+/// The shared `reqwest::Client` from `main.rs` carries a 30 s default,
+/// but a paginated MAL fetch can chain up to 50 pages × 25 entries —
+/// without a tighter ceiling here, a slow upstream could park one
+/// request for ~25 minutes per import. 10 s is generous for any healthy
+/// upstream, fast enough that a hanging service is detected within a
+/// user-tolerable window.
+const EXTERNAL_FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 
 /* ══════════════════════════════════════════════════════════════════
  *  MyAnimeList — via Jikan (unofficial REST gateway for MAL).
@@ -121,6 +131,7 @@ pub async fn fetch_mal_by_username(
         );
         let resp = client
             .get(&url)
+            .timeout(EXTERNAL_FETCH_TIMEOUT)
             .send()
             .await
             .map_err(|e| AppError::BadRequest(format!("MAL fetch failed: {e}")))?;
@@ -313,6 +324,7 @@ pub async fn fetch_anilist_by_username(
         .header("Content-Type", "application/json")
         .header("Accept", "application/json")
         .json(&body)
+        .timeout(EXTERNAL_FETCH_TIMEOUT)
         .send()
         .await
         .map_err(|e| AppError::BadRequest(format!("AniList fetch failed: {e}")))?;
@@ -330,8 +342,8 @@ pub async fn fetch_anilist_by_username(
         .json()
         .await
         .map_err(|e| AppError::BadRequest(format!("AniList parse error: {e}")))?;
-    if let Some(errors) = parsed.errors {
-        if !errors.is_empty() {
+    if let Some(errors) = parsed.errors
+        && !errors.is_empty() {
             let msg = errors
                 .into_iter()
                 .map(|e| e.message)
@@ -339,7 +351,6 @@ pub async fn fetch_anilist_by_username(
                 .join("; ");
             return Err(AppError::BadRequest(format!("AniList: {msg}")));
         }
-    }
     let coll = parsed
         .data
         .and_then(|d| d.media_list_collection)
@@ -454,18 +465,21 @@ pub async fn fetch_mangadex_by_input(
             list_id
         );
         let ua = concat!("MangaCollector/", env!("CARGO_PKG_VERSION"));
-        let resp = client.get(&url).header("User-Agent", ua).send().await;
-        if let Ok(r) = resp {
-            if r.status().is_success() {
-                if let Ok(body) = r.json::<MdListResponse>().await {
+        let resp = client
+            .get(&url)
+            .header("User-Agent", ua)
+            .timeout(EXTERNAL_FETCH_TIMEOUT)
+            .send()
+            .await;
+        if let Ok(r) = resp
+            && r.status().is_success()
+                && let Ok(body) = r.json::<MdListResponse>().await {
                     for rel in body.data.relationships {
                         if rel.rel_type == "manga" {
                             manga_ids.push(rel.id);
                         }
                     }
                 }
-            }
-        }
         // Fallback: treat the single UUID as a manga ID.
         if manga_ids.is_empty() {
             manga_ids.push(list_id.clone());

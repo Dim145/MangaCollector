@@ -45,7 +45,7 @@ pub async fn delete_tower_session(
         sea_orm::DatabaseBackend::Postgres,
         // SAFE — `SESSION_TABLE` is a fixed `&'static str` literal, no
         // user input is interpolated into the SQL.
-        &format!("DELETE FROM {SESSION_TABLE} WHERE id = $1"),
+        format!("DELETE FROM {SESSION_TABLE} WHERE id = $1"),
         [session_id.into()],
     );
     let res = db.execute(stmt).await?;
@@ -70,7 +70,7 @@ pub async fn upstream_session_alive(
 ) -> bool {
     let stmt = Statement::from_sql_and_values(
         sea_orm::DatabaseBackend::Postgres,
-        &format!(
+        format!(
             "SELECT 1 FROM {SESSION_TABLE} WHERE id = $1 AND expiry_date > NOW() LIMIT 1"
         ),
         [session_id.into()],

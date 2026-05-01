@@ -131,18 +131,19 @@ pub async fn get_poster(
         }
     };
 
+    // `format!()` for content-disposition keeps the dynamic mal_id; the
+    // static headers use `from_static` to avoid the runtime parse + the
+    // ergonomic `.unwrap()` panic site, which clippy flags otherwise.
+    let disposition = format!("inline; filename=\"{}_poster\"", mal_id)
+        .parse()
+        .map_err(|e| AppError::Internal(format!("disposition header: {e}")))?;
     let response = (
         [
             (
                 header::CONTENT_TYPE,
-                "image/jpeg".parse::<http::HeaderValue>().unwrap(),
+                http::HeaderValue::from_static("image/jpeg"),
             ),
-            (
-                header::CONTENT_DISPOSITION,
-                format!("inline; filename=\"{}_poster\"", mal_id)
-                    .parse()
-                    .unwrap(),
-            ),
+            (header::CONTENT_DISPOSITION, disposition),
             (
                 // `private` is critical: the URL `/api/user/storage/
                 // poster/{mal_id}` is stable across users (two users who
@@ -154,7 +155,7 @@ pub async fn get_poster(
                 // from storing the response — only the end-user's
                 // browser keeps it, scoped to their own session.
                 header::CACHE_CONTROL,
-                "private, max-age=425061".parse().unwrap(),
+                http::HeaderValue::from_static("private, max-age=425061"),
             ),
         ],
         Body::from(data),
@@ -171,13 +172,27 @@ pub async fn upload_poster(
     Path(mal_id): Path<i32>,
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    // Extract the "poster" field from multipart
+    // Extract the "poster" field from multipart. Bound the number of
+    // unrelated fields we'll scan past before giving up — a malformed
+    // or malicious client could ship hundreds of empty/unrelated
+    // fields ahead of the poster (or no poster at all) just to keep
+    // the connection open and burn one of our worker slots. The body
+    // size limit caps the byte budget; this caps the field-count
+    // budget on top.
+    const MAX_FIELDS_SCANNED: usize = 8;
     let mut poster_bytes: Option<bytes::Bytes> = None;
+    let mut scanned = 0usize;
     while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|e| AppError::BadRequest(e.to_string()))?
     {
+        scanned += 1;
+        if scanned > MAX_FIELDS_SCANNED {
+            return Err(AppError::BadRequest(
+                "Too many multipart fields; expected `poster`".into(),
+            ));
+        }
         if field.name() == Some("poster") {
             poster_bytes = Some(
                 field

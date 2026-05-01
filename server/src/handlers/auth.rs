@@ -74,6 +74,12 @@ pub async fn oauth_callback(
     let _ = session.remove::<String>(SESSION_CSRF_TOKEN).await;
     let _ = session.remove::<String>(SESSION_NONCE).await;
 
+    // 認 · OIDC token exchange + ID-token verification. Failures here
+    // are protocol-level auth errors (revoked code, mismatched
+    // audience, expired discovery doc, attacker probe) — that's a
+    // 401, not a 5xx. The previous `AppError::Internal` mapping was
+    // drowning real server bugs in attacker-probe noise on the metrics
+    // dashboard.
     let user_info = exchange_code_for_user(
         &state.oidc_client.client,
         &state.oidc_client.http_client,
@@ -82,19 +88,20 @@ pub async fn oauth_callback(
         nonce,
     )
     .await
-    .map_err(|e| AppError::Internal(e.to_string()))?;
+    .map_err(|e| {
+        tracing::warn!(%e, "oauth callback: token exchange / id-token verification failed");
+        AppError::Unauthorized
+    })?;
 
-    // Find or create user
-    let user = match users::find_by_provider_id(&state.db, &user_info.provider_id).await? {
-        Some(u) => u,
-        None => users::create(
-            &state.db,
-            &user_info.provider_id,
-            user_info.email.as_deref(),
-            user_info.name.as_deref(),
-        )
-        .await?,
-    };
+    // Race-free upsert — see `users::find_or_create` for the
+    // double-click / replay scenario this guards against.
+    let user = users::find_or_create(
+        &state.db,
+        &user_info.provider_id,
+        user_info.email.as_deref(),
+        user_info.name.as_deref(),
+    )
+    .await?;
 
     // 印 · Rotate the session id on authentication. Classic
     // session-fixation defence: if the user arrived at this callback
@@ -162,13 +169,28 @@ pub async fn oauth_callback(
         // which was a red herring once we re-ordered the calls.
         AppError::Internal("session record unavailable after save".into())
     })?;
+    // Cap at 512 chars — User-Agent is attacker-controlled, and a
+    // pathological client could ship a 100 KB string into the DB row
+    // otherwise. 512 is generous for any real browser UA while
+    // keeping the meta row bounded.
+    const MAX_UA_LEN: usize = 512;
     let user_agent = headers
         .get(axum::http::header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string());
+        .map(|s| {
+            if s.len() > MAX_UA_LEN {
+                s.chars().take(MAX_UA_LEN).collect()
+            } else {
+                s.to_string()
+            }
+        });
     sessions::record_login(&state.db, &session_id, user.id, user_agent).await?;
 
-    Ok(Redirect::to(&state.config.frontend_url))
+    // Trim a trailing slash on `frontend_url` so a misconfigured env
+    // var like `FRONTEND_URL=https://example.com/` doesn't redirect
+    // to `https://example.com//` (some browsers preserve the double
+    // slash, some normalise — better to be deterministic here).
+    Ok(Redirect::to(state.config.frontend_url.trim_end_matches('/')))
 }
 
 /// GET /api/user/sessions — list every active session for the current user.

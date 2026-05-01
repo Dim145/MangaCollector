@@ -6,7 +6,7 @@
 //! deals with data portability.
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use std::collections::{HashMap, HashSet};
 
 use crate::db::Db;
@@ -18,7 +18,7 @@ use crate::models::archive::{
 use crate::models::coffret::{self, Entity as CoffretEntity};
 use crate::models::library::{self, Entity as LibraryEntity};
 use crate::models::setting::Entity as SettingEntity;
-use crate::models::user::{Entity as UserEntity, User};
+use crate::models::user::User;
 use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
 
 /// Build a complete export bundle for the given user.
@@ -124,7 +124,7 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
             coffrets,
         });
     }
-    library.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    library.sort_by_key(|a| a.name.to_lowercase());
 
     Ok(ExportBundle {
         version: EXPORT_VERSION,
@@ -264,6 +264,15 @@ pub async fn apply_import_merge(
         ..Default::default()
     };
 
+    // 一括 · Wrap every write in a single transaction. A failure mid-
+    // bundle (DB blip, broken row, unique-index conflict on a custom
+    // mal_id) used to leave a half-imported library + orphan volumes/
+    // coffrets committed; rolling back the txn keeps the state
+    // consistent. For dry_run we still open a txn — the cost of an
+    // empty BEGIN/ROLLBACK is negligible and the code path is simpler
+    // without a `Option<DatabaseTransaction>` branch.
+    let txn = db.begin().await.map_err(AppError::from)?;
+
     for series in &bundle.library {
         if series.name.trim().is_empty() || series.volumes < 0 {
             preview.skipped_invalid += 1;
@@ -271,8 +280,8 @@ pub async fn apply_import_merge(
         }
         // Conflict check: if the bundle carries a positive mal_id that
         // matches an existing library row, skip in merge mode.
-        if let Some(mal) = series.mal_id {
-            if mal > 0 && existing_mal_ids.contains(&mal) {
+        if let Some(mal) = series.mal_id
+            && mal > 0 && existing_mal_ids.contains(&mal) {
                 preview.skipped_conflict += 1;
                 preview.conflict_series.push(ImportAddedSummary {
                     mal_id: Some(mal),
@@ -286,7 +295,6 @@ pub async fn apply_import_merge(
                 });
                 continue;
             }
-        }
 
         preview.added += 1;
         let owned_count = series
@@ -351,7 +359,7 @@ pub async fn apply_import_merge(
             modified_on: Set(now),
             ..Default::default()
         };
-        lib_active.insert(db).await.map_err(AppError::from)?;
+        lib_active.insert(&txn).await.map_err(AppError::from)?;
 
         // Volumes — two codepaths:
         //
@@ -388,7 +396,7 @@ pub async fn apply_import_merge(
                     modified_on: Set(now),
                     ..Default::default()
                 };
-                active.insert(db).await.map_err(AppError::from)?;
+                active.insert(&txn).await.map_err(AppError::from)?;
             }
         } else if series_volumes > 0 {
             let owned_up_to = series_volumes_owned;
@@ -406,7 +414,7 @@ pub async fn apply_import_merge(
                     modified_on: Set(now),
                     ..Default::default()
                 };
-                active.insert(db).await.map_err(AppError::from)?;
+                active.insert(&txn).await.map_err(AppError::from)?;
             }
         }
 
@@ -428,12 +436,20 @@ pub async fn apply_import_merge(
                 modified_on: Set(now),
                 ..Default::default()
             };
-            active.insert(db).await.map_err(AppError::from)?;
+            active.insert(&txn).await.map_err(AppError::from)?;
         }
     }
 
-    // Swallow the unused-arg warning.
-    let _ = UserEntity::find_by_id(user.id);
+    // 確 · Settle the transaction. Dry-run rolls back so the BEGIN
+    // doesn't burn an unused commit slot in postgres' WAL; live
+    // imports commit so the writes become visible to subsequent
+    // queries (and to the realtime broadcast that fires after this
+    // function returns).
+    if dry_run {
+        txn.rollback().await.map_err(AppError::from)?;
+    } else {
+        txn.commit().await.map_err(AppError::from)?;
+    }
 
     Ok(preview)
 }
