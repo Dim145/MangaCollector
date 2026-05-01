@@ -25,13 +25,36 @@ pub struct Model {
     /// Free-text edition variant (Standard, Kanzenban, Deluxe…). Same
     /// validation contract as `publisher`.
     pub edition: Option<String>,
+    /// 記憶 Kioku · Free-text personal review of the series as a
+    /// whole. Distinct from per-volume `notes` — this is the user's
+    /// reflection on the work, not a per-tome data field. Capped at
+    /// 5 000 chars (mirrored in the textarea maxLength on the SPA).
+    pub review: Option<String>,
+    /// True iff `review` should be surfaced on the user's public
+    /// profile. NOT enough on its own — the user must also have a
+    /// `public_slug` set; the public-profile builder enforces both.
+    pub review_public: bool,
+    /// 作家 Sakka · Mangaka / author credit. Populated from MAL on
+    /// add/refresh; users can override it via the edit form on
+    /// custom rows. NULL for entries with no upstream metadata or
+    /// custom rows the user hasn't filled in yet.
+    pub author: Option<String>,
 }
+
+/// Maximum length for the author/mangaka column. 120 chars holds the
+/// longest known multi-credit strings ("Story by X / Art by Y") with
+/// breathing room for unicode.
+pub const AUTHOR_MAX_LEN: usize = 120;
 
 /// Maximum byte length (after trim) for `publisher` / `edition`. Picked
 /// to comfortably hold "Édition originale collector" or longest known
 /// imprint names without letting a malicious client paste a megabyte.
 pub const PUBLISHER_MAX_LEN: usize = 80;
 pub const EDITION_MAX_LEN: usize = 60;
+/// Per-row review cap. 5 000 chars holds a comfortable few paragraphs
+/// while keeping the public profile rendering predictable. Mirrored in
+/// the SPA's textarea maxLength.
+pub const REVIEW_MAX_LEN: usize = 5_000;
 
 /// Per-genre length cap and per-row count cap, used by `sanitize_genres`.
 /// 40 chars is roomy enough for "Slice of Life" or "Comédie romantique"
@@ -111,6 +134,9 @@ pub struct LibraryEntry {
     pub mangadex_id: Option<String>,
     pub publisher: Option<String>,
     pub edition: Option<String>,
+    pub review: Option<String>,
+    pub review_public: bool,
+    pub author: Option<String>,
 }
 
 impl From<Model> for LibraryEntry {
@@ -138,6 +164,9 @@ impl From<Model> for LibraryEntry {
             mangadex_id: row.mangadex_id,
             publisher: row.publisher,
             edition: row.edition,
+            review: row.review,
+            review_public: row.review_public,
+            author: row.author,
         }
     }
 }
@@ -222,6 +251,23 @@ pub struct UpdateLibraryRequest {
     /// can send `null` to clear all genres on a custom row.
     #[serde(default, deserialize_with = "deserialize_optional_genres")]
     pub genres: Option<Option<Vec<String>>>,
+    /// 記憶 · Personal review on the series. Three-state via
+    /// `Option<Option<String>>` exactly like `publisher` / `edition`:
+    ///   - field absent → leave the column untouched
+    ///   - `null` or `""` → clear the review
+    ///   - non-empty string → trim, clamp to `REVIEW_MAX_LEN`, persist
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub review: Option<Option<String>>,
+    /// `Some(true)`/`Some(false)` flips visibility, `None` leaves
+    /// alone. Plain `Option<bool>` (not nested) — the public flag is
+    /// boolean-valued, no "absent vs. null" distinction needed.
+    pub review_public: Option<bool>,
+    /// 作家 · Manual author override (custom rows mostly). Same
+    /// nested-Option shape as publisher/edition: omitted/null/value
+    /// → leave/clear/set, with `sanitize_label` capping at
+    /// `AUTHOR_MAX_LEN`.
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub author: Option<Option<String>>,
 }
 
 /// Three-state deserializer: omitted / null / value. Lets the handler

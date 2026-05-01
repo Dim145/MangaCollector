@@ -367,6 +367,26 @@ export default function ProfilePage({ googleUser }) {
                     </span>
                   )}
                 </div>
+                {/* 山積 · Backlog audit — peer chip alongside Year-in-
+                    Review and Shelf-snapshot. Pile lives conceptually
+                    next to the analytics here rather than as a
+                    standalone menu entry; surfacing it as a third chip
+                    keeps the trio of "look back / share / what's still
+                    pending" together. Hanko outline (vs gold/sakura)
+                    so the eye distinguishes the three at a glance. */}
+                <Link
+                  to="/backlog"
+                  className="inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="font-jp text-sm font-bold leading-none not-italic"
+                  >
+                    山
+                  </span>
+                  {t("profile.backlogCta")}
+                  <span aria-hidden="true">→</span>
+                </Link>
               </div>
             </div>
           </div>

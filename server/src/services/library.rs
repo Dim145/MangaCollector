@@ -11,7 +11,7 @@ use crate::models::activity::event_types;
 use crate::models::library::{
     self, ActiveModel, AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest,
     EDITION_MAX_LEN, Entity as LibraryEntity, LibraryEntry, PUBLISHER_MAX_LEN,
-    UpdateLibraryRequest, sanitize_genres, sanitize_label,
+    AUTHOR_MAX_LEN, REVIEW_MAX_LEN, UpdateLibraryRequest, sanitize_genres, sanitize_label,
 };
 use crate::services::cache::CacheStore;
 use crate::services::{activity, mangadex_api, settings, volume};
@@ -661,10 +661,16 @@ pub async fn apply_library_patch(
         update_manga_volumes(db, mal_id, user_id, new_volumes).await?;
     }
 
-    // publisher / edition / genres are independent of the volumes path.
-    // Skip the round-trip when none of them are present (the common case
-    // for a pure volumes PATCH).
-    if body.publisher.is_none() && body.edition.is_none() && body.genres.is_none() {
+    // publisher / edition / genres / review are independent of the volumes
+    // path. Skip the round-trip when none of them are present (the common
+    // case for a pure volumes PATCH).
+    if body.publisher.is_none()
+        && body.edition.is_none()
+        && body.genres.is_none()
+        && body.review.is_none()
+        && body.review_public.is_none()
+        && body.author.is_none()
+    {
         return Ok(());
     }
 
@@ -722,6 +728,27 @@ pub async fn apply_library_patch(
         // the same condition, so this branch only runs for stale or
         // crafted requests; rejecting them with 4xx would be louder than
         // necessary.
+
+    // 記憶 · Review text + visibility flag. Same trim/clamp/empty→None
+    // contract as publisher/edition (sanitize_label). Visibility flag
+    // is plain Option<bool> — no nested-Option needed since false is
+    // a meaningful "make it private" signal, not "absence".
+    if let Some(raw_review) = body.review {
+        active.review = Set(sanitize_label(raw_review, REVIEW_MAX_LEN));
+    }
+    if let Some(public) = body.review_public {
+        active.review_public = Set(public);
+    }
+    // 作家 · Author override — same trim/clamp/empty→None contract.
+    // Available on every row (not gated to custom-only): even on a
+    // MAL-linked series, the user can override "Hideo Kojima"
+    // attribution if MAL's metadata is wrong. The next refresh from
+    // MAL only re-writes when the column is empty, so the override
+    // sticks across syncs.
+    if let Some(raw_author) = body.author {
+        active.author = Set(sanitize_label(raw_author, AUTHOR_MAX_LEN));
+    }
+
     active.modified_on = Set(Utc::now());
     active.update(db).await.map_err(AppError::from)?;
     Ok(())
@@ -926,6 +953,16 @@ pub async fn update_infos_from_mal(
         .or_else(|| mal_data.title.clone())
         .unwrap_or_default();
 
+    // 作家 · MAL ships authors as "Family, Given" (Japanese convention).
+    // Flip to Western "Given Family" for consistency with how the SPA
+    // renders names elsewhere. Empty / missing authors fold to None
+    // (the column is nullable; no point storing "").
+    let resolved_author: Option<String> = mal_data
+        .authors
+        .as_ref()
+        .and_then(|list| list.iter().find(|a| !a.name.trim().is_empty()))
+        .map(|a| flip_author_name(&a.name));
+
     // Fetch the library rows for this user+manga and update them
     let rows = LibraryEntity::find()
         .filter(library::Column::MalId.eq(mal_id))
@@ -968,13 +1005,39 @@ pub async fn update_infos_from_mal(
             image_update = Some(new_url);
         }
 
+        let prior_author = row.author.clone();
         let mut active: ActiveModel = row.into();
         active.genres = Set(Some(genres.join(",")));
         active.name = Set(resolved_name.clone());
         active.image_url_jpg = Set(image_update);
+        // 作家 · Honour user overrides — only write the author column
+        // when MAL has a value AND the column is currently empty. A
+        // user who typed their own author credit on a Japanese-original
+        // work shouldn't have it clobbered by a re-fetch from MAL. The
+        // edit form is the authoritative path once the user touches
+        // the field.
+        if prior_author.is_none() && resolved_author.is_some() {
+            active.author = Set(resolved_author.clone());
+        }
         active.modified_on = Set(now);
         active.update(db).await.map_err(AppError::from)?;
     }
 
     Ok((genres, resolved_name))
+}
+
+/// "Family, Given" → "Given Family". MAL/Jikan ships Japanese authors
+/// in Family-Given order with a comma separator; UI elsewhere renders
+/// Western order, so we flip on persistence to keep the rendering
+/// layer comma-free. Names without a comma are returned untouched.
+fn flip_author_name(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if let Some((family, given)) = trimmed.split_once(',') {
+        let family = family.trim();
+        let given = given.trim();
+        if !family.is_empty() && !given.is_empty() {
+            return format!("{} {}", given, family);
+        }
+    }
+    trimmed.to_string()
 }

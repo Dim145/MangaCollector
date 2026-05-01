@@ -67,6 +67,8 @@ const ShelfStickersPage = lazy(() =>
 );
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
 const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
+const AuthorPage = lazy(() => import("./components/AuthorPage.jsx"));
+const BacklogPage = lazy(() => import("./components/BacklogPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -376,6 +378,28 @@ function AppShell() {
                 filters adult content + sensitive fields. */}
             <Route path="/u/:slug" element={<PublicProfile />} />
             <Route path="/glossary" element={<GlossaryPage />} />
+            {/* 作家 · Per-author detail — reverse-lookup of all your
+                series by the same mangaka. URL-encoded name in the
+                segment so "Sui Ishida" → /author/Sui%20Ishida.
+                Authenticated since it reads the personal library. */}
+            <Route
+              path="/author/:name"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <AuthorPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 山積 · Backlog audit — owned-but-unread analytics. Pure
+                client read from Dexie, works offline. */}
+            <Route
+              path="/backlog"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <BacklogPage />
+                </ProtectedRoute>
+              }
+            />
             {/* External imports — accessed from Settings → Archive. */}
             <Route
               path="/settings/import-external"

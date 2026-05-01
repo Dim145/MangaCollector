@@ -71,7 +71,7 @@ services:
     image: dim145/mangacollector-back:latest
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.server.rule=PathPrefix(`/api`) || PathPrefix(`/auth`)"
+      - "traefik.http.routers.server.rule=PathPrefix(`/api/`) || PathPrefix(`/auth/`)"
       - "traefik.http.services.server.loadbalancer.server.port=3000"
     ports:
       - "3000:3000"

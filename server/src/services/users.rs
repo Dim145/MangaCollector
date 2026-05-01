@@ -319,6 +319,22 @@ pub async fn build_public_profile(
             other => other,
         };
 
+        // 記憶 · Only attach the review when the owner has explicitly
+        // flipped its visibility. Empty/whitespace-only reviews are
+        // treated as no-review (defensive — sanitize_label folds them
+        // to None in the patch path, but a row inserted via direct DB
+        // intervention or a rolled-back schema could in theory carry
+        // an empty string).
+        let public_review = if row.review_public {
+            row.review
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+        } else {
+            None
+        };
+
         entries.push(PublicLibraryEntry {
             mal_id: row.mal_id,
             name: row.name,
@@ -330,6 +346,7 @@ pub async fn build_public_profile(
             all_collector,
             read_percent,
             is_adult,
+            review: public_review,
         });
     }
 

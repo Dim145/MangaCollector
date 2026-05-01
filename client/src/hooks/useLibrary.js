@@ -117,7 +117,15 @@ export function useUpdateVolumesOwned() {
  */
 export function useUpdateMangaMeta() {
   return useMutation({
-    mutationFn: async ({ mal_id, publisher, edition, genres }) => {
+    mutationFn: async ({
+      mal_id,
+      publisher,
+      edition,
+      genres,
+      review,
+      review_public,
+      author,
+    }) => {
       const fields = {};
       if (publisher !== undefined) fields.publisher = publisher;
       if (edition !== undefined) fields.edition = edition;
@@ -126,6 +134,15 @@ export function useUpdateMangaMeta() {
       // to apply the same gate so a non-custom row never reaches this
       // mutation in the first place.
       if (genres !== undefined) fields.genres = genres;
+      // 記憶 · Review text + visibility flag, and 作家 author
+      // override. All four flow through `enqueueLibraryPatch` →
+      // outbox flush → `PATCH /api/user/library/{mal_id}`. The
+      // earlier revision destructured only publisher/edition/genres,
+      // so a save with `review` set silently dropped the field on
+      // the floor before reaching the outbox.
+      if (review !== undefined) fields.review = review;
+      if (review_public !== undefined) fields.review_public = review_public;
+      if (author !== undefined) fields.author = author;
       await enqueueLibraryPatch(mal_id, fields);
       return { mal_id, ...fields };
     },

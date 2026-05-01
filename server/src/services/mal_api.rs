@@ -32,6 +32,17 @@ pub struct MalGenre {
     pub name: String,
 }
 
+/// 作家 · MAL author entry — shipped under `authors` on /full responses.
+///
+/// Multiple authors are common (writer + artist on shōnen, or
+/// `"Story by" / "Art by"` on collaborations); we collect them all
+/// but only the first non-empty `name` becomes the canonical
+/// `author` we persist.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct MalAuthor {
+    pub name: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MalMangaData {
     pub mal_id: i32,
@@ -42,6 +53,11 @@ pub struct MalMangaData {
     pub genres: Option<Vec<MalGenre>>,
     pub explicit_genres: Option<Vec<MalGenre>>,
     pub demographics: Option<Vec<MalGenre>>,
+    /// `authors` from /v4/manga/{id}/full — array of name + role
+    /// pairs. Always Some on real responses, but defensive Option so
+    /// a flaky upstream doesn't break the deserializer.
+    #[serde(default)]
+    pub authors: Option<Vec<MalAuthor>>,
 }
 
 /// MAL metadata rarely changes — a 24h TTL is a good balance between

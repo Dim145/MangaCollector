@@ -819,6 +819,23 @@
   }
 }
 
+/* 積 · Reading-pile spine entry — each book "slides into the pile"
+   from the right with a slight resting tilt at the end. The
+   per-card rotation is set inline via JSX so it picks up the
+   alternating ±0.4° from the index-parity rule; this keyframe
+   handles only the translate + opacity arc. Cubic-out easing
+   makes the card decelerate as it lands. */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(48px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @keyframes shimmer {
   0% {
     background-position: -200% 0;
@@ -2382,6 +2399,9 @@
 }
 .animate-slide-down {
   animation: slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .animate-shimmer {
   background: linear-gradient(

@@ -101,7 +101,7 @@ export async function enqueueLibraryPatch(mal_id, fields) {
   const next = {};
   if ("volumes" in fields) next.volumes = fields.volumes;
   if ("image_url_jpg" in fields) next.image_url_jpg = fields.image_url_jpg;
-  for (const key of ["publisher", "edition"]) {
+  for (const key of ["publisher", "edition", "review", "author"]) {
     if (!(key in fields)) continue;
     const raw = fields[key];
     if (raw == null) {
@@ -110,6 +110,12 @@ export async function enqueueLibraryPatch(mal_id, fields) {
       const trimmed = String(raw).trim();
       next[key] = trimmed === "" ? null : trimmed;
     }
+  }
+  // 公 · `review_public` is plain boolean — no trim/empty contract.
+  // Skip normalisation, just pass through (server treats null as "leave
+  // the flag alone" — see UpdateLibraryRequest::review_public).
+  if ("review_public" in fields) {
+    next.review_public = Boolean(fields.review_public);
   }
   // Genres ride as an array (not a comma-string). Server-side sanitize
   // (trim / dedup / cap) is the authoritative pass; we only do the
@@ -430,6 +436,11 @@ async function flushLibrary() {
         if (op.payload?.volumes != null) meta.volumes = op.payload.volumes;
         if ("publisher" in (op.payload ?? {})) meta.publisher = op.payload.publisher;
         if ("edition" in (op.payload ?? {})) meta.edition = op.payload.edition;
+        if ("review" in (op.payload ?? {})) meta.review = op.payload.review;
+        if ("review_public" in (op.payload ?? {})) {
+          meta.review_public = op.payload.review_public;
+        }
+        if ("author" in (op.payload ?? {})) meta.author = op.payload.author;
         // Genres ship as an array; server gates the write to custom-only
         // rows (mal_id < 0 AND mangadex_id IS NULL) and silently drops
         // the field on any other row. The frontend already only opens
