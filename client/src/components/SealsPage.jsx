@@ -209,8 +209,21 @@ export default function SealsPage() {
 
           {/* Two-column hero on desktop, stacked on mobile. The rank
               badge sits to the right where the eye lands after scanning
-              the title. */}
-          <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+              the title.
+
+              Inner padding on ALL FOUR sides of the grid pushes the
+              readable content away from the header's outer rectangle.
+              The watermark wrapper (`absolute inset-0`) above STILL
+              spans the full header bounds, but the bloom-to-page-bg
+              cutoff line at the rounded-3xl edge now has 16-32px of
+              breathing room between itself and the eyebrow / title /
+              counter / rank badge. Right padding (pr-3 md:pr-6)
+              specifically rescues the rank-badge column on lg+ — its
+              rotating rays would otherwise butt against the rounded
+              edge. The hard cropping is still there structurally, but
+              visually it reads as a soft frame instead of a clipped
+              edge. */}
+          <div className="relative grid gap-8 p-3 pt-4 md:p-6 md:pt-8 lg:grid-cols-[1fr_auto] lg:items-center">
             {/* LEFT: eyebrow / title / hero-stat / progress / lanterns */}
             <div className="min-w-0">
               <div className="flex items-baseline gap-3">
@@ -234,13 +247,50 @@ export default function SealsPage() {
                 {t("seals.subtitle")}
               </p>
 
-              {/* HERO STAT — the count gets the spotlight, not a ratio. */}
+              {/* HERO STAT — the count gets the spotlight, not a ratio.
+
+                  `pr-[0.3em]` on the gradient span fixes the "clipped
+                  digit" illusion. Fraunces Italic combines a ~12°
+                  rightward slant (`tan(12°) × cap-height` ≈ 14px at
+                  text-8xl) with decorative terminals on each digit
+                  (the curl of `7`, the foot of `1`) that extend even
+                  further right. `.text-hanko-gradient` uses
+                  `background-clip: text` + `color: transparent`, so
+                  the visible fill is the linear-gradient painted
+                  INSIDE the span's padding-box. Without padding-right,
+                  the slanted top + terminal of each digit sticks out
+                  past the paint area's right edge and renders
+                  transparent — looks clipped, is actually unpainted.
+
+                  `0.3em` (em-relative, NOT a fixed px value): the
+                  slant + terminal extent scales linearly with font
+                  size, so the padding has to scale too. At text-7xl
+                  that's ~21.6px, at text-8xl ~28.8px — comfortably
+                  past the worst-case glyph protrusion at each
+                  breakpoint. The slant is purely horizontal, so no
+                  `py-*` or extra `leading` is needed. */}
               <div className="mt-7 flex items-baseline gap-4">
+                {/* `-mr-[0.3em]` on the OUTER span (NOT on the next
+                    sibling div) cancels the inner gradient span's
+                    `pr-[0.3em]` exactly. The em unit must resolve
+                    against `text-7xl md:text-8xl`, so the negative
+                    margin has to live on an element that carries that
+                    font-size — the outer span does. Put on the next
+                    sibling div instead, the em would resolve against
+                    the inherited 16px base and only cancel ~5px out
+                    of the ~29px padding. With the cancel placed
+                    correctly, the layout box of the count returns to
+                    its un-padded width, leaving the flex `gap-4` as
+                    the only visible spacer between the digit and the
+                    "/ total" block — same kerning as before the
+                    italic-paint fix. */}
                 <span
-                  className="font-display text-7xl font-semibold italic leading-none tracking-tight text-washi md:text-8xl"
+                  className="font-display text-7xl font-semibold italic leading-none tracking-tight text-washi -mr-[0.3em] md:text-8xl"
                   style={{ textShadow: "0 4px 28px rgba(220,38,38,0.25)" }}
                 >
-                  <span className="text-hanko-gradient">{earnedCount}</span>
+                  <span className="text-hanko-gradient pr-[0.3em]">
+                    {earnedCount}
+                  </span>
                 </span>
                 <div className="flex flex-col gap-1 pb-1">
                   <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim">
