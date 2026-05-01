@@ -700,6 +700,18 @@ export default {
     "states_限_literal": "límite, contorno",
     "states_限_usage":
       "Edición limitada / coleccionista. Aparece como un pequeño sello 限 en la esquina de los tomos marcados.",
+    "states_連_literal": "vínculo, sucesión ininterrumpida",
+    "states_連_usage":
+      "Contador de días consecutivos con al menos una actividad. Aparece en la cinta del panel — discreto mientras mantienes el ritmo, encendido a partir de siete días seguidos.",
+    "states_新_literal": "nuevo, recién llegado",
+    "states_新_usage":
+      "Filtro temporal « Reciente » — series añadidas a la biblioteca en los últimos treinta días. Útil para recordar tus entusiasmos más frescos.",
+    "states_眠_literal": "sueño, latencia",
+    "states_眠_usage":
+      "Filtro « En reposo » — series sin actividad desde hace más de seis meses. La pila silenciosa que quizá convenga despertar.",
+    "states_慕_literal": "anhelar desde lejos, suspirar por",
+    "states_慕_usage":
+      "Filtro « Wishlist > 1 año » — series en la lista de deseos desde hace más de un año, sin empezar. La nostalgia paciente.",
 
     "actions_始_literal": "comenzar, iniciar",
     "actions_始_usage":
@@ -715,6 +727,21 @@ export default {
       "Añadir una nueva serie o un nuevo tomo a la colección.",
     "actions_編集_literal": "editar, compilar",
     "actions_編集_usage": "Modificar los detalles de una serie o un tomo.",
+    "actions_選_literal": "elegir, seleccionar",
+    "actions_選_usage":
+      "Modo de selección múltiple en el panel — pulsación larga en móvil, Cmd-clic en escritorio. La barra de acciones en bloque emerge desde abajo.",
+    "actions_削_literal": "recortar, suprimir",
+    "actions_削_usage":
+      "Acción de eliminación — disponible en la barra de acciones en bloque y en el detalle de una serie. Siempre con confirmación previa.",
+    "actions_鍵_literal": "llave, atajo",
+    "actions_鍵_usage":
+      "El recordatorio de atajos de teclado — se abre con « ? » desde cualquier página. Lista los chords « g d / g c / g p » y los atajos de los modales.",
+    "actions_解_literal": "deshacer, liberar",
+    "actions_解_usage":
+      "Limpiar los filtros activos — el chip « Limpiar » que aparece cuando un género o un filtro restringe la estantería.",
+    "actions_確_literal": "confirmar, certeza",
+    "actions_確_usage":
+      "El sello que confirma que un tomo acaba de entrar en la colección — un destello breve sobre la portada en el momento de marcarlo en posesión.",
 
     "places_本棚_literal": "estantería de libros",
     "places_本棚_usage":
@@ -744,6 +771,9 @@ export default {
     "vessels_あと少し_literal": "un poco más",
     "vessels_あと少し_usage":
       "Estante casi completo — series a las que solo les faltan unos pocos tomos para terminar.",
+    "vessels_棚_literal": "estante, balda",
+    "vessels_棚_usage":
+      "El estante en sí — ancla del modo 3D del panel (perspectiva + veta de madera) y de la captura compartible del perfil. Distinto de 本棚 (estantería de libros), que nombra la página entera.",
 
     "palette_漆黒_literal": "negro lacado, tinta china",
     "palette_漆黒_usage":

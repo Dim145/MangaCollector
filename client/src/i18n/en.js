@@ -695,6 +695,18 @@ export default {
     "states_限_literal": "limit, bound",
     "states_限_usage":
       "Limited / collector edition. Appears as a small 限 seal pinned to the corner of marked volumes.",
+    "states_連_literal": "link, unbroken sequence",
+    "states_連_usage":
+      "Counter of consecutive days with at least one activity. Appears in the dashboard masthead — quiet while you keep the cadence, glowing once you cross seven days in a row.",
+    "states_新_literal": "new, freshly arrived",
+    "states_新_usage":
+      "Time-based lens « Recent » — series added to your library in the last thirty days. A way to recall your most recent enthusiasms.",
+    "states_眠_literal": "sleep, dormancy",
+    "states_眠_usage":
+      "Lens « Sleeping » — series with no activity for more than six months. The quiet pile you might want to wake up.",
+    "states_慕_literal": "to long for, to yearn from afar",
+    "states_慕_usage":
+      "Lens « Wishlist > 1y » — series on the wishlist for over a year, never started. The patient longing.",
 
     "actions_始_literal": "begin, start",
     "actions_始_usage":
@@ -710,6 +722,21 @@ export default {
       "Add a new series or a new volume to your collection.",
     "actions_編集_literal": "to edit, to compile",
     "actions_編集_usage": "Edit a series or volume's details.",
+    "actions_選_literal": "to choose, to select",
+    "actions_選_usage":
+      "Multi-select mode on the dashboard — long-press on mobile, Cmd-click on desktop. The bulk-actions bar slides up from the bottom once at least one card is picked.",
+    "actions_削_literal": "to trim, to remove",
+    "actions_削_usage":
+      "Delete action — available in the bulk-actions bar and on a series' detail surface. Always preceded by a confirmation step.",
+    "actions_鍵_literal": "key, passkey",
+    "actions_鍵_usage":
+      "The keyboard-shortcut cheat sheet — open it with « ? » from any page. Lists the « g d / g c / g p » chords and the modal shortcuts.",
+    "actions_解_literal": "to undo, to release",
+    "actions_解_usage":
+      "Clear active filters — the « Clear » chip that surfaces when a genre or lens narrows the shelf.",
+    "actions_確_literal": "to confirm, certainty",
+    "actions_確_usage":
+      "The seal that confirms a volume just landed in the collection — a brief flash over the cover the moment you mark it owned.",
 
     "places_本棚_literal": "bookshelf",
     "places_本棚_usage":
@@ -738,6 +765,9 @@ export default {
     "vessels_あと少し_literal": "a little more to go",
     "vessels_あと少し_usage":
       "Near-completion shelf — series only a few volumes away from being finished.",
+    "vessels_棚_literal": "shelf, rack",
+    "vessels_棚_usage":
+      "The shelf as an object — anchors the 3D dashboard mode (perspective + wood grain) and the shareable profile snapshot. Distinct from 本棚 (bookshelf), which names the dashboard surface itself.",
 
     "palette_漆黒_literal": "lacquer black, jet ink",
     "palette_漆黒_usage":

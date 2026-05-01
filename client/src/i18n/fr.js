@@ -714,6 +714,18 @@ export default {
     "states_限_literal": "limite, contour",
     "states_限_usage":
       "Édition limitée / collector. Apparaît en petit sceau 限 dans le coin des tomes marqués.",
+    "states_連_literal": "lien, suite ininterrompue",
+    "states_連_usage":
+      "Compteur de jours consécutifs avec au moins une activité. Apparaît dans le ruban du tableau de bord — discret quand vous tenez la cadence, lumineux à partir de sept jours d'affilée.",
+    "states_新_literal": "neuf, fraîchement arrivé",
+    "states_新_usage":
+      "Lentille temporelle « Récent » — séries ajoutées à la bibliothèque dans les trente derniers jours. Pratique pour rappeler vos coups de cœur les plus frais.",
+    "states_眠_literal": "sommeil, dormance",
+    "states_眠_usage":
+      "Lentille « En sommeil » — séries sans activité depuis plus de six mois. La pile silencieuse qu'il faudrait peut-être réveiller.",
+    "states_慕_literal": "languir après, désirer de loin",
+    "states_慕_usage":
+      "Lentille « Wishlist > 1 an » — séries dans la liste de souhaits depuis plus d'un an, jamais commencées. L'envie patiente.",
 
     "actions_始_literal": "commencer, débuter",
     "actions_始_usage":
@@ -729,6 +741,21 @@ export default {
       "Ajouter une nouvelle série ou un nouveau tome à la collection.",
     "actions_編集_literal": "éditer, compiler",
     "actions_編集_usage": "Modifier les détails d'une série ou d'un tome.",
+    "actions_選_literal": "choisir, sélectionner",
+    "actions_選_usage":
+      "Mode sélection multiple sur le tableau de bord — appui long sur mobile, Cmd-clic sur ordinateur. La barre d'actions groupées émerge ensuite par le bas.",
+    "actions_削_literal": "tailler, retrancher",
+    "actions_削_usage":
+      "Action de suppression — disponible dans la barre d'actions groupées et au sein du détail d'une série. Toujours précédée d'une confirmation.",
+    "actions_鍵_literal": "clé, sésame",
+    "actions_鍵_usage":
+      "Le mémento des raccourcis clavier — ouvert d'un appui sur « ? » depuis n'importe quelle page. Liste les chords « g d / g c / g p » et les raccourcis modaux.",
+    "actions_解_literal": "défaire, libérer",
+    "actions_解_usage":
+      "Effacer les filtres actifs — chip « Effacer » qui apparaît quand un genre ou une lentille restreint l'étagère.",
+    "actions_確_literal": "confirmer, certitude",
+    "actions_確_usage":
+      "Le sceau qui confirme l'ajout d'un tome à la collection — un flash bref par-dessus la couverture au moment où vous le marquez possédé.",
 
     "places_本棚_literal": "bibliothèque, étagère à livres",
     "places_本棚_usage":
@@ -758,6 +785,9 @@ export default {
     "vessels_あと少し_literal": "encore un peu",
     "vessels_あと少し_usage":
       "Étagère bientôt complète — séries à seulement quelques tomes de la fin.",
+    "vessels_棚_literal": "étagère, rayon",
+    "vessels_棚_usage":
+      "L'étagère elle-même — anchor du mode 3D du tableau de bord (perspective + grain de bois) et du snapshot partageable du profil. À distinguer de 本棚 (bibliothèque), qui désigne la page entière.",
 
     "palette_漆黒_literal": "noir laqué, encre de Chine",
     "palette_漆黒_usage":
