@@ -31,6 +31,7 @@ import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
 import { useVolumesView } from "@/hooks/useVolumesView.js";
 import { useVolumeCovers } from "@/hooks/useVolumeCovers.js";
 import { useVolumePreviewController } from "@/hooks/useVolumePreviewController.js";
+import { useKnownPublishers } from "@/hooks/useKnownPublishers.js";
 import CoverPreview from "./ui/CoverPreview.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
@@ -88,6 +89,31 @@ export default function MangaPage({ manga, adult_content_level }) {
   // resolves, then keeps it synced through realtime pushes.
   const [publisher, setPublisher] = useState("");
   const [edition, setEdition] = useState("");
+
+  // 出版社 · Merge the static `PUBLISHER_PRESETS` with the user's own
+  // history of typed publishers (pulled from every library row in
+  // Dexie via `useKnownPublishers`). Same UX as the store
+  // autocomplete: a publisher the user typed once on Series A is
+  // suggested as a datalist option when they edit Series B, even if
+  // it's not in our shipped preset list. Dedupe is case-folded so a
+  // preset "Glénat" and a user-typed "glénat" don't both surface.
+  const userPublishers = useKnownPublishers();
+  const publisherOptions = useMemo(() => {
+    const seen = new Set();
+    const merged = [];
+    // User publishers first — they're frequency-sorted and represent
+    // what THIS user actually uses. Presets fill in the rest of the
+    // dropdown for new users / new imprints they haven't tried yet.
+    for (const list of [userPublishers, PUBLISHER_PRESETS]) {
+      for (const name of list ?? []) {
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(name);
+      }
+    }
+    return merged;
+  }, [userPublishers]);
 
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [addAvgPrice, setAddAvgPrice] = useState("");
@@ -781,7 +807,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                     onChange={setPublisher}
                     listId="mc-publisher-list"
                     maxLength={80}
-                    options={PUBLISHER_PRESETS}
+                    options={publisherOptions}
                   />
                   <PublisherEditionField
                     id="manga-edition"
