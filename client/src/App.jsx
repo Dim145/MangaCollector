@@ -379,11 +379,15 @@ function AppShell() {
             <Route path="/u/:slug" element={<PublicProfile />} />
             <Route path="/glossary" element={<GlossaryPage />} />
             {/* 作家 · Per-author detail — reverse-lookup of all your
-                series by the same mangaka. URL-encoded name in the
-                segment so "Sui Ishida" → /author/Sui%20Ishida.
+                series by the same mangaka. The slug is the author's
+                mal_id (the synthetic identifier the FK refactor
+                introduced): positive for shared MAL rows, negative
+                for custom per-user rows. Routing by id sidesteps
+                URL-encoding and case-folding gotchas, and the page
+                can JOIN the library by `author.mal_id` directly.
                 Authenticated since it reads the personal library. */}
             <Route
-              path="/author/:name"
+              path="/author/:malId"
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <AuthorPage />

@@ -9,12 +9,12 @@ use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity::event_types;
 use crate::models::library::{
-    self, ActiveModel, AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest,
-    EDITION_MAX_LEN, Entity as LibraryEntity, LibraryEntry, PUBLISHER_MAX_LEN,
-    AUTHOR_MAX_LEN, REVIEW_MAX_LEN, UpdateLibraryRequest, sanitize_genres, sanitize_label,
+    self, ActiveModel, AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, AuthorRef,
+    EDITION_MAX_LEN, Entity as LibraryEntity, LibraryEntry, PUBLISHER_MAX_LEN, REVIEW_MAX_LEN,
+    UpdateLibraryRequest, entry_with_author, sanitize_genres, sanitize_label,
 };
 use crate::services::cache::CacheStore;
-use crate::services::{activity, mangadex_api, settings, volume};
+use crate::services::{activity, author, mangadex_api, settings, volume};
 use crate::services::mal_api::get_manga_from_mal;
 
 /// Upper bound on `volumes` for a single series, enforced at every
@@ -53,6 +53,53 @@ pub fn clamp_volumes(n: i32) -> i32 {
 #[inline]
 pub fn is_external_http_url(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
+}
+
+// ─── Author enrichment ────────────────────────────────────────────
+//
+// Rust `From<Model>` for `LibraryEntry` produces `author: None`
+// because it can't reach the DB. Listing endpoints rebuild the FK
+// embed via these helpers so the SPA gets `{ author: { id, mal_id,
+// name } }` directly off the response — same shape as the old
+// `manga.author` text field, but with the FK target carried through
+// for routing into the AuthorPage.
+
+/// Build `LibraryEntry`s from `Model`s with one batched author
+/// lookup. Cost is N+1 → 2 queries: one to load the rows (caller),
+/// one to load the distinct authors, plus the in-memory join.
+async fn enrich_with_authors(
+    db: &Db,
+    rows: Vec<library::Model>,
+) -> Result<Vec<LibraryEntry>, AppError> {
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Collect distinct ids — a user with many series by the same
+    // author shouldn't trigger duplicate fetches. Sorted for
+    // deterministic logging when a query slow-logs.
+    let mut ids: Vec<i32> = rows.iter().filter_map(|r| r.author_id).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    let lookup: std::collections::HashMap<i32, AuthorRef> =
+        author::lookup_authors_by_ids(db, &ids).await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| entry_with_author(r, &lookup))
+        .collect())
+}
+
+/// Single-row variant for add/update endpoints. Skips the lookup when
+/// the row has no `author_id` (custom entries pre-edit, MAL series
+/// before first refresh).
+async fn enrich_one_with_author(
+    db: &Db,
+    row: library::Model,
+) -> Result<LibraryEntry, AppError> {
+    let Some(author_id) = row.author_id else {
+        return Ok(LibraryEntry::from(row));
+    };
+    let lookup = author::lookup_authors_by_ids(db, &[author_id]).await?;
+    Ok(entry_with_author(row, &lookup))
 }
 
 /// Produce the next negative mal_id for a user's custom entries.
@@ -152,7 +199,7 @@ pub async fn get_user_library(db: &Db, user_id: i32) -> Result<Vec<LibraryEntry>
         .all(db)
         .await
         .map_err(AppError::from)?;
-    Ok(rows.into_iter().map(LibraryEntry::from).collect())
+    enrich_with_authors(db, rows).await
 }
 
 pub async fn get_user_manga(
@@ -166,7 +213,7 @@ pub async fn get_user_manga(
         .all(db)
         .await
         .map_err(AppError::from)?;
-    Ok(rows.into_iter().map(LibraryEntry::from).collect())
+    enrich_with_authors(db, rows).await
 }
 
 pub async fn add_to_user_library(
@@ -218,7 +265,7 @@ pub async fn add_to_user_library(
             .map_err(AppError::from)?
         {
             txn.commit().await.map_err(AppError::from)?;
-            return Ok(LibraryEntry::from(existing));
+            return enrich_one_with_author(db, existing).await;
         }
 
     // Pre-sanitize the editorial metadata coming in from the request.
@@ -267,7 +314,11 @@ pub async fn add_to_user_library(
     // Milestone check AFTER commit (uses fresh DB view)
     activity::check_series_milestone(db, user_id).await;
 
-    Ok(LibraryEntry::from(row))
+    // Author column is empty at add-time (we don't have MAL author
+    // metadata in AddLibraryRequest); enrichment short-circuits to
+    // the From<Model> path. The first MAL refresh populates the FK
+    // and subsequent reads see the embedded AuthorRef.
+    enrich_one_with_author(db, row).await
 }
 
 /// Add a library entry sourced from MangaDex. No MAL id exists, so we mint a
@@ -289,7 +340,7 @@ pub async fn add_from_mangadex(
         .await
         .map_err(AppError::from)?
     {
-        return Ok(LibraryEntry::from(existing));
+        return enrich_one_with_author(db, existing).await;
     }
 
     let new_mal_id = mint_next_custom_mal_id(db, user_id).await?;
@@ -739,14 +790,22 @@ pub async fn apply_library_patch(
     if let Some(public) = body.review_public {
         active.review_public = Set(public);
     }
-    // 作家 · Author override — same trim/clamp/empty→None contract.
+    // 作家 · Author override. Free-text input from the manga edit
+    // form is resolved via the FK pipeline:
+    //   • Empty / null → clear author_id (unlink the byline)
+    //   • Non-empty    → match against existing shared MAL or custom
+    //     rows by name, or mint a new custom author if no match.
     // Available on every row (not gated to custom-only): even on a
     // MAL-linked series, the user can override "Hideo Kojima"
     // attribution if MAL's metadata is wrong. The next refresh from
-    // MAL only re-writes when the column is empty, so the override
+    // MAL only re-writes when the FK is empty, so the override
     // sticks across syncs.
     if let Some(raw_author) = body.author {
-        active.author = Set(sanitize_label(raw_author, AUTHOR_MAX_LEN));
+        let resolved_id = match raw_author {
+            Some(text) => author::resolve_author_from_text(db, user_id, &text).await?,
+            None => None,
+        };
+        active.author_id = Set(resolved_id);
     }
 
     active.modified_on = Set(Utc::now());
@@ -914,7 +973,7 @@ pub async fn search(
         .all(db)
         .await
         .map_err(AppError::from)?;
-    Ok(rows.into_iter().map(LibraryEntry::from).collect())
+    enrich_with_authors(db, rows).await
 }
 
 pub async fn update_infos_from_mal(
@@ -954,14 +1013,33 @@ pub async fn update_infos_from_mal(
         .unwrap_or_default();
 
     // 作家 · MAL ships authors as "Family, Given" (Japanese convention).
-    // Flip to Western "Given Family" for consistency with how the SPA
-    // renders names elsewhere. Empty / missing authors fold to None
-    // (the column is nullable; no point storing "").
-    let resolved_author: Option<String> = mal_data
+    // Flip to Western "Given Family" so the resolver does its name
+    // lookup against the canonical form the rest of the app uses.
+    //
+    // The first non-empty author wins on collaborations — see the
+    // MalAuthor docstring on why we don't try to capture co-authors
+    // in v1.
+    let primary_author = mal_data
         .authors
         .as_ref()
-        .and_then(|list| list.iter().find(|a| !a.name.trim().is_empty()))
-        .map(|a| flip_author_name(&a.name));
+        .and_then(|list| list.iter().find(|a| !a.name.trim().is_empty()));
+    let resolved_author_mal_id: Option<i32> =
+        primary_author.and_then(|a| a.mal_id).filter(|id| *id > 0);
+    // Resolve the FK target up-front so each library row's update
+    // can write a uniform author_id. With a positive MAL author id
+    // we go through the shared cache (Jikan fetch on cold miss);
+    // without one but with a typed name, we fall back to the
+    // free-text resolver (find-or-create custom). On both lookup
+    // and fetch failures the FK stays None — the user can retry the
+    // refresh later.
+    let resolved_author_id: Option<i32> = if let Some(mid) = resolved_author_mal_id {
+        author::find_or_create_shared_author_id(db, http_client, mid).await?
+    } else if let Some(a) = primary_author {
+        let flipped = flip_author_name(&a.name);
+        author::resolve_author_from_text(db, user_id, &flipped).await?
+    } else {
+        None
+    };
 
     // Fetch the library rows for this user+manga and update them
     let rows = LibraryEntity::find()
@@ -1005,19 +1083,19 @@ pub async fn update_infos_from_mal(
             image_update = Some(new_url);
         }
 
-        let prior_author = row.author.clone();
+        let prior_author_id = row.author_id;
         let mut active: ActiveModel = row.into();
         active.genres = Set(Some(genres.join(",")));
         active.name = Set(resolved_name.clone());
         active.image_url_jpg = Set(image_update);
-        // 作家 · Honour user overrides — only write the author column
-        // when MAL has a value AND the column is currently empty. A
-        // user who typed their own author credit on a Japanese-original
-        // work shouldn't have it clobbered by a re-fetch from MAL. The
+        // 作家 · Honour user overrides — only write author_id when
+        // MAL surfaced one AND the FK is currently empty. A user who
+        // typed their own author credit on a Japanese-original work
+        // shouldn't have it clobbered by a re-fetch from MAL. The
         // edit form is the authoritative path once the user touches
         // the field.
-        if prior_author.is_none() && resolved_author.is_some() {
-            active.author = Set(resolved_author.clone());
+        if prior_author_id.is_none() && resolved_author_id.is_some() {
+            active.author_id = Set(resolved_author_id);
         }
         active.modified_on = Set(now);
         active.update(db).await.map_err(AppError::from)?;

@@ -4,7 +4,7 @@ use axum::{
 };
 
 use crate::handlers::{
-    activity, archive, auth as auth_handlers, calendar, coffret, compare, external,
+    activity, archive, auth as auth_handlers, author, calendar, coffret, compare, external,
     external_import, health, library, public, public_config, realtime, seals, settings, storage,
     user_profile, volume,
 };
@@ -20,6 +20,28 @@ pub fn api_router() -> Router<AppState> {
         .route("/public-config", get(public_config::get_public_config))
         // Unified search endpoint — merges MAL + MangaDex results
         .route("/external/search", get(external::search))
+        // 作家 · Author endpoints. The same `/authors/{mal_id}`
+        // shape covers both shared MAL authors (cache-aside via
+        // Jikan, positive mal_id) and custom authors owned by the
+        // caller (negative mal_id, scoped per-user). The handler
+        // routes internally based on the mal_id sign.
+        //
+        // POST creates a custom author and mints a fresh negative
+        // id; PATCH / DELETE / photo endpoints all refuse positive
+        // mal_ids (shared rows aren't editable).
+        .route("/authors", post(author::create_author))
+        .route("/authors/{mal_id}", get(author::get_author))
+        .route("/authors/{mal_id}", patch(author::update_author))
+        .route("/authors/{mal_id}", delete(author::delete_author))
+        // POST /authors/{mal_id}/refresh — force re-fetch from Jikan
+        // for a shared MAL row. Bypasses the 7-day staleness gate.
+        .route("/authors/{mal_id}/refresh", post(author::refresh_author))
+        .route(
+            "/authors/{mal_id}/photo",
+            get(author::get_author_photo)
+                .post(author::upload_author_photo)
+                .delete(author::delete_author_photo),
+        )
         // Read-only public profile — `/public/u/{slug}` — no auth.
         // Nested under /api by the main router but carries no session
         // logic at the handler level so it's trivially cacheable later.

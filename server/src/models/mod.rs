@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod archive;
+pub mod author;
 pub mod coffret;
 pub mod compare;
 pub mod library;

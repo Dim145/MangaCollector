@@ -1,11 +1,20 @@
-import { useContext, useMemo } from "react";
+import { useContext, useMemo, useRef, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import { useLibrary } from "@/hooks/useLibrary.js";
+import {
+  useAuthorDetail,
+  useDeleteAuthor,
+  useDeleteAuthorPhoto,
+  useRefreshAuthor,
+  useUpdateAuthor,
+  useUploadAuthorPhoto,
+} from "@/hooks/useAuthorDetail.js";
 import { hasToBlurImage } from "@/utils/library.js";
 import CoverImage from "./ui/CoverImage.jsx";
+import Modal from "./ui/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
-import { useT } from "@/i18n/index.jsx";
+import { useT, useLang } from "@/i18n/index.jsx";
 
 /**
  * 作家 Sakka · Author monograph.
@@ -34,35 +43,39 @@ import { useT } from "@/i18n/index.jsx";
  * page out.
  */
 export default function AuthorPage() {
-  const { name: rawName } = useParams();
+  const { malId: rawMalId } = useParams();
   const navigate = useNavigate();
   const t = useT();
   const { adult_content_level } = useContext(SettingsContext);
   // 待 · `isInitialLoad` is the cold-start gate: true while Dexie
   // hasn't answered yet AND the network refetch is still in flight.
-  // Without it, a hard reload of /author/test renders the
+  // Without it, a hard reload of /author/-1 renders the
   // NotFoundPanel for ~200-800ms before the library populates, which
   // looks like a permanent 404 to the user. We render the
   // skeleton-shaped hero in the meantime so the surface feels alive.
   const { data: library, isInitialLoad } = useLibrary();
 
-  const targetName = useMemo(() => {
-    try {
-      return decodeURIComponent(rawName ?? "").trim();
-    } catch {
-      return rawName ?? "";
-    }
-  }, [rawName]);
+  // The route parameter is the author's mal_id — positive for shared
+  // MAL rows, negative for custom per-user rows. Coerce to a number
+  // up-front; null when the segment isn't an integer.
+  const authorMalId = useMemo(() => {
+    if (rawMalId == null || rawMalId === "") return null;
+    const n = parseInt(rawMalId, 10);
+    return Number.isFinite(n) && n !== 0 ? n : null;
+  }, [rawMalId]);
 
+  // Filter by the embedded `author.mal_id` on each library row. The
+  // FK refactor guarantees that every row with an author credit
+  // carries `{ id, mal_id, name }`; rows without a credit have
+  // `author = null` and are skipped.
   const matches = useMemo(() => {
-    const target = targetName.toLowerCase();
-    if (!target || !library) return [];
+    if (authorMalId == null || !library) return [];
     return library
-      .filter((m) => (m.author ?? "").toLowerCase() === target)
+      .filter((m) => m.author?.mal_id === authorMalId)
       .sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
       );
-  }, [library, targetName]);
+  }, [library, authorMalId]);
 
   const stats = useMemo(() => {
     if (matches.length === 0) {
@@ -98,12 +111,39 @@ export default function AuthorPage() {
     return { seriesCount: matches.length, totalVolumes, totalOwned, completionPct, topGenres };
   }, [matches]);
 
-  // Display name comes from the first matched row so we preserve the
-  // casing the user typed when they added the series — even if the
-  // URL was lowercased by a copy-paste from another tool.
-  const displayName = matches[0]?.author ?? targetName;
+  // 作家 · Lazy-fetch the detail row (photo, bio, birthday, MAL
+  // link) via React Query. The detail call resolves shared MAL
+  // authors via Jikan (cache-aside) and custom authors directly
+  // from our authors table.
+  const { data: detail, isLoading: detailLoading } = useAuthorDetail(authorMalId);
 
-  if (!targetName) {
+  // Display name preference: detail (canonical from Jikan or the
+  // custom row) → first matched library row's author embed → empty
+  // string. The fallback chain matters during cold start when only
+  // Dexie has answered.
+  const displayName =
+    detail?.name ?? matches[0]?.author?.name ?? "";
+
+  // CRUD modal state — drives the edit form + delete confirm. The
+  // edit/delete pair only fires for custom authors; shared MAL rows
+  // get a refresh button (see below) and are otherwise read-only.
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const updateMutation = useUpdateAuthor();
+  const deleteMutation = useDeleteAuthor();
+  const refreshMutation = useRefreshAuthor();
+  const uploadPhoto = useUploadAuthorPhoto();
+  const deletePhoto = useDeleteAuthorPhoto();
+
+  // Capability gate. Determined from the route param so it's
+  // available even before the detail call resolves; `detail.is_custom`
+  // is the authoritative version once data lands.
+  const isCustom = authorMalId != null && authorMalId < 0;
+
+  // Invalid slug → empty state. We show "empty" rather than
+  // "not found" because the URL itself is malformed (non-numeric
+  // segment) — the user probably hand-edited it.
+  if (authorMalId == null) {
     return (
       <DefaultBackground>
         <NotFoundPanel
@@ -131,7 +171,33 @@ export default function AuthorPage() {
         <FloatingDust />
         <CornerOrnaments />
 
-        <Hero displayName={displayName} stats={stats} t={t} />
+        <Hero
+          displayName={displayName}
+          stats={stats}
+          detail={detail}
+          detailLoading={detailLoading && Boolean(authorMalId)}
+          isCustom={isCustom}
+          onEditClick={() => setEditorOpen(true)}
+          onDeleteClick={() => setConfirmDelete(true)}
+          onRefreshClick={() =>
+            authorMalId != null
+              ? refreshMutation.mutateAsync(authorMalId)
+              : Promise.reject()
+          }
+          refreshing={refreshMutation.isPending}
+          onUploadPhoto={(file) =>
+            detail?.mal_id != null
+              ? uploadPhoto.mutateAsync({ mal_id: detail.mal_id, file })
+              : Promise.reject()
+          }
+          onDeletePhoto={() =>
+            detail?.mal_id != null
+              ? deletePhoto.mutateAsync(detail.mal_id)
+              : Promise.reject()
+          }
+          uploadingPhoto={uploadPhoto.isPending || deletePhoto.isPending}
+          t={t}
+        />
 
         {isInitialLoad ? (
           <LoadingPanel t={t} />
@@ -168,6 +234,38 @@ export default function AuthorPage() {
             {t("author.backToDashboard")}
           </Link>
         </footer>
+
+        {editorOpen && detail?.is_custom && (
+          <AuthorEditorModal
+            initialName={detail.name}
+            initialAbout={detail.about ?? ""}
+            onClose={() => setEditorOpen(false)}
+            onSubmit={async ({ name, about }) => {
+              await updateMutation.mutateAsync({
+                mal_id: detail.mal_id,
+                name,
+                about,
+              });
+              setEditorOpen(false);
+            }}
+            submitting={updateMutation.isPending}
+            t={t}
+          />
+        )}
+
+        {confirmDelete && detail?.is_custom && (
+          <DeleteConfirmModal
+            authorName={detail.name}
+            onClose={() => setConfirmDelete(false)}
+            onConfirm={async () => {
+              await deleteMutation.mutateAsync(detail.mal_id);
+              setConfirmDelete(false);
+              navigate("/dashboard");
+            }}
+            submitting={deleteMutation.isPending}
+            t={t}
+          />
+        )}
       </div>
     </DefaultBackground>
   );
@@ -175,12 +273,33 @@ export default function AuthorPage() {
 
 // ─── Hero ──────────────────────────────────────────────────────────
 
-function Hero({ displayName, stats, t }) {
+function Hero({
+  displayName,
+  stats,
+  detail,
+  detailLoading,
+  isCustom,
+  onEditClick,
+  onDeleteClick,
+  onRefreshClick,
+  refreshing,
+  onUploadPhoto,
+  onDeletePhoto,
+  uploadingPhoto,
+  t,
+}) {
+  // Prefer MAL's canonical name when we have a detail row — it's
+  // the authoritative spelling. Fall back to whatever string the
+  // user has on their library row.
+  const heroName = detail?.name ?? displayName;
+  const photoUrl = detail?.image_url ?? null;
   return (
     <header className="relative mb-12 animate-fade-up md:mb-16">
       {/* Top kicker rule with vertical 作家 hanging off the right end —
-          the editorial signature row. */}
-      <div className="mb-6 flex items-baseline gap-4">
+          the editorial signature row. Action chips (MAL link, plus
+          Edit/Delete for custom rows OR Refresh for shared MAL rows)
+          ride on this rule when the page has them. */}
+      <div className="mb-6 flex flex-wrap items-baseline gap-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
           {t("author.kicker")}
         </span>
@@ -188,25 +307,97 @@ function Hero({ displayName, stats, t }) {
           作家
         </span>
         <span className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent" />
+        {detail?.mal_url && <MalChip url={detail.mal_url} t={t} />}
+        {/* Shared MAL author (positive mal_id) — refresh-only.
+            Bypasses the 7-day Jikan staleness gate so the user sees
+            the latest photo / bio / favorites count on demand.
+            No edit/delete: the row is upstream-owned and shared
+            across all users in this instance. */}
+        {!isCustom && (
+          <button
+            type="button"
+            onClick={onRefreshClick}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/8 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/80 hover:bg-gold/15 disabled:opacity-50"
+          >
+            <span aria-hidden="true" className="font-jp text-[10px] not-italic">
+              {refreshing ? "…" : "更"}
+            </span>
+            {refreshing ? t("common.saving") : t("author.refreshAction")}
+          </button>
+        )}
+        {/* Custom author (negative mal_id) — full edit + delete.
+            The user owns the row in their per-user namespace. */}
+        {isCustom && (
+          <>
+            <button
+              type="button"
+              onClick={onEditClick}
+              className="inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-hanko/5 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
+            >
+              <span aria-hidden="true" className="font-jp text-[10px] not-italic">
+                編
+              </span>
+              {t("author.editAction")}
+            </button>
+            <button
+              type="button"
+              onClick={onDeleteClick}
+              className="inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-transparent px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
+            >
+              <span aria-hidden="true" className="font-jp text-[10px] not-italic">
+                消
+              </span>
+              {t("author.deleteAction")}
+            </button>
+          </>
+        )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[1fr_auto] md:gap-12">
-        {/* LEFT — author name + headline stats */}
+      <div className="grid gap-6 md:grid-cols-[auto_1fr] md:items-start md:gap-10">
+        {/* LEFT — portrait. Renders a placeholder seal when no photo
+            is available (custom author override or MAL row without
+            an image_url). The frame is a hanko-stamped circle to
+            keep the editorial feel even when the photo is missing.
+
+            Custom authors get an upload affordance — clicking the
+            portrait opens a file picker; an inline trash chip in
+            the corner clears the existing photo. */}
+        <Portrait
+          photoUrl={photoUrl}
+          fallbackInitial={heroName.trim().charAt(0)}
+          loading={detailLoading}
+          editable={isCustom}
+          uploading={uploadingPhoto}
+          onUpload={onUploadPhoto}
+          onClear={onDeletePhoto}
+          t={t}
+        />
+
+        {/* RIGHT — name + brushstroke + bio + stats triad */}
         <div className="min-w-0">
-          <h1 className="font-display text-5xl font-light italic leading-[0.95] tracking-tight text-washi md:text-7xl lg:text-[5.5rem]">
+          <h1 className="font-display text-5xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl lg:text-7xl">
             <span className="text-hanko-gradient font-semibold not-italic">
-              {displayName}
+              {heroName}
             </span>
           </h1>
 
-          {/* Brushstroke divider — same SVG path as the Settings page
-              chapter dividers. Anchors the masthead block visually. */}
+          {/* MAL secondary identity row — shows family/given when MAL
+              ships them, plus birthday + favorites. Quiet, mono caps. */}
+          {(detail?.given_name || detail?.family_name || detail?.birthday) && (
+            <SecondaryIdentity detail={detail} t={t} />
+          )}
+
           <Brushstroke className="mt-6 mb-6" />
+
+          {/* About paragraph — collapsed by default to 4 lines so the
+              hero stays a single screen on desktop. Click to expand. */}
+          {detail?.about && <AboutBlock about={detail.about} t={t} />}
 
           {/* Headline stats — three numbers laid out as an editorial
               triad. Each pair is "value · label" stacked vertically so
               the values line up regardless of label length. */}
-          <dl className="grid grid-cols-3 gap-4 sm:gap-8">
+          <dl className="mt-6 grid grid-cols-3 gap-4 sm:gap-8">
             <HeadlineStat
               value={stats.seriesCount}
               label={
@@ -228,25 +419,353 @@ function Hero({ displayName, stats, t }) {
             />
           </dl>
         </div>
-
-        {/* RIGHT — vertical kanji watermark column. Reads top-to-
-            bottom like a real book spine label. Hidden on narrow
-            viewports where the headline already pulls focus. */}
-        <aside
-          aria-hidden="true"
-          className="hidden self-start md:block"
-          style={{ writingMode: "vertical-rl", textOrientation: "upright" }}
-        >
-          <p className="flex flex-col items-center gap-3 font-jp text-2xl font-bold leading-tight tracking-[0.4em] text-hanko-bright/40">
-            <span className="text-3xl text-hanko-gradient">作</span>
-            <span className="text-3xl text-hanko-gradient">家</span>
-            <span className="mt-3 text-xs tracking-[0.3em] text-washi-dim">
-              一覧
-            </span>
-          </p>
-        </aside>
       </div>
     </header>
+  );
+}
+
+// ─── Portrait ──────────────────────────────────────────────────────
+
+function Portrait({
+  photoUrl,
+  fallbackInitial,
+  loading,
+  editable = false,
+  uploading = false,
+  onUpload,
+  onClear,
+  t,
+}) {
+  const fileRef = useRef(null);
+  return (
+    <div className="relative shrink-0">
+      {/* Hanko-style frame: a circle with a thin gold border and a
+          drop-shadow. The portrait sits inside on a tinted backdrop
+          so empty photo slots still feel intentional rather than
+          broken. Slight rotation -2° matches the chapter-stamp
+          vocabulary used elsewhere in the app.
+
+          When editable, the frame becomes a button that opens a
+          file picker. The "click to upload" affordance is a hover
+          overlay rather than a always-on chip — keeps the rest
+          state clean while telegraphing the interaction. */}
+      <button
+        type="button"
+        onClick={() => editable && fileRef.current?.click()}
+        disabled={!editable || uploading}
+        className={`group/portrait relative h-32 w-32 overflow-hidden rounded-full border-2 border-gold/50 bg-gradient-to-br from-ink-2 to-ink-3 shadow-[0_8px_24px_-8px_rgba(201,169,97,0.4)] sm:h-40 sm:w-40 md:h-48 md:w-48 ${
+          editable ? "cursor-pointer transition hover:border-gold" : "cursor-default"
+        }`}
+        style={{ transform: "rotate(-2deg)" }}
+        aria-label={editable ? t("author.uploadPhotoAria") : undefined}
+      >
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            className="h-full w-full object-cover transition-opacity duration-300"
+          />
+        ) : loading || uploading ? (
+          <span className="absolute inset-0 animate-pulse bg-ink-2/40" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center font-display text-7xl italic text-hanko/40">
+            {fallbackInitial || "?"}
+          </div>
+        )}
+
+        {/* Inner ring decoration — adds depth and reinforces the
+            hanko "pressed seal" aesthetic. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-1 rounded-full ring-1 ring-inset ring-washi/10"
+        />
+
+        {/* Hover overlay for editable portraits — a darkening with
+            a "change photo" hint. Keeps the rest state clean. */}
+        {editable && !uploading && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 grid place-items-center bg-ink-0/0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi opacity-0 transition group-hover/portrait:bg-ink-0/55 group-hover/portrait:opacity-100"
+          >
+            <span className="rounded-full border border-gold/60 bg-ink-1/80 px-3 py-1 backdrop-blur">
+              {photoUrl ? t("author.replacePhoto") : t("author.uploadPhoto")}
+            </span>
+          </span>
+        )}
+      </button>
+
+      {/* Bottom-right corner kanji 作 — rotated, faint, integrated
+          into the portrait silhouette. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-2 -right-2 grid h-9 w-9 place-items-center rounded-full border border-hanko/40 bg-ink-1/95 font-jp text-sm font-bold text-hanko-bright shadow-md sm:h-11 sm:w-11"
+        style={{ transform: "rotate(-6deg)" }}
+      >
+        作
+      </span>
+
+      {/* Clear-photo chip — only when there's a photo to clear AND
+          the user owns the row. Top-left so it doesn't compete with
+          the 作 corner stamp. */}
+      {editable && photoUrl && (
+        <button
+          type="button"
+          onClick={onClear}
+          disabled={uploading}
+          className="absolute -top-1 -left-1 grid h-7 w-7 place-items-center rounded-full border border-hanko/50 bg-ink-1/95 font-mono text-[9px] uppercase tracking-[0.18em] text-hanko-bright shadow-md transition hover:bg-hanko/15 disabled:opacity-50"
+          aria-label={t("author.clearPhotoAria")}
+        >
+          ×
+        </button>
+      )}
+
+      {editable && (
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file && onUpload) onUpload(file);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Editor modal (create + edit) ──────────────────────────────────
+
+function AuthorEditorModal({
+  initialName,
+  initialAbout,
+  onClose,
+  onSubmit,
+  submitting,
+  t,
+}) {
+  const [name, setName] = useState(initialName ?? "");
+  const [about, setAbout] = useState(initialAbout ?? "");
+  return (
+    <Modal popupOpen={true} handleClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!name.trim()) return;
+          onSubmit({ name: name.trim(), about: about.trim() });
+        }}
+        className="w-full max-w-lg rounded-2xl border border-border bg-ink-1 p-6 shadow-2xl"
+      >
+        <header className="mb-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-hanko">
+            {t("author.editorKickerEdit")}
+            {" · "}
+            <span className="font-jp text-[11px]">編集</span>
+          </p>
+          <h2 className="mt-2 font-display text-xl font-light italic text-washi">
+            {t("author.editorTitleEdit")}
+          </h2>
+        </header>
+
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+              {t("author.editorNameLabel")}
+            </span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={160}
+              autoFocus
+              required
+              className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+              {t("author.editorAboutLabel")}
+            </span>
+            <textarea
+              value={about}
+              onChange={(e) => setAbout(e.target.value)}
+              maxLength={4000}
+              rows={5}
+              className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 font-sans text-sm leading-relaxed text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+            />
+          </label>
+        </div>
+
+        <div className="mt-6 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi disabled:opacity-50"
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || !name.trim()}
+            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright disabled:opacity-60"
+          >
+            {submitting ? t("common.saving") : t("author.editorSubmitEdit")}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ─── Delete confirmation ───────────────────────────────────────────
+
+function DeleteConfirmModal({
+  authorName,
+  onClose,
+  onConfirm,
+  submitting,
+  t,
+}) {
+  return (
+    <Modal popupOpen={true} handleClose={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-hanko/40 bg-ink-1 p-6 shadow-2xl">
+        <div className="hanko-seal mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md font-display text-sm">
+          消
+        </div>
+        <h3 className="text-center font-display text-xl font-semibold text-washi">
+          {t("author.deleteConfirmTitle")}
+        </h3>
+        <p className="mt-3 text-center text-sm text-washi-muted">
+          {t("author.deleteConfirmBodyCustom", { name: authorName })}
+        </p>
+        <div className="mt-5 flex gap-2">
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-washi-muted transition hover:text-washi disabled:opacity-50"
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={submitting}
+            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright disabled:opacity-60"
+          >
+            {submitting
+              ? t("common.saving")
+              : t("author.deleteConfirmAction")}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Secondary identity (family/given + birthday + favorites) ──────
+
+function SecondaryIdentity({ detail, t }) {
+  const lang = useLang();
+  const family = detail?.family_name?.trim();
+  const given = detail?.given_name?.trim();
+  const birthday = detail?.birthday;
+  const favorites = detail?.favorites ?? 0;
+  const formattedBirthday = useMemo(() => {
+    if (!birthday) return null;
+    try {
+      return new Date(birthday).toLocaleDateString(lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : "en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch {
+      return null;
+    }
+  }, [birthday, lang]);
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+      {family && given && (
+        <span>
+          <span className="font-jp text-[11px] text-hanko/80">姓</span>{" "}
+          <span className="not-italic text-washi-muted">
+            {family} {given}
+          </span>
+        </span>
+      )}
+      {formattedBirthday && (
+        <span>
+          <span className="font-jp text-[11px] text-hanko/80">誕</span>{" "}
+          <span className="text-washi-muted">{formattedBirthday}</span>
+        </span>
+      )}
+      {favorites > 0 && (
+        <span>
+          <span className="font-jp text-[11px] text-hanko/80">愛</span>{" "}
+          <span className="tabular-nums text-washi-muted">
+            {favorites.toLocaleString()}
+          </span>{" "}
+          <span className="text-washi-dim">{t("author.favoritesShort")}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── About block ───────────────────────────────────────────────────
+
+function AboutBlock({ about, t }) {
+  const [expanded, setExpanded] = useState(false);
+  // MAL bios are sometimes 2-paragraph teasers, sometimes wikipedia-
+  // length essays. Default-collapsed at line-clamp 4 keeps the hero
+  // tight; the user can opt into the full bio.
+  const trimmed = about.trim();
+  const isLong = trimmed.length > 400;
+  return (
+    <div className="mb-2">
+      <p
+        className={`whitespace-pre-line font-sans text-sm leading-relaxed text-washi-muted ${
+          expanded || !isLong ? "" : "line-clamp-4"
+        }`}
+      >
+        {trimmed}
+      </p>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] text-hanko-bright transition hover:text-hanko"
+        >
+          {expanded ? t("author.aboutCollapse") : t("author.aboutExpand")}
+          <span aria-hidden="true">{expanded ? "↑" : "↓"}</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── MAL chip ──────────────────────────────────────────────────────
+
+function MalChip({ url, t }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/40 bg-gold/5 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/70 hover:bg-gold/10 hover:text-gold-muted"
+    >
+      <span aria-hidden="true" className="font-jp text-[10px] not-italic">
+        印
+      </span>
+      {t("author.malLink")}
+      <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">
+        ↗
+      </span>
+    </a>
   );
 }
 

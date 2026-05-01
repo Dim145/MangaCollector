@@ -37,10 +37,16 @@ pub struct MalGenre {
 /// Multiple authors are common (writer + artist on shōnen, or
 /// `"Story by" / "Art by"` on collaborations); we collect them all
 /// but only the first non-empty `name` becomes the canonical
-/// `author` we persist.
+/// `author` we persist. Both `mal_id` and `url` ride along so the
+/// caller can resolve the author detail page (`/api/authors/{id}`)
+/// and link out to MAL.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MalAuthor {
+    #[serde(default)]
+    pub mal_id: Option<i32>,
     pub name: String,
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

@@ -39,6 +39,7 @@ import { useVolumesView } from "@/hooks/useVolumesView.js";
 import { useVolumeCovers } from "@/hooks/useVolumeCovers.js";
 import { useVolumePreviewController } from "@/hooks/useVolumePreviewController.js";
 import { useKnownPublishers } from "@/hooks/useKnownPublishers.js";
+import { useKnownAuthors } from "@/hooks/useKnownAuthors.js";
 import CoverPreview from "./ui/CoverPreview.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
@@ -130,6 +131,28 @@ export default function MangaPage({ manga, adult_content_level }) {
     }
     return merged;
   }, [userPublishers]);
+
+  // 作家 · Same merge pattern for authors. Pulls every distinct
+  // mangaka the user has linked to a series in their library and
+  // surfaces them as datalist options on the author edit input. The
+  // hook returns frequency-sorted entries (most-collected mangaka
+  // first), so an existing entry naturally beats a fresh re-typing
+  // of the same name. No static preset list — author cardinality is
+  // user-specific by definition.
+  const userAuthors = useKnownAuthors();
+  const authorOptions = useMemo(() => {
+    const seen = new Set();
+    const merged = [];
+    for (const a of userAuthors ?? []) {
+      const name = a?.name;
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(name);
+    }
+    return merged;
+  }, [userAuthors]);
 
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [addAvgPrice, setAddAvgPrice] = useState("");
@@ -265,20 +288,22 @@ export default function MangaPage({ manga, adult_content_level }) {
     // Sync publisher / edition / review from the live row when not
     // editing — same pattern as name / genres above, so an outbox flush
     // or another tab's realtime push updates the read-only display
-    // immediately.
+    // immediately. Author is the embedded `{ id, mal_id, name }`
+    // ref the server emits via FK enrichment; the form input only
+    // cares about the display name.
     if (!isEditing) {
       setPublisher(liveLibraryRow?.publisher ?? "");
       setEdition(liveLibraryRow?.edition ?? "");
       setReview(liveLibraryRow?.review ?? "");
       setReviewPublic(Boolean(liveLibraryRow?.review_public));
-      setAuthor(liveLibraryRow?.author ?? "");
+      setAuthor(liveLibraryRow?.author?.name ?? "");
     }
   }, [
     liveLibraryRow?.publisher,
     liveLibraryRow?.edition,
     liveLibraryRow?.review,
     liveLibraryRow?.review_public,
-    liveLibraryRow?.author,
+    liveLibraryRow?.author?.name,
     isEditing,
   ]);
 
@@ -337,7 +362,7 @@ export default function MangaPage({ manga, adult_content_level }) {
       const prevEdition = liveLibraryRow?.edition ?? "";
       const prevReview = liveLibraryRow?.review ?? "";
       const prevReviewPublic = Boolean(liveLibraryRow?.review_public);
-      const prevAuthor = liveLibraryRow?.author ?? "";
+      const prevAuthor = liveLibraryRow?.author?.name ?? "";
       const nextPublisher = publisher.trim();
       const nextEdition = edition.trim();
       const nextReview = review.trim();
@@ -345,6 +370,8 @@ export default function MangaPage({ manga, adult_content_level }) {
       const metaPatch = {};
       if (nextPublisher !== prevPublisher) metaPatch.publisher = nextPublisher;
       if (nextEdition !== prevEdition) metaPatch.edition = nextEdition;
+      // The server treats `author` as free-text and resolves it to an
+      // `author_id` via `resolve_author_from_text` (find or create).
       if (nextAuthor !== prevAuthor) metaPatch.author = nextAuthor;
       // 記憶 · Same diff-then-patch contract as publisher/edition.
       // The visibility flag rides separately so the user can flip the
@@ -836,19 +863,29 @@ export default function MangaPage({ manga, adult_content_level }) {
                 </div>
               )}
               {/* 作家 · Read-only author display when not editing.
-                  Clicking jumps to /author/:name to see all your
+                  Clicking jumps to /author/:malId to see all your
                   series by the same mangaka. Hidden when there's
                   no author credit (custom row never refreshed via
-                  MAL, or upstream metadata didn't ship one). */}
-              {!isEditing && author && (
+                  MAL, or upstream metadata didn't ship one).
+                  When `mal_id` is null we're in the brief
+                  optimistic-stub window between the user typing a
+                  name and the server resolving the FK — render the
+                  name flat (no link) until the next refetch lands. */}
+              {!isEditing && liveLibraryRow?.author?.name && (
                 <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.22em] text-washi-muted">
                   <span className="text-washi-dim">{t("manga.byAuthor")}</span>{" "}
-                  <Link
-                    to={`/author/${encodeURIComponent(author)}`}
-                    className="text-hanko-bright transition hover:text-hanko"
-                  >
-                    {author}
-                  </Link>
+                  {liveLibraryRow.author.mal_id != null ? (
+                    <Link
+                      to={`/author/${liveLibraryRow.author.mal_id}`}
+                      className="text-hanko-bright transition hover:text-hanko"
+                    >
+                      {liveLibraryRow.author.name}
+                    </Link>
+                  ) : (
+                    <span className="text-hanko-bright">
+                      {liveLibraryRow.author.name}
+                    </span>
+                  )}
                 </p>
               )}
               {isEditing && (
@@ -875,12 +912,14 @@ export default function MangaPage({ manga, adult_content_level }) {
                       options={EDITION_PRESETS.map((key) => t(`manga.editionPreset_${key}`))}
                     />
                   </div>
-                  {/* 作家 · Author override. Plain input rather than
-                      datalist — the autocomplete value is the user's
-                      OWN library of authors, not a curated preset
-                      list. We could merge user authors with a global
-                      pool but the cardinality is so low per user that
-                      a plain field reads cleaner. */}
+                  {/* 作家 · Author override with datalist autocomplete.
+                      The dropdown is sourced from the user's existing
+                      authors (`useKnownAuthors`) so picking an entry
+                      reuses the canonical name → server's
+                      `resolve_author_from_text` matches the existing
+                      row instead of minting a duplicate custom author.
+                      Free-text input still works for new mangaka the
+                      user hasn't recorded yet. */}
                   <div className="mt-3">
                     <label
                       htmlFor="manga-author"
@@ -894,10 +933,17 @@ export default function MangaPage({ manga, adult_content_level }) {
                       value={author}
                       onChange={(e) => setAuthor(e.target.value)}
                       placeholder={t("manga.authorPlaceholder")}
+                      list="mc-author-list"
                       maxLength={120}
                       autoComplete="off"
+                      spellCheck={false}
                       className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
                     />
+                    <datalist id="mc-author-list">
+                      {authorOptions.map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
                   </div>
                   {/* 記憶 · Series-level review. Sits below the
                       publisher/edition row because it's a longer

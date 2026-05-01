@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod archive;
+pub mod author;
 pub mod cache;
 pub mod calendar_ics;
 pub mod coffret;

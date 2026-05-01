@@ -101,7 +101,7 @@ export async function enqueueLibraryPatch(mal_id, fields) {
   const next = {};
   if ("volumes" in fields) next.volumes = fields.volumes;
   if ("image_url_jpg" in fields) next.image_url_jpg = fields.image_url_jpg;
-  for (const key of ["publisher", "edition", "review", "author"]) {
+  for (const key of ["publisher", "edition", "review"]) {
     if (!(key in fields)) continue;
     const raw = fields[key];
     if (raw == null) {
@@ -109,6 +109,30 @@ export async function enqueueLibraryPatch(mal_id, fields) {
     } else {
       const trimmed = String(raw).trim();
       next[key] = trimmed === "" ? null : trimmed;
+    }
+  }
+  // 作家 · Author lives in two shapes:
+  //   • Outbox payload : free-text string (server resolves to FK)
+  //   • Dexie row      : `{ id, mal_id, name }` ref or null
+  // The user types text; we ship the text to the server but write a
+  // stub ref into Dexie so the optimistic read view (`row.author?.name`)
+  // doesn't see a raw string. The full ref (with id + mal_id) lands
+  // on the next refetchLibrary, replacing the stub.
+  let authorPayload;
+  if ("author" in fields) {
+    const raw = fields.author;
+    if (raw == null) {
+      next.author = null;
+      authorPayload = null;
+    } else {
+      const trimmed = String(raw).trim();
+      if (trimmed === "") {
+        next.author = null;
+        authorPayload = null;
+      } else {
+        next.author = { id: null, mal_id: null, name: trimmed };
+        authorPayload = trimmed;
+      }
     }
   }
   // 公 · `review_public` is plain boolean — no trim/empty contract.
@@ -131,7 +155,15 @@ export async function enqueueLibraryPatch(mal_id, fields) {
           .filter((g, i, arr) => g.length > 0 && arr.indexOf(g) === i)
       : [];
   }
-  if (Object.keys(next).length === 0) return;
+  if (Object.keys(next).length === 0 && authorPayload === undefined) return;
+
+  // The outbox payload mirrors `next` for every field EXCEPT author —
+  // the server takes a free-text string and resolves the FK itself,
+  // so we strip the stub object and substitute the text variant.
+  const payloadDelta = { ...next };
+  if (authorPayload !== undefined) {
+    payloadDelta.author = authorPayload;
+  }
 
   await db.transaction("rw", db.library, db.outboxLibrary, async () => {
     const existing = await db.library.get(mal_id);
@@ -144,7 +176,7 @@ export async function enqueueLibraryPatch(mal_id, fields) {
       payload: {},
       ts: Date.now(),
     };
-    current.payload = { ...current.payload, ...next };
+    current.payload = { ...current.payload, ...payloadDelta };
     // Preserve an in-flight `upsert` op (the row is being created),
     // otherwise this becomes a `patch` op so the flush handler treats
     // each field independently.
