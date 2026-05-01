@@ -617,6 +617,7 @@ export default {
     reader: "Reader",
     byline: "Your archive at a glance — curated with care, volume by volume.",
     yearReviewCta: "{year} in review",
+    snapshotCta: "Share my shelf",
     series: "Series",
     inArchive: "In archive",
     volumes: "Volumes",
@@ -1201,6 +1202,22 @@ export default {
     navSeals: "Seals",
     navSettings: "Settings",
     navGlossary: "Glossary",
+  },
+  snapshot: {
+    eyebrow: "Snapshot · 棚",
+    title: "Share your shelf",
+    byline:
+      "A 4:5 card of your archive — ready for Instagram, X, or a quiet share with a friend.",
+    rendering: "Composing…",
+    renderError: "Couldn't generate the image. Try again in a moment.",
+    helper:
+      "Covers that don't allow cross-origin download fall back to the LQIP tint — the composition stays coherent.",
+    previewAlt: "Preview of your shelf as a shareable image",
+    share: "Share",
+    download: "Download",
+    statLabelVolumes: "Volumes",
+    statLabelSeries: "Series",
+    statLabelComplete: "Progress",
   },
   shortcuts: {
     eyebrow: "Shortcuts · 鍵",

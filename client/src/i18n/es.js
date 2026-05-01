@@ -622,6 +622,7 @@ export default {
     reader: "Lector",
     byline: "Tu archivo de un vistazo — curado con cariño, tomo a tomo.",
     yearReviewCta: "Retrospectiva {year}",
+    snapshotCta: "Compartir mi estantería",
     series: "Series",
     inArchive: "En el archivo",
     volumes: "Tomos",
@@ -1210,6 +1211,23 @@ export default {
     navSeals: "Sellos",
     navSettings: "Ajustes",
     navGlossary: "Glosario",
+  },
+  snapshot: {
+    eyebrow: "Captura · 棚",
+    title: "Comparte tu estantería",
+    byline:
+      "Una tarjeta 4:5 de tu archivo — lista para Instagram, X o un intercambio discreto con un amigo.",
+    rendering: "Componiendo…",
+    renderError:
+      "No se pudo generar la imagen. Vuelve a intentarlo en un momento.",
+    helper:
+      "Las portadas que no permiten descarga cross-origin recurren al tono LQIP — la composición queda coherente.",
+    previewAlt: "Vista previa de tu estantería como imagen para compartir",
+    share: "Compartir",
+    download: "Descargar",
+    statLabelVolumes: "Tomos",
+    statLabelSeries: "Series",
+    statLabelComplete: "Progreso",
   },
   shortcuts: {
     eyebrow: "Atajos · 鍵",

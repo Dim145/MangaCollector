@@ -635,6 +635,7 @@ export default {
     byline:
       "Votre archive en un coup d'œil — curée avec soin, tome après tome.",
     yearReviewCta: "Rétrospective {year}",
+    snapshotCta: "Partager mon étagère",
     series: "Séries",
     inArchive: "Dans l'archive",
     volumes: "Tomes",
@@ -1228,6 +1229,23 @@ export default {
     navSeals: "Sceaux",
     navSettings: "Paramètres",
     navGlossary: "Glossaire",
+  },
+  snapshot: {
+    eyebrow: "Cliché · 棚",
+    title: "Partager votre étagère",
+    byline:
+      "Une carte 4:5 de votre archive — prête pour Instagram, X ou un partage discret avec un ami.",
+    rendering: "Composition…",
+    renderError:
+      "Impossible de générer l'image. Réessayez dans un instant.",
+    helper:
+      "Les couvertures qui n'autorisent pas le téléchargement cross-origin retombent sur la teinte LQIP — la composition reste cohérente.",
+    previewAlt: "Aperçu de votre étagère sous forme d'image partageable",
+    share: "Partager",
+    download: "Télécharger",
+    statLabelVolumes: "Tomes",
+    statLabelSeries: "Séries",
+    statLabelComplete: "Progression",
   },
   shortcuts: {
     eyebrow: "Raccourcis · 鍵",
