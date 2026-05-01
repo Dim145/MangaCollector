@@ -67,6 +67,23 @@ const CHAPTERS = [
 ];
 const VALID_IDS = new Set(CHAPTERS.map((c) => c.id));
 
+// 組 · Sub-blocks group cards by topical affinity within a chapter.
+// Each entry pairs a kanji glyph (the visual marker) with its label
+// translation key. The sub-block stamp gets a smaller treatment than
+// the chapter stamp — it sits between cards rather than above them, so
+// the eye can quickly scan "all the visual stuff" / "all the language
+// stuff" without misreading them as separate chapters.
+const SUB_BLOCKS = {
+  visual:     { kanji: "視", labelKey: "settings.subVisual" },
+  atmosphere: { kanji: "雰", labelKey: "settings.subAtmosphere" },
+  feedback:   { kanji: "響", labelKey: "settings.subFeedback" },
+  language:   { kanji: "言", labelKey: "settings.subLanguage" },
+  display:    { kanji: "表", labelKey: "settings.subDisplay" },
+  publicShare:{ kanji: "公", labelKey: "settings.subPublic" },
+  tools:      { kanji: "具", labelKey: "settings.subTools" },
+  help:       { kanji: "助", labelKey: "settings.subHelp" },
+};
+
 export default function SettingsPage() {
   const { data: settings, isInitialLoad: settingsLoading } = useUserSettings();
   const updateSettings = useUpdateSettings();
@@ -357,6 +374,15 @@ export default function SettingsPage() {
         <SettingsSkeleton />
       ) : (
         <main className="space-y-12 md:space-y-16">
+          {/* ─── Ch. 1 · Apparence ─────────────────────────────────
+              Three sub-blocks ordered by sensory channel:
+                視 Visuel    — what the eye sees first (theme, accent, 3D)
+                雰 Ambiance  — environmental layers (season, particles)
+                響 Retours   — what your senses feel back (sound + haptic)
+              Sound + Haptics used to live in the visual chapter as a
+              flat afterthought; grouping them as 響 Retours surfaces
+              their shared semantics and gets them out of the way of
+              actual visual settings. */}
           <Chapter
             id="appearance"
             chapter={CHAPTERS[0]}
@@ -364,36 +390,50 @@ export default function SettingsPage() {
             subtitle={t("settings.tabAppearanceHint")}
             t={t}
           >
-            <ThemeSection
-              options={THEME_OPTIONS}
-              value={theme}
-              onChange={handleThemeChange}
-              t={t}
-            />
-            <AccentSection
-              value={accentColor}
-              onChange={handleAccentChange}
-              t={t}
-            />
-            <Shelf3DSection
-              enabled={shelf3d}
-              onToggle={handleShelf3dChange}
-              t={t}
-            />
-            <SeasonSection />
-            <AtmosphereSection />
-            <HapticsSection
-              enabled={hapticsOn}
-              onToggle={handleHapticsToggle}
-              t={t}
-            />
-            <SoundSection
-              enabled={soundEnabled}
-              onToggle={handleSoundChange}
-              t={t}
-            />
+            <SubBlock block={SUB_BLOCKS.visual} t={t}>
+              <ThemeSection
+                options={THEME_OPTIONS}
+                value={theme}
+                onChange={handleThemeChange}
+                t={t}
+              />
+              <AccentSection
+                value={accentColor}
+                onChange={handleAccentChange}
+                t={t}
+              />
+              <Shelf3DSection
+                enabled={shelf3d}
+                onToggle={handleShelf3dChange}
+                t={t}
+              />
+            </SubBlock>
+
+            <SubBlock block={SUB_BLOCKS.atmosphere} t={t}>
+              <SeasonSection />
+              <AtmosphereSection />
+            </SubBlock>
+
+            <SubBlock block={SUB_BLOCKS.feedback} t={t}>
+              <SoundSection
+                enabled={soundEnabled}
+                onToggle={handleSoundChange}
+                t={t}
+              />
+              <HapticsSection
+                enabled={hapticsOn}
+                onToggle={handleHapticsToggle}
+                t={t}
+              />
+            </SubBlock>
           </Chapter>
 
+          {/* ─── Ch. 2 · Contenu ───────────────────────────────────
+              Two sub-blocks:
+                言 Langues   — what tongue the UI / titles speak
+                表 Affichage — how data is rendered (currency, adult)
+              Scanner API key moved OUT of this chapter (it's a tool,
+              not a content preference) and into Ch. 3 / 具 Outils. */}
           <Chapter
             id="content"
             chapter={CHAPTERS[1]}
@@ -401,40 +441,44 @@ export default function SettingsPage() {
             subtitle={t("settings.tabContentHint")}
             t={t}
           >
-            <LanguageSection
-              value={language}
-              onChange={handleLanguageChange}
-              t={t}
-            />
-            <TitleLanguageSection
-              options={TITLE_OPTIONS}
-              value={titleType}
-              onChange={handleTitleChange}
-              t={t}
-            />
-            <CurrencySection
-              currency={currencyObject}
-              onChange={handleCurrencyChange}
-              t={t}
-            />
-            <AdultContentSection
-              options={ADULT_OPTIONS}
-              value={showAdultContent}
-              onChange={handleAdultChange}
-              t={t}
-            />
-            <ScannerKeySection
-              apiKey={apiKeyInput}
-              setApiKey={setApiKeyInput}
-              revealed={apiKeyRevealed}
-              setRevealed={setApiKeyRevealed}
-              saved={apiKeySaved}
-              onSave={handleApiKeySave}
-              onClear={handleApiKeyClear}
-              t={t}
-            />
+            <SubBlock block={SUB_BLOCKS.language} t={t}>
+              <LanguageSection
+                value={language}
+                onChange={handleLanguageChange}
+                t={t}
+              />
+              <TitleLanguageSection
+                options={TITLE_OPTIONS}
+                value={titleType}
+                onChange={handleTitleChange}
+                t={t}
+              />
+            </SubBlock>
+
+            <SubBlock block={SUB_BLOCKS.display} t={t}>
+              <CurrencySection
+                currency={currencyObject}
+                onChange={handleCurrencyChange}
+                t={t}
+              />
+              <AdultContentSection
+                options={ADULT_OPTIONS}
+                value={showAdultContent}
+                onChange={handleAdultChange}
+                t={t}
+              />
+            </SubBlock>
           </Chapter>
 
+          {/* ─── Ch. 3 · Compte ────────────────────────────────────
+              Three sub-blocks ordered by intent:
+                公 Public  — what other people see (profile, birthday)
+                具 Outils  — utilities for your library (archive,
+                            shelf stickers, barcode scanner key)
+                助 Aide    — onboarding tour + glossary entry point
+              Scanner key moved here from Ch. 2 because it's a
+              personal credential for an external tool, not a content
+              preference. */}
           <Chapter
             id="account"
             chapter={CHAPTERS[2]}
@@ -442,13 +486,35 @@ export default function SettingsPage() {
             subtitle={t("settings.tabAccountHint")}
             t={t}
           >
-            <PublicProfileSection />
-            <BirthdayModeSection />
-            <ArchiveSection />
-            <ShelfStickersEntry t={t} />
-            <OnboardingSection />
+            <SubBlock block={SUB_BLOCKS.publicShare} t={t}>
+              <PublicProfileSection />
+              <BirthdayModeSection />
+            </SubBlock>
+
+            <SubBlock block={SUB_BLOCKS.tools} t={t}>
+              <ArchiveSection />
+              <ShelfStickersEntry t={t} />
+              <ScannerKeySection
+                apiKey={apiKeyInput}
+                setApiKey={setApiKeyInput}
+                revealed={apiKeyRevealed}
+                setRevealed={setApiKeyRevealed}
+                saved={apiKeySaved}
+                onSave={handleApiKeySave}
+                onClear={handleApiKeyClear}
+                t={t}
+              />
+            </SubBlock>
+
+            <SubBlock block={SUB_BLOCKS.help} t={t}>
+              <OnboardingSection />
+            </SubBlock>
           </Chapter>
 
+          {/* ─── Ch. 4 · Avancé ────────────────────────────────────
+              Single block — the danger zone is too small to merit
+              sub-grouping, and DataSection already treats restore vs.
+              delete as two visually distinct tiles internally. */}
           <Chapter
             id="advanced"
             chapter={CHAPTERS[3]}
@@ -550,6 +616,11 @@ function Chapter({ id, chapter, title, subtitle, children, t }) {
   // `scroll-margin-top` clears the sticky mobile ribbon (~64px) + the
   // breathing room above the first card. Numbers are visual feel, not
   // pixel-precise — adjust together with the ribbon's own height.
+  //
+  // Spacing inside the chapter is driven by the SubBlock component
+  // (which carries its own top spacing). Direct cards (like the Ch. 4
+  // DataSection that doesn't sit inside a SubBlock) get the same
+  // 5/6 unit gap via space-y, applied at the wrapper level.
   return (
     <section
       id={`ch-${id}`}
@@ -563,8 +634,53 @@ function Chapter({ id, chapter, title, subtitle, children, t }) {
         idAttr={`ch-${id}-title`}
         t={t}
       />
-      <div className="space-y-5 md:space-y-6">{children}</div>
+      <div className="space-y-7 md:space-y-9">{children}</div>
     </section>
+  );
+}
+
+/**
+ * 組 · Sub-block — visual sub-grouping inside a Chapter.
+ *
+ * Renders a small kanji-marked header above a stack of related cards.
+ * The header is deliberately quieter than ChapterHeading: a 28px stamp
+ * (vs the chapter's 56-64px hanko), a thin hairline divider that fades
+ * into transparency on the right, and uppercase mono text instead of
+ * the chapter's italic display face. The result is a clear "this is
+ * a sub-grouping, not a new chapter" affordance — the eye tracks
+ * chapter boundaries by the brushstroke + large hanko, sub-block
+ * boundaries by the small kanji + hairline.
+ *
+ * Cards inside a sub-block get tighter vertical spacing than between
+ * sub-blocks: closely related settings cluster, then a beat of breath
+ * separates clusters.
+ */
+function SubBlock({ block, children, t }) {
+  // Outer wrapper is just animation + identity. The header gets its own
+  // `mb-4` so the gap below it is tighter than the gap between cards
+  // (5/6 via the inner space-y), which keeps the header visually
+  // attached to "its" cards rather than floating equidistantly between
+  // the previous block's last card and the next group.
+  return (
+    <div className="animate-fade-up">
+      <div className="mb-4 flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border/70 bg-ink-2/50 font-jp text-[13px] font-bold leading-none text-hanko-bright shadow-[0_2px_8px_rgba(0,0,0,0.25)]"
+          style={{ transform: "rotate(-3deg)" }}
+        >
+          {block.kanji}
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-washi-dim whitespace-nowrap">
+          {t(block.labelKey)}
+        </span>
+        <span
+          aria-hidden="true"
+          className="h-px flex-1 bg-gradient-to-r from-border via-border/40 to-transparent"
+        />
+      </div>
+      <div className="space-y-5 md:space-y-6">{children}</div>
+    </div>
   );
 }
 
