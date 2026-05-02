@@ -230,6 +230,16 @@ pub struct AddLibraryRequest {
     pub publisher: Option<String>,
     #[serde(default)]
     pub edition: Option<String>,
+    /// 作家 · Optional MAL author id, surfaced by the MAL search
+    /// result when the picked manga ships with an author credit.
+    /// When present and positive, the service eagerly resolves it
+    /// to an `authors.id` (cache-aside via Jikan) and writes the
+    /// FK on the freshly-inserted row, so the user sees the author
+    /// on the manga page without first triggering a "refresh from
+    /// MAL". Absent / null / non-positive values leave `author_id`
+    /// NULL — the existing refresh path will populate it later.
+    #[serde(default)]
+    pub author_mal_id: Option<i32>,
 }
 
 /// Request body for adding an entry sourced from MangaDex (no MAL id).

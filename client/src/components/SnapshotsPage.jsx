@@ -118,6 +118,8 @@ export default function SnapshotsPage() {
         {detail && (
           <DetailModal
             snapshot={detail}
+            library={library ?? []}
+            userName={userName}
             onClose={() => setDetail(null)}
             lang={lang}
             t={t}
@@ -483,9 +485,15 @@ function PhaseIndicator({ phase, t, errMsg }) {
 
 // ─── Detail modal ──────────────────────────────────────────────────
 
-function DetailModal({ snapshot, onClose, lang, t }) {
+function DetailModal({ snapshot, library, userName, onClose, lang, t }) {
   const del = useDeleteSnapshot();
+  const upload = useUploadSnapshotImage();
   const [confirming, setConfirming] = useState(false);
+  // 印影 · Retry-upload phase. Mirrors CaptureModal but skips the
+  // create step (the row already exists; we just need to attach an
+  // image to it). Idle → rendering → uploading → done | error.
+  const [retryPhase, setRetryPhase] = useState("idle");
+  const [retryErr, setRetryErr] = useState(null);
   const dateLabel = formatDate(snapshot.taken_at, lang);
   const imgUrl = snapshot.has_image
     ? `/api/user/snapshots/${snapshot.id}/image`
@@ -495,6 +503,39 @@ function DetailModal({ snapshot, onClose, lang, t }) {
     await del.mutateAsync(snapshot.id);
     onClose();
   }
+
+  async function handleRetry() {
+    if (retryPhase === "rendering" || retryPhase === "uploading") return;
+    setRetryErr(null);
+    try {
+      setRetryPhase("rendering");
+      // Re-render with the CURRENT library state (not the captured-
+      // at-time state — we don't snapshot the cover layout, only
+      // the stats counters). Acceptable fidelity loss: the user
+      // wanted SOME image, not necessarily the exact one from the
+      // moment of capture.
+      const stats = computeStats(library);
+      const blob = await renderShelfSnapshotBlob({
+        library,
+        stats,
+        userName,
+        locale: lang,
+      });
+      setRetryPhase("uploading");
+      await upload.mutateAsync({ id: snapshot.id, blob });
+      setRetryPhase("done");
+      // Close after a short success beat so the user sees the
+      // confirmation chip flicker, then the gallery grid shows
+      // the updated thumbnail.
+      setTimeout(onClose, 350);
+    } catch (err) {
+      console.error("[snapshots] retry upload failed", err);
+      setRetryErr(err?.message ?? "retry failed");
+      setRetryPhase("error");
+    }
+  }
+
+  const retrying = retryPhase === "rendering" || retryPhase === "uploading";
 
   return (
     <Modal popupOpen={true} handleClose={onClose}>
@@ -535,8 +576,38 @@ function DetailModal({ snapshot, onClose, lang, t }) {
               className="mx-auto max-h-[70vh] w-auto max-w-full rounded-sm shadow-2xl"
             />
           ) : (
-            <div className="grid place-items-center px-8 py-24 font-display text-base italic text-washi-dim">
-              {t("snapshots.imageMissing")}
+            <div className="grid place-items-center gap-4 px-8 py-20 text-center">
+              <p
+                aria-hidden="true"
+                className="font-jp text-6xl font-bold leading-none text-washi-dim/40 md:text-7xl"
+              >
+                撮
+              </p>
+              <p className="max-w-md font-display text-base italic text-washi-muted">
+                {t("snapshots.imageMissing")}
+              </p>
+              {/* 印影 · Retry the image-upload step. The stats row
+                  already exists; this just re-renders the canvas
+                  + POSTs to /image. The phase indicator below
+                  surfaces the multi-step progress. */}
+              <button
+                type="button"
+                onClick={handleRetry}
+                disabled={retrying}
+                className="inline-flex items-center gap-2 rounded-full border border-gold/55 bg-gold/8 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.28em] text-gold transition hover:border-gold hover:bg-gold/15 disabled:opacity-50"
+              >
+                <span aria-hidden="true" className="font-jp text-sm not-italic">
+                  撮
+                </span>
+                {retrying
+                  ? t("snapshots.capturing")
+                  : t("snapshots.retryUpload")}
+              </button>
+              {retryPhase !== "idle" && (
+                <div className="w-full max-w-xs">
+                  <PhaseIndicator phase={retryPhase} t={t} errMsg={retryErr} />
+                </div>
+              )}
             </div>
           )}
         </div>

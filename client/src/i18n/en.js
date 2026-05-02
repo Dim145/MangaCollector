@@ -1973,6 +1973,7 @@ export default {
     emptyBody:
       "Capture the first print of your shelf. It becomes the starting point of a visual chronicle.",
     imageMissing: "Image missing — the capture likely failed.",
+    retryUpload: "Retry capture",
     deleteAction: "Destroy print",
     deleteConfirm: "Confirm destruction?",
     backToDashboard: "Back to dashboard",
@@ -2013,8 +2014,8 @@ export default {
       series_completed: "completed {series} — {count} volumes total.",
       volume_owned: "acquired volume {vol} of {series}.",
       volume_unowned: "parted with volume {vol} of {series}.",
-      volume_milestone: "crossed {count} volumes owned.",
-      series_milestone: "now holds {count} series in their archive.",
+      milestone_volumes: "crossed {count} volumes owned.",
+      milestone_series: "now holds {count} series in their archive.",
     },
   },
 };

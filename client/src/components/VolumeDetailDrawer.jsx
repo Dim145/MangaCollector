@@ -584,8 +584,12 @@ export default function VolumeDetailDrawer({
                 clicking opens the LoanModal in edit mode
               • not lent → muted "lend" CTA that opens the modal
                 with an empty form. Hidden entirely when the parent
-                doesn't pass `onOpenLoanModal`. */}
-          {onOpenLoanModal && !isUpcoming && (
+                doesn't pass `onOpenLoanModal`, when the volume is
+                upcoming (no real copy yet to lend), or when the
+                user doesn't currently own the tome (you can't lend
+                what isn't yours). The owned gate is symmetric with
+                the server's `set_loan` BadRequest. */}
+          {onOpenLoanModal && !isUpcoming && ownedStatus && (
             <LoanChip
               loanedTo={loanedTo}
               loanDueAt={loanDueAt}

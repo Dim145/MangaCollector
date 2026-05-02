@@ -185,3 +185,25 @@ pub async fn current_image_path(
         .map_err(AppError::from)?;
     Ok(row.and_then(|r| r.image_path))
 }
+
+/// Confirms a snapshot row exists for the given (id, user_id) pair.
+/// Distinct from `current_image_path` which collapses "row missing"
+/// and "row exists but no image yet" into the same `None` — that
+/// ambiguity is fine for the GET-image route (both legitimately
+/// return 404), but the multipart upload route needs to reject
+/// ONLY the missing case while accepting "image not set yet" as
+/// the normal first-upload path.
+pub async fn exists_for_user(
+    db: &Db,
+    user_id: i32,
+    id: i32,
+) -> Result<bool, AppError> {
+    use sea_orm::PaginatorTrait;
+    let count = SnapshotEntity::find()
+        .filter(snapshot::Column::Id.eq(id))
+        .filter(snapshot::Column::UserId.eq(user_id))
+        .count(db)
+        .await
+        .map_err(AppError::from)?;
+    Ok(count > 0)
+}

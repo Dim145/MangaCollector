@@ -443,8 +443,12 @@ const eventKanji = {
   series_completed: "完",
   volume_owned: "得",
   volume_unowned: "離",
-  volume_milestone: "百",
-  series_milestone: "新",
+  // Match the server's `event_types::MILESTONE_VOLUMES` /
+  // `MILESTONE_SERIES` constants (noun-noun ordering, not
+  // verb-noun). Misalignment here makes the i18n key lookup miss
+  // and the feed line falls through to the generic fallback.
+  milestone_volumes: "百",
+  milestone_series: "新",
 };
 
 /** Render a feed entry as a one-liner, leaning on i18n strings. */

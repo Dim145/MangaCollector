@@ -1984,6 +1984,7 @@ export default {
     emptyBody:
       "Captura la primera estampa de tu estante. Será el punto de partida de una crónica visual.",
     imageMissing: "Imagen ausente — la captura probablemente falló.",
+    retryUpload: "Reintentar captura",
     deleteAction: "Destruir estampa",
     deleteConfirm: "¿Confirmar destrucción?",
     backToDashboard: "Volver al dashboard",
@@ -2024,8 +2025,8 @@ export default {
       series_completed: "completó {series} — {count} tomos en total.",
       volume_owned: "adquirió el tomo {vol} de {series}.",
       volume_unowned: "se separó del tomo {vol} de {series}.",
-      volume_milestone: "cruzó {count} tomos poseídos.",
-      series_milestone: "ahora tiene {count} series en su archivo.",
+      milestone_volumes: "cruzó {count} tomos poseídos.",
+      milestone_series: "ahora tiene {count} series en su archivo.",
     },
   },
 };

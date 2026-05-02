@@ -185,6 +185,36 @@ pub async fn update_by_id(
         }
     }
 
+    // 預け · Auto-clear loan on unown. A volume the user no longer
+    // owns can't logically still be on loan — the user gave it
+    // away, sold it, or marked it lost. Without this, a "lent +
+    // unowned" row would be invisible to the loan UI (the
+    // VolumeDetailDrawer's LoanChip is gated on `ownedStatus`)
+    // and the loan would stay stuck in the DB forever. Cleared
+    // only when transitioning owned: true → false; an idempotent
+    // unown of an already-unowned row leaves the columns alone
+    // (they should already be NULL).
+    let was_owned = existing.as_ref().is_some_and(|r| r.owned);
+    if was_owned && !owned {
+        query = query
+            .col_expr(
+                volume::Column::LoanedTo,
+                sea_orm::sea_query::Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                volume::Column::LoanStartedAt,
+                sea_orm::sea_query::Expr::value(
+                    Option::<chrono::DateTime<chrono::Utc>>::None,
+                ),
+            )
+            .col_expr(
+                volume::Column::LoanDueAt,
+                sea_orm::sea_query::Expr::value(
+                    Option::<chrono::DateTime<chrono::Utc>>::None,
+                ),
+            );
+    }
+
     query.exec(db).await.map_err(AppError::from)?;
 
     // Log ownership transitions only — price/store edits alone don't produce
@@ -268,12 +298,39 @@ pub async fn set_loan(
     let mut active: ActiveModel = existing.clone().into();
     match patch {
         None => {
-            // Return path — clear all three columns.
+            // Return path — clear all three columns. Allowed
+            // unconditionally: even if the volume was somehow
+            // marked as lent on a non-owned row (legacy data, race
+            // with an unown op), clearing the loan is a strict
+            // improvement and should never error.
             active.loaned_to = Set(None);
             active.loan_started_at = Set(None);
             active.loan_due_at = Set(None);
         }
         Some(p) => {
+            // 預け · Lending requires real ownership. You can't
+            // hand someone what isn't yours. The check covers two
+            // states: the volume isn't currently owned, OR it's
+            // an upcoming announcement (release_date in the future,
+            // owned forced to false by upstream invariants). Both
+            // surface the same `BadRequest`; the SPA already gates
+            // the loan UI on `ownedStatus && !isUpcoming` so the
+            // server-side reject is defense in depth, not a primary
+            // signal.
+            if !existing.owned {
+                return Err(AppError::BadRequest(
+                    "Cannot lend a volume that is not currently owned.".into(),
+                ));
+            }
+            let is_upcoming = existing
+                .release_date
+                .map(|d| d > now)
+                .unwrap_or(false);
+            if is_upcoming {
+                return Err(AppError::BadRequest(
+                    "Cannot lend an upcoming volume.".into(),
+                ));
+            }
             let trimmed = p.to.trim();
             if trimmed.is_empty() {
                 return Err(AppError::BadRequest(

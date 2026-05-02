@@ -274,6 +274,46 @@ pub async fn add_to_user_library(
     let publisher = sanitize_label(req.publisher, PUBLISHER_MAX_LEN);
     let edition = sanitize_label(req.edition, EDITION_MAX_LEN);
 
+    // 作家 · Resolve an `authors.id` to stamp onto the new row.
+    //
+    // Three-step lookup:
+    //   1. The request payload may carry `author_mal_id` directly
+    //      (future-proof: the merged search endpoint could be
+    //      extended to expose it). Use it if positive.
+    //   2. Otherwise, when the entry has a positive series mal_id,
+    //      fetch the MAL `/full` data via the cached
+    //      `get_manga_from_mal` and pull the primary author's
+    //      mal_id off `data.authors`. The MAL list-search endpoint
+    //      doesn't include authors, so this extra fetch is the
+    //      only way to wire authors at add time without a manual
+    //      "refresh from MAL" round-trip.
+    //   3. Otherwise, no author. The standard refresh path
+    //      populates it later.
+    //
+    // Latency budget: step 2 adds ~200-1500 ms on cold MAL cache
+    // (warm cache is ~5 ms via CacheStore). The user is already
+    // in a "saving…" state — preferable to a multi-day gap before
+    // they discover the author needs a manual refresh.
+    let probed_author_mal_id: Option<i32> = match (req.author_mal_id, mal_id) {
+        (Some(mid), _) if mid > 0 => Some(mid),
+        (_, Some(series_mid)) if series_mid > 0 => {
+            match get_manga_from_mal(http_client, cache, series_mid).await {
+                Ok(Some(data)) => data
+                    .authors
+                    .as_ref()
+                    .and_then(|list| list.iter().find(|a| !a.name.trim().is_empty()))
+                    .and_then(|a| a.mal_id)
+                    .filter(|id| *id > 0),
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+    let resolved_author_id = match probed_author_mal_id {
+        Some(mid) => author::find_or_create_shared_author_id(db, http_client, mid).await?,
+        None => None,
+    };
+
     let model = ActiveModel {
         created_on: Set(now),
         modified_on: Set(now),
@@ -287,6 +327,7 @@ pub async fn add_to_user_library(
         mangadex_id: Set(req.mangadex_id.clone()),
         publisher: Set(publisher),
         edition: Set(edition),
+        author_id: Set(resolved_author_id),
         ..Default::default()
     };
 
@@ -363,6 +404,9 @@ pub async fn add_from_mangadex(
             // from the series-detail edit form.
             publisher: None,
             edition: None,
+            // 作家 · MangaDex search results don't carry MAL author
+            // ids; the series gets its author on the next MAL refresh.
+            author_mal_id: None,
         },
     )
     .await
@@ -607,6 +651,13 @@ pub async fn copy_series_from_other_user(
             // default; they can be set later via the edit form.
             publisher: None,
             edition: None,
+            // 作家 · Author copy across users is non-trivial: shared
+            // MAL rows transfer cleanly via author_id, but custom
+            // (per-user negative mal_id) authors don't. The next
+            // `update_infos_from_mal` on the destination's row
+            // populates author_id for shared MAL series; custom
+            // entries stay author-less until the user edits them.
+            author_mal_id: None,
         },
     )
     .await
@@ -635,9 +686,11 @@ pub async fn add_custom_entry(
             genres: req.genres,
             mangadex_id: None,
             // Custom entries have no external metadata to mine; the
-            // user fills in publisher / edition from the edit form.
+            // user fills in publisher / edition / author from the
+            // edit form.
             publisher: None,
             edition: None,
+            author_mal_id: None,
         },
     )
     .await

@@ -78,12 +78,14 @@ pub async fn upload_snapshot_image(
     mut multipart: Multipart,
 ) -> Result<Json<SnapshotResponse>, AppError> {
     // Verify ownership BEFORE accepting the upload — saves us a
-    // wasted multipart parse on cross-user attempts.
-    snapshot::current_image_path(&state.db, user.id, id)
-        .await?
-        .map(|_| ())
-        .or(Some(()))
-        .ok_or_else(|| AppError::NotFound("Snapshot not found".into()))?;
+    // wasted multipart parse + an orphan S3 blob on bogus / cross-
+    // user ids. `exists_for_user` is a COUNT(*) query (cheap, no
+    // row hydration) scoped by (id, user_id), so it returns false
+    // both for a non-existent id AND for a row that belongs to
+    // another user.
+    if !snapshot::exists_for_user(&state.db, user.id, id).await? {
+        return Err(AppError::NotFound("Snapshot not found".into()));
+    }
 
     const MAX_FIELDS_SCANNED: usize = 8;
     let mut bytes_opt: Option<bytes::Bytes> = None;

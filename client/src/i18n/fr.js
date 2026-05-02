@@ -2008,6 +2008,7 @@ export default {
     emptyBody:
       "Capturez le premier tirage de votre étagère. Il deviendra le point de départ d'une chronique visuelle.",
     imageMissing: "Image absente — capture probablement interrompue.",
+    retryUpload: "Réessayer la prise",
     deleteAction: "Détruire le tirage",
     deleteConfirm: "Confirmer la destruction ?",
     backToDashboard: "Retour au tableau de bord",
@@ -2048,8 +2049,8 @@ export default {
       series_completed: "a complété {series} — {count} tomes au total.",
       volume_owned: "a acquis le tome {vol} de {series}.",
       volume_unowned: "s'est séparé du tome {vol} de {series}.",
-      volume_milestone: "a franchi le cap des {count} tomes possédés.",
-      series_milestone: "a maintenant {count} séries dans son archive.",
+      milestone_volumes: "a franchi le cap des {count} tomes possédés.",
+      milestone_series: "a maintenant {count} séries dans son archive.",
     },
   },
 };
