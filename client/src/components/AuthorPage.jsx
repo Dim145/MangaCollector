@@ -10,6 +10,7 @@ import {
   useUpdateAuthor,
   useUploadAuthorPhoto,
 } from "@/hooks/useAuthorDetail.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage } from "@/utils/library.js";
 import CoverImage from "./ui/CoverImage.jsx";
 import Modal from "./ui/Modal.jsx";
@@ -135,6 +136,15 @@ export default function AuthorPage() {
   const uploadPhoto = useUploadAuthorPhoto();
   const deletePhoto = useDeleteAuthorPhoto();
 
+  // 連 · Connectivity gate for the Refresh button. The refresh
+  // endpoint synchronously fetches Jikan; without a server it
+  // can't do anything useful, and queueing a refresh in the
+  // outbox doesn't make sense (the user wants the freshest
+  // possible row, not "whenever the network comes back"). We
+  // disable the button + surface an explanatory tooltip, mirroring
+  // how the rest of the SPA treats network-bound actions.
+  const online = useOnline();
+
   // Capability gate. Determined from the route param so it's
   // available even before the detail call resolves; `detail.is_custom`
   // is the authoritative version once data lands.
@@ -177,6 +187,7 @@ export default function AuthorPage() {
           detail={detail}
           detailLoading={detailLoading && Boolean(authorMalId)}
           isCustom={isCustom}
+          online={online}
           onEditClick={() => setEditorOpen(true)}
           onDeleteClick={() => setConfirmDelete(true)}
           onRefreshClick={() =>
@@ -279,6 +290,7 @@ function Hero({
   detail,
   detailLoading,
   isCustom,
+  online,
   onEditClick,
   onDeleteClick,
   onRefreshClick,
@@ -312,18 +324,32 @@ function Hero({
             Bypasses the 7-day Jikan staleness gate so the user sees
             the latest photo / bio / favorites count on demand.
             No edit/delete: the row is upstream-owned and shared
-            across all users in this instance. */}
+            across all users in this instance.
+            ── Online gate ──
+            The refresh endpoint synchronously talks to Jikan. With
+            no server reachable there's nothing to do, so we
+            disable the button and swap the kanji to the offline
+            disconnect glyph 圏. Tooltip + aria-label both surface
+            the reason via the dedicated `refreshOfflineHint` key. */}
         {!isCustom && (
           <button
             type="button"
             onClick={onRefreshClick}
-            disabled={refreshing}
-            className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/8 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/80 hover:bg-gold/15 disabled:opacity-50"
+            disabled={refreshing || !online}
+            title={!online ? t("author.refreshOfflineHint") : undefined}
+            aria-label={
+              !online ? t("author.refreshOfflineHint") : undefined
+            }
+            className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/8 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/80 hover:bg-gold/15 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span aria-hidden="true" className="font-jp text-[10px] not-italic">
-              {refreshing ? "…" : "更"}
+              {refreshing ? "…" : !online ? "圏" : "更"}
             </span>
-            {refreshing ? t("common.saving") : t("author.refreshAction")}
+            {refreshing
+              ? t("common.saving")
+              : !online
+                ? t("author.refreshOffline")
+                : t("author.refreshAction")}
           </button>
         )}
         {/* Custom author (negative mal_id) — full edit + delete.

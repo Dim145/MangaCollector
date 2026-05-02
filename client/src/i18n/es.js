@@ -1883,6 +1883,9 @@ export default {
     editAction: "Editar",
     deleteAction: "Quitar",
     refreshAction: "Actualizar",
+    refreshOffline: "Sin conexión",
+    refreshOfflineHint:
+      "La actualización consulta MAL en vivo — disponible solo cuando el servidor es alcanzable.",
     uploadPhoto: "Subir foto",
     replacePhoto: "Cambiar foto",
     uploadPhotoAria: "Subir una nueva foto del autor",

@@ -1907,6 +1907,9 @@ export default {
     editAction: "Modifier",
     deleteAction: "Retirer",
     refreshAction: "Actualiser",
+    refreshOffline: "Hors ligne",
+    refreshOfflineHint:
+      "L'actualisation interroge MAL en direct — disponible uniquement quand le serveur est joignable.",
     uploadPhoto: "Charger une photo",
     replacePhoto: "Changer la photo",
     uploadPhotoAria: "Charger une nouvelle photo de l'auteur",

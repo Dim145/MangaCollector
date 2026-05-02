@@ -176,6 +176,39 @@ db.version(9).stores({
   streak: "key",
 });
 
+// v10 — author detail cache + offline CRUD outbox.
+//
+// 作家 · `authors` mirrors the AuthorDetail payload from
+// `/api/authors/{mal_id}` keyed by mal_id (positive for shared
+// MAL rows, negative for custom rows owned by the caller). The
+// AuthorPage reads from this store via useLiveQuery so an offline
+// edit reflects immediately.
+//
+// `outboxAuthors` queues PATCH (edit name/about) and DELETE ops
+// for custom authors. Single-key by mal_id matches the per-author
+// merge semantics of the library outbox: a fresh edit on the same
+// author replaces the pending payload rather than stacking. Photo
+// upload/delete + create + refresh stay online-only — they involve
+// either binary blobs or upstream Jikan calls that don't replay
+// cleanly through an outbox.
+db.version(10).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 
@@ -207,6 +240,26 @@ export async function cacheAllVolumes(volumes) {
 export async function cacheSettings(settings) {
   if (!settings) return;
   await db.settings.put({ key: SETTINGS_KEY, ...settings });
+}
+
+/**
+ * 作家 · Persist an AuthorDetail in Dexie. Stamps a `ts` so the
+ * SPA can later evict stale rows if needed; for now the cache is
+ * simple last-writer-wins. The `mal_id` is the primary key (server
+ * sends it on every detail payload).
+ */
+export async function cacheAuthor(detail) {
+  if (!detail || detail.mal_id == null) return;
+  await db.authors.put({ ...detail, ts: Date.now() });
+}
+
+/**
+ * 作家 · Drop a single author from the local cache. Called by the
+ * delete-author optimistic flow + the post-flush reconciliation.
+ */
+export async function dropCachedAuthor(mal_id) {
+  if (mal_id == null) return;
+  await db.authors.delete(mal_id);
 }
 
 export async function readSettings() {

@@ -1,15 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
+import { cacheAuthor, db } from "@/lib/db.js";
+import { enqueueAuthorDelete, enqueueAuthorUpdate } from "@/lib/sync.js";
 
 /**
  * 作家 · Author detail (photo, bio, birthday, MAL link).
  *
- * Lazy-fetched against `GET /api/authors/{mal_id}`. The backend
- * routes by sign of mal_id:
- *   • positive → shared MAL row (cache-aside over Jikan)
- *   • negative → custom row owned by the caller
- * Both paths are cheap on repeat visits — postgres already has the
- * row.
+ * Hybrid Dexie + React-Query read path so the AuthorPage stays
+ * useful offline:
+ *   • The Dexie `authors` store holds the last-seen AuthorDetail
+ *     for any author the user has visited. `useLiveQuery` makes
+ *     it the primary render source — optimistic edits land here
+ *     instantly and offline reads still resolve.
+ *   • A backgrounded `useQuery` refetches `/api/authors/{mal_id}`
+ *     on mount/focus when online. The response is mirrored into
+ *     Dexie via `cacheAuthor`, which then re-fires the live query
+ *     so the UI converges to server truth.
  *
  * Disabled only when `mal_id` is null/undefined or zero (no author
  * resolved yet, or malformed slug). Callers should fall back to the
@@ -22,7 +29,16 @@ import axios from "@/utils/axios.js";
  * switches tabs and comes back.
  */
 export function useAuthorDetail(malId) {
-  return useQuery({
+  // Live Dexie read — fires for both the cached row AND any
+  // optimistic updates the SPA writes locally before the outbox
+  // reconciles. `useLiveQuery` returns `undefined` until the
+  // first read resolves; `null` would mean "row genuinely absent".
+  const cached = useLiveQuery(
+    () => (malId != null && malId !== 0 ? db.authors.get(malId) : null),
+    [malId],
+  );
+
+  const query = useQuery({
     queryKey: ["author", malId],
     // Negative mal_ids are valid (custom authors); only skip when
     // we have no id at all or the slug is the sentinel zero.
@@ -30,6 +46,9 @@ export function useAuthorDetail(malId) {
     staleTime: 24 * 60 * 60 * 1000,
     queryFn: async () => {
       const { data } = await axios.get(`/api/authors/${malId}`);
+      // Mirror the server's truth into Dexie so the live-query
+      // consumers immediately see the fresh row.
+      await cacheAuthor(data);
       return data;
     },
     // 404 (no MAL profile) is a meaningful negative answer — treat it
@@ -41,6 +60,22 @@ export function useAuthorDetail(malId) {
       return failureCount < 2;
     },
   });
+
+  // Prefer Dexie when it has data — even if the network call
+  // succeeded, the Dexie row will already be the same row (the
+  // queryFn just put it). Falling back to query.data covers the
+  // case where Dexie is genuinely empty (first-ever visit AND
+  // we're online + the network call resolved before useLiveQuery).
+  // The `cached === undefined` check is the "Dexie hasn't answered
+  // yet" gate; once it answers (with a row OR `null`/undefined for
+  // missing) we trust it.
+  return {
+    data: cached ?? query.data ?? null,
+    isLoading: cached === undefined && query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
 
 /**
@@ -57,6 +92,10 @@ export function useCreateAuthor() {
   return useMutation({
     mutationFn: async ({ name, about }) => {
       const { data } = await axios.post("/api/authors", { name, about });
+      // Mirror into Dexie so the just-created author shows up
+      // immediately to any live-query consumer (the navigate-to-
+      // /author/{mal_id} that follows reads from this cache).
+      await cacheAuthor(data);
       return data;
     },
     onSuccess: (data) => {
@@ -65,36 +104,41 @@ export function useCreateAuthor() {
   });
 }
 
+/**
+ * 作家 · Offline-capable PATCH on a custom author.
+ *
+ * Writes to Dexie + outbox via `enqueueAuthorUpdate`; the live-query
+ * inside `useAuthorDetail` reflects the new name/about immediately.
+ * The outbox flusher (`flushAuthors`) replays the PATCH against the
+ * server when connectivity returns, then mirrors the canonical row
+ * back into Dexie. No direct axios call — the mutation resolves as
+ * soon as the queue is enqueued, which means `mutateAsync` works
+ * fully offline.
+ */
 export function useUpdateAuthor() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ mal_id, name, about }) => {
-      const body = {};
-      if (name !== undefined) body.name = name;
-      if (about !== undefined) body.about = about;
-      const { data } = await axios.patch(`/api/authors/${mal_id}`, body);
-      return data;
-    },
-    onSuccess: (data) => {
-      qc.setQueryData(["author", data.mal_id], data);
+      await enqueueAuthorUpdate({ mal_id, name, about });
+      return { mal_id, name, about };
     },
   });
 }
 
+/**
+ * 作家 · Offline-capable DELETE on a custom author.
+ *
+ * Removes the Dexie row + queues an outbox `delete` op. The live
+ * `useAuthorDetail` consumer immediately sees the row vanish so
+ * the AuthorPage's `confirmDelete` modal can navigate away without
+ * waiting for the network. On successful flush, `flushAuthors`
+ * also triggers a `refetchLibrary` so embedded `author` refs in
+ * the user's library rows reconcile to NULL.
+ */
 export function useDeleteAuthor() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (malId) => {
-      await axios.delete(`/api/authors/${malId}`);
+      await enqueueAuthorDelete(malId);
       return malId;
-    },
-    onSuccess: (malId) => {
-      qc.removeQueries({ queryKey: ["author", malId] });
-      // The unlink touched user_libraries — refetch the library so
-      // every consumer (dashboard, MangaPage, AuthorPage gallery)
-      // picks up `author_id = NULL` (and consequently `author = null`
-      // on the embedded ref) on the affected rows.
-      qc.invalidateQueries({ queryKey: ["library"] });
     },
   });
 }
@@ -109,6 +153,10 @@ export function useUploadAuthorPhoto() {
         `/api/authors/${mal_id}/photo`,
         formData,
       );
+      // Mirror into Dexie — useAuthorDetail's live query reads
+      // from there, so without this the new image_url wouldn't
+      // surface until the next page refresh.
+      await cacheAuthor(data);
       return data;
     },
     onSuccess: (data) => {
@@ -122,6 +170,7 @@ export function useDeleteAuthorPhoto() {
   return useMutation({
     mutationFn: async (malId) => {
       const { data } = await axios.delete(`/api/authors/${malId}/photo`);
+      await cacheAuthor(data);
       return data;
     },
     onSuccess: (data) => {
@@ -147,6 +196,9 @@ export function useRefreshAuthor() {
   return useMutation({
     mutationFn: async (malId) => {
       const { data } = await axios.post(`/api/authors/${malId}/refresh`);
+      // Mirror the freshly-fetched MAL row into Dexie so the live
+      // query consumers see the updated photo / favorites / etc.
+      await cacheAuthor(data);
       return data;
     },
     onSuccess: (data) => {

@@ -198,9 +198,15 @@ export default defineConfig({
       workbox: {
         // Precache the app shell (JS/CSS/HTML)
         globPatterns: ["**/*.{js,css,html,svg,png,jpg,webp,woff2}"],
-        // Skip the backend — we handle offline/sync at the app layer
+        // Skip the backend — we handle offline/sync at the app layer.
+        // The trailing slashes on each pattern matter: without them
+        // the regex `/^\/auth/` greedily matches `/author/-1` (the
+        // SPA's per-author route), kicking the navigation request
+        // back to the network and breaking offline reload of
+        // AuthorPage. Same defensive shape as the Traefik PathPrefix
+        // fix in `docker-compose.yml`.
         navigateFallback: "index.html",
-        navigateFallbackDenylist: [/^\/api/, /^\/auth/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/auth\//],
         // Drop runtime caches from prior deploys whose strategy or
         // version no longer matches this build. Without this, an old
         // bucket (different `cacheName`, retired URL pattern…) keeps

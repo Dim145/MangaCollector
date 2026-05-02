@@ -30,6 +30,8 @@ export {
   enqueueVolumeUpdate,
   enqueueSettingsUpdate,
   enqueueBulkMark,
+  enqueueAuthorUpdate,
+  enqueueAuthorDelete,
   syncOutbox,
   triggerSync,
   forceResyncFromServer,

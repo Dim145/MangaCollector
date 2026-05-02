@@ -24,13 +24,14 @@ let syncQueued = false;
 
 /** Count all pending ops across outbox tables. */
 export async function pendingCount() {
-  const [lib, vol, set, bulk] = await Promise.all([
+  const [lib, vol, set, bulk, authors] = await Promise.all([
     db.outboxLibrary.count(),
     db.outboxVolumes.count(),
     db.outboxSettings.count(),
     db.outboxBulkMark.count(),
+    db.outboxAuthors.count(),
   ]);
-  return lib + vol + set + bulk;
+  return lib + vol + set + bulk + authors;
 }
 
 /*
@@ -378,6 +379,93 @@ export async function enqueueSettingsUpdate(settings) {
 }
 
 /*
+ * ─── Author outbox ────────────────────────────────────────────────────────
+ *
+ * 作家 · Offline-first CRUD for custom authors. The flow:
+ *
+ *   1. The user opens an AuthorPage offline, hits "Modifier" and
+ *      submits the form. `enqueueAuthorUpdate` writes the new
+ *      `name` / `about` straight to the Dexie `authors` row so
+ *      the live-query consumers re-render with the edit applied.
+ *   2. The same call enqueues a single coalesced op into
+ *      `outboxAuthors`, keyed by mal_id. A second edit on the
+ *      same author replaces the pending payload (no stacking).
+ *   3. When connectivity returns, `flushAuthors` walks the queue
+ *      and fires PATCH/DELETE per row. Refetch of the affected
+ *      detail (and the library, on delete) happens after the
+ *      whole queue drains so the SPA reconciles to server truth.
+ *
+ * Photo upload/delete + create + refresh stay online-only:
+ *   - photo paths involve a multipart Blob that doesn't replay
+ *     cleanly through a JSON outbox
+ *   - create is no longer reachable from the SPA (the AuthorPage
+ *     trims the create CTA after the FK refactor — text-typed
+ *     authors get auto-created server-side via
+ *     `resolve_author_from_text` on the next library PATCH flush)
+ *   - refresh is a deliberate Jikan round-trip with no offline
+ *     analogue
+ *
+ * Conflict semantics: a PATCH then DELETE on the same author
+ * collapses to DELETE (the latest op wins via the put-by-key
+ * coalesce). A DELETE then PATCH stays a PATCH but will fail
+ * server-side (404) — the post-flush error path emits a syncError
+ * and re-fetches the author detail to reconcile.
+ */
+
+export async function enqueueAuthorUpdate({ mal_id, name, about }) {
+  if (mal_id == null) return;
+  await db.transaction("rw", db.authors, db.outboxAuthors, async () => {
+    const existing = (await db.authors.get(mal_id)) ?? {};
+    const next = { ...existing, mal_id };
+    if (name !== undefined) next.name = String(name).trim();
+    if (about !== undefined) {
+      const trimmed = about == null ? null : String(about).trim();
+      next.about = trimmed && trimmed.length > 0 ? trimmed : null;
+    }
+    next.ts = Date.now();
+    await db.authors.put(next);
+
+    const pending = await db.outboxAuthors.get(mal_id);
+    // If the previous op was a delete, the current edit
+    // implicitly cancels the delete (the user clicked "edit"
+    // BEFORE the delete had a chance to flush — they changed
+    // their mind). Replace with a fresh patch op.
+    const prevPayload =
+      pending?.op === "patch" ? (pending.payload ?? {}) : {};
+    const mergedPayload = {
+      ...prevPayload,
+      ...(name !== undefined ? { name: next.name } : {}),
+      ...(about !== undefined ? { about: next.about } : {}),
+    };
+    await db.outboxAuthors.put({
+      mal_id,
+      op: "patch",
+      payload: mergedPayload,
+      ts: Date.now(),
+    });
+  });
+  notifyPendingChanged();
+  triggerSync();
+}
+
+export async function enqueueAuthorDelete(mal_id) {
+  if (mal_id == null) return;
+  await db.transaction("rw", db.authors, db.outboxAuthors, async () => {
+    await db.authors.delete(mal_id);
+    // Whatever was queued before (patch or delete) is wholly
+    // superseded — a delete is terminal.
+    await db.outboxAuthors.put({
+      mal_id,
+      op: "delete",
+      payload: null,
+      ts: Date.now(),
+    });
+  });
+  notifyPendingChanged();
+  triggerSync();
+}
+
+/*
  * ─── Bulk operations outbox ───────────────────────────────────────────────
  *
  * 一括 · `enqueueBulkMark` is the offline-first entry point for the
@@ -618,6 +706,79 @@ async function flushSettings() {
   }
 }
 
+/**
+ * 作家 · Replay queued author CRUD ops. Each op is one of:
+ *   • "patch"  → PATCH /api/authors/{mal_id} { name?, about? }
+ *   • "delete" → DELETE /api/authors/{mal_id}
+ *
+ * On success, the local cache is reconciled with the server's
+ * response (PATCH echoes the row; DELETE drops it). On unretriable
+ * errors (4xx) the op is discarded + a syncError surfaces so the
+ * UI can prompt the user to retry. The library is invalidated
+ * after a delete since unlinking touches user_libraries.author_id.
+ */
+async function flushAuthors() {
+  const ops = await db.outboxAuthors.orderBy("ts").toArray();
+  let touchedDelete = false;
+  for (const op of ops) {
+    try {
+      if (op.op === "patch") {
+        const { data } = await axios.patch(
+          `/api/authors/${op.mal_id}`,
+          op.payload ?? {},
+        );
+        await db.outboxAuthors.delete(op.mal_id);
+        // Server echoes the updated AuthorDetail — reconcile cache.
+        if (data && data.mal_id != null) {
+          await db.authors.put({ ...data, ts: Date.now() });
+        }
+        queryClient.setQueryData(["author", op.mal_id], data);
+      } else if (op.op === "delete") {
+        await axios.delete(`/api/authors/${op.mal_id}`);
+        await db.outboxAuthors.delete(op.mal_id);
+        await db.authors.delete(op.mal_id);
+        queryClient.removeQueries({ queryKey: ["author", op.mal_id] });
+        touchedDelete = true;
+      } else {
+        // Unknown op shape — drop to avoid blocking the queue.
+        await db.outboxAuthors.delete(op.mal_id);
+      }
+      notifyPendingChanged();
+    } catch (err) {
+      if (isUnretriable(err)) {
+        await db.outboxAuthors.delete(op.mal_id);
+        emitSyncError({
+          op: "author",
+          mal_id: op.mal_id,
+          message:
+            err?.response?.data?.error ?? err.message ?? "Sync failed",
+        });
+        // Pull the canonical row back so the SPA reconciles to
+        // server truth (and the optimistic edit visually unwinds).
+        try {
+          const { data } = await axios.get(`/api/authors/${op.mal_id}`);
+          if (data && data.mal_id != null) {
+            await db.authors.put({ ...data, ts: Date.now() });
+            queryClient.setQueryData(["author", op.mal_id], data);
+          }
+        } catch {
+          /* fetch reconcile is best-effort */
+        }
+        notifyPendingChanged();
+      } else {
+        throw err;
+      }
+    }
+  }
+  // After a delete drains, the library has unlinked rows — refetch
+  // so embedded `author` refs disappear from the SPA without
+  // waiting for the user to navigate. Skip the refetch when no
+  // delete happened (a pure patch flush leaves library untouched).
+  if (touchedDelete) {
+    await refetchLibrary().catch(() => {});
+  }
+}
+
 async function flushBulkMark() {
   // 一括 · Replays pending bulk-mark cascades. The order is
   // chronological by `ts` so two ops on different series apply in
@@ -706,6 +867,14 @@ export async function syncOutbox({ force = false } = {}) {
     await flushVolumes();
     await flushSettings();
     await flushBulkMark();
+    // 作家 · Authors flush AFTER library — a deleted author needs
+    // the library refetch to reconcile unlinked rows, and that
+    // refetch is what we trigger anyway right below. Order also
+    // means a library PATCH carrying free-text author + a
+    // subsequent direct author edit on the same person both land
+    // in the right order: library PATCH creates the author via
+    // `resolve_author_from_text`, then the author PATCH updates it.
+    await flushAuthors();
     // Only pull fresh server state when we actually pushed something —
     // otherwise the read hooks already have what they need.
     await Promise.all([

@@ -1872,6 +1872,9 @@ export default {
     editAction: "Edit",
     deleteAction: "Remove",
     refreshAction: "Refresh",
+    refreshOffline: "Offline",
+    refreshOfflineHint:
+      "Refresh queries MAL live — available only when the server is reachable.",
     uploadPhoto: "Upload photo",
     replacePhoto: "Replace photo",
     uploadPhotoAria: "Upload a new author photo",
