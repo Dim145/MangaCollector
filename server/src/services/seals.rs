@@ -11,7 +11,7 @@
 //! cheap enough that on-demand evaluation beats the maintenance cost of
 //! scattered hook-calls across the codebase.
 
-use chrono::Utc;
+use chrono::{Datelike, Utc};
 use sea_orm::{
     sea_query::OnConflict, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, Set,
 };
@@ -27,11 +27,41 @@ use crate::models::volume::{self, Entity as VolumeEntity};
 
 /// A seal definition. `code` is the stable slug stored in the DB and shared
 /// with the client. `kind` drives which stat is compared to `threshold`.
+///
+/// 季節 · An optional `window` constrains awarding to a specific calendar
+/// month range. When set, the seal is only granted if the current month
+/// (UTC) falls inside `[start, end]` (inclusive, both ends 1-12). Wrapping
+/// windows that span year-end (e.g. winter = 12..2) are supported via
+/// `start > end`. Once earned the seal is permanent; the window only
+/// gates the *granting* moment. Without a window the seal is available
+/// year-round (the legacy default).
 #[derive(Debug, Clone, Copy)]
 struct SealDef {
     code: &'static str,
     kind: ThresholdKind,
     threshold: i64,
+    window: Option<MonthWindow>,
+}
+
+/// 季節 · Month window for seasonal seals. Both ends inclusive, 1-based
+/// (January = 1, December = 12). When `start > end` the window wraps
+/// around year-end — e.g. `MonthWindow { start: 12, end: 2 }` covers
+/// December + January + February (winter / 凜冬 Rintō).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MonthWindow {
+    start: u32,
+    end: u32,
+}
+
+impl MonthWindow {
+    fn contains(&self, month: u32) -> bool {
+        if self.start <= self.end {
+            month >= self.start && month <= self.end
+        } else {
+            // Wraps year-end (e.g. winter 12..2)
+            month >= self.start || month <= self.end
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,48 +103,67 @@ enum ThresholdKind {
 /// triggering the "more private than the item" lint.
 const CATALOG: &[SealDef] = &[
     // ── 入 Débuts ────────────────────────────────────────────────
-    SealDef { code: "first_volume",   kind: ThresholdKind::VolumesOwned,       threshold: 1 },
-    SealDef { code: "first_series",   kind: ThresholdKind::SeriesCount,        threshold: 1 },
-    SealDef { code: "first_complete", kind: ThresholdKind::CompleteSeries,     threshold: 1 },
+    SealDef { code: "first_volume",   kind: ThresholdKind::VolumesOwned,       threshold: 1,    window: None },
+    SealDef { code: "first_series",   kind: ThresholdKind::SeriesCount,        threshold: 1,    window: None },
+    SealDef { code: "first_complete", kind: ThresholdKind::CompleteSeries,     threshold: 1,    window: None },
     // ── 進 Progression volume ───────────────────────────────────
-    SealDef { code: "volumes_10",     kind: ThresholdKind::VolumesOwned,       threshold: 10 },
-    SealDef { code: "volumes_100",    kind: ThresholdKind::VolumesOwned,       threshold: 100 },
-    SealDef { code: "volumes_500",    kind: ThresholdKind::VolumesOwned,       threshold: 500 },
-    SealDef { code: "volumes_1000",   kind: ThresholdKind::VolumesOwned,       threshold: 1000 },
+    SealDef { code: "volumes_10",     kind: ThresholdKind::VolumesOwned,       threshold: 10,   window: None },
+    SealDef { code: "volumes_100",    kind: ThresholdKind::VolumesOwned,       threshold: 100,  window: None },
+    SealDef { code: "volumes_500",    kind: ThresholdKind::VolumesOwned,       threshold: 500,  window: None },
+    SealDef { code: "volumes_1000",   kind: ThresholdKind::VolumesOwned,       threshold: 1000, window: None },
     // ── 書 Étagère (séries) ─────────────────────────────────────
-    SealDef { code: "series_10",      kind: ThresholdKind::SeriesCount,        threshold: 10 },
-    SealDef { code: "series_50",      kind: ThresholdKind::SeriesCount,        threshold: 50 },
+    SealDef { code: "series_10",      kind: ThresholdKind::SeriesCount,        threshold: 10,   window: None },
+    SealDef { code: "series_50",      kind: ThresholdKind::SeriesCount,        threshold: 50,   window: None },
     // ── 完 Complétion ───────────────────────────────────────────
-    SealDef { code: "complete_5",     kind: ThresholdKind::CompleteSeries,     threshold: 5 },
-    SealDef { code: "complete_25",    kind: ThresholdKind::CompleteSeries,     threshold: 25 },
-    SealDef { code: "complete_100",   kind: ThresholdKind::CompleteSeries,     threshold: 100 },
+    SealDef { code: "complete_5",     kind: ThresholdKind::CompleteSeries,     threshold: 5,    window: None },
+    SealDef { code: "complete_25",    kind: ThresholdKind::CompleteSeries,     threshold: 25,   window: None },
+    SealDef { code: "complete_100",   kind: ThresholdKind::CompleteSeries,     threshold: 100,  window: None },
     // ── 限 Collector ────────────────────────────────────────────
-    SealDef { code: "first_collector",    kind: ThresholdKind::CollectorVolumes,     threshold: 1 },
-    SealDef { code: "collector_10",       kind: ThresholdKind::CollectorVolumes,     threshold: 10 },
-    SealDef { code: "collector_100",      kind: ThresholdKind::CollectorVolumes,     threshold: 100 },
-    SealDef { code: "all_collector_1",    kind: ThresholdKind::AllCollectorSeries,   threshold: 1 },
-    SealDef { code: "all_collector_10",   kind: ThresholdKind::AllCollectorSeries,   threshold: 10 },
+    SealDef { code: "first_collector",    kind: ThresholdKind::CollectorVolumes,     threshold: 1,   window: None },
+    SealDef { code: "collector_10",       kind: ThresholdKind::CollectorVolumes,     threshold: 10,  window: None },
+    SealDef { code: "collector_100",      kind: ThresholdKind::CollectorVolumes,     threshold: 100, window: None },
+    SealDef { code: "all_collector_1",    kind: ThresholdKind::AllCollectorSeries,   threshold: 1,   window: None },
+    SealDef { code: "all_collector_10",   kind: ThresholdKind::AllCollectorSeries,   threshold: 10,  window: None },
     // ── 盒 Coffrets ─────────────────────────────────────────────
-    SealDef { code: "first_coffret",  kind: ThresholdKind::Coffrets,           threshold: 1 },
-    SealDef { code: "coffret_10",     kind: ThresholdKind::Coffrets,           threshold: 10 },
+    SealDef { code: "first_coffret",  kind: ThresholdKind::Coffrets,           threshold: 1,    window: None },
+    SealDef { code: "coffret_10",     kind: ThresholdKind::Coffrets,           threshold: 10,   window: None },
     // ── 彩 Diversité ────────────────────────────────────────────
-    SealDef { code: "genres_5",       kind: ThresholdKind::DistinctGenres,     threshold: 5 },
-    SealDef { code: "genres_15",      kind: ThresholdKind::DistinctGenres,     threshold: 15 },
+    SealDef { code: "genres_5",       kind: ThresholdKind::DistinctGenres,     threshold: 5,    window: None },
+    SealDef { code: "genres_15",      kind: ThresholdKind::DistinctGenres,     threshold: 15,   window: None },
     // ── 年 Ancienneté ───────────────────────────────────────────
-    SealDef { code: "anniversary_1",  kind: ThresholdKind::AccountAgeDays,     threshold: 365 },
-    SealDef { code: "anniversary_5",  kind: ThresholdKind::AccountAgeDays,     threshold: 1825 },
+    SealDef { code: "anniversary_1",  kind: ThresholdKind::AccountAgeDays,     threshold: 365,  window: None },
+    SealDef { code: "anniversary_5",  kind: ThresholdKind::AccountAgeDays,     threshold: 1825, window: None },
     // ── 読 Lecture ──────────────────────────────────────────────
     // Reading-axis seals, orthogonal to ownership. Thresholds mirror the
     // volumes_* scale so users can track a parallel progression of
     // "how much I've read" against "how much I've acquired".
-    SealDef { code: "first_read",      kind: ThresholdKind::VolumesRead,      threshold: 1 },
-    SealDef { code: "read_10",         kind: ThresholdKind::VolumesRead,      threshold: 10 },
-    SealDef { code: "read_100",        kind: ThresholdKind::VolumesRead,      threshold: 100 },
-    SealDef { code: "read_500",        kind: ThresholdKind::VolumesRead,      threshold: 500 },
-    SealDef { code: "read_1000",       kind: ThresholdKind::VolumesRead,      threshold: 1000 },
-    SealDef { code: "first_full_read", kind: ThresholdKind::FullyReadSeries,  threshold: 1 },
-    SealDef { code: "full_read_10",    kind: ThresholdKind::FullyReadSeries,  threshold: 10 },
-    SealDef { code: "full_read_50",    kind: ThresholdKind::FullyReadSeries,  threshold: 50 },
+    SealDef { code: "first_read",      kind: ThresholdKind::VolumesRead,      threshold: 1,    window: None },
+    SealDef { code: "read_10",         kind: ThresholdKind::VolumesRead,      threshold: 10,   window: None },
+    SealDef { code: "read_100",        kind: ThresholdKind::VolumesRead,      threshold: 100,  window: None },
+    SealDef { code: "read_500",        kind: ThresholdKind::VolumesRead,      threshold: 500,  window: None },
+    SealDef { code: "read_1000",       kind: ThresholdKind::VolumesRead,      threshold: 1000, window: None },
+    SealDef { code: "first_full_read", kind: ThresholdKind::FullyReadSeries,  threshold: 1,    window: None },
+    SealDef { code: "full_read_10",    kind: ThresholdKind::FullyReadSeries,  threshold: 10,   window: None },
+    SealDef { code: "full_read_50",    kind: ThresholdKind::FullyReadSeries,  threshold: 50,   window: None },
+    // ── 季節 Sceaux saisonniers ─────────────────────────────────
+    // Seasonal seals — only grantable during a specific calendar
+    // window, gated by UTC `Datelike::month()` of the current Utc::now().
+    // The threshold is whatever existing stat is most thematically
+    // tight; the window is the only "extra" gate.
+    //
+    // 桜 Sakura — spring (April-May). Threshold mirrors `series_10`
+    // so a moderately-active user adding through the season earns
+    // it; v1 accepts ANY series count match (we don't have a
+    // window-scoped event log for "added in spring" yet).
+    SealDef { code: "kisetsu_sakura",   kind: ThresholdKind::SeriesCount,     threshold: 5,   window: Some(MonthWindow { start: 4,  end: 5  }) },
+    // 七夕 Tanabata — July (the star festival).
+    SealDef { code: "kisetsu_tanabata", kind: ThresholdKind::VolumesRead,     threshold: 5,   window: Some(MonthWindow { start: 7,  end: 7  }) },
+    // 月見 Tsukimi — moon-viewing, mid-autumn (September-October).
+    SealDef { code: "kisetsu_tsukimi",  kind: ThresholdKind::VolumesRead,     threshold: 10,  window: Some(MonthWindow { start: 9,  end: 10 }) },
+    // 紅葉 Kouyou — momiji / autumn leaves (October-November).
+    SealDef { code: "kisetsu_kouyou",   kind: ThresholdKind::CompleteSeries,  threshold: 3,   window: Some(MonthWindow { start: 10, end: 11 }) },
+    // 凜冬 Rintō — deep winter (December-February). Wrapping window.
+    SealDef { code: "kisetsu_rinto",    kind: ThresholdKind::CompleteSeries,  threshold: 1,   window: Some(MonthWindow { start: 12, end: 2  }) },
 ];
 
 /// Stats snapshot for a single user. Computed in one pass per request.
@@ -277,9 +326,21 @@ pub async fn evaluate_and_grant(db: &Db, user_id: i32) -> Result<SealsResponse, 
 
     // Figure out which catalog entries qualify but haven't been granted yet.
     let now = Utc::now();
+    let current_month = now.month();
     let mut newly: Vec<String> = Vec::new();
     for def in CATALOG {
         if already.contains(def.code) {
+            continue;
+        }
+        // 季節 · Seasonal gate. Seals carrying a `window` are only
+        // grantable during the matching calendar months (UTC). Outside
+        // the window the seal stays locked even if the user already
+        // crossed the threshold — they have to be in their library on
+        // the right month for it to land. This is the engagement-
+        // driving constraint; once granted the seal is permanent.
+        if let Some(window) = def.window
+            && !window.contains(current_month)
+        {
             continue;
         }
         if stats.value_for(def.kind) >= def.threshold {

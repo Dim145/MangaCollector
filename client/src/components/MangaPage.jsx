@@ -1349,6 +1349,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                           coverUrl={volumeCoverMap?.[vol.vol_num]}
                           blurImage={isBlurred}
                           note={vol.notes}
+                          loanedTo={vol.loaned_to}
+                          loanDueAt={vol.loan_due_at}
                           locked
                         />
                       ) : (
@@ -1368,6 +1370,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                           releaseUrl={vol.release_url}
                           origin={vol.origin}
                           announcedAt={vol.announced_at}
+                          loanedTo={vol.loaned_to}
+                          loanDueAt={vol.loan_due_at}
                           locked
                           onUpdate={volumeUpdateCallback}
                           onEditUpcoming={(volData) => {
@@ -1403,6 +1407,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                           releaseDate={vol.release_date}
                           coverUrl={volumeCoverMap?.[vol.vol_num]}
                           blurImage={isBlurred}
+                          loanedTo={vol.loaned_to}
+                          loanDueAt={vol.loan_due_at}
                         />
                       ) : (
                         <Volume
@@ -1421,6 +1427,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                           releaseUrl={vol.release_url}
                           origin={vol.origin}
                           announcedAt={vol.announced_at}
+                          loanedTo={vol.loaned_to}
+                          loanDueAt={vol.loan_due_at}
                           onUpdate={volumeUpdateCallback}
                           onEditUpcoming={(volData) => {
                             setEditingUpcoming(volData);

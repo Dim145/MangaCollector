@@ -143,9 +143,11 @@ pub async fn update_volume(
     AuthenticatedUser(user): AuthenticatedUser,
     Json(body): Json<UpdateVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let id = body.id;
+    let loan_change = body.loan;
     volume::update_by_id(
         &state.db,
-        body.id,
+        id,
         user.id,
         body.owned,
         body.price,
@@ -155,9 +157,28 @@ pub async fn update_volume(
         body.notes,
     )
     .await?;
+    // Loan mutation rides on the same PATCH so a single round-trip
+    // updates both ownership/read state and the loan triplet. Handler
+    // applies it AFTER the main update so the row is in its final
+    // ownership state before we mark it as lent (e.g. avoiding a
+    // weird "lent but unowned" intermediate).
+    if let Some(loan_patch) = loan_change {
+        volume::set_loan(&state.db, id, user.id, loan_patch).await?;
+    }
     state.broker.publish(user.id, SyncKind::Volumes).await;
     Ok(Json(json!({
         "success": true,
         "message": "Volume updated successfully"
     })))
+}
+
+/// GET /api/user/volume/loans — list every volume currently lent by
+/// the caller (drives the dashboard "outstanding loans" widget).
+/// Empty array when nothing is lent — never 404.
+pub async fn list_loans(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+) -> Result<Json<Vec<crate::models::volume::ActiveLoan>>, AppError> {
+    let loans = volume::list_active_loans(&state.db, user.id).await?;
+    Ok(Json(loans))
 }

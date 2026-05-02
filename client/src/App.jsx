@@ -69,6 +69,8 @@ const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
 const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
 const AuthorPage = lazy(() => import("./components/AuthorPage.jsx"));
 const BacklogPage = lazy(() => import("./components/BacklogPage.jsx"));
+const SnapshotsPage = lazy(() => import("./components/SnapshotsPage.jsx"));
+const FriendsPage = lazy(() => import("./components/FriendsPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -401,6 +403,25 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <BacklogPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 印影 · Snapshot history gallery. */}
+            <Route
+              path="/snapshots"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <SnapshotsPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 友 · Friends feed — follow other archivists, see their
+                public-profile activity in a chronological correspondence. */}
+            <Route
+              path="/friends"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <FriendsPage />
                 </ProtectedRoute>
               }
             />

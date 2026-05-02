@@ -10,7 +10,8 @@ use crate::models::activity::event_types;
 use crate::models::coffret::STORE_MAX_LEN;
 use crate::models::library::{self as library_mod, Entity as LibraryEntity, sanitize_label};
 use crate::models::volume::{
-    self, ActiveModel, Entity as VolumeEntity, Volume, NOTE_MAX_CHARS,
+    self, ActiveLoan, ActiveModel, Entity as VolumeEntity, LOAN_BORROWER_MAX_CHARS,
+    LoanPatch, NOTE_MAX_CHARS, Volume,
 };
 use crate::services::activity;
 
@@ -231,6 +232,134 @@ pub async fn update_by_id(
         }
 
     Ok(())
+}
+
+/// 預け · Apply a loan-state mutation to a single volume.
+///
+/// `patch` arity:
+///   - `None` → clear all three loan columns (volume returned)
+///   - `Some(LoanPatch { to, due_at })` → mark as lent, capturing the
+///     borrower handle and an optional due date. `loan_started_at` is
+///     set to NOW iff the volume isn't already lent — this preserves
+///     the original lend date when the user only edits the due date.
+///
+/// Same horizontal-authz gate as `update_by_id`: the (id, user_id)
+/// filter is mandatory; an attacker can't lend someone else's volume.
+/// Empty / whitespace-only borrower names are rejected — clearing the
+/// loan needs `Some(None)` from the caller, not `Some(Some(""))`.
+pub async fn set_loan(
+    db: &Db,
+    id: i32,
+    user_id: i32,
+    patch: Option<LoanPatch>,
+) -> Result<(), AppError> {
+    let now = Utc::now();
+    let existing = VolumeEntity::find()
+        .filter(volume::Column::Id.eq(id))
+        .filter(volume::Column::UserId.eq(user_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?;
+    let Some(existing) = existing else {
+        // No row to mutate — same forgiving policy as `update_by_id`.
+        return Ok(());
+    };
+
+    let mut active: ActiveModel = existing.clone().into();
+    match patch {
+        None => {
+            // Return path — clear all three columns.
+            active.loaned_to = Set(None);
+            active.loan_started_at = Set(None);
+            active.loan_due_at = Set(None);
+        }
+        Some(p) => {
+            let trimmed = p.to.trim();
+            if trimmed.is_empty() {
+                return Err(AppError::BadRequest(
+                    "Borrower name is required when setting a loan.".into(),
+                ));
+            }
+            let name: String = trimmed.chars().take(LOAN_BORROWER_MAX_CHARS).collect();
+            active.loaned_to = Set(Some(name));
+            // Preserve the existing started_at if the volume was already
+            // lent — this is an "edit" path (e.g. updating the due date).
+            // Mint a new started_at only on first lend.
+            if existing.loan_started_at.is_none() {
+                active.loan_started_at = Set(Some(now));
+            }
+            active.loan_due_at = Set(p.due_at);
+        }
+    }
+    active.modified_on = Set(now);
+    active.update(db).await.map_err(AppError::from)?;
+    Ok(())
+}
+
+/// 預け · Listing endpoint backing the dashboard "outstanding loans"
+/// widget. Returns every volume currently lent by the caller, joined
+/// with the parent series name + cover URL for friendly rendering.
+/// Sorted by due date ascending so overdue loans surface first;
+/// undated loans (no due_at) sink to the bottom.
+pub async fn list_active_loans(db: &Db, user_id: i32) -> Result<Vec<ActiveLoan>, AppError> {
+    let rows = VolumeEntity::find()
+        .filter(volume::Column::UserId.eq(user_id))
+        .filter(volume::Column::LoanedTo.is_not_null())
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Single batched library lookup to attach series_name + cover URL.
+    let mal_ids: std::collections::HashSet<i32> = rows.iter().filter_map(|v| v.mal_id).collect();
+    let lib_rows = if mal_ids.is_empty() {
+        Vec::new()
+    } else {
+        LibraryEntity::find()
+            .filter(library_mod::Column::UserId.eq(user_id))
+            .filter(library_mod::Column::MalId.is_in(mal_ids))
+            .all(db)
+            .await
+            .map_err(AppError::from)?
+    };
+    let mut name_lookup: std::collections::HashMap<i32, (String, Option<String>)> =
+        std::collections::HashMap::new();
+    for r in lib_rows {
+        if let Some(m) = r.mal_id {
+            name_lookup.insert(m, (r.name, r.image_url_jpg));
+        }
+    }
+    let mut loans: Vec<ActiveLoan> = rows
+        .into_iter()
+        .filter_map(|v| {
+            let started = v.loan_started_at?;
+            let to = v.loaned_to?;
+            let (series_name, series_image_url) = v
+                .mal_id
+                .and_then(|m| name_lookup.get(&m))
+                .map(|p| (Some(p.0.clone()), p.1.clone()))
+                .unwrap_or((None, None));
+            Some(ActiveLoan {
+                volume_id: v.id,
+                mal_id: v.mal_id,
+                vol_num: v.vol_num,
+                series_name,
+                series_image_url,
+                loaned_to: to,
+                loan_started_at: started,
+                loan_due_at: v.loan_due_at,
+            })
+        })
+        .collect();
+    // Overdue first, then by due date asc, then undated last.
+    loans.sort_by(|a, b| match (a.loan_due_at, b.loan_due_at) {
+        (Some(x), Some(y)) => x.cmp(&y),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => a.loan_started_at.cmp(&b.loan_started_at),
+    });
+    Ok(loans)
 }
 
 /// 一括 · Cascade `owned` and/or `read` to every released volume of a

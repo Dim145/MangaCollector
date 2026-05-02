@@ -67,6 +67,26 @@ pub struct Model {
     /// strings to NULL on write.
     #[sea_orm(default)]
     pub notes: Option<String>,
+
+    // ── 預ける Azuke · Loan tracker ──────────────────────────────────
+    //
+    // When `loaned_to` is NOT NULL the volume is currently with a
+    // borrower. The triplet is overlay metadata over `owned` — a
+    // lent tome is still owned (the user paid for it) but is OFF
+    // the shelf. The service-layer invariant: loaned_to ↔ loan_started_at
+    // (both set or both null). loan_due_at is independent.
+    /// Free-text borrower handle. Capped at LOAN_BORROWER_MAX_CHARS
+    /// by the service. NULL = not currently lent.
+    #[sea_orm(default)]
+    pub loaned_to: Option<String>,
+    /// When the volume left the shelf. Set on lend, cleared on return.
+    #[sea_orm(default)]
+    pub loan_started_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Expected return date. NULL = open-ended ("just take it"). The
+    /// dashboard widget surfaces overdue rows by comparing against
+    /// NOW(); the service does not enforce.
+    #[sea_orm(default)]
+    pub loan_due_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -99,6 +119,54 @@ pub struct UpdateVolumeRequest {
     /// `None` leaves the existing note untouched.
     #[serde(default)]
     pub notes: Option<String>,
+    /// 預け · Loan state mutation.
+    ///   - `None` (omitted) → leave the loan triplet as-is
+    ///   - `Some(None)` → clear the loan (volume returned)
+    ///   - `Some(Some(LoanPatch { ... }))` → mark as lent / update due date
+    #[serde(default, deserialize_with = "deserialize_optional_loan")]
+    pub loan: Option<Option<LoanPatch>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LoanPatch {
+    /// Free-text borrower handle. Server trims + clamps to
+    /// `LOAN_BORROWER_MAX_CHARS`; empty post-trim is rejected.
+    pub to: String,
+    /// Optional expected return date. Pass `null` for open-ended.
+    #[serde(default)]
+    pub due_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Three-state deserializer for the loan field — mirrors the
+/// `Option<Option<T>>` pattern used on UpdateLibraryRequest.
+/// Lets the handler distinguish "field absent" from "field present
+/// and explicitly null".
+fn deserialize_optional_loan<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<LoanPatch>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<LoanPatch>::deserialize(deserializer).map(Some)
 }
 
 pub const NOTE_MAX_CHARS: usize = 2000;
+/// Cap on the borrower handle. 80 chars matches PUBLISHER_MAX_LEN —
+/// roomy enough for a full name + venue ("Paul · book club Lyon")
+/// without letting a megabyte of text into the column.
+pub const LOAN_BORROWER_MAX_CHARS: usize = 80;
+
+/// Response shape for the loan-listing endpoint. Joins the volume's
+/// loan triplet with the parent series name so the dashboard widget
+/// can render "Naoki · Tome 3 de Berserk" without a second query.
+#[derive(Debug, Clone, Serialize)]
+pub struct ActiveLoan {
+    pub volume_id: i32,
+    pub mal_id: Option<i32>,
+    pub vol_num: i32,
+    pub series_name: Option<String>,
+    pub series_image_url: Option<String>,
+    pub loaned_to: String,
+    pub loan_started_at: chrono::DateTime<chrono::Utc>,
+    pub loan_due_at: Option<chrono::DateTime<chrono::Utc>>,
+}

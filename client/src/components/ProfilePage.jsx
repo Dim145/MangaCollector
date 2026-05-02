@@ -387,6 +387,40 @@ export default function ProfilePage({ googleUser }) {
                   {t("profile.backlogCta")}
                   <span aria-hidden="true">→</span>
                 </Link>
+                {/* 印影 · Snapshot history — chip mirroring the backlog
+                    style. Sits next to it so the trio "year-in-review /
+                    backlog / snapshots" reads as a coherent analytics
+                    cluster. Gold rather than hanko because the snapshots
+                    feature is presentational (archives) not actionable. */}
+                <Link
+                  to="/snapshots"
+                  className="inline-flex items-center gap-2 rounded-full border border-gold/45 bg-gold/8 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-gold transition hover:border-gold hover:bg-gold/15"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="font-jp text-sm font-bold leading-none not-italic"
+                  >
+                    印
+                  </span>
+                  {t("profile.snapshotsCta")}
+                  <span aria-hidden="true">→</span>
+                </Link>
+                {/* 友 · Friends correspondence — moegi (jade green)
+                    chip to differentiate from the analytics cluster:
+                    this is a social surface, not a data view. */}
+                <Link
+                  to="/friends"
+                  className="inline-flex items-center gap-2 rounded-full border border-moegi/45 bg-moegi/8 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-moegi transition hover:border-moegi hover:bg-moegi/15"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="font-jp text-sm font-bold leading-none not-italic"
+                  >
+                    友
+                  </span>
+                  {t("profile.friendsCta")}
+                  <span aria-hidden="true">→</span>
+                </Link>
               </div>
             </div>
           </div>

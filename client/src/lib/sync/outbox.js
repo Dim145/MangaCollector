@@ -259,10 +259,29 @@ export async function enqueueVolumeUpdate(volume) {
   // Translate the `read: boolean` flag from the call site into the
   // `read_at: iso|null` shape Dexie's live-query readers expect; the
   // matching server-side mapping lives in `services/volume.rs`.
-  const { read, ...rest } = volume;
+  // 預け · `loan` rides through unchanged — the optimistic Dexie row
+  // mirrors the loan triplet, the outbox payload carries the raw
+  // patch (null = return, { to, due_at } = lend / update).
+  const { read, loan, ...rest } = volume;
   const local = { ...rest };
   if (read !== undefined) {
     local.read_at = read ? new Date().toISOString() : null;
+  }
+  // Reflect the loan mutation onto the local row so live-query
+  // consumers (volume drawer, dashboard widget) update without
+  // waiting for a refetch.
+  if (loan !== undefined) {
+    if (loan === null) {
+      local.loaned_to = null;
+      local.loan_started_at = null;
+      local.loan_due_at = null;
+    } else if (loan && typeof loan.to === "string") {
+      local.loaned_to = loan.to;
+      // Don't overwrite an existing started_at — the server uses the
+      // same "preserve on edit" rule. We approximate locally by only
+      // stamping when there's nothing yet.
+      local.loan_due_at = loan.due_at ?? null;
+    }
   }
 
   await db.transaction("rw", db.volumes, db.outboxVolumes, async () => {
@@ -270,6 +289,16 @@ export async function enqueueVolumeUpdate(volume) {
     // the mutation didn't touch (e.g. user edits only `read` — we must
     // keep the existing price/store values intact in the local row).
     const existing = (await db.volumes.get(local.id)) ?? {};
+    // Loan stamp-on-first-lend: if local has a borrower set but no
+    // loan_started_at yet, mint one now. Mirrors the server's
+    // `existing.loan_started_at.is_none()` branch in `set_loan`.
+    if (
+      loan !== undefined &&
+      loan !== null &&
+      !existing.loan_started_at
+    ) {
+      local.loan_started_at = new Date().toISOString();
+    }
     await db.volumes.put({ ...existing, ...local });
 
     // Merge with any already-pending outbox op for this volume. The
@@ -302,6 +331,10 @@ export async function enqueueVolumeUpdate(volume) {
       // matching the server's leave-untouched contract.
       read: read !== undefined ? read : prev.read,
       notes: local.notes !== undefined ? local.notes : prev.notes,
+      // 預け · `loan` is optional like read/notes. Pass-through;
+      // `null` (return) is meaningfully different from `undefined`
+      // (don't touch), so use the `in` check rather than truthiness.
+      ...(loan !== undefined ? { loan } : "loan" in prev ? { loan: prev.loan } : {}),
     };
 
     await db.outboxVolumes.put({
@@ -532,6 +565,14 @@ async function flushVolumes() {
           : {}),
         ...(op.payload.notes !== undefined
           ? { notes: String(op.payload.notes ?? "") }
+          : {}),
+        // 預け · Loan mutation. Three-state in the payload mirrors
+        // the server's `Option<Option<LoanPatch>>`:
+        //   - omitted → leave loan triplet alone
+        //   - null → return the volume (clear loan)
+        //   - { to, due_at } → mark as lent
+        ...("loan" in (op.payload ?? {})
+          ? { loan: op.payload.loan }
           : {}),
       });
       await db.outboxVolumes.delete(op.id);

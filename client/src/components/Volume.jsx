@@ -1,6 +1,12 @@
 import { memo, useEffect, useRef, useState } from "react";
 import Tooltip from "./ui/Tooltip.jsx";
 import VolumeDetailDrawer from "./VolumeDetailDrawer.jsx";
+import LoanModal from "./LoanModal.jsx";
+import LoanStamp, {
+  LOAN_STATUS_KANJI,
+  classifyLoanStatus,
+  loanCoverFilter,
+} from "./ui/LoanStamp.jsx";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoverPreviewGesture } from "@/hooks/useCoverPreviewGesture.js";
 import { formatCurrency } from "@/utils/price.js";
@@ -29,6 +35,10 @@ function VolumeImpl({
   releaseUrl = null,
   origin = "manual",
   announcedAt = null,
+  // 預け · Loan triplet — surfaced in the detail drawer's chip and
+  // edited via the LoanModal mounted at the bottom of this component.
+  loanedTo = null,
+  loanDueAt = null,
   locked = false,
   onUpdate,
   // 来 · Optional callback fired when the user requests "edit announce"
@@ -84,6 +94,12 @@ function VolumeImpl({
   const updateVolume = useUpdateVolume();
   const isLoading = updateVolume.isPending;
   const t = useT();
+
+  // 預け · LoanModal mount state. The modal handles its own lend /
+  // return flow (reads the live volume row from Dexie) so we just
+  // need a boolean toggle here. Closing the modal also closes the
+  // parent drawer so the user comes back to a clean MangaPage.
+  const [loanModalOpen, setLoanModalOpen] = useState(false);
 
   // Preview disabled when blurImage is on so the filter can't be peeked around.
   // 滑 · Swipe-to-toggle is gated on the same conditions as the click toggle
@@ -242,6 +258,13 @@ function VolumeImpl({
   // Imminent = within 7 days → badge flips moegi → sakura + pulse engages.
   const isImminent = isUpcoming && daysUntilRelease <= 7;
 
+  // 預 · Loan-state derivations. `isLent` gates every loan-aware
+  // visual; `loanStatus` picks the colour bucket. Both stay null
+  // when the volume isn't currently lent so existing branches
+  // keep working unchanged.
+  const isLent = ownedStatus && !isUpcoming && Boolean(loanedTo);
+  const loanStatus = isLent ? classifyLoanStatus(loanDueAt) : null;
+
   const borderClasses = isUpcoming
     ? isImminent
       ? "border-sakura/55 bg-gradient-to-br from-sakura/10 via-ink-1/40 to-ink-1/40 shadow-[0_0_18px_rgba(245,194,210,0.18)]"
@@ -252,15 +275,26 @@ function VolumeImpl({
         ? "border-hanko/40 bg-hanko/5 hover:border-hanko/60"
         : "border-border bg-ink-1/40 hover:border-border/80";
 
+  // Cover-less badge classes. When lent the badge stops looking
+  // like a "filled chip" and shifts to a "sealed envelope" look:
+  // dark ink fill, dashed border, status-tinted accents.
   const badgeClasses = isUpcoming
     ? isImminent
       ? "border-sakura bg-gradient-to-br from-sakura to-sakura/70 text-ink-0 shadow-md"
       : "border-moegi bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow-md"
-    : collectorStatus
-      ? "border-gold bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-md"
-      : ownedStatus
-        ? "border-hanko bg-hanko text-washi shadow-md glow-red"
-        : "border-border bg-ink-2 text-washi-dim hover:border-hanko/40 hover:text-washi";
+    : isLent
+      ? loanStatus === "overdue"
+        ? "border-2 border-dashed border-hanko bg-ink-1 text-hanko-bright shadow-[0_0_14px_rgba(220,38,38,0.45)] animate-pulse-glow"
+        : loanStatus === "due_soon"
+          ? "border-2 border-dashed border-gold bg-ink-1 text-gold shadow-[0_0_10px_rgba(201,169,97,0.35)]"
+          : loanStatus === "active"
+            ? "border-2 border-dashed border-hanko/65 bg-ink-1 text-hanko-bright shadow-[0_0_8px_rgba(220,38,38,0.25)]"
+            : "border-2 border-dashed border-washi/50 bg-ink-1 text-washi"
+      : collectorStatus
+        ? "border-gold bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-md"
+        : ownedStatus
+          ? "border-hanko bg-hanko text-washi shadow-md glow-red"
+          : "border-border bg-ink-2 text-washi-dim hover:border-hanko/40 hover:text-washi";
 
   return (
     <div
@@ -392,6 +426,17 @@ function VolumeImpl({
                     ? "brightness-40 grayscale"
                     : ""
               }`}
+              // 預け · Loan-state desaturation. Layered AFTER the
+              // Tailwind brightness/grayscale combos via inline style
+              // so we don't fight the existing class composition.
+              // Only kicks in for owned-but-lent volumes (an unowned
+              // volume isn't really "lent", and an upcoming one
+              // can't be lent either).
+              style={
+                ownedStatus && !isUpcoming && loanedTo
+                  ? { filter: loanCoverFilter(loanedTo) }
+                  : undefined
+              }
             />
 
             {isUpcoming && (
@@ -470,6 +515,18 @@ function VolumeImpl({
               </span>
             )}
 
+            {/* 預け · Loan-state stamp. Renders nothing when the
+                volume isn't lent. Positioned before the volNum
+                badge so the volume number stays readable on top
+                of the stamp's outer ring. */}
+            {ownedStatus && !isUpcoming && (
+              <LoanStamp
+                loanedTo={loanedTo}
+                loanDueAt={loanDueAt}
+                size="lg"
+              />
+            )}
+
             <span
               className={`pointer-events-none absolute bottom-0.5 right-0.5 grid min-h-4 min-w-4 place-items-center rounded-sm px-1 font-mono text-[9px] font-bold leading-none shadow ${
                 isUpcoming
@@ -482,6 +539,9 @@ function VolumeImpl({
                       ? "bg-hanko text-washi"
                       : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
               }`}
+              // Lift the volNum chip above the loan stamp so it
+              // stays the readable affordance when both are present.
+              style={loanedTo ? { zIndex: 11 } : undefined}
             >
               {volNum}
             </span>
@@ -498,9 +558,14 @@ function VolumeImpl({
                   })
                 : locked
                   ? t("volume.lockedAria")
-                  : ownedStatus
-                    ? t("volume.markNotOwned")
-                    : t("volume.markOwned")
+                  : isLent
+                    ? t("loans.stampAria", {
+                        status: t(`loans.status${capitalize(loanStatus)}`),
+                        borrower: loanedTo,
+                      })
+                    : ownedStatus
+                      ? t("volume.markNotOwned")
+                      : t("volume.markOwned")
             }
             title={
               isUpcoming
@@ -509,7 +574,12 @@ function VolumeImpl({
                   })
                 : locked
                   ? t("volume.lockedTitle")
-                  : undefined
+                  : isLent
+                    ? t("loans.stampAria", {
+                        status: t(`loans.status${capitalize(loanStatus)}`),
+                        borrower: loanedTo,
+                      })
+                    : undefined
             }
             className={`relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg border font-mono text-xs font-bold transition ${badgeClasses} ${
               locked || isUpcoming ? "cursor-default" : ""
@@ -517,6 +587,31 @@ function VolumeImpl({
           >
             {isLoading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : isLent ? (
+              <>
+                {/* 預け · "Sealed envelope" treatment for the no-cover
+                    button. The diagonal stripe lattice reads as the
+                    border tape on an airmail envelope, the kanji is
+                    the status seal pressed across it, and the volume
+                    number sits as the accession-row inscription. */}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 rounded-md opacity-25"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(-45deg, transparent 0 3px, currentColor 3px 4px)",
+                  }}
+                />
+                <span
+                  className="relative font-jp text-lg font-bold leading-none"
+                  style={{ transform: "rotate(-6deg)" }}
+                >
+                  {LOAN_STATUS_KANJI[loanStatus]}
+                </span>
+                <span className="absolute left-0.5 top-0.5 font-mono text-[8px] tabular-nums leading-none opacity-85">
+                  #{volNum}
+                </span>
+              </>
             ) : (
               <>
                 <span className="text-[10px] font-semibold uppercase tracking-wider">
@@ -779,6 +874,17 @@ function VolumeImpl({
         // live query updates → the drawer's parent re-renders without
         // this Volume. The drawer just needs to close itself first.
         onAfterDelete={handleCancel}
+        // 預け · Loan editing — drawer surfaces a chip; click opens
+        // the standalone LoanModal mounted just below.
+        loanedTo={loanedTo}
+        loanDueAt={loanDueAt}
+        onOpenLoanModal={() => setLoanModalOpen(true)}
+      />
+
+      <LoanModal
+        open={loanModalOpen}
+        volumeId={id}
+        onClose={() => setLoanModalOpen(false)}
       />
 
       {!isEditing &&
@@ -835,3 +941,9 @@ function VolumeImpl({
 // memo: callbacks/currencySetting need stable refs from the parent for skipping
 // to actually fire — worst case it's a no-op shallow-equal, never a regression.
 export default memo(VolumeImpl);
+
+/** Title-case helper for i18n key composition. `active` → `Active`. */
+function capitalize(s) {
+  if (!s || typeof s !== "string") return "";
+  return s.charAt(0).toUpperCase() + s.slice(1).replace(/_(\w)/g, (_, c) => c.toUpperCase());
+}

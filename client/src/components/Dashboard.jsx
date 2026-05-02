@@ -14,6 +14,7 @@ import PullToRefresh from "./ui/PullToRefresh.jsx";
 import { syncOutbox } from "@/lib/sync.js";
 import MangaSearchBar from "./MangaSearchBar";
 import GapSuggestions from "./GapSuggestions.jsx";
+import LoansWidget from "./LoansWidget.jsx";
 import { FilterButton, ActiveChips } from "./TagFilter.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import EmptyStateGlyph from "./ui/EmptyStateGlyph.jsx";
@@ -831,6 +832,12 @@ export default function Dashboard() {
             when there's nothing to suggest, so empty libraries pay
             zero layout cost. */}
         {!isInitialLoad && !isEmpty && <GapSuggestions />}
+        {/* 預け · Outstanding loans rail. Self-hides when nothing is
+            currently lent, same pattern as GapSuggestions. Sits
+            after the suggestions surface so the user reads the
+            dashboard top-to-bottom: shelves → discovery → care for
+            what's already out the door. */}
+        {!isInitialLoad && !isEmpty && <LoansWidget />}
       </div>
       </PullToRefresh>
 
