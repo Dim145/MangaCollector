@@ -209,6 +209,36 @@ db.version(10).stores({
   outboxAuthors: "mal_id, ts",
 });
 
+// v11 — calendar upcoming-releases cache.
+//
+// 暦 · `calendarUpcoming` keys each range-scoped response by a
+// composite `${from}__${until}` string. Distinct from a SeaORM-
+// style "one row per resource" because the calendar resource IS
+// the range — the same dataset answers the same `(from, until)`
+// pair forever. Read-only on the client (no outbox), so this is
+// purely a service-worker-equivalent stale cache that lets the
+// CalendarPage render the user's planned acquisitions when the
+// server is unreachable. The companion `cacheCalendarUpcoming` /
+// `readCalendarUpcoming` helpers in this file write/read by key.
+db.version(11).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 
@@ -260,6 +290,41 @@ export async function cacheAuthor(detail) {
 export async function dropCachedAuthor(mal_id) {
   if (mal_id == null) return;
   await db.authors.delete(mal_id);
+}
+
+/**
+ * 暦 · Build the composite cache key for a calendar-upcoming range.
+ * Both `from` and `until` may be null (server defaults to a 12-month
+ * window in that case) — `_default` then keys the catch-all entry.
+ */
+export function calendarUpcomingKey(from, until) {
+  const f = from ?? "_";
+  const u = until ?? "_";
+  if (f === "_" && u === "_") return "_default";
+  return `${f}__${u}`;
+}
+
+/**
+ * 暦 · Persist a `/api/user/calendar/upcoming` response keyed by
+ * the (from, until) range. Read-only client cache: subsequent
+ * offline visits to the same range get the last-known dataset
+ * via `useLiveQuery`. No eviction policy yet — the dataset per
+ * key is small (~bytes per entry × dozens of entries) and a
+ * single user typically navigates through few distinct ranges.
+ */
+export async function cacheCalendarUpcoming(from, until, payload) {
+  if (!payload) return;
+  await db.calendarUpcoming.put({
+    key: calendarUpcomingKey(from, until),
+    payload,
+    ts: Date.now(),
+  });
+}
+
+/** Read the cached payload for a (from, until) range. */
+export async function readCalendarUpcoming(from, until) {
+  const row = await db.calendarUpcoming.get(calendarUpcomingKey(from, until));
+  return row?.payload ?? null;
 }
 
 export async function readSettings() {

@@ -64,6 +64,11 @@ export default {
     refreshTitle: "Refresh",
     subscribe: "Subscribe",
     subscribeTitle: "Subscribe to your calendar from Apple / Google / Outlook",
+    subscribeOffline: "Offline",
+    subscribeOfflineHint:
+      "Subscribing to the ICS feed asks the server to mint a token — available only when the server is reachable.",
+    servedFromCache:
+      "Offline calendar · local view, new announcements will appear once connectivity returns",
     monthCount: "{n} releases",
     volumeLabel: "Volume {n}",
     countdownDays: "J−{n}",
@@ -632,6 +637,8 @@ export default {
     backlogCta: "Reading pile",
     snapshotsCta: "Gallery · 印影",
     friendsCta: "Correspondence · 友",
+    friendsOfflineHint:
+      "Correspondence needs a reachable server — activity feed and correspondents list aren't kept in local cache.",
     series: "Series",
     inArchive: "In archive",
     volumes: "Volumes",
@@ -2003,6 +2010,15 @@ export default {
       "Your correspondents haven't posted recently. The mailbox fills as soon as they touch their archive.",
     followAction: "Follow",
     followingState: "Following",
+    followOffline: "Offline",
+    followOfflineHint:
+      "Following a correspondent needs a reachable server — the mutation isn't queued for offline replay.",
+    offlineKicker: "POST OFFICE CLOSED · 圏",
+    offlineTitle: "The postal route is down",
+    offlineBody:
+      "Correspondence depends on a server connection — your friends' activity feeds aren't kept in local cache (reason: privacy + freshness).",
+    offlineHint:
+      "Reconnect to the server to reopen the post office. Your existing subscriptions stay intact.",
     unfollow: "Drop",
     unfollowAria: "Stop following {name}",
     followedToday: "since today",

@@ -64,6 +64,11 @@ export default {
     refreshTitle: "Refrescar",
     subscribe: "Suscribirse",
     subscribeTitle: "Suscribirse desde Apple / Google / Outlook",
+    subscribeOffline: "Sin conexión",
+    subscribeOfflineHint:
+      "Suscribirse al feed ICS requiere que el servidor genere un token — disponible solo cuando el servidor es alcanzable.",
+    servedFromCache:
+      "Calendario sin conexión · vista local, las nuevas anuncios aparecerán cuando vuelva la conexión",
     monthCount: "{n} salidas",
     volumeLabel: "Tomo {n}",
     countdownDays: "J−{n}",
@@ -637,6 +642,8 @@ export default {
     backlogCta: "Pila por leer",
     snapshotsCta: "Galería · 印影",
     friendsCta: "Correspondencia · 友",
+    friendsOfflineHint:
+      "La correspondencia requiere un servidor alcanzable — el feed de actividad y la lista de corresponsales no están en caché local.",
     series: "Series",
     inArchive: "En el archivo",
     volumes: "Tomos",
@@ -2014,6 +2021,15 @@ export default {
       "Tus corresponsales no han publicado nada recientemente. El buzón se llenará cuando toquen su archivo.",
     followAction: "Seguir",
     followingState: "Siguiendo",
+    followOffline: "Sin conexión",
+    followOfflineHint:
+      "Seguir a un corresponsal requiere un servidor alcanzable — la mutación no tiene cola offline.",
+    offlineKicker: "OFICINA CERRADA · 圏",
+    offlineTitle: "La vía postal está cortada",
+    offlineBody:
+      "La correspondencia depende de una conexión al servidor — los feeds de actividad de tus corresponsales no se cachean localmente (razón: privacidad + frescura).",
+    offlineHint:
+      "Reconectarse al servidor para reabrir la oficina postal. Tus suscripciones existentes permanecen intactas.",
     unfollow: "Retirar",
     unfollowAria: "Dejar de seguir a {name}",
     followedToday: "desde hoy",

@@ -6,6 +6,7 @@ import {
   useFriendsFeed,
   useUnfollow,
 } from "@/hooks/useFriends.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 
 /**
@@ -26,6 +27,14 @@ import { useT, useLang } from "@/i18n/index.jsx";
 export default function FriendsPage() {
   const t = useT();
   const lang = useLang();
+  // 連 · Connectivity gate. The whole correspondence feature is
+  // network-bound: follow list, activity feed, follow/unfollow
+  // mutations all need a live server. There's no useful offline
+  // mode (we don't cache cross-user data — privacy + freshness
+  // both argue against it), so we surface a single "unavailable"
+  // panel rather than a silent empty page that could be misread
+  // as "you have no friends" or "they posted nothing".
+  const online = useOnline();
   const { data: follows = [], isLoading: loadingFollows } = useFollowList();
   const { data: feed = [], isLoading: loadingFeed } = useFriendsFeed(80);
 
@@ -48,31 +57,35 @@ export default function FriendsPage() {
         />
         <CornerKanji />
 
-        <Hero count={follows.length} t={t} />
+        <Hero count={online ? follows.length : 0} t={t} />
 
-        <div className="grid gap-8 md:grid-cols-[280px_1fr] md:gap-10 lg:grid-cols-[320px_1fr] lg:gap-12">
-          {/* Left rail — correspondents (the people you follow) */}
-          <aside className="md:sticky md:top-8 md:self-start">
-            <CorrespondentsPanel
-              follows={follows}
-              loading={loadingFollows}
-              t={t}
-              lang={lang}
-            />
-          </aside>
+        {!online ? (
+          <OfflinePanel t={t} />
+        ) : (
+          <div className="grid gap-8 md:grid-cols-[280px_1fr] md:gap-10 lg:grid-cols-[320px_1fr] lg:gap-12">
+            {/* Left rail — correspondents (the people you follow) */}
+            <aside className="md:sticky md:top-8 md:self-start">
+              <CorrespondentsPanel
+                follows={follows}
+                loading={loadingFollows}
+                t={t}
+                lang={lang}
+              />
+            </aside>
 
-          {/* Right column — chronological correspondence feed */}
-          <section>
-            <FeedHeader count={feed.length} t={t} />
-            {loadingFeed && feed.length === 0 ? (
-              <FeedLoading t={t} />
-            ) : groups.length === 0 ? (
-              <FeedEmpty hasFollows={follows.length > 0} t={t} />
-            ) : (
-              <FeedThread groups={groups} t={t} lang={lang} />
-            )}
-          </section>
-        </div>
+            {/* Right column — chronological correspondence feed */}
+            <section>
+              <FeedHeader count={feed.length} t={t} />
+              {loadingFeed && feed.length === 0 ? (
+                <FeedLoading t={t} />
+              ) : groups.length === 0 ? (
+                <FeedEmpty hasFollows={follows.length > 0} t={t} />
+              ) : (
+                <FeedThread groups={groups} t={t} lang={lang} />
+              )}
+            </section>
+          </div>
+        )}
 
         <footer className="mt-12 text-center md:mt-16">
           <Link
@@ -87,6 +100,59 @@ export default function FriendsPage() {
         </footer>
       </div>
     </DefaultBackground>
+  );
+}
+
+/**
+ * 連 · Offline takeover panel for the FriendsPage.
+ *
+ * Aesthetic — a sealed envelope returned to sender. The kanji 圏
+ * (out-of-zone) is anchored over a hanko-red wax seal, the body
+ * explains *why* the page is empty (the postal route is closed,
+ * not "you have no friends"), and a single retry CTA invites the
+ * user to come back online. No CTA actions: even a "retry" would
+ * just re-fire the disabled queries; we leave the user agent's
+ * own connectivity restoration handle the recovery.
+ */
+function OfflinePanel({ t }) {
+  return (
+    <div className="mx-auto max-w-2xl rounded-md border border-moegi/40 bg-ink-1/40 p-12 text-center backdrop-blur md:p-16 animate-fade-up">
+      {/* Wax seal — the 圏 kanji pressed in a hanko ring */}
+      <div className="relative mx-auto mb-6 grid h-20 w-20 place-items-center rounded-full border-2 border-moegi/50 bg-moegi/10 shadow-[0_0_24px_rgba(163,201,97,0.25)]">
+        <span
+          aria-hidden="true"
+          className="font-jp text-4xl font-bold leading-none text-moegi"
+          style={{ transform: "rotate(-6deg)" }}
+        >
+          圏
+        </span>
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-1 rounded-full ring-1 ring-inset ring-moegi/20"
+        />
+      </div>
+
+      <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-moegi">
+        {t("friends.offlineKicker")}
+      </p>
+      <h2 className="mt-3 font-display text-2xl font-light italic leading-tight text-washi md:text-3xl">
+        {t("friends.offlineTitle")}
+      </h2>
+      <p className="mx-auto mt-4 max-w-md font-display text-sm italic leading-relaxed text-washi-muted">
+        {t("friends.offlineBody")}
+      </p>
+
+      {/* Brushstroke + secondary line — explains what specifically
+          is out of reach (the page is empty for a *reason*, not
+          because the user has no friends) */}
+      <span
+        aria-hidden="true"
+        className="mx-auto my-5 block h-px w-24 bg-gradient-to-r from-transparent via-moegi/40 to-transparent"
+      />
+      <p className="mx-auto max-w-md font-mono text-[11px] leading-relaxed text-washi-dim">
+        {t("friends.offlineHint")}
+      </p>
+    </div>
   );
 }
 

@@ -29,6 +29,7 @@ const AvatarPicker = lazy(() => import("./AvatarPicker.jsx"));
 const ShelfSnapshotModal = lazy(() => import("./ShelfSnapshotModal.jsx"));
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { useProfileAnalytics } from "@/hooks/useProfileAnalytics.js";
@@ -38,6 +39,11 @@ import { useT } from "@/i18n/index.jsx";
 export default function ProfilePage({ googleUser }) {
   const { currency: currencySetting, adult_content_level } =
     useContext(SettingsContext);
+  // 連 · Connectivity gate for the Friends chip in the analytics
+  // cluster. The /friends page is entirely network-bound (cross-
+  // user activity feed + follow-list both require the server),
+  // so the chip can't lead anywhere useful when offline.
+  const online = useOnline();
   const { data: library, isInitialLoad: loadingLib } = useLibrary();
   const { data: volumes, isInitialLoad: loadingVol } = useAllVolumes();
   const { data: settings } = useUserSettings();
@@ -407,20 +413,45 @@ export default function ProfilePage({ googleUser }) {
                 </Link>
                 {/* 友 · Friends correspondence — moegi (jade green)
                     chip to differentiate from the analytics cluster:
-                    this is a social surface, not a data view. */}
-                <Link
-                  to="/friends"
-                  className="inline-flex items-center gap-2 rounded-full border border-moegi/45 bg-moegi/8 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-moegi transition hover:border-moegi hover:bg-moegi/15"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="font-jp text-sm font-bold leading-none not-italic"
+                    this is a social surface, not a data view. The
+                    feature is entirely network-bound (cross-user
+                    activity feed + follow list), so the chip
+                    becomes a non-interactive disabled-styled span
+                    when the server is unreachable. Tooltip + kanji
+                    swap (友 → 圏) signal the offline state in the
+                    same vocabulary used by the calendar / author
+                    refresh buttons. */}
+                {online ? (
+                  <Link
+                    to="/friends"
+                    className="inline-flex items-center gap-2 rounded-full border border-moegi/45 bg-moegi/8 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-moegi transition hover:border-moegi hover:bg-moegi/15"
                   >
-                    友
+                    <span
+                      aria-hidden="true"
+                      className="font-jp text-sm font-bold leading-none not-italic"
+                    >
+                      友
+                    </span>
+                    {t("profile.friendsCta")}
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                ) : (
+                  <span
+                    role="link"
+                    aria-disabled="true"
+                    title={t("profile.friendsOfflineHint")}
+                    aria-label={t("profile.friendsOfflineHint")}
+                    className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-moegi/30 bg-moegi/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-moegi-muted/60 opacity-60"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="font-jp text-sm font-bold leading-none not-italic"
+                    >
+                      圏
+                    </span>
+                    {t("profile.friendsCta")}
                   </span>
-                  {t("profile.friendsCta")}
-                  <span aria-hidden="true">→</span>
-                </Link>
+                )}
               </div>
             </div>
           </div>

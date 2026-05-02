@@ -7,6 +7,7 @@ import {
   useUnfollow,
 } from "@/hooks/useFriends.js";
 import { getCachedUser } from "@/utils/auth.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import Skeleton from "./ui/Skeleton.jsx";
 import CoverImage from "./ui/CoverImage.jsx";
 import { useT } from "@/i18n/index.jsx";
@@ -319,6 +320,7 @@ function CompareCTA({ slug }) {
 function FollowCTA({ slug }) {
   const t = useT();
   const cached = typeof window !== "undefined" ? getCachedUser() : null;
+  const online = useOnline();
   const { slug: ownSlug, isLoading: ownLoading } = useOwnPublicSlug();
   const { data: following } = useIsFollowing(cached ? slug : null);
   const followM = useFollow();
@@ -329,29 +331,38 @@ function FollowCTA({ slug }) {
   const pending = followM.isPending || unfollowM.isPending;
   const isFollowing = Boolean(following);
   const onClick = () => {
-    if (pending) return;
+    if (pending || !online) return;
     if (isFollowing) unfollowM.mutate(slug);
     else followM.mutate(slug);
   };
+  // 連 · Same offline gate as the FriendsPage / friends chip on
+  // ProfilePage. Follow/unfollow mutations are not offline-capable
+  // (no outbox: the user-facing semantic is "subscribe to a public
+  // profile NOW", not "queue a subscription for later"). Disabled
+  // state swaps the kanji to 圏 and surfaces the explanatory hint.
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={pending}
-      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.25em] transition disabled:opacity-50 ${
+      disabled={pending || !online}
+      title={!online ? t("friends.followOfflineHint") : undefined}
+      aria-label={!online ? t("friends.followOfflineHint") : undefined}
+      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.25em] transition disabled:opacity-50 disabled:cursor-not-allowed ${
         isFollowing
           ? "border-gold/55 bg-gold/10 text-gold hover:border-gold/80 hover:bg-gold/15"
           : "border-moegi/45 bg-moegi/8 text-moegi hover:border-moegi hover:bg-moegi/15"
       }`}
     >
       <span aria-hidden="true" className="font-jp text-sm leading-none">
-        {isFollowing ? "印" : "友"}
+        {!online ? "圏" : isFollowing ? "印" : "友"}
       </span>
       {pending
         ? t("common.saving")
-        : isFollowing
-          ? t("friends.followingState")
-          : t("friends.followAction")}
+        : !online
+          ? t("friends.followOffline")
+          : isFollowing
+            ? t("friends.followingState")
+            : t("friends.followAction")}
     </button>
   );
 }

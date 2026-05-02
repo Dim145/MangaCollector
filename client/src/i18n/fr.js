@@ -67,6 +67,11 @@ export default {
     refreshTitle: "Rafraîchir",
     subscribe: "S'abonner",
     subscribeTitle: "S'abonner depuis Apple / Google / Outlook",
+    subscribeOffline: "Hors ligne",
+    subscribeOfflineHint:
+      "L'abonnement au flux ICS demande au serveur de générer un jeton — disponible uniquement quand le serveur est joignable.",
+    servedFromCache:
+      "Calendrier hors ligne · vue locale, les nouvelles annonces apparaîtront au retour de la connexion",
     monthCount: "{n} sorties",
     volumeLabel: "Tome {n}",
     countdownDays: "J−{n}",
@@ -650,6 +655,8 @@ export default {
     backlogCta: "Pile à lire",
     snapshotsCta: "Galerie · 印影",
     friendsCta: "Correspondance · 友",
+    friendsOfflineHint:
+      "La correspondance demande un serveur joignable — flux d'activité et liste de correspondants ne sont pas en cache local.",
     series: "Séries",
     inArchive: "Dans l'archive",
     volumes: "Tomes",
@@ -2038,6 +2045,15 @@ export default {
       "Vos correspondants n'ont rien posté récemment. La boîte se remplira dès qu'ils touchent leur archive.",
     followAction: "Suivre",
     followingState: "Suivi",
+    followOffline: "Hors ligne",
+    followOfflineHint:
+      "Suivre un correspondant demande un serveur joignable — la mutation n'a pas de file d'attente offline.",
+    offlineKicker: "POSTE FERMÉE · 圏",
+    offlineTitle: "La voie postale est coupée",
+    offlineBody:
+      "La correspondance dépend d'une connexion au serveur — les flux d'activité de vos correspondants ne sont pas mis en cache localement (raison : confidentialité + fraîcheur).",
+    offlineHint:
+      "Reconnectez-vous au serveur pour rouvrir le bureau de poste. Vos abonnements existants restent intacts.",
     unfollow: "Retirer",
     unfollowAria: "Ne plus suivre {name}",
     followedToday: "depuis aujourd'hui",
