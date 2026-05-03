@@ -1463,6 +1463,9 @@ export default {
     earnedOn: "Earned on {date}",
     newlyGrantedOne: "A new seal has just been pressed.",
     newlyGrantedMany: "{n} new seals have just been pressed.",
+    unlocked: {
+      title: "Seal pressed · 印",
+    },
     newlyGrantedHint: "Watch the ink dry on the pages below.",
     nextHint: "Next seal · {name}",
     rankLabel: "RANK · 階級",

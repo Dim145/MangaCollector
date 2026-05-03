@@ -29,6 +29,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import DefaultBackground from "@/components/DefaultBackground.jsx";
 import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
+import SealsUnlockToaster from "@/components/SealsUnlockToaster.jsx";
 import UpdatePrompt from "@/components/UpdatePrompt.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
@@ -285,6 +286,13 @@ function AppShell() {
       <Header />
       <OfflineBanner />
       <SyncToaster />
+      {/* 印鑑 · Seal-unlock notifier — listens to realtime sync
+          events for kinds that could move a seal threshold and
+          fires a click-to-/seals toast through the same SyncToaster
+          shell. Mounted only inside the auth-gated `AppShell` so
+          the GET /api/user/seals call is only ever fired for a
+          logged-in user. */}
+      <SealsUnlockToaster />
       {/* Keypress-gated overlays — wrapped in their own Suspense so a
           chunk-load failure (offline at the moment of first ⌘K) doesn't
           crash the whole tree. `fallback={null}` is intentional: the

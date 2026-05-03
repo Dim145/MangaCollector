@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { db } from "@/lib/db.js";
+import { notifySealsUnlocked } from "@/lib/sealsToast.js";
+import { useT } from "@/i18n/index.jsx";
 
 /**
  * 印鑑帳 — carnet de sceaux, Dexie-first.
@@ -40,6 +42,18 @@ import { db } from "@/lib/db.js";
  */
 export function useSeals() {
   const cached = useLiveQuery(() => db.seals.get("user"), []);
+  // 言 · Always-fresh `t`. The queryFn closure below picks this up
+  // for toast i18n; routing through a ref protects against the
+  // narrow race where the very first /api/user/seals call (on hook
+  // mount) reports a fresh unlock BEFORE settings have flipped the
+  // I18nProvider to the user's preferred language — without the
+  // ref, that first toast would render in EN even when the user's
+  // locale is FR/ES.
+  const t = useT();
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   // Component-local transient store for the ceremony signal. Kept
   // intentionally OUTSIDE of React Query's cache so it can't survive
@@ -55,7 +69,17 @@ export function useSeals() {
       // component-local state below to drive the one-shot ceremony.
       const { newly_granted, ...stable } = data ?? {};
       await db.seals.put({ key: "user", ...stable });
-      setNewlyGranted(Array.isArray(newly_granted) ? newly_granted : []);
+      const codes = Array.isArray(newly_granted) ? newly_granted : [];
+      setNewlyGranted(codes);
+      // 印 · Also fire the toast(s). When the user navigates
+      // straight to /seals after triggering an unlock, useSeals'
+      // fetch wins the race against the App-level
+      // `SealsUnlockToaster` (which has a 600 ms debounce). Without
+      // this call the toast would never fire on that fast-nav path.
+      // Server atomicity guarantees `newly_granted` is non-empty
+      // on AT MOST one of the two competing fetches, so calling
+      // from both can't double-fire.
+      notifySealsUnlocked(codes, tRef.current);
       return data;
     },
     // Short stale window — a user who just completed a milestone in

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { onSyncError, onSyncInfo } from "@/lib/sync.js";
 import { sounds } from "@/lib/sounds.js";
 import { useT } from "@/i18n/index.jsx";
@@ -89,6 +90,11 @@ export default function SyncToaster() {
           icon: p.icon,
           title: p.title || t("sync.infoDefaultTitle"),
           body: p.body,
+          // Optional clickable destination — when set, the body
+          // of the toast becomes a `<Link>` and clicking the row
+          // navigates there. Used by the seal-unlock notifier to
+          // jump the user straight to /seals.
+          href: typeof p.href === "string" ? p.href : null,
         },
       ]);
       tone === "success" ? sounds.success() : sounds.info();
@@ -187,64 +193,88 @@ function ToastRow({ toast, onDismiss }) {
   const isError = toast.kind === "error";
   const role = isError ? "alert" : "status";
 
+  // 印 · The body block (icon + title + body lines) wraps in a
+  // `<Link>` when `toast.href` is set so clicking the row jumps
+  // the user to the related surface (e.g. /seals on a seal-unlock
+  // toast). The dismiss `<button>` stays a sibling so its click
+  // doesn't trigger the navigation.
+  const Body = toast.href ? Link : "div";
+  const bodyProps = toast.href
+    ? {
+        to: toast.href,
+        onClick: onDismiss,
+        className:
+          "group flex flex-1 min-w-0 items-start gap-3 -m-3 -ml-4 p-3 pl-4 transition hover:bg-washi/[0.04]",
+      }
+    : { className: "flex flex-1 min-w-0 items-start gap-3" };
   return (
     <div
       role={role}
       // The `before:` pseudo creates the seal-margin left rule.
       className={`pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-xl border ${palette.border} bg-ink-1/96 p-3 pl-4 shadow-2xl animate-fade-up before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] ${palette.edge}`}
     >
-      <span
-        aria-hidden="true"
-        className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${palette.badgeBg} ${palette.badgeFg} ${palette.ring}`}
-      >
-        {isError ? (
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-3.5 w-3.5"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-        ) : toast.icon ? (
-          // Caller-supplied glyph — typically a single kanji.
-          // `font-jp` swaps to the project's display Japanese face;
-          // `tracking-normal` overrides any inherited tracking from
-          // a wrapper that thought it was uppercased label text.
-          <span className="font-jp text-sm font-bold leading-none tracking-normal">
-            {toast.icon}
-          </span>
-        ) : (
-          // Default success glyph: a check mark, sized to match.
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-3.5 w-3.5"
-          >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        )}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="font-display text-sm font-semibold text-washi">
-          {toast.title}
-        </p>
-        {toast.body && (
-          <p className="mt-0.5 text-xs text-washi-muted">{toast.body}</p>
-        )}
-        {toast.footer && (
-          <p className="mt-1 text-[10px] text-washi-dim">{toast.footer}</p>
-        )}
-      </div>
+      <Body {...bodyProps}>
+        <span
+          aria-hidden="true"
+          className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${palette.badgeBg} ${palette.badgeFg} ${palette.ring}`}
+        >
+          {isError ? (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3.5 w-3.5"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          ) : toast.icon ? (
+            // Caller-supplied glyph — typically a single kanji.
+            // `font-jp` swaps to the project's display Japanese face;
+            // `tracking-normal` overrides any inherited tracking from
+            // a wrapper that thought it was uppercased label text.
+            <span className="font-jp text-sm font-bold leading-none tracking-normal">
+              {toast.icon}
+            </span>
+          ) : (
+            // Default success glyph: a check mark, sized to match.
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3.5 w-3.5"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-display text-sm font-semibold text-washi">
+            {toast.title}
+            {toast.href && (
+              <span
+                aria-hidden="true"
+                className="ml-1.5 inline-block translate-y-[-1px] text-[11px] text-washi-dim transition group-hover:translate-x-0.5 group-hover:text-washi"
+              >
+                →
+              </span>
+            )}
+          </p>
+          {toast.body && (
+            <p className="mt-0.5 text-xs text-washi-muted">{toast.body}</p>
+          )}
+          {toast.footer && (
+            <p className="mt-1 text-[10px] text-washi-dim">{toast.footer}</p>
+          )}
+        </div>
+      </Body>
       <button
         type="button"
         onClick={onDismiss}

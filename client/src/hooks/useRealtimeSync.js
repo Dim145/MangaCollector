@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { emitSyncEvent } from "@/lib/sync/events.js";
 
 /**
  * 同期 · Realtime invalidation receiver.
@@ -107,6 +108,12 @@ export function useRealtimeSync({ enabled = true } = {}) {
       ws.addEventListener("message", (evt) => {
         try {
           const event = JSON.parse(evt.data);
+          // Re-broadcast every received event for downstream
+          // subscribers (toasters, badges, custom side effects).
+          // Done BEFORE the React Query invalidation so listeners
+          // that want to react to "what just changed" don't lose
+          // events whose only side effect is in their handler.
+          emitSyncEvent(event);
           const keys = KIND_TO_KEYS[event?.kind];
           if (!keys) return;
           for (const key of keys) {

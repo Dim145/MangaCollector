@@ -1490,6 +1490,9 @@ export default {
     progressLabel: "Sceaux obtenus",
     lockedHint: "À sceller",
     earnedOn: "Obtenu le {date}",
+    unlocked: {
+      title: "Sceau apposé · 印",
+    },
     newlyGrantedOne: "Un nouveau sceau vient d'être apposé.",
     newlyGrantedMany: "{n} nouveaux sceaux viennent d'être apposés.",
     newlyGrantedHint: "Regardez l'encre sécher sur les pages qui suivent.",

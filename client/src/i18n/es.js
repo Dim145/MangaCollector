@@ -1473,6 +1473,9 @@ export default {
     earnedOn: "Obtenido el {date}",
     newlyGrantedOne: "Un nuevo sello acaba de estamparse.",
     newlyGrantedMany: "{n} sellos nuevos acaban de estamparse.",
+    unlocked: {
+      title: "Sello estampado · 印",
+    },
     newlyGrantedHint: "Observa la tinta secar en las páginas siguientes.",
     nextHint: "Siguiente sello · {name}",
     rankLabel: "RANGO · 階級",

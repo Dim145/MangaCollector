@@ -17,6 +17,7 @@ export {
   notifySyncError,
   onSyncInfo,
   notifySyncInfo,
+  onSyncEvent,
 } from "./sync/events.js";
 
 export {
