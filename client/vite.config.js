@@ -366,6 +366,27 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          // 印影 · Snapshot images — `/api/user/snapshots/{id}/image`
+          // is a stable URL once the snapshot is created (the image
+          // never mutates: a new shelf state mints a new id, not a
+          // replacement). CacheFirst with a 1-year horizon means
+          // the gallery renders instantly on reload, AND viewing
+          // past prints offline works without our SPA having to
+          // shuttle blobs through Dexie ourselves. The matching
+          // listing payload is cached separately at the Dexie layer
+          // (db.snapshots).
+          {
+            urlPattern: /\/api\/user\/snapshots\/\d+\/image$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "snapshot-images",
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
       devOptions: {

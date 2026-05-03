@@ -1997,6 +1997,16 @@ export default {
     unitSingular: "tirage",
     unitPlural: "tirages",
     captureCta: "Capturer un tirage",
+    captureOffline: "Hors ligne",
+    captureOfflineHint:
+      "La capture nécessite le serveur — création de la fiche puis envoi de l'image vers le stockage.",
+    deleteOfflineHint:
+      "La suppression nécessite le serveur joignable — pas de file d'attente offline.",
+    servedFromCache:
+      "Galerie hors ligne · vue locale, les nouvelles captures arriveront au retour de la connexion",
+    emptyTitleOffline: "Galerie locale vide",
+    emptyBodyOffline:
+      "Aucun tirage n'a été chargé localement avant la perte de connexion. Reconnectez-vous au serveur pour les voir.",
     captureKicker: "NOUVEAU TIRAGE",
     captureTitle: "Inscrire un tirage",
     captureSubtitle:

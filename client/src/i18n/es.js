@@ -1973,6 +1973,16 @@ export default {
     unitSingular: "estampa",
     unitPlural: "estampas",
     captureCta: "Capturar una estampa",
+    captureOffline: "Sin conexión",
+    captureOfflineHint:
+      "La captura requiere el servidor — crear la ficha y subir la imagen al almacenamiento.",
+    deleteOfflineHint:
+      "Eliminar requiere un servidor alcanzable — sin cola offline.",
+    servedFromCache:
+      "Galería sin conexión · vista local, las nuevas capturas llegarán cuando vuelva la conexión",
+    emptyTitleOffline: "Galería local vacía",
+    emptyBodyOffline:
+      "No se cargaron estampas localmente antes de perder la conexión. Reconectarse al servidor para verlas.",
     captureKicker: "NUEVA ESTAMPA",
     captureTitle: "Inscribir una estampa",
     captureSubtitle:

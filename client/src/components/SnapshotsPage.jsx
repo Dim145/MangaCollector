@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Modal from "./ui/Modal.jsx";
 import { useLibrary } from "@/hooks/useLibrary.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import {
   useCreateSnapshot,
@@ -34,7 +35,11 @@ import { renderShelfSnapshotBlob } from "@/lib/shelfSnapshot.js";
 export default function SnapshotsPage() {
   const t = useT();
   const lang = useLang();
-  const { data: snapshots = [], isLoading } = useSnapshots();
+  const { data: snapshots = [], isLoading, source } = useSnapshots();
+  // 連 · Connectivity gate. Drives the Capture / Retry / Delete
+  // CTAs (all of which need a server: id minting + S3 multipart),
+  // and surfaces the "served from cache" banner when relevant.
+  const online = useOnline();
   const { data: library } = useLibrary();
   const { data: settings } = useUserSettings();
 
@@ -73,8 +78,30 @@ export default function SnapshotsPage() {
         />
         <CornerKanji />
 
+        {/* 連 · Offline banner — surfaces only when the server
+            is unreachable AND we have cached prints to render.
+            The capture / delete / retry actions are disabled at
+            their own affordances; this banner is the page-level
+            context for why the gold "Capturer" button looks
+            inert. Suppressed when no cached data exists (the
+            empty-state panel already explains the situation). */}
+        {!online && source === "cache" && (
+          <div
+            className="mb-4 flex items-center gap-2 rounded-xl border border-gold/40 bg-gold/5 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-gold animate-fade-up"
+            role="status"
+            aria-live="polite"
+            style={{ animationDelay: "100ms" }}
+          >
+            <span aria-hidden="true" className="font-jp text-[12px] leading-none">
+              圏
+            </span>
+            <span>{t("snapshots.servedFromCache")}</span>
+          </div>
+        )}
+
         <Hero
           count={sorted.length}
+          online={online}
           onCapture={() => setCaptureOpen(true)}
           t={t}
           lang={lang}
@@ -83,7 +110,11 @@ export default function SnapshotsPage() {
         {isLoading && sorted.length === 0 ? (
           <LoadingPanel t={t} />
         ) : sorted.length === 0 ? (
-          <EmptyPanel onCapture={() => setCaptureOpen(true)} t={t} />
+          <EmptyPanel
+            online={online}
+            onCapture={() => setCaptureOpen(true)}
+            t={t}
+          />
         ) : (
           <PlatesGrid
             snapshots={sorted}
@@ -120,6 +151,7 @@ export default function SnapshotsPage() {
             snapshot={detail}
             library={library ?? []}
             userName={userName}
+            online={online}
             onClose={() => setDetail(null)}
             lang={lang}
             t={t}
@@ -132,7 +164,7 @@ export default function SnapshotsPage() {
 
 // ─── Hero ──────────────────────────────────────────────────────────
 
-function Hero({ count, onCapture, t }) {
+function Hero({ count, online = true, onCapture, t }) {
   return (
     <header className="relative mb-12 animate-fade-up md:mb-16">
       <div className="mb-6 flex flex-wrap items-baseline gap-3">
@@ -161,19 +193,31 @@ function Hero({ count, onCapture, t }) {
         </div>
 
         {/* Capture CTA — frame as a shutter-release button. The
-            inner kanji 印 reads as the seal pressed at exposure. */}
+            inner kanji 印 reads as the seal pressed at exposure.
+            ── Online gate ──
+            Capturing mints a fresh `user_snapshots` row server-
+            side then S3-uploads the rendered PNG. Neither step
+            replays cleanly through an outbox (no client-side id
+            namespace to anchor against), so the button is hard-
+            disabled offline. Kanji swap (印 → 圏) + tooltip echo
+            the language used elsewhere on the SPA. */}
         <button
           type="button"
           onClick={onCapture}
-          className="group inline-flex shrink-0 items-center gap-3 rounded-full border border-gold/55 bg-gold/8 px-5 py-3 font-mono text-[11px] uppercase tracking-[0.28em] text-gold transition hover:border-gold hover:bg-gold/15"
+          disabled={!online}
+          title={!online ? t("snapshots.captureOfflineHint") : undefined}
+          aria-label={
+            !online ? t("snapshots.captureOfflineHint") : undefined
+          }
+          className="group inline-flex shrink-0 items-center gap-3 rounded-full border border-gold/55 bg-gold/8 px-5 py-3 font-mono text-[11px] uppercase tracking-[0.28em] text-gold transition hover:border-gold hover:bg-gold/15 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gold/55 disabled:hover:bg-gold/8"
         >
           <span
             aria-hidden="true"
-            className="grid h-7 w-7 place-items-center rounded-full bg-gold/20 font-jp text-sm not-italic text-gold transition group-hover:rotate-[8deg]"
+            className="grid h-7 w-7 place-items-center rounded-full bg-gold/20 font-jp text-sm not-italic text-gold transition group-hover:rotate-[8deg] group-disabled:group-hover:rotate-0"
           >
-            印
+            {online ? "印" : "圏"}
           </span>
-          {t("snapshots.captureCta")}
+          {online ? t("snapshots.captureCta") : t("snapshots.captureOffline")}
         </button>
       </div>
     </header>
@@ -485,7 +529,15 @@ function PhaseIndicator({ phase, t, errMsg }) {
 
 // ─── Detail modal ──────────────────────────────────────────────────
 
-function DetailModal({ snapshot, library, userName, onClose, lang, t }) {
+function DetailModal({
+  snapshot,
+  library,
+  userName,
+  online = true,
+  onClose,
+  lang,
+  t,
+}) {
   const del = useDeleteSnapshot();
   const upload = useUploadSnapshotImage();
   const [confirming, setConfirming] = useState(false);
@@ -589,19 +641,32 @@ function DetailModal({ snapshot, library, userName, onClose, lang, t }) {
               {/* 印影 · Retry the image-upload step. The stats row
                   already exists; this just re-renders the canvas
                   + POSTs to /image. The phase indicator below
-                  surfaces the multi-step progress. */}
+                  surfaces the multi-step progress.
+                  ── Online gate ──
+                  Same constraint as the initial capture: the upload
+                  step talks to S3 via the backend. Disabled offline
+                  with a tooltip + kanji swap so the user knows to
+                  come back. */}
               <button
                 type="button"
                 onClick={handleRetry}
-                disabled={retrying}
-                className="inline-flex items-center gap-2 rounded-full border border-gold/55 bg-gold/8 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.28em] text-gold transition hover:border-gold hover:bg-gold/15 disabled:opacity-50"
+                disabled={retrying || !online}
+                title={
+                  !online ? t("snapshots.captureOfflineHint") : undefined
+                }
+                aria-label={
+                  !online ? t("snapshots.captureOfflineHint") : undefined
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-gold/55 bg-gold/8 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.28em] text-gold transition hover:border-gold hover:bg-gold/15 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span aria-hidden="true" className="font-jp text-sm not-italic">
-                  撮
+                  {online ? "撮" : "圏"}
                 </span>
                 {retrying
                   ? t("snapshots.capturing")
-                  : t("snapshots.retryUpload")}
+                  : !online
+                    ? t("snapshots.captureOffline")
+                    : t("snapshots.retryUpload")}
               </button>
               {retryPhase !== "idle" && (
                 <div className="w-full max-w-xs">
@@ -639,10 +704,15 @@ function DetailModal({ snapshot, library, userName, onClose, lang, t }) {
             <button
               type="button"
               onClick={() => setConfirming(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-hanko/40 bg-transparent px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
+              disabled={!online}
+              title={!online ? t("snapshots.deleteOfflineHint") : undefined}
+              aria-label={
+                !online ? t("snapshots.deleteOfflineHint") : undefined
+              }
+              className="inline-flex items-center gap-1.5 rounded-md border border-hanko/40 bg-transparent px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-hanko/40 disabled:hover:bg-transparent"
             >
               <span aria-hidden="true" className="font-jp text-[11px] not-italic">
-                消
+                {online ? "消" : "圏"}
               </span>
               {t("snapshots.deleteAction")}
             </button>
@@ -662,31 +732,33 @@ function DetailModal({ snapshot, library, userName, onClose, lang, t }) {
 
 // ─── States ────────────────────────────────────────────────────────
 
-function EmptyPanel({ onCapture, t }) {
+function EmptyPanel({ online = true, onCapture, t }) {
   return (
     <div className="mx-auto max-w-2xl rounded-md border border-border bg-ink-1/40 p-12 text-center backdrop-blur md:p-16 animate-fade-up">
       <p
         aria-hidden="true"
         className="font-jp text-7xl font-bold leading-none text-washi-dim md:text-9xl"
       >
-        撮
+        {online ? "撮" : "圏"}
       </p>
       <h2 className="mt-6 font-display text-xl font-light italic leading-tight text-washi md:text-2xl">
-        {t("snapshots.emptyTitle")}
+        {online ? t("snapshots.emptyTitle") : t("snapshots.emptyTitleOffline")}
       </h2>
       <p className="mt-3 max-w-md mx-auto font-display text-sm italic text-washi-muted">
-        {t("snapshots.emptyBody")}
+        {online ? t("snapshots.emptyBody") : t("snapshots.emptyBodyOffline")}
       </p>
-      <button
-        type="button"
-        onClick={onCapture}
-        className="mt-8 inline-flex items-center gap-2 rounded-full border border-gold/55 bg-gold/8 px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.28em] text-gold transition hover:border-gold hover:bg-gold/15"
-      >
-        <span aria-hidden="true" className="font-jp text-sm not-italic">
-          印
-        </span>
-        {t("snapshots.captureCta")}
-      </button>
+      {online && (
+        <button
+          type="button"
+          onClick={onCapture}
+          className="mt-8 inline-flex items-center gap-2 rounded-full border border-gold/55 bg-gold/8 px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.28em] text-gold transition hover:border-gold hover:bg-gold/15"
+        >
+          <span aria-hidden="true" className="font-jp text-sm not-italic">
+            印
+          </span>
+          {t("snapshots.captureCta")}
+        </button>
+      )}
     </div>
   );
 }

@@ -239,6 +239,43 @@ db.version(11).stores({
   calendarUpcoming: "key, ts",
 });
 
+// v12 — snapshot list cache.
+//
+// 印影 · `snapshots` mirrors the per-row payload of
+// `/api/user/snapshots`. Each row is keyed by its `id` (the
+// server-issued PK) and the secondary index on `taken_at` lets
+// the gallery sort newest-first without an in-memory pass.
+//
+// The image PAYLOADS aren't kept in this table — they're cached
+// at the service-worker layer via a dedicated CacheFirst rule on
+// `/api/user/snapshots/:id/image`. Storing 1080×1350 PNGs in
+// IndexedDB is feasible but doubles the bytes (browser already
+// caches the network response in the SW cache); the SW path also
+// gives the browser-managed eviction we want.
+//
+// Read-only client cache: capture / delete / retry-upload are
+// mutations that need a live server (id minting + S3 multipart),
+// so there's no outbox to add here.
+db.version(12).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 
@@ -325,6 +362,26 @@ export async function cacheCalendarUpcoming(from, until, payload) {
 export async function readCalendarUpcoming(from, until) {
   const row = await db.calendarUpcoming.get(calendarUpcomingKey(from, until));
   return row?.payload ?? null;
+}
+
+/**
+ * 印影 · Replace the snapshot list cache. The server returns rows
+ * sorted newest-first; we just bulkPut them and let the live query
+ * sort via the `taken_at` index. Clear-then-bulkPut over a partial
+ * merge so deletions land cleanly: a snapshot the server no
+ * longer reports vanishes from the local cache too.
+ */
+export async function cacheSnapshots(snapshots) {
+  await db.transaction("rw", db.snapshots, async () => {
+    await db.snapshots.clear();
+    if (snapshots?.length) await db.snapshots.bulkPut(snapshots);
+  });
+}
+
+/** Read every cached snapshot, newest-first. */
+export async function readSnapshots() {
+  const rows = await db.snapshots.orderBy("taken_at").reverse().toArray();
+  return rows;
 }
 
 export async function readSettings() {

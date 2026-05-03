@@ -1962,6 +1962,16 @@ export default {
     unitSingular: "print",
     unitPlural: "prints",
     captureCta: "Capture a print",
+    captureOffline: "Offline",
+    captureOfflineHint:
+      "Capturing needs the server — minting the row + uploading the image to storage.",
+    deleteOfflineHint:
+      "Deleting needs a reachable server — no offline queue.",
+    servedFromCache:
+      "Offline gallery · local view, new captures will arrive once connectivity returns",
+    emptyTitleOffline: "Local gallery empty",
+    emptyBodyOffline:
+      "No prints were loaded locally before connectivity dropped. Reconnect to the server to see them.",
     captureKicker: "NEW PRINT",
     captureTitle: "Inscribe a print",
     captureSubtitle:

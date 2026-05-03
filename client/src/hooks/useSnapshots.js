@@ -1,34 +1,74 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
+import { cacheSnapshots, db } from "@/lib/db.js";
 
 /**
  * 印影 Inei · Snapshot history hooks.
  *
- * The flow:
- *   1. The SPA renders the shelf via `lib/shelfSnapshot.js` →
- *      Blob (PNG, 1080×1350).
- *   2. POST /api/user/snapshots returns the freshly-created row
- *      (image_path = NULL).
- *   3. POST /api/user/snapshots/{id}/image multipart-uploads the
- *      blob; the response carries `has_image: true` so the gallery
- *      flips to "ready" without a refetch.
+ * Read path: hybrid Dexie + React Query.
+ *   1. `useLiveQuery` on `db.snapshots` (sorted by `taken_at desc`
+ *      via the secondary index) gives the gallery an offline-first
+ *      render path. The user keeps seeing every print they've
+ *      previously visited even when the server is unreachable.
+ *   2. `useQuery` hits `/api/user/snapshots` in the background and
+ *      mirrors the response into Dexie via `cacheSnapshots`. The
+ *      mirror re-fires the live query so the UI converges to
+ *      server truth.
+ *   3. The matching image bytes (1080×1350 PNG per snapshot) are
+ *      cached at the SW layer via a CacheFirst rule on
+ *      `/api/user/snapshots/:id/image` — no Blob shuttle through
+ *      IndexedDB needed.
  *
- * Keeping the create + upload steps separate lets the SPA capture
- * an idempotent stats-only row even if the canvas render fails — a
- * bare timeline entry is still useful.
+ * Write path: capture / upload / delete are NOT outboxed. Each
+ * needs a server-minted id (capture) or talks to S3 (upload), both
+ * of which don't replay cleanly through a queue. The SnapshotsPage
+ * gates the relevant CTAs on `useOnline`.
  */
 
 const SNAPSHOTS_KEY = ["snapshots"];
 
 export function useSnapshots() {
-  return useQuery({
+  // Live cached data — undefined while Dexie hasn't answered,
+  // [] when there are no snapshots.
+  const cached = useLiveQuery(
+    () => db.snapshots.orderBy("taken_at").reverse().toArray(),
+    [],
+  );
+
+  const query = useQuery({
     queryKey: SNAPSHOTS_KEY,
     staleTime: 60 * 1000,
     queryFn: async () => {
       const { data } = await axios.get("/api/user/snapshots");
-      return Array.isArray(data) ? data : [];
+      const list = Array.isArray(data) ? data : [];
+      // Mirror to Dexie so live consumers immediately see the
+      // server's truth + offline reloads pick up where we left off.
+      await cacheSnapshots(list);
+      return list;
     },
   });
+
+  // Render priority: live > query.data > [] (so consumers can
+  // always `.map`). `cached === undefined` is "Dexie hasn't
+  // resolved yet" — fall back to query.data in that brief window.
+  const data = cached ?? query.data ?? [];
+
+  return {
+    data,
+    // Block the loading skeleton only while Dexie hasn't answered
+    // AND no network response has landed yet.
+    isLoading: cached === undefined && query.isLoading,
+    isFetching: query.isFetching,
+    // Suppress error state when we have a cache fallback —
+    // showing "the gallery failed" while we're rendering N
+    // cached prints would be misleading.
+    isError: query.isError && (!cached || cached.length === 0),
+    refetch: query.refetch,
+    // Tells the page whether data came from local cache vs. a
+    // fresh round-trip — drives the "Mode hors ligne" banner.
+    source: query.data ? "live" : cached ? "cache" : null,
+  };
 }
 
 export function useCreateSnapshot() {
@@ -40,7 +80,10 @@ export function useCreateSnapshot() {
       const { data } = await axios.post("/api/user/snapshots", body);
       return data;
     },
-    onSuccess: (created) => {
+    onSuccess: async (created) => {
+      // Mirror into Dexie so the live query immediately shows
+      // the new (still image-less) row.
+      await db.snapshots.put(created);
       qc.setQueryData(SNAPSHOTS_KEY, (prev) =>
         Array.isArray(prev) ? [created, ...prev] : [created],
       );
@@ -60,7 +103,8 @@ export function useUploadSnapshotImage() {
       );
       return data;
     },
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
+      await db.snapshots.put(updated);
       qc.setQueryData(SNAPSHOTS_KEY, (prev) =>
         Array.isArray(prev)
           ? prev.map((s) => (s.id === updated.id ? updated : s))
@@ -77,7 +121,8 @@ export function useDeleteSnapshot() {
       await axios.delete(`/api/user/snapshots/${id}`);
       return id;
     },
-    onSuccess: (id) => {
+    onSuccess: async (id) => {
+      await db.snapshots.delete(id);
       qc.setQueryData(SNAPSHOTS_KEY, (prev) =>
         Array.isArray(prev) ? prev.filter((s) => s.id !== id) : prev,
       );
