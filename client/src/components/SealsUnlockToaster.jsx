@@ -4,6 +4,7 @@ import { db } from "@/lib/db.js";
 import { onSyncEvent } from "@/lib/sync.js";
 import { notifySealsUnlocked } from "@/lib/sealsToast.js";
 import { useT } from "@/i18n/index.jsx";
+import { useLatest } from "@/hooks/useLatest.js";
 
 /**
  * 印鑑 · Seal-unlock notifier.
@@ -34,19 +35,14 @@ import { useT } from "@/i18n/index.jsx";
  * doesn't replay the toast.
  */
 export default function SealsUnlockToaster() {
-  const t = useT();
   // 言 · Always-fresh `t` reference. The subscription effect below
   // mounts ONCE (empty deps) and would otherwise close over the
   // very-first-render `t` — which is the EN fallback, because the
   // user's preferred language hasn't been resolved from /api/settings
-  // yet at App boot. Routing toasts through this ref means the
-  // helper always sees the current locale's translator without
-  // having to tear down + re-attach the sync-event listener every
-  // time the language flips.
-  const tRef = useRef(t);
-  useEffect(() => {
-    tRef.current = t;
-  }, [t]);
+  // yet at App boot. `useLatest` keeps a ref in sync with `t` so
+  // toasts always render in the current locale without tearing
+  // down the sync-event listener on every language flip.
+  const tRef = useLatest(useT());
   // Coalesce window — the ref holds the active timer id (or null).
   const timerRef = useRef(null);
   // Track the in-flight fetch so we don't kick off a parallel one
@@ -115,6 +111,10 @@ export default function SealsUnlockToaster() {
         timerRef.current = null;
       }
     };
+    // `tRef` is intentionally read inside the effect via `.current`
+    // — the ref identity is stable, but the linter can't tell that
+    // from a `useLatest` return without a custom rule.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return null;

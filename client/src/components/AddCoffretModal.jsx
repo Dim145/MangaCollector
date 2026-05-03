@@ -46,6 +46,12 @@ export default function AddCoffretModal({
   // Re-seed fields every time the modal opens. AddCoffretModal stays
   // mounted across open toggles, so `useState` initialisers alone can't
   // pick up fresh prefill values from a new scan.
+  //
+  // eslint-disable react-hooks/exhaustive-deps — INTENTIONAL.
+  // We deliberately key on `open` only and read `prefill` /
+  // `totalVolumes` lazily. Including them in deps would re-run
+  // the effect every time the parent re-renders (and produces a
+  // new `prefill` object identity), nuking unsaved field edits.
   useEffect(() => {
     if (!open) return;
     setVolStart(prefill?.volStart ?? 1);

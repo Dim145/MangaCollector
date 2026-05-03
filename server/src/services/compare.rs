@@ -10,18 +10,7 @@ use crate::models::library::{self, Entity as LibraryEntity, LibraryEntry};
 use crate::models::user::{User, derive_hanko};
 use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
 
-/// Genres that flag a series as adult. Mirrors the list used on the
-/// public profile; we filter `their` library by it unless the other
-/// user has opted adult content into their public profile. `my`
-/// library is never filtered — it's my own data.
-const PUBLIC_ADULT_GENRES: &[&str] = &["hentai", "erotica", "adult"];
-
-fn is_adult(genres: &[String]) -> bool {
-    genres.iter().any(|g| {
-        let lower = g.trim().to_lowercase();
-        PUBLIC_ADULT_GENRES.iter().any(|bad| *bad == lower)
-    })
-}
+use crate::services::genres::is_adult;
 
 async fn load_entries(db: &Db, user_id: i32) -> Result<Vec<LibraryEntry>, AppError> {
     let rows = LibraryEntity::find()

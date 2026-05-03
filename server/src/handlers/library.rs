@@ -8,7 +8,8 @@ use serde_json::json;
 use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::models::library::{
-    AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, UpdateLibraryRequest,
+    AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, LibraryEntry,
+    UpdateLibraryRequest,
 };
 use crate::services::realtime::SyncKind;
 use crate::services::{cover_pool, library, releases, settings as settings_svc};
@@ -23,9 +24,9 @@ pub struct SearchQuery {
 pub async fn get_user_library(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Vec<LibraryEntry>>, AppError> {
     let entries = library::get_user_library(&state.db, user.id).await?;
-    Ok(Json(serde_json::to_value(entries).unwrap()))
+    Ok(Json(entries))
 }
 
 /// GET /api/user/library/search?q=
@@ -33,10 +34,10 @@ pub async fn search_library(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Query(params): Query<SearchQuery>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Vec<LibraryEntry>>, AppError> {
     let query = params.q.unwrap_or_default();
     let entries = library::search(&state.db, user.id, &query).await?;
-    Ok(Json(serde_json::to_value(entries).unwrap()))
+    Ok(Json(entries))
 }
 
 /// GET /api/user/library/:mal_id
@@ -44,9 +45,9 @@ pub async fn get_user_manga(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Vec<LibraryEntry>>, AppError> {
     let entries = library::get_user_manga(&state.db, mal_id, user.id).await?;
-    Ok(Json(serde_json::to_value(entries).unwrap()))
+    Ok(Json(entries))
 }
 
 /// GET /api/user/library/:mal_id/update-from-mal
@@ -117,26 +118,8 @@ pub async fn add_from_mangadex(
     // format. Without this gate, garbage strings (e.g. an injected
     // path traversal, a randomly-typed search query) would land in
     // the DB and later get fed to `refresh_from_mangadex` →
-    // arbitrary outbound HTTP path. We accept lowercase hex only;
-    // both UUID v4 and v5 round-trip through this regex.
-    fn looks_like_uuid(s: &str) -> bool {
-        if s.len() != 36 {
-            return false;
-        }
-        let bytes = s.as_bytes();
-        for (i, b) in bytes.iter().enumerate() {
-            let expect_hyphen = matches!(i, 8 | 13 | 18 | 23);
-            if expect_hyphen {
-                if *b != b'-' {
-                    return false;
-                }
-            } else if !b.is_ascii_hexdigit() {
-                return false;
-            }
-        }
-        true
-    }
-    if !looks_like_uuid(trimmed_id) {
+    // arbitrary outbound HTTP path.
+    if !crate::util::uuid::is_canonical_uuid(trimmed_id) {
         return Err(AppError::BadRequest("MangaDex id must be a UUID".into()));
     }
     let entry = library::add_from_mangadex(

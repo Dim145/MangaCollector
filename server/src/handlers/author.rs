@@ -13,12 +13,21 @@ use crate::models::author::{AuthorDetail, CreateAuthorRequest, UpdateAuthorReque
 use crate::services::author;
 use crate::services::realtime::SyncKind;
 use crate::state::AppState;
+use crate::util::image::{self as image_util, ImageFormat};
 
 /// Photo size cap — same shape as the series-poster cap (5 MiB).
 /// Author photos are typically 200×300 portraits, well under 1 MiB
 /// in practice; the cap is a DoS guard, not a budget for actual
 /// content.
 const MAX_AUTHOR_PHOTO_SIZE: usize = 5 * 1024 * 1024;
+
+const AUTHOR_PHOTO_FORMATS: &[ImageFormat] =
+    &[ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::Webp];
+
+/// `private` cache lifetime for served author photos (5 days). Same
+/// reasoning as the poster cache: the URL is stable across users so
+/// intermediate caches must not store the response.
+const PRIVATE_IMAGE_CACHE_MAX_AGE_SEC: u32 = 60 * 60 * 24 * 5;
 
 /// Storage key shape for custom author photos. Stored under the
 /// owning user's namespace so deleting the user (or their custom
@@ -192,7 +201,7 @@ pub async fn upload_author_photo(
         )));
     }
     // Magic-byte content-type check — same shape as the poster path.
-    if !is_supported_image(&data) {
+    if !image_util::is_supported(&data, AUTHOR_PHOTO_FORMATS) {
         return Err(AppError::BadRequest(
             "Unsupported image format (expected JPEG/PNG/WEBP)".into(),
         ));
@@ -256,11 +265,18 @@ pub async fn get_author_photo(
         .get(&key)
         .await
         .map_err(|_| AppError::NotFound("Photo not set".into()))?;
+    // Detect format from bytes — the path uses `.jpg` for layout
+    // simplicity but uploads accept JPEG/PNG/WebP.
+    let content_type = image_util::detect(&data)
+        .map(ImageFormat::content_type)
+        .unwrap_or("image/jpeg");
+    let cache_control = format!("private, max-age={}", PRIVATE_IMAGE_CACHE_MAX_AGE_SEC);
     let response = (
         [
             (
                 header::CONTENT_TYPE,
-                http::HeaderValue::from_static("image/jpeg"),
+                http::HeaderValue::from_str(content_type)
+                    .map_err(|e| AppError::Internal(format!("content-type header: {e}")))?,
             ),
             (
                 // `private` because the author photo is authenticated
@@ -268,31 +284,12 @@ pub async fn get_author_photo(
                 // handlers/storage.rs. ~5 day TTL covers most edits
                 // without staling forever.
                 header::CACHE_CONTROL,
-                http::HeaderValue::from_static("private, max-age=425061"),
+                http::HeaderValue::from_str(&cache_control)
+                    .map_err(|e| AppError::Internal(format!("cache-control header: {e}")))?,
             ),
         ],
         Body::from(data),
     )
         .into_response();
     Ok(response)
-}
-
-/// Magic-byte image format check. Same set as the poster handler.
-fn is_supported_image(data: &[u8]) -> bool {
-    if data.len() < 12 {
-        return false;
-    }
-    // JPEG: FF D8 FF
-    if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        return true;
-    }
-    // PNG: 89 50 4E 47 0D 0A 1A 0A
-    if data.starts_with(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
-        return true;
-    }
-    // WEBP: RIFF....WEBP
-    if &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
-        return true;
-    }
-    false
 }

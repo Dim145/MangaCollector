@@ -8,6 +8,7 @@ import {
 } from "@/hooks/useFriends.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useT, useLang } from "@/i18n/index.jsx";
+import { formatTime, localeFor } from "@/utils/date.js";
 
 /**
  * 友 Tomo · Friends correspondence page.
@@ -57,10 +58,26 @@ export default function FriendsPage() {
         />
         <CornerKanji />
 
-        <Hero count={online ? follows.length : 0} t={t} />
+        <Hero count={follows.length} t={t} />
 
         {!online ? (
-          <OfflinePanel t={t} />
+          // 連 · Offline mode keeps the correspondents rail visible
+          // (cached in Dexie by `useFollowList`) so users still see
+          // who they follow. Only the activity feed and follow CTA
+          // are gated — those need fresh server data.
+          <div className="grid gap-8 md:grid-cols-[280px_1fr] md:gap-10 lg:grid-cols-[320px_1fr] lg:gap-12">
+            <aside className="md:sticky md:top-8 md:self-start">
+              <CorrespondentsPanel
+                follows={follows}
+                loading={loadingFollows}
+                t={t}
+                lang={lang}
+              />
+            </aside>
+            <section>
+              <OfflinePanel t={t} />
+            </section>
+          </div>
         ) : (
           <div className="grid gap-8 md:grid-cols-[280px_1fr] md:gap-10 lg:grid-cols-[320px_1fr] lg:gap-12">
             {/* Left rail — correspondents (the people you follow) */}
@@ -540,10 +557,11 @@ function groupByDay(feed, lang) {
     if (!current || current.key !== key) {
       current = {
         key,
-        label: d.toLocaleDateString(
-          lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : "en-US",
-          { weekday: "long", day: "numeric", month: "long" },
-        ),
+        label: d.toLocaleDateString(localeFor(lang), {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        }),
         entries: [],
       };
       groups.push(current);
@@ -553,18 +571,12 @@ function groupByDay(feed, lang) {
   return groups;
 }
 
-function formatTime(iso, lang) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString(
-      lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : "en-US",
-      { hour: "2-digit", minute: "2-digit" },
-    );
-  } catch {
-    return "";
-  }
-}
-
+/**
+ * 友 · "Followed since" relative formatter — has its own copy because
+ * the labels are translated via the SPA's i18n bundle (today / N days
+ * ago / N months ago) rather than `Intl.RelativeTimeFormat`. Falls
+ * back to "Mar 2026" style for older follows.
+ */
 function formatRelative(iso, lang, t) {
   try {
     const d = new Date(iso);
@@ -573,10 +585,10 @@ function formatRelative(iso, lang, t) {
     if (days < 30) return t("friends.followedDaysAgo", { n: days });
     const months = Math.floor(days / 30);
     if (months < 12) return t("friends.followedMonthsAgo", { n: months });
-    return d.toLocaleDateString(
-      lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : "en-US",
-      { month: "short", year: "numeric" },
-    );
+    return d.toLocaleDateString(localeFor(lang), {
+      month: "short",
+      year: "numeric",
+    });
   } catch {
     return "";
   }

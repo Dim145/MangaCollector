@@ -13,6 +13,8 @@ import {
 } from "@/hooks/useSnapshots.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 import { renderShelfSnapshotBlob } from "@/lib/shelfSnapshot.js";
+import { formatShortDate } from "@/utils/date.js";
+import { computeLibraryStats } from "@/utils/libraryStats.js";
 
 /**
  * 印影 Inei · Snapshot history gallery.
@@ -244,7 +246,7 @@ function PlatesGrid({ snapshots, onView, t, lang }) {
 
 function Plate({ snapshot, index, onView, t, lang }) {
   const restTilt = index % 3 === 0 ? "-0.9deg" : index % 3 === 1 ? "0.6deg" : "-0.4deg";
-  const dateLabel = formatDate(snapshot.taken_at, lang);
+  const dateLabel = formatShortDate(snapshot.taken_at, lang) || "—";
   const completion =
     snapshot.total_volumes > 0
       ? Math.round((snapshot.total_owned / snapshot.total_volumes) * 100)
@@ -259,10 +261,21 @@ function Plate({ snapshot, index, onView, t, lang }) {
       onClick={onView}
       className="inei-plate group relative block w-full overflow-hidden rounded-md border border-border/80 bg-ink-1/40 text-left shadow-[0_18px_40px_-22px_rgba(0,0,0,0.85)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-gold/40 hover:shadow-[0_26px_50px_-22px_rgba(201,169,97,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
       style={{ transform: `rotate(${restTilt})` }}
+      // 触 · Mirror hover & focus into the JS transform so keyboard
+      // users get the same lift as mouse users (the rotate value is
+      // dynamic per-snapshot, so we can't drive it from a static
+      // CSS rule). Touch devices fire `pointerenter` on tap so the
+      // tilt resolves on first interaction there too.
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "rotate(0deg) translateY(-4px)";
       }}
       onMouseLeave={(e) => {
+        e.currentTarget.style.transform = `rotate(${restTilt})`;
+      }}
+      onFocus={(e) => {
+        e.currentTarget.style.transform = "rotate(0deg) translateY(-4px)";
+      }}
+      onBlur={(e) => {
         e.currentTarget.style.transform = `rotate(${restTilt})`;
       }}
       aria-label={t("snapshots.openAria", { name: snapshot.name })}
@@ -546,7 +559,7 @@ function DetailModal({
   // image to it). Idle → rendering → uploading → done | error.
   const [retryPhase, setRetryPhase] = useState("idle");
   const [retryErr, setRetryErr] = useState(null);
-  const dateLabel = formatDate(snapshot.taken_at, lang);
+  const dateLabel = formatShortDate(snapshot.taken_at, lang) || "—";
   const imgUrl = snapshot.has_image
     ? `/api/user/snapshots/${snapshot.id}/image`
     : null;
@@ -823,30 +836,10 @@ function defaultName(t, lang) {
 }
 
 function computeStats(library) {
-  let totalVolumes = 0;
-  let totalOwned = 0;
-  let seriesCount = 0;
-  let seriesComplete = 0;
-  for (const m of library ?? []) {
-    seriesCount += 1;
-    totalVolumes += m.volumes ?? 0;
-    totalOwned += m.volumes_owned ?? 0;
-    if ((m.volumes ?? 0) > 0 && (m.volumes_owned ?? 0) >= (m.volumes ?? 0)) {
-      seriesComplete += 1;
-    }
-  }
-  return { totalVolumes, totalOwned, seriesCount, seriesComplete };
+  // Wrapper kept so the call sites read clearly. The shared helper
+  // computes a few extra fields (completionPct, topGenres) that the
+  // capture flow doesn't need; the cost is one Map allocation per
+  // capture, well below the noise floor.
+  return computeLibraryStats(library);
 }
 
-function formatDate(iso, lang) {
-  if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString(
-      lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : "en-US",
-      { day: "2-digit", month: "short", year: "numeric" },
-    );
-  } catch {
-    return "—";
-  }
-}

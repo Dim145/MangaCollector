@@ -64,11 +64,12 @@ tokio = { version = "1", features = [
     "signal",
 ] }
 
-# Sessions — tower-sessions-sqlx-store 0.15 still depends on
-# tower-sessions-core 0.14 (verified 2026-04 in the lockfile). Pinning
-# tower-sessions to 0.14 keeps the trait impls aligned; bumping to
-# 0.15 breaks SessionStore because PostgresStore is built against
-# core 0.14. Re-evaluate once the sqlx-store crate ships a 0.16.
+# Sessions — tower-sessions-sqlx-store 0.15 still pulls in
+# tower-sessions-core 0.14 (re-verified 2026-05 by attempting a
+# bump: PostgresStore stops implementing SessionStore once core
+# advances to 0.15). Pin tower-sessions to 0.14 to keep the trait
+# impls aligned; bump in lockstep when a 0.16 sqlx-store ships
+# core 0.15 support.
 tower-sessions = "0.14"
 tower-sessions-sqlx-store = { version = "0.15", features = ["postgres"] }
 

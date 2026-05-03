@@ -51,6 +51,91 @@ pub async fn get_all_for_user_by_mal_id(
         .map_err(AppError::from)
 }
 
+/// 来 · Force-zero the "I have this" axes when the row is upcoming.
+///
+/// A future-dated announcement can't be owned, read, or marked
+/// collector. Coerced silently (not 400) so a stale outbox entry
+/// replayed after the announcement landed doesn't jam the sync
+/// loop. Returns `(owned, collector, read)`.
+fn coerce_upcoming_flags(
+    is_upcoming: bool,
+    owned: bool,
+    collector: bool,
+    read: Option<bool>,
+) -> (bool, bool, Option<bool>) {
+    if is_upcoming {
+        (false, false, Some(false))
+    } else {
+        (owned, collector, read)
+    }
+}
+
+/// Three-way reading-status semantics:
+///   • `None`        → leave the column alone
+///   • `Some(true)`  → stamp NOW iff currently NULL (preserves the
+///                     original read date across toggles)
+///   • `Some(false)` → clear to NULL
+fn apply_read_transition<E>(
+    query: sea_orm::UpdateMany<E>,
+    read: Option<bool>,
+    existing: Option<&volume::Model>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> sea_orm::UpdateMany<E>
+where
+    E: EntityTrait<Column = volume::Column>,
+{
+    match read {
+        None => query,
+        Some(true) => {
+            let already_read = existing.and_then(|r| r.read_at).is_some();
+            if already_read {
+                query
+            } else {
+                query.col_expr(volume::Column::ReadAt, now.into())
+            }
+        }
+        Some(false) => query.col_expr(
+            volume::Column::ReadAt,
+            sea_orm::sea_query::Expr::value(Option::<chrono::DateTime<chrono::Utc>>::None),
+        ),
+    }
+}
+
+/// 預け · Auto-clear the loan triplet when ownership transitions
+/// from owned → unowned. A volume the user no longer owns can't
+/// logically still be on loan; without this clear, the loan would
+/// stay stuck in the DB invisible to the loan UI (the LoanChip is
+/// gated on `ownedStatus`).
+fn auto_clear_loan_if_unown<E>(
+    query: sea_orm::UpdateMany<E>,
+    was_owned: bool,
+    owned: bool,
+) -> sea_orm::UpdateMany<E>
+where
+    E: EntityTrait<Column = volume::Column>,
+{
+    if !(was_owned && !owned) {
+        return query;
+    }
+    query
+        .col_expr(
+            volume::Column::LoanedTo,
+            sea_orm::sea_query::Expr::value(Option::<String>::None),
+        )
+        .col_expr(
+            volume::Column::LoanStartedAt,
+            sea_orm::sea_query::Expr::value(
+                Option::<chrono::DateTime<chrono::Utc>>::None,
+            ),
+        )
+        .col_expr(
+            volume::Column::LoanDueAt,
+            sea_orm::sea_query::Expr::value(
+                Option::<chrono::DateTime<chrono::Utc>>::None,
+            ),
+        )
+}
+
 // 9 positional args — acknowledged. Wrapping in a struct here would
 // require touching every caller (handler + activity emitter + test
 // fixture); the call site is also internal, never user-facing API.
@@ -69,25 +154,14 @@ pub async fn update_by_id(
     // `None` leaves the note column untouched.
     notes: Option<String>,
 ) -> Result<(), AppError> {
-    // Note: the update is idempotent on two axes — a row that no longer
-    // exists (e.g. offline outbox replay after deletion) and a row that
-    // exists under another user (IDOR attempt or stale client state).
-    // Both paths return Ok without touching the DB. The caller doesn't
-    // need to distinguish, and we never leak existence info to an
-    // attacker who guessed a row id.
+    // Idempotent on two axes — a row that no longer exists (offline
+    // outbox replay after deletion) and a row that exists under
+    // another user (IDOR attempt or stale client state). Both paths
+    // return Ok without touching the DB. The caller doesn't need to
+    // distinguish, and we never leak existence info.
     let now = Utc::now();
-    // 店 · Trim + length-clamp the store label. Frontend
-    // `<StoreAutocomplete>` defaults to `maxLength={STORE_MAX_LEN}`
-    // (mirroring this constant); a malicious client bypassing the UI
-    // hits the cap here. `None` and empty/whitespace-only both fold to
-    // None — same "clear this column" contract as publisher / edition.
     let store = sanitize_label(store, STORE_MAX_LEN);
 
-    // Fetch the existing row scoped to the caller — the user_id filter
-    // is the horizontal-authz gate. `find_by_id` alone is NOT enough:
-    // every authenticated user can call this handler with any row id
-    // they fancy, so the filter is mandatory. Also used below to decide
-    // whether to emit an activity event.
     let existing = VolumeEntity::find()
         .filter(volume::Column::Id.eq(id))
         .filter(volume::Column::UserId.eq(user_id))
@@ -95,36 +169,16 @@ pub async fn update_by_id(
         .await
         .map_err(AppError::from)?;
 
-    // 来 · Upcoming-volume guardrail. A row whose `release_date` is
-    // still in the future represents an announced-but-not-yet-shipped
-    // tome. The product rule says it can't be owned, read, or marked
-    // collector — it's not real yet. Rather than scatter conditions
-    // through the column-expression chain below, we coerce the
-    // incoming flags here so the rest of the function operates on
-    // already-sanitised values. Only the `store` / `price` paths
-    // remain sensitive to user input on upcoming rows (writing a
-    // pre-order note ahead of time is fine, even useful).
     let is_upcoming = existing
         .as_ref()
         .and_then(|r| r.release_date)
         .map(|d| d > now)
         .unwrap_or(false);
-    let (owned, collector, read) = if is_upcoming {
-        // Force the three "I have this" axes to false/null. We
-        // intentionally don't bail with an error: the SPA might
-        // be replaying a stale outbox entry from before the
-        // announcement landed, and 400-ing it would jam the sync
-        // loop. Silently zeroing matches the same forgiving
-        // policy as the row-not-found / cross-user paths above.
-        (false, false, Some(false))
-    } else {
-        (owned, collector, read)
-    };
+    let (owned, collector, read) = coerce_upcoming_flags(is_upcoming, owned, collector, read);
 
-    // Second, independent defence in depth: scope the UPDATE itself by
-    // (id, user_id). Even if `existing` were wrong somehow (e.g. a bug
-    // in a future refactor of the lookup above), the DB will refuse to
-    // touch rows owned by anyone else.
+    // Second-line authz: scope the UPDATE itself by (id, user_id).
+    // Even if `existing` were wrong somehow, the DB refuses to touch
+    // rows owned by anyone else.
     let mut query = VolumeEntity::update_many()
         .filter(volume::Column::Id.eq(id))
         .filter(volume::Column::UserId.eq(user_id))
@@ -147,8 +201,8 @@ pub async fn update_by_id(
         .col_expr(volume::Column::ModifiedOn, now.into());
 
     // Conditional write so a stale outbox replay of an unrelated
-    // partial PATCH (price-only, etc.) can't accidentally wipe a
-    // note set by a later request that already landed.
+    // partial PATCH (price-only) can't accidentally wipe a note
+    // set by a later request that already landed.
     if let Some(raw_note) = notes {
         let normalised = normalise_note(raw_note);
         query = query.col_expr(
@@ -160,60 +214,10 @@ pub async fn update_by_id(
         );
     }
 
-    // Reading status — three-way behaviour to preserve the first-read
-    // timestamp across toggles:
-    //  • None          → field untouched
-    //  • Some(true)    → stamp to NOW iff currently NULL (keeps original
-    //                    read date on repeated marks)
-    //  • Some(false)   → clear to NULL
-    if let Some(mark_read) = read {
-        if mark_read {
-            let already_read = existing
-                .as_ref()
-                .and_then(|r| r.read_at)
-                .is_some();
-            if !already_read {
-                query = query.col_expr(volume::Column::ReadAt, now.into());
-            }
-        } else {
-            query = query.col_expr(
-                volume::Column::ReadAt,
-                sea_orm::sea_query::Expr::value(
-                    Option::<chrono::DateTime<chrono::Utc>>::None,
-                ),
-            );
-        }
-    }
+    query = apply_read_transition(query, read, existing.as_ref(), now);
 
-    // 預け · Auto-clear loan on unown. A volume the user no longer
-    // owns can't logically still be on loan — the user gave it
-    // away, sold it, or marked it lost. Without this, a "lent +
-    // unowned" row would be invisible to the loan UI (the
-    // VolumeDetailDrawer's LoanChip is gated on `ownedStatus`)
-    // and the loan would stay stuck in the DB forever. Cleared
-    // only when transitioning owned: true → false; an idempotent
-    // unown of an already-unowned row leaves the columns alone
-    // (they should already be NULL).
     let was_owned = existing.as_ref().is_some_and(|r| r.owned);
-    if was_owned && !owned {
-        query = query
-            .col_expr(
-                volume::Column::LoanedTo,
-                sea_orm::sea_query::Expr::value(Option::<String>::None),
-            )
-            .col_expr(
-                volume::Column::LoanStartedAt,
-                sea_orm::sea_query::Expr::value(
-                    Option::<chrono::DateTime<chrono::Utc>>::None,
-                ),
-            )
-            .col_expr(
-                volume::Column::LoanDueAt,
-                sea_orm::sea_query::Expr::value(
-                    Option::<chrono::DateTime<chrono::Utc>>::None,
-                ),
-            );
-    }
+    query = auto_clear_loan_if_unown(query, was_owned, owned);
 
     query.exec(db).await.map_err(AppError::from)?;
 
@@ -555,6 +559,45 @@ pub async fn bulk_mark_for_series(
 ///     would catch this via the partial unique index, but we surface
 ///     it as a 409 instead of a 500 so the SPA can inline a clear
 ///     "tome déjà existant" hint.
+/// 国際標準図書番号 · Strip cosmetic separators (dashes, spaces) from
+/// an ISBN candidate and verify the remaining digit count is 10 or
+/// 13. Returns `Ok(None)` when the input is empty/whitespace-only.
+fn normalize_release_isbn(raw: Option<&str>) -> Result<Option<String>, AppError> {
+    match raw.map(str::trim) {
+        None | Some("") => Ok(None),
+        Some(s) => {
+            let cleaned: String = s
+                .chars()
+                .filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x')
+                .map(|c| c.to_ascii_uppercase())
+                .collect();
+            if !(cleaned.len() == 10 || cleaned.len() == 13) {
+                return Err(AppError::BadRequest(
+                    "ISBN must be 10 or 13 characters once dashes/spaces are stripped".into(),
+                ));
+            }
+            Ok(Some(cleaned))
+        }
+    }
+}
+
+/// Validate a release-page URL: only `http(s)://` schemes accepted.
+/// We don't probe DNS — just refuse anything that could mismount on
+/// click (`javascript:` / relative paths / data URIs).
+fn normalize_release_url(raw: Option<&str>) -> Result<Option<String>, AppError> {
+    match raw.map(str::trim) {
+        None | Some("") => Ok(None),
+        Some(s) => {
+            if !(s.starts_with("http://") || s.starts_with("https://")) {
+                return Err(AppError::BadRequest(
+                    "release_url must start with http:// or https://".into(),
+                ));
+            }
+            Ok(Some(s.to_string()))
+        }
+    }
+}
+
 pub async fn add_upcoming_manually(
     db: &Db,
     user_id: i32,
@@ -591,38 +634,8 @@ pub async fn add_upcoming_manually(
         return Err(AppError::NotFound("Library entry not found".into()));
     }
 
-    // ISBN-13 / ISBN-10 — strip cosmetic separators and verify digit count.
-    let normalised_isbn = match release_isbn.as_deref().map(str::trim) {
-        None | Some("") => None,
-        Some(raw) => {
-            let cleaned: String = raw
-                .chars()
-                .filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x')
-                .map(|c| c.to_ascii_uppercase())
-                .collect();
-            if !(cleaned.len() == 10 || cleaned.len() == 13) {
-                return Err(AppError::BadRequest(
-                    "ISBN must be 10 or 13 characters once dashes/spaces are stripped".into(),
-                ));
-            }
-            Some(cleaned)
-        }
-    };
-
-    // URL — only `http(s)://` is allowed. We don't try to verify the
-    // host resolves, only that the value is not a `javascript:` payload
-    // or a relative path that would mismount on click.
-    let normalised_url = match release_url.as_deref().map(str::trim) {
-        None | Some("") => None,
-        Some(raw) => {
-            if !(raw.starts_with("http://") || raw.starts_with("https://")) {
-                return Err(AppError::BadRequest(
-                    "release_url must start with http:// or https://".into(),
-                ));
-            }
-            Some(raw.to_string())
-        }
-    };
+    let normalised_isbn = normalize_release_isbn(release_isbn.as_deref())?;
+    let normalised_url = normalize_release_url(release_url.as_deref())?;
 
     // Pre-check for duplicates so we can return a meaningful 409.
     let already = VolumeEntity::find()
@@ -684,34 +697,8 @@ pub async fn update_upcoming_manually(
         ));
     }
 
-    // Same shape validation as the create path.
-    let normalised_isbn = match release_isbn.as_deref().map(str::trim) {
-        None | Some("") => None,
-        Some(raw) => {
-            let cleaned: String = raw
-                .chars()
-                .filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x')
-                .map(|c| c.to_ascii_uppercase())
-                .collect();
-            if !(cleaned.len() == 10 || cleaned.len() == 13) {
-                return Err(AppError::BadRequest(
-                    "ISBN must be 10 or 13 characters once dashes/spaces are stripped".into(),
-                ));
-            }
-            Some(cleaned)
-        }
-    };
-    let normalised_url = match release_url.as_deref().map(str::trim) {
-        None | Some("") => None,
-        Some(raw) => {
-            if !(raw.starts_with("http://") || raw.starts_with("https://")) {
-                return Err(AppError::BadRequest(
-                    "release_url must start with http:// or https://".into(),
-                ));
-            }
-            Some(raw.to_string())
-        }
-    };
+    let normalised_isbn = normalize_release_isbn(release_isbn.as_deref())?;
+    let normalised_url = normalize_release_url(release_url.as_deref())?;
 
     // Fetch the row scoped to the caller — same defence-in-depth as
     // `update_by_id`. Refuse if the row doesn't belong to the user OR

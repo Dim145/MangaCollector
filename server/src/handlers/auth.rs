@@ -169,21 +169,14 @@ pub async fn oauth_callback(
         // which was a red herring once we re-ordered the calls.
         AppError::Internal("session record unavailable after save".into())
     })?;
-    // Cap at 512 chars — User-Agent is attacker-controlled, and a
-    // pathological client could ship a 100 KB string into the DB row
-    // otherwise. 512 is generous for any real browser UA while
-    // keeping the meta row bounded.
-    const MAX_UA_LEN: usize = 512;
+    // Forward the raw UA — `sessions::record_login` runs the
+    // single source of truth (sanitize + cap) on the way to the DB.
+    // The previous handler-side 512-char pre-cap was redundant with
+    // the service-side 256-char cap, and disagreed with it.
     let user_agent = headers
         .get(axum::http::header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
-        .map(|s| {
-            if s.len() > MAX_UA_LEN {
-                s.chars().take(MAX_UA_LEN).collect()
-            } else {
-                s.to_string()
-            }
-        });
+        .map(|s| s.to_string());
     sessions::record_login(&state.db, &session_id, user.id, user_agent).await?;
 
     // Trim a trailing slash on `frontend_url` so a misconfigured env
@@ -262,7 +255,7 @@ pub async fn delete_account(
     session: Session,
     AuthenticatedUser(user): AuthenticatedUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    users::delete_account(&state.db, state.storage.clone(), user.id).await?;
+    users::delete_account(&state.db, &state.pool, state.storage.clone(), user.id).await?;
     // Destroy the session after the DB wipe so we know the cleanup
     // succeeded before logging the user out. If session.delete() fails
     // after a successful wipe, the user is already deleted — the stale

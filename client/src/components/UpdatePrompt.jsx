@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { useT } from "@/i18n/index.jsx";
 
@@ -32,6 +32,13 @@ export default function UpdatePrompt() {
   const t = useT();
   const [dismissed, setDismissed] = useState(false);
 
+  // Held in a ref so the unmount-cleanup `useEffect` below clears
+  // the timer regardless of when `onRegisteredSW` fired (it runs
+  // out-of-band relative to React's render cycle). Using
+  // `beforeunload` for cleanup misses bfcache navigations and HMR
+  // remounts, leaking parallel intervals.
+  const updateTimerRef = useRef(null);
+
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -44,8 +51,10 @@ export default function UpdatePrompt() {
       // varies (~24h max), so an explicit poll catches
       // intermediate deploys.
       if (!registration) return;
+      // Drop any timer left over from a previous registration.
+      if (updateTimerRef.current) clearInterval(updateTimerRef.current);
       const interval = 30 * 60 * 1000;
-      const timer = setInterval(() => {
+      updateTimerRef.current = setInterval(() => {
         // Skip if the user is offline — `update()` would just
         // 504/timeout, no point burning the cycle.
         if (typeof navigator !== "undefined" && navigator.onLine === false) {
@@ -55,17 +64,20 @@ export default function UpdatePrompt() {
           /* network blip — try again next interval */
         });
       }, interval);
-      // Cleanup on tab unload (best effort — modern browsers don't
-      // strictly need this since the timer dies with the tab).
-      if (typeof window !== "undefined") {
-        window.addEventListener(
-          "beforeunload",
-          () => clearInterval(timer),
-          { once: true },
-        );
-      }
     },
   });
+
+  // Mount-scoped cleanup: clears the heartbeat interval whenever
+  // the component unmounts (route change in tests, HMR, bfcache
+  // restore). Empty deps — the timer id lives in a ref.
+  useEffect(() => {
+    return () => {
+      if (updateTimerRef.current) {
+        clearInterval(updateTimerRef.current);
+        updateTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Reset the dismiss flag when a brand-new update lands. Without
   // this, dismissing once would silently suppress every subsequent

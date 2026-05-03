@@ -4,6 +4,7 @@ import { db } from "@/lib/db.js";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 import Modal from "./ui/Modal.jsx";
+import { formatShortDate } from "@/utils/date.js";
 
 /**
  * 預け Azuke · Self-contained loan editor for a single volume.
@@ -47,7 +48,7 @@ export default function LoanModal({ open, volumeId, onClose }) {
   }, [open, volume?.loaned_to, volume?.loan_due_at]);
 
   const lentLabel = useMemo(
-    () => formatDate(volume?.loan_started_at, lang),
+    () => formatShortDate(volume?.loan_started_at, lang) || "—",
     [volume?.loan_started_at, lang],
   );
 
@@ -232,15 +233,3 @@ function toDateInputValue(iso) {
   }
 }
 
-function formatDate(iso, lang) {
-  if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString(
-      lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : "en-US",
-      { day: "2-digit", month: "short", year: "numeric" },
-    );
-  } catch {
-    return "—";
-  }
-}

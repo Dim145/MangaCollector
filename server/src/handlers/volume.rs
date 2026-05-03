@@ -7,7 +7,7 @@ use serde_json::json;
 
 use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
-use crate::models::volume::UpdateVolumeRequest;
+use crate::models::volume::{UpdateVolumeRequest, Volume};
 use crate::services::realtime::SyncKind;
 use crate::services::volume;
 use crate::state::AppState;
@@ -28,9 +28,9 @@ pub struct UpcomingVolumeRequest {
 pub async fn get_all_volumes(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Vec<Volume>>, AppError> {
     let volumes = volume::get_all_for_user(&state.db, user.id).await?;
-    Ok(Json(serde_json::to_value(volumes).unwrap()))
+    Ok(Json(volumes))
 }
 
 /// Body for `POST /api/user/library/{mal_id}/volumes/bulk-mark`.
@@ -71,9 +71,9 @@ pub async fn get_volumes_by_id(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Vec<Volume>>, AppError> {
     let volumes = volume::get_all_for_user_by_mal_id(&state.db, user.id, mal_id).await?;
-    Ok(Json(serde_json::to_value(volumes).unwrap()))
+    Ok(Json(volumes))
 }
 
 /// POST /api/user/library/:mal_id/volumes/upcoming — manually create
@@ -83,7 +83,7 @@ pub async fn add_upcoming_volume(
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
     Json(body): Json<UpcomingVolumeRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Volume>, AppError> {
     let vol_num = body
         .vol_num
         .ok_or_else(|| AppError::BadRequest("vol_num is required".into()))?;
@@ -98,7 +98,7 @@ pub async fn add_upcoming_volume(
     )
     .await?;
     state.broker.publish(user.id, SyncKind::Volumes).await;
-    Ok(Json(serde_json::to_value(inserted).unwrap()))
+    Ok(Json(inserted))
 }
 
 /// PATCH /api/user/volume/:id/upcoming — edit announce-side fields of
@@ -108,7 +108,7 @@ pub async fn update_upcoming_volume(
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<i32>,
     Json(body): Json<UpcomingVolumeRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Volume>, AppError> {
     let updated = volume::update_upcoming_manually(
         &state.db,
         id,
@@ -119,7 +119,7 @@ pub async fn update_upcoming_volume(
     )
     .await?;
     state.broker.publish(user.id, SyncKind::Volumes).await;
-    Ok(Json(serde_json::to_value(updated).unwrap()))
+    Ok(Json(updated))
 }
 
 /// DELETE /api/user/volume/:id — remove a manually-created upcoming

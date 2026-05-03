@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useT, useLang } from "@/i18n/index.jsx";
 import { useActiveLoans, classifyLoan } from "@/hooks/useActiveLoans.js";
 import CoverImage from "./ui/CoverImage.jsx";
+import { formatCompactDate } from "@/utils/date.js";
 
 /**
  * 預け Azuke · Outstanding-loans dashboard widget.
@@ -144,9 +145,9 @@ export default function LoansWidget() {
  */
 function DueCard({ loan, index, lang, t, onOpen }) {
   const restTilt = index % 2 === 0 ? "-0.6deg" : "0.5deg";
-  const lentLabel = formatDate(loan.loan_started_at, lang);
+  const lentLabel = formatCompactDate(loan.loan_started_at, lang) || "—";
   const dueLabel = loan.loan_due_at
-    ? formatDate(loan.loan_due_at, lang)
+    ? formatCompactDate(loan.loan_due_at, lang)
     : null;
 
   const statusToken = {
@@ -338,19 +339,6 @@ function DueCardSkeleton() {
       </div>
     </div>
   );
-}
-
-function formatDate(iso, lang) {
-  if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString(
-      lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : "en-US",
-      { day: "2-digit", month: "short", year: "2-digit" },
-    );
-  } catch {
-    return "—";
-  }
 }
 
 function daysOverdueLabel(iso, t) {

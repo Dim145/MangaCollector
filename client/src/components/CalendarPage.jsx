@@ -733,6 +733,12 @@ function MonthGrid({ label, kanji, releases, today, navigate, t }) {
   // a 7-column calendar grid with leading blank cells to align the
   // first row to the correct weekday.
   const grid = useMemo(() => buildMonthGrid(label, releases), [label, releases]);
+  // Memoise the locale-aware weekday header — without this, the
+  // 12-month window re-runs `Intl.DateTimeFormat` 7 × 12 = 84 times
+  // per render. Locale changes invalidate the cache via the empty
+  // deps `[]` boundary on the hook (the parent re-mounts on lang
+  // switch via the I18nProvider value identity).
+  const headers = useMemo(() => weekdayHeaders(), []);
 
   return (
     <section className="relative">
@@ -754,7 +760,7 @@ function MonthGrid({ label, kanji, releases, today, navigate, t }) {
 
       <div className="grid grid-cols-7 gap-1.5 rounded-2xl border border-border bg-ink-1/30 p-3 backdrop-blur-sm">
         {/* Weekday labels — locale-aware short form */}
-        {weekdayHeaders().map((d) => (
+        {headers.map((d) => (
           <div
             key={d}
             className="pb-1.5 text-center font-mono text-[9px] uppercase tracking-wider text-washi-dim"

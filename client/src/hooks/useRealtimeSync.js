@@ -107,15 +107,29 @@ export function useRealtimeSync({ enabled = true } = {}) {
 
       ws.addEventListener("message", (evt) => {
         try {
-          const event = JSON.parse(evt.data);
+          const raw = JSON.parse(evt.data);
+          // 検 · Schema gate. The socket runs over the same origin as
+          // the SPA, but a same-origin XSS or a future broadening of
+          // CSP could let an attacker emit messages a subscriber
+          // would treat as authoritative. Validate the payload shape
+          // before we either re-broadcast or invalidate query caches.
+          if (!raw || typeof raw !== "object") return;
+          const kind = raw.kind;
+          if (typeof kind !== "string") return;
+          const keys = KIND_TO_KEYS[kind];
+          if (!keys) return; // unknown kind → drop, never re-broadcast
           // Re-broadcast every received event for downstream
           // subscribers (toasters, badges, custom side effects).
           // Done BEFORE the React Query invalidation so listeners
           // that want to react to "what just changed" don't lose
           // events whose only side effect is in their handler.
-          emitSyncEvent(event);
-          const keys = KIND_TO_KEYS[event?.kind];
-          if (!keys) return;
+          // Pass a freshly-built object instead of `raw` so a hostile
+          // payload can't smuggle extra fields into subscribers.
+          emitSyncEvent({
+            kind,
+            user_id: typeof raw.user_id === "number" ? raw.user_id : null,
+            payload: raw.payload,
+          });
           for (const key of keys) {
             qc.invalidateQueries({ queryKey: key });
           }
@@ -126,9 +140,13 @@ export function useRealtimeSync({ enabled = true } = {}) {
 
       ws.addEventListener("close", (evt) => {
         socketRef.current = null;
-        // 1000 (normal) is usually an intentional close on unmount;
-        // 1008/1011 shouldn't retry either (auth / protocol issues).
-        if (evt.code === 1000 || evt.code === 1008) return;
+        // Codes that should NOT trigger a reconnect:
+        //   1000 — normal close (intentional, e.g. unmount)
+        //   1008 — policy violation (auth / origin)
+        //   1011 — server error (the upstream is unhealthy; let it
+        //          recover and the next visibility change reconnects)
+        if (evt.code === 1000 || evt.code === 1008 || evt.code === 1011)
+          return;
         if (stoppedRef.current) return;
         schedule();
       });

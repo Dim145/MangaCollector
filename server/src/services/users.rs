@@ -2,13 +2,16 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use std::sync::Arc;
 
-use crate::db::Db;
+use crate::db::{Db, DbPool};
 use crate::errors::AppError;
 use crate::models::activity::Entity as ActivityEntity;
+use crate::models::author::{self as author_mod, Entity as AuthorEntity};
 use crate::models::coffret::Entity as CoffretEntity;
 use crate::models::library::{self, Entity as LibraryEntity};
+use crate::models::session_meta::{self as session_meta_mod, Entity as SessionMetaEntity};
 use crate::models::setting::Entity as SettingEntity;
 use crate::models::library::LibraryEntry;
+use crate::models::snapshot::{self as snapshot_mod, Entity as SnapshotEntity};
 use crate::models::user::{
     self, ActiveModel, Entity as UserEntity, PublicLibraryEntry, PublicProfileResponse,
     PublicProfileStats, User, derive_hanko,
@@ -94,11 +97,22 @@ pub fn validate_public_slug(input: Option<&str>) -> Result<Option<String>, AppEr
 
 /// Slugs we never allow — prevents a user grabbing a handle that would
 /// shadow or confuse an internal route / common admin endpoint.
+///
+/// The list is intentionally narrow: collisions only matter on
+/// `/public/u/{slug}`, the only route that ever consumes a slug as
+/// a path segment. The extra entries (calendar / library / friends /
+/// snapshots / coffrets / health / dashboard) are belt-and-braces in
+/// case a future refactor mounts a top-level `/{slug}` route — at
+/// which point any of those would clash with an SPA route.
 const RESERVED_SLUGS: &[&str] = &[
     "admin", "administrator", "api", "auth", "login", "logout",
     "me", "root", "settings", "system", "user", "users", "u",
     "public", "private", "help", "about", "home", "www",
     "new", "edit", "delete", "account", "support",
+    // Defensive: SPA routes that could collide if /{slug} is ever
+    // mounted at the root.
+    "calendar", "library", "friends", "snapshots", "coffrets",
+    "health", "dashboard", "loans", "seals", "profile",
 ];
 
 /// Update the user's public slug. Pass `None` to disable the public
@@ -164,23 +178,13 @@ pub async fn set_public_slug(
     Ok(normalised)
 }
 
-/// List of genre slugs considered adult. Matches the client-side list.
-const PUBLIC_ADULT_GENRES: &[&str] = &["hentai", "erotica", "adult"];
-
-/// True if `g` is an adult-tagged genre (case-insensitive).
-fn is_adult_genre(g: &str) -> bool {
-    let lower = g.trim().to_lowercase();
-    PUBLIC_ADULT_GENRES.iter().any(|bad| *bad == lower)
-}
-
 /// Does ANY genre of the entry qualify as adult?
 ///
-/// `pub(crate)` so the public poster handler can enforce the exact
-/// same adult filter as `build_public_profile` and `compare_users` —
-/// we don't want a series hidden from the gallery but its cover
-/// reachable via direct URL.
+/// Re-exposed here as a `pub(crate)` thin wrapper so the public
+/// poster handler can keep its existing import path while the
+/// canonical implementation lives in `services::genres`.
 pub(crate) fn entry_is_adult(genres: &[String]) -> bool {
-    genres.iter().any(|g| is_adult_genre(g))
+    crate::services::genres::is_adult(genres)
 }
 
 
@@ -597,42 +601,72 @@ pub async fn find_or_create(
 /// uploaded to S3 / local storage. Used by the GDPR "delete my account"
 /// flow.
 ///
-/// Order matters:
-///   1. Collect mal_ids owned by the user BEFORE nuking the library rows,
-///      so we know which poster keys to delete from storage.
-///   2. Delete posters (best-effort; storage failures are logged but don't
-///      abort — better to have orphaned blobs than a failed account
-///      deletion).
-///   3. Wipe every child table in a single transaction. Foreign keys are
-///      NOT necessarily declared with ON DELETE CASCADE, so we spell out
-///      each table explicitly. Order within the transaction: children
-///      first (volumes, activity…) then parents (library) then the user
-///      row itself.
+/// GDPR account erasure. Wipes every row + blob the user owns.
+///
+/// Order:
+///   1. SCAN — collect every storage key that needs cleanup AFTER the
+///      DB commit (poster mal_ids, snapshot ids, custom-author mal_ids)
+///      and the tower_sessions ids that don't cascade from `users`.
+///   2. DB transaction — explicit deletes for child tables (kept for
+///      defense-in-depth even though every FK declares ON DELETE
+///      CASCADE) plus the tables/blobs that need explicit handling:
+///        • `user_session_meta` cascades, so it goes in the txn.
+///        • `tower_sessions` does NOT cascade (the FK from
+///          user_session_meta to tower_sessions was dropped in
+///          migration 20260426150000) — wiped via raw sqlx after the
+///          transaction commits.
+///      The user row goes last; cascades fire and clean any tables we
+///      didn't list (user_seals, user_snapshots, user_follows,
+///      `authors WHERE user_id = X`).
+///   3. STORAGE — best-effort cleanup of every blob the user owned.
+///      Runs AFTER the DB commit so a transaction rollback doesn't
+///      leave a half-erased account with intact rows pointing at
+///      missing blobs (asymmetric failure mode that's worse than a
+///      bit of orphaned storage).
 pub async fn delete_account(
     db: &Db,
+    pool: &DbPool,
     storage: Arc<dyn StorageBackend>,
     user_id: i32,
 ) -> Result<(), AppError> {
-    // 1. Gather mal_ids for poster paths.
-    let rows = LibraryEntity::find()
+    // ── 1. SCAN ────────────────────────────────────────────────────
+    // Library mal_ids → poster paths.
+    let library_rows = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .all(db)
         .await
         .map_err(AppError::from)?;
-    let mal_ids: Vec<i32> = rows.iter().filter_map(|r| r.mal_id).collect();
+    let library_mal_ids: Vec<i32> = library_rows.iter().filter_map(|r| r.mal_id).collect();
 
-    // 2. Delete poster blobs from storage — best-effort. Covers the case
-    //    where image_url_jpg is null but a file still lingers at the
-    //    canonical key (shouldn't happen in practice, but being thorough
-    //    keeps the cleanup verifiable).
-    for mal_id in &mal_ids {
-        let path = format!("uploads/images/{}/{}.jpg", user_id, mal_id);
-        if let Err(e) = storage.remove(&path).await {
-            tracing::warn!(user_id, mal_id, error = %e, "delete_account: poster removal failed (continuing)");
-        }
-    }
+    // Snapshot ids → snapshot blob paths.
+    let snapshot_rows = SnapshotEntity::find()
+        .filter(snapshot_mod::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    let snapshot_ids: Vec<i32> = snapshot_rows.iter().map(|s| s.id).collect();
 
-    // 3. Wipe all user-scoped tables + the user row itself, transactionally.
+    // Custom-author rows (mal_id < 0, owned by this user) → photo paths.
+    let author_rows = AuthorEntity::find()
+        .filter(author_mod::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    let author_mal_ids: Vec<i32> = author_rows.iter().map(|a| a.mal_id).collect();
+
+    // tower_sessions session ids — gathered from user_session_meta
+    // BEFORE the cascade wipes them. Postgres won't tell us which raw
+    // session blobs to nuke once the meta row is gone.
+    let session_ids: Vec<String> = SessionMetaEntity::find()
+        .filter(session_meta_mod::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .map(|m| m.session_id)
+        .collect();
+
+    // ── 2. DB TRANSACTION ─────────────────────────────────────────
     let txn = db.begin().await.map_err(AppError::from)?;
 
     VolumeEntity::delete_many()
@@ -665,6 +699,8 @@ pub async fn delete_account(
         .await
         .map_err(AppError::from)?;
 
+    // Delete user — cascades wipe user_seals, user_snapshots,
+    // user_follows, user_session_meta, and `authors WHERE user_id=X`.
     UserEntity::delete_by_id(user_id)
         .exec(&txn)
         .await
@@ -672,6 +708,44 @@ pub async fn delete_account(
 
     txn.commit().await.map_err(AppError::from)?;
 
-    tracing::info!(user_id, posters = mal_ids.len(), "account deleted");
+    // ── 3. STORAGE + raw session wipe (post-commit, best-effort) ──
+    for mal_id in &library_mal_ids {
+        let path = format!("uploads/images/{}/{}.jpg", user_id, mal_id);
+        if let Err(e) = storage.remove(&path).await {
+            tracing::warn!(user_id, mal_id, error = %e, "delete_account: poster removal failed");
+        }
+    }
+    for snapshot_id in &snapshot_ids {
+        let path = format!("snapshots/{}/{}.png", user_id, snapshot_id);
+        if let Err(e) = storage.remove(&path).await {
+            tracing::warn!(user_id, snapshot_id, error = %e, "delete_account: snapshot removal failed");
+        }
+    }
+    for mal_id in &author_mal_ids {
+        // Mirrors `author_photo_storage_path` in handlers/author.rs —
+        // the sign is stripped (custom mal_ids are negative).
+        let path = format!("authors/{}/{}.jpg", user_id, mal_id.unsigned_abs());
+        if let Err(e) = storage.remove(&path).await {
+            tracing::warn!(user_id, mal_id, error = %e, "delete_account: author photo removal failed");
+        }
+    }
+    for sid in &session_ids {
+        if let Err(e) = sqlx::query("DELETE FROM tower_sessions WHERE id = $1")
+            .bind(sid)
+            .execute(pool)
+            .await
+        {
+            tracing::warn!(user_id, error = %e, "delete_account: tower_sessions row removal failed");
+        }
+    }
+
+    tracing::info!(
+        user_id,
+        posters = library_mal_ids.len(),
+        snapshots = snapshot_ids.len(),
+        author_photos = author_mal_ids.len(),
+        sessions = session_ids.len(),
+        "account deleted"
+    );
     Ok(())
 }

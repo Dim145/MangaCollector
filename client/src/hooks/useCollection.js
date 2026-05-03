@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { computeLibraryStats } from "@/utils/libraryStats.js";
 
 /**
  * 出版 / 版 · Filter the user's library by a free-text attribute
@@ -53,44 +54,7 @@ export function useCollection({ kind, name, library }) {
     return (name ?? "").trim();
   }, [matches, name, targetField]);
 
-  const stats = useMemo(() => computeStats(matches), [matches]);
+  const stats = useMemo(() => computeLibraryStats(matches), [matches]);
 
   return { matches, displayName, stats };
-}
-
-function computeStats(matches) {
-  if (matches.length === 0) {
-    return {
-      seriesCount: 0,
-      totalVolumes: 0,
-      totalOwned: 0,
-      completionPct: 0,
-      topGenres: [],
-    };
-  }
-  let totalVolumes = 0;
-  let totalOwned = 0;
-  const genreFreq = new Map();
-  for (const m of matches) {
-    totalVolumes += m.volumes ?? 0;
-    totalOwned += m.volumes_owned ?? 0;
-    for (const g of m.genres ?? []) {
-      const trimmed = String(g).trim();
-      if (!trimmed) continue;
-      genreFreq.set(trimmed, (genreFreq.get(trimmed) ?? 0) + 1);
-    }
-  }
-  const completionPct =
-    totalVolumes > 0 ? Math.round((totalOwned / totalVolumes) * 100) : 0;
-  const topGenres = Array.from(genreFreq.entries())
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, 6)
-    .map(([n, c]) => ({ name: n, count: c }));
-  return {
-    seriesCount: matches.length,
-    totalVolumes,
-    totalOwned,
-    completionPct,
-    topGenres,
-  };
 }

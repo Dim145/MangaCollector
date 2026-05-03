@@ -360,6 +360,39 @@ db.version(14).stores({
   outboxCoffrets: "id, mal_id, ts",
 });
 
+// 友 · v15 — `friendsList` mirrors the response of GET
+// /api/user/follows so the correspondents rail stays readable
+// offline. The feed itself is online-only (freshness > availability)
+// but the list of who-you-follow is a relation graph the user
+// owns and benefits from seeing offline (e.g. to confirm a follow
+// landed before reconnecting).
+//
+// Single-row table keyed by the literal "user" — same convention
+// as `seals` and `settings`.
+db.version(15).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+  coffrets: "id, mal_id",
+  volumeCoverMaps: "mal_id, ts",
+  outboxCoffrets: "id, mal_id, ts",
+  friendsList: "key",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 

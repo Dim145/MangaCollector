@@ -1,11 +1,12 @@
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use serde::Deserialize;
 
 use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
+use crate::models::activity::Activity;
 use crate::services::activity;
 use crate::state::AppState;
 
@@ -21,10 +22,10 @@ pub async fn list_activity(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Query(q): Query<ActivityQuery>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Vec<Activity>>, AppError> {
     let limit = q.limit.unwrap_or(30).clamp(1, 100);
     let rows = activity::list_for_user(&state.db, user.id, limit, q.before).await?;
-    Ok(Json(serde_json::to_value(rows).unwrap()))
+    Ok(Json(rows))
 }
 
 /// GET /api/user/streak

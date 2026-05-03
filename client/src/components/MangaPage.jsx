@@ -285,12 +285,13 @@ export default function MangaPage({ manga, adult_content_level }) {
   }, [liveLibraryRow?.genres, isEditing]);
 
   useEffect(() => {
-    // Sync publisher / edition / review from the live row when not
-    // editing — same pattern as name / genres above, so an outbox flush
-    // or another tab's realtime push updates the read-only display
-    // immediately. Author is the embedded `{ id, mal_id, name }`
-    // ref the server emits via FK enrichment; the form input only
-    // cares about the display name.
+    // Sync editable mirror fields from the live row when not
+    // editing — same pattern as name / genres above, so an outbox
+    // flush or another tab's realtime push updates the read-only
+    // display immediately. Watching `liveLibraryRow` directly (Dexie
+    // returns a new object reference on every update) is enough; the
+    // previous per-field deps array re-fired the effect on each
+    // sub-key change but did the same set of writes regardless.
     if (!isEditing) {
       setPublisher(liveLibraryRow?.publisher ?? "");
       setEdition(liveLibraryRow?.edition ?? "");
@@ -298,14 +299,7 @@ export default function MangaPage({ manga, adult_content_level }) {
       setReviewPublic(Boolean(liveLibraryRow?.review_public));
       setAuthor(liveLibraryRow?.author?.name ?? "");
     }
-  }, [
-    liveLibraryRow?.publisher,
-    liveLibraryRow?.edition,
-    liveLibraryRow?.review,
-    liveLibraryRow?.review_public,
-    liveLibraryRow?.author?.name,
-    isEditing,
-  ]);
+  }, [liveLibraryRow, isEditing]);
 
   useEffect(() => {
     if (liveLibraryRow?.image_url_jpg != null && !isEditing) {

@@ -12,6 +12,7 @@ import {
 } from "@/hooks/useAuthorDetail.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage } from "@/utils/library.js";
+import { computeLibraryStats } from "@/utils/libraryStats.js";
 import CoverImage from "./ui/CoverImage.jsx";
 import Modal from "./ui/Modal.jsx";
 import SettingsContext from "@/SettingsContext.js";
@@ -78,39 +79,14 @@ export default function AuthorPage() {
       );
   }, [library, authorMalId]);
 
-  const stats = useMemo(() => {
-    if (matches.length === 0) {
-      return {
-        seriesCount: 0,
-        totalVolumes: 0,
-        totalOwned: 0,
-        completionPct: 0,
-        topGenres: [],
-      };
-    }
-    let totalVolumes = 0;
-    let totalOwned = 0;
-    const genreFreq = new Map();
-    for (const m of matches) {
-      totalVolumes += m.volumes ?? 0;
-      totalOwned += m.volumes_owned ?? 0;
-      // Count GENRES per series (not per-volume) — the signature is
-      // "genres this author touches across their corpus", not "what
-      // genre dominates by volume count".
-      for (const g of m.genres ?? []) {
-        const trimmed = g.trim();
-        if (!trimmed) continue;
-        genreFreq.set(trimmed, (genreFreq.get(trimmed) ?? 0) + 1);
-      }
-    }
-    const completionPct =
-      totalVolumes > 0 ? Math.round((totalOwned / totalVolumes) * 100) : 0;
-    const topGenres = Array.from(genreFreq.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 5)
-      .map(([name, count]) => ({ name, count }));
-    return { seriesCount: matches.length, totalVolumes, totalOwned, completionPct, topGenres };
-  }, [matches]);
+  // Author signature gets a 5-genre cap (vs. the default 6 used by
+  // CollectionPage). Genres count at the series level — "genres this
+  // author touches across their corpus", not "what genre dominates
+  // by volume count".
+  const stats = useMemo(
+    () => computeLibraryStats(matches, { topGenresLimit: 5 }),
+    [matches],
+  );
 
   // 作家 · Lazy-fetch the detail row (photo, bio, birthday, MAL
   // link) via React Query. The detail call resolves shared MAL

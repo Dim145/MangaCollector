@@ -24,10 +24,18 @@ use crate::models::snapshot::{CreateSnapshotRequest, SnapshotResponse};
 use crate::services::realtime::SyncKind;
 use crate::services::snapshot;
 use crate::state::AppState;
+use crate::util::image::{self as image_util, ImageFormat};
 
 /// Image cap — 5 MiB. The shelf renderer produces ~600 KB PNGs in
 /// practice; the cap is a DoS guard, not a budget.
 const MAX_SNAPSHOT_IMAGE_SIZE: usize = 5 * 1024 * 1024;
+
+/// `private` cache lifetime for served snapshots (5 days). See the
+/// comment in `handlers/storage.rs` for why intermediate caches must
+/// not store these responses.
+const PRIVATE_IMAGE_CACHE_MAX_AGE_SEC: u32 = 60 * 60 * 24 * 5;
+
+const SNAPSHOT_FORMATS: &[ImageFormat] = &[ImageFormat::Png, ImageFormat::Jpeg];
 
 fn snapshot_image_storage_path(user_id: i32, snapshot_id: i32) -> String {
     format!("snapshots/{}/{}.png", user_id, snapshot_id)
@@ -125,7 +133,7 @@ pub async fn upload_snapshot_image(
             MAX_SNAPSHOT_IMAGE_SIZE
         )));
     }
-    if !is_supported_png_or_jpeg(&data) {
+    if !image_util::is_supported(&data, SNAPSHOT_FORMATS) {
         return Err(AppError::BadRequest(
             "Unsupported image format (expected PNG or JPEG)".into(),
         ));
@@ -158,35 +166,27 @@ pub async fn get_snapshot_image(
         .get(&key)
         .await
         .map_err(|_| AppError::NotFound("Snapshot image not set".into()))?;
+    // Detect format from bytes — uploads accept PNG OR JPEG, so the
+    // served Content-Type can't be hard-coded.
+    let content_type = image_util::detect(&data)
+        .map(ImageFormat::content_type)
+        .unwrap_or("image/png");
+    let cache_control = format!("private, max-age={}", PRIVATE_IMAGE_CACHE_MAX_AGE_SEC);
     let response = (
         [
             (
                 header::CONTENT_TYPE,
-                http::HeaderValue::from_static("image/png"),
+                http::HeaderValue::from_str(content_type)
+                    .map_err(|e| AppError::Internal(format!("content-type header: {e}")))?,
             ),
             (
                 header::CACHE_CONTROL,
-                http::HeaderValue::from_static("private, max-age=425061"),
+                http::HeaderValue::from_str(&cache_control)
+                    .map_err(|e| AppError::Internal(format!("cache-control header: {e}")))?,
             ),
         ],
         Body::from(data),
     )
         .into_response();
     Ok(response)
-}
-
-/// Magic-byte check for the snapshot image. Accepts PNG (the
-/// canonical output of `shelfSnapshot.js`) and JPEG (in case a
-/// future export defaults to a smaller / lossy variant).
-fn is_supported_png_or_jpeg(data: &[u8]) -> bool {
-    if data.len() < 8 {
-        return false;
-    }
-    if data.starts_with(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
-        return true; // PNG
-    }
-    if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        return true; // JPEG
-    }
-    false
 }

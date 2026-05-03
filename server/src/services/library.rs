@@ -143,15 +143,6 @@ pub async fn mint_next_custom_mal_id(
     })
 }
 
-/// Genre names that trigger an adult-content poster upgrade via MangaDex.
-/// Case-insensitive, kept in sync with `client/src/utils/library.js`.
-fn has_adult_genre(genres: &[String]) -> bool {
-    genres.iter().any(|g| {
-        let lc = g.to_lowercase();
-        lc == "hentai" || lc == "erotica" || lc == "adult"
-    })
-}
-
 /// Ask MangaDex for a better (uncensored, often higher-res) cover when the
 /// series has adult tags. Returns `Some(new_url)` only when an upgrade is
 /// found; otherwise `None` so callers keep the MAL fallback.
@@ -170,7 +161,7 @@ async fn maybe_upgrade_cover_for_adult(
     mal_id: Option<i32>,
     title_hint: &str,
 ) -> Option<String> {
-    if !has_adult_genre(genres) {
+    if !crate::services::genres::is_adult(genres) {
         return None;
     }
     let id = mal_id?;
@@ -232,6 +223,19 @@ pub async fn add_to_user_library(
     let volumes = clamp_volumes(req.volumes);
     let volumes_owned = clamp_volumes(req.volumes_owned.unwrap_or(0)).min(volumes);
     let mal_id = req.mal_id;
+
+    // Validate any incoming `mangadex_id` here as well, not just in
+    // the dedicated `/library/mangadex` handler — generic POST
+    // /library lets any caller stuff arbitrary bytes into this field
+    // and they'd flow into a future `refresh_from_mangadex` outbound
+    // request unchecked.
+    if let Some(mdx) = req.mangadex_id.as_deref()
+        && !crate::util::uuid::is_canonical_uuid(mdx)
+    {
+        return Err(AppError::BadRequest(
+            "mangadex_id must be a canonical UUID".into(),
+        ));
+    }
 
     // For adult-tagged series, try to upgrade the cover to the MangaDex
     // (uncensored, typically higher-res) version before we store the URL.

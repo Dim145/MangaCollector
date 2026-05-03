@@ -103,12 +103,37 @@ export async function enqueueLibraryUpdateVolumes(mal_id, volumes) {
  * Length clamping is the server's job; we don't echo the cap here so
  * the two stay in sync via a single source of truth.
  */
+/**
+ * 像 · Cover URL whitelist. We accept either external HTTP(S) URLs
+ * (MAL CDN, MangaDex CDN) or in-app paths (`/api/...`). Any other
+ * scheme — `javascript:`, `data:`, `file:`, custom — is silently
+ * dropped so a hostile or malformed input can't ride into Dexie
+ * and reach the DOM through `<img src={poster}>`. React escapes
+ * the attribute value, so this is defence-in-depth, not the only
+ * line of defence — but Dexie persists across sessions and the
+ * server eventually mirrors what's there, so anything we let in
+ * here lives a long life.
+ */
+function isSafeImageRef(value) {
+  if (value == null) return true; // null clears the field — allowed
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed === "") return true;
+  if (trimmed.startsWith("/")) return true; // app-relative
+  return /^https?:\/\//i.test(trimmed);
+}
+
 export async function enqueueLibraryPatch(mal_id, fields) {
   // Normalise text fields once. `volumes` and `image_url_jpg` ride
   // through unchanged.
   const next = {};
   if ("volumes" in fields) next.volumes = fields.volumes;
-  if ("image_url_jpg" in fields) next.image_url_jpg = fields.image_url_jpg;
+  if ("image_url_jpg" in fields) {
+    if (!isSafeImageRef(fields.image_url_jpg)) {
+      throw new Error("image_url_jpg must be a http(s) or app-relative URL");
+    }
+    next.image_url_jpg = fields.image_url_jpg;
+  }
   for (const key of ["publisher", "edition", "review"]) {
     if (!(key in fields)) continue;
     const raw = fields[key];
@@ -126,7 +151,14 @@ export async function enqueueLibraryPatch(mal_id, fields) {
   // stub ref into Dexie so the optimistic read view (`row.author?.name`)
   // doesn't see a raw string. The full ref (with id + mal_id) lands
   // on the next refetchLibrary, replacing the stub.
+  // 作家 · `next.author` defaults to a stub `{ id, mal_id, name }`
+  // because the optimistic-read view in the SPA expects the object
+  // shape, not raw text. The stub is replaced inside the Dexie
+  // transaction below when the user re-types the SAME name we
+  // already have a FK for — avoiding a transient `id === null`
+  // flash that hides the row from `useKnownAuthors`.
   let authorPayload;
+  let authorRequestedName = undefined;
   if ("author" in fields) {
     const raw = fields.author;
     if (raw == null) {
@@ -140,6 +172,7 @@ export async function enqueueLibraryPatch(mal_id, fields) {
       } else {
         next.author = { id: null, mal_id: null, name: trimmed };
         authorPayload = trimmed;
+        authorRequestedName = trimmed;
       }
     }
   }
@@ -175,6 +208,16 @@ export async function enqueueLibraryPatch(mal_id, fields) {
 
   await db.transaction("rw", db.library, db.outboxLibrary, async () => {
     const existing = await db.library.get(mal_id);
+    // Preserve the FK if the user re-typed an existing author's
+    // name (server will resolve to the same id; no need to flash
+    // a stub past the optimistic read).
+    if (
+      authorRequestedName !== undefined &&
+      existing?.author?.name === authorRequestedName &&
+      existing.author.id != null
+    ) {
+      next.author = existing.author;
+    }
     if (existing) {
       await db.library.put({ ...existing, ...next });
     }
@@ -208,6 +251,9 @@ export async function enqueueLibraryPatch(mal_id, fields) {
  *   - nothing pending   → new `patch` op carrying only image_url_jpg
  */
 export async function enqueueLibraryPoster(mal_id, url) {
+  if (!isSafeImageRef(url)) {
+    throw new Error("poster URL must be a http(s) or app-relative URL");
+  }
   await db.transaction("rw", db.library, db.outboxLibrary, async () => {
     const existing = await db.library.get(mal_id);
     if (existing) {

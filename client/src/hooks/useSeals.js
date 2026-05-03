@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { db } from "@/lib/db.js";
 import { notifySealsUnlocked } from "@/lib/sealsToast.js";
 import { useT } from "@/i18n/index.jsx";
+import { useLatest } from "@/hooks/useLatest.js";
 
 /**
  * 印鑑帳 — carnet de sceaux, Dexie-first.
@@ -46,14 +47,8 @@ export function useSeals() {
   // for toast i18n; routing through a ref protects against the
   // narrow race where the very first /api/user/seals call (on hook
   // mount) reports a fresh unlock BEFORE settings have flipped the
-  // I18nProvider to the user's preferred language — without the
-  // ref, that first toast would render in EN even when the user's
-  // locale is FR/ES.
-  const t = useT();
-  const tRef = useRef(t);
-  useEffect(() => {
-    tRef.current = t;
-  }, [t]);
+  // I18nProvider to the user's preferred language.
+  const tRef = useLatest(useT());
 
   // Component-local transient store for the ceremony signal. Kept
   // intentionally OUTSIDE of React Query's cache so it can't survive
