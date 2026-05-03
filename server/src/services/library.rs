@@ -211,6 +211,7 @@ pub async fn add_to_user_library(
     db: &Db,
     http_client: &reqwest::Client,
     cache: Option<&CacheStore>,
+    activity_buffer: &crate::services::activity_coalescer::ActivityCoalescer,
     user_id: i32,
     req: AddLibraryRequest,
 ) -> Result<LibraryEntry, AppError> {
@@ -342,19 +343,28 @@ pub async fn add_to_user_library(
         volume::add_volume_tx(&txn, user_id, row.mal_id.unwrap_or(0), vol_num).await?;
     }
 
-    // Log activity within the same transaction so it's atomic with the add
-    activity::record(
-        &txn,
-        user_id,
-        event_types::SERIES_ADDED,
-        row.mal_id,
-        None,
-        Some(row.name.clone()),
-        None,
-    )
-    .await;
+    // Capture row state we'll need after the txn commits before
+    // it's moved into the response builder below.
+    let added_mal_id = row.mal_id;
+    let added_name = row.name.clone();
 
     txn.commit().await.map_err(AppError::from)?;
+
+    // Activity log goes through the coalescer so a same-session
+    // re-add (after a quick removal click) cancels the noise pair
+    // instead of leaving both entries in the feed. Routed AFTER
+    // commit because the buffer no longer rides on the txn — the
+    // activity is fire-and-forget anyway, atomicity isn't required.
+    activity_buffer
+        .record(
+            user_id,
+            event_types::SERIES_ADDED,
+            added_mal_id,
+            None,
+            Some(added_name),
+            None,
+        )
+        .await;
 
     // Milestone check AFTER commit (uses fresh DB view)
     activity::check_series_milestone(db, user_id).await;
@@ -373,6 +383,7 @@ pub async fn add_from_mangadex(
     db: &Db,
     http_client: &reqwest::Client,
     cache: Option<&CacheStore>,
+    activity_buffer: &crate::services::activity_coalescer::ActivityCoalescer,
     user_id: i32,
     req: AddFromMangadexRequest,
 ) -> Result<LibraryEntry, AppError> {
@@ -394,6 +405,7 @@ pub async fn add_from_mangadex(
         db,
         http_client,
         cache,
+        activity_buffer,
         user_id,
         AddLibraryRequest {
             mal_id: Some(new_mal_id),
@@ -571,6 +583,7 @@ pub async fn copy_series_from_other_user(
     storage: &std::sync::Arc<dyn crate::storage::StorageBackend>,
     http_client: &reqwest::Client,
     cache: Option<&CacheStore>,
+    activity_buffer: &crate::services::activity_coalescer::ActivityCoalescer,
     me_user_id: i32,
     other_user_id: i32,
     source_mal_id: i32,
@@ -636,6 +649,7 @@ pub async fn copy_series_from_other_user(
         db,
         http_client,
         cache,
+        activity_buffer,
         me_user_id,
         AddLibraryRequest {
             mal_id: Some(target_mal_id),
@@ -671,6 +685,7 @@ pub async fn add_custom_entry(
     db: &Db,
     http_client: &reqwest::Client,
     cache: Option<&CacheStore>,
+    activity_buffer: &crate::services::activity_coalescer::ActivityCoalescer,
     user_id: i32,
     req: AddCustomRequest,
 ) -> Result<LibraryEntry, AppError> {
@@ -680,6 +695,7 @@ pub async fn add_custom_entry(
         db,
         http_client,
         cache,
+        activity_buffer,
         user_id,
         AddLibraryRequest {
             mal_id: Some(new_mal_id),
@@ -700,7 +716,12 @@ pub async fn add_custom_entry(
     .await
 }
 
-pub async fn delete_manga(db: &Db, mal_id: i32, user_id: i32) -> Result<(), AppError> {
+pub async fn delete_manga(
+    db: &Db,
+    activity_buffer: &crate::services::activity_coalescer::ActivityCoalescer,
+    mal_id: i32,
+    user_id: i32,
+) -> Result<(), AppError> {
     // Capture the title before delete so the activity log can reference it
     let row = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
@@ -719,18 +740,23 @@ pub async fn delete_manga(db: &Db, mal_id: i32, user_id: i32) -> Result<(), AppE
         .await
         .map_err(AppError::from)?;
 
-    activity::record(
-        &txn,
-        user_id,
-        event_types::SERIES_REMOVED,
-        Some(mal_id),
-        None,
-        name,
-        None,
-    )
-    .await;
-
     txn.commit().await.map_err(AppError::from)?;
+
+    // Activity log via the coalescer (post-commit). A user who
+    // accidentally removes a series and re-adds within the buffer
+    // window cancels both events instead of seeing a remove/add
+    // noise pair in their feed.
+    activity_buffer
+        .record(
+            user_id,
+            event_types::SERIES_REMOVED,
+            Some(mal_id),
+            None,
+            name,
+            None,
+        )
+        .await;
+
     Ok(())
 }
 

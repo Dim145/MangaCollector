@@ -1,4 +1,5 @@
 pub mod activity;
+pub mod activity_coalescer;
 pub mod archive;
 pub mod author;
 pub mod cache;

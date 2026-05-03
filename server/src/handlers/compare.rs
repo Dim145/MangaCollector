@@ -98,6 +98,7 @@ pub async fn copy_entry(
         &state.storage,
         &state.http_client,
         state.cache.as_deref(),
+        &state.activity,
         me.id,
         other.id,
         mal_id,

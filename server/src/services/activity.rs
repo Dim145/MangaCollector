@@ -15,6 +15,10 @@ pub const SERIES_MILESTONES: &[i32] = &[5, 10, 25, 50, 100, 250, 500, 1000];
 
 /// Fire-and-forget-style recording. Errors are logged and swallowed so that
 /// a failure to persist an activity entry never blocks a mutation.
+///
+/// Stamps `created_on` with the current time. For events surfaced
+/// through the coalescing buffer (where the original event time is
+/// captured at buffer-entry and not at flush) use `record_at`.
 pub async fn record(
     conn: &impl ConnectionTrait,
     user_id: i32,
@@ -24,7 +28,33 @@ pub async fn record(
     name: Option<String>,
     count_value: Option<i32>,
 ) {
-    let now = Utc::now();
+    record_at(
+        conn,
+        user_id,
+        event_type,
+        mal_id,
+        vol_num,
+        name,
+        count_value,
+        Utc::now(),
+    )
+    .await;
+}
+
+/// Like `record` but uses the supplied `created_on` instead of
+/// `Utc::now()`. Used by the activity coalescer so that an event
+/// flushed at +5 s still shows the timestamp of the original
+/// click — keeps streak/heatmap math accurate.
+pub async fn record_at(
+    conn: &impl ConnectionTrait,
+    user_id: i32,
+    event_type: &str,
+    mal_id: Option<i32>,
+    vol_num: Option<i32>,
+    name: Option<String>,
+    count_value: Option<i32>,
+    created_on: chrono::DateTime<chrono::Utc>,
+) {
     let model = ActiveModel {
         user_id: Set(user_id),
         event_type: Set(event_type.to_string()),
@@ -32,14 +62,10 @@ pub async fn record(
         vol_num: Set(vol_num),
         name: Set(name),
         count_value: Set(count_value),
-        created_on: Set(now),
+        created_on: Set(created_on),
         ..Default::default()
     };
     if let Err(err) = model.insert(conn).await {
-        // Previously `eprintln!`, which bypassed the tracing subscriber
-        // and the structured log format used everywhere else. Use
-        // `tracing::warn!` so operators get consistent formatting and
-        // can filter the event type.
         tracing::warn!(
             %err,
             event_type,

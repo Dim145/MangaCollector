@@ -87,6 +87,7 @@ pub async fn add_to_library(
         &state.db,
         &state.http_client,
         state.cache.as_deref(),
+        &state.activity,
         user.id,
         body,
     )
@@ -126,6 +127,7 @@ pub async fn add_from_mangadex(
         &state.db,
         &state.http_client,
         state.cache.as_deref(),
+        &state.activity,
         user.id,
         body,
     )
@@ -266,6 +268,7 @@ pub async fn add_custom_entry(
         &state.db,
         &state.http_client,
         state.cache.as_deref(),
+        &state.activity,
         user.id,
         body,
     )
@@ -332,7 +335,7 @@ pub async fn delete_manga(
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    library::delete_manga(&state.db, mal_id, user.id).await?;
+    library::delete_manga(&state.db, &state.activity, mal_id, user.id).await?;
     state.broker.publish(user.id, SyncKind::Library).await;
     state.broker.publish(user.id, SyncKind::Volumes).await;
     state.broker.publish(user.id, SyncKind::Coffrets).await;

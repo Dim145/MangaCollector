@@ -147,6 +147,7 @@ pub async fn update_volume(
     let loan_change = body.loan;
     volume::update_by_id(
         &state.db,
+        &state.activity,
         id,
         user.id,
         body.owned,
