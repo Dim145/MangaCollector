@@ -1,20 +1,90 @@
 import { useQuery } from "@tanstack/react-query";
+import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
+import { db } from "@/lib/db.js";
 
 /**
  * 預け Azuke · Outstanding loans listing.
  *
- * Lazy-fetched against `GET /api/user/volume/loans`. The server joins
- * each volume with its parent series name + cover URL so the
- * dashboard widget can render rich loan rows in one round-trip. Loans
- * arrive sorted: overdue first, then by due date asc, undated last.
+ * Hybrid Dexie + React-Query so the dashboard rail stays useful
+ * offline. Both columns the widget needs (loaned_to, loan_due_at,
+ * series_name via library) already live in Dexie:
+ *   - `db.volumes` has `loaned_to` / `loan_started_at` / `loan_due_at`
+ *     for every volume the user owns (the optimistic outbox writes
+ *     them on every lend / return / due-date edit).
+ *   - `db.library` has `name` / `image_url_jpg` so we can attach the
+ *     series identity to each lent volume.
  *
- * Empty array (200) when nothing is currently lent — the widget
- * collapses to a quiet rest state. 1-minute staleTime keeps the
- * dashboard nimble across tab switches without hammering the API.
+ * The server endpoint `/api/user/volume/loans` was the original
+ * source — we keep firing it as a `useQuery` to refresh on focus
+ * and reconcile cross-device edits, but render priority goes to
+ * the Dexie scan so the widget mounts instantly AND survives a
+ * server outage.
+ *
+ * Sort: overdue first, then by due date asc, then undated last —
+ * mirrors the server's `services::volume::list_active_loans` order
+ * so the offline shape matches the online shape exactly.
  */
 export function useActiveLoans() {
-  return useQuery({
+  // Live data from Dexie. Filter shape mirrors the server's
+  // `WHERE loaned_to IS NOT NULL` query, with a defensive guard on
+  // `loan_started_at` (the server invariant: loaned_to ↔
+  // loan_started_at) so a half-written row from a partial outbox
+  // replay doesn't slip through with a NULL start.
+  const cached = useLiveQuery(async () => {
+    const lent = await db.volumes
+      .filter((v) => Boolean(v.loaned_to) && Boolean(v.loan_started_at))
+      .toArray();
+    if (lent.length === 0) return [];
+
+    // Build a single-pass library lookup so the join over N lent
+    // volumes stays O(N + L) instead of O(N × L). Library is small
+    // (typical user: 50-500 rows) so toArray() is fine here.
+    const lib = await db.library.toArray();
+    const lookup = new Map();
+    for (const row of lib) {
+      if (row.mal_id != null) {
+        lookup.set(row.mal_id, {
+          name: row.name ?? null,
+          image: row.image_url_jpg ?? null,
+        });
+      }
+    }
+
+    const enriched = lent.map((v) => {
+      const meta = v.mal_id != null ? lookup.get(v.mal_id) : null;
+      return {
+        volume_id: v.id,
+        mal_id: v.mal_id,
+        vol_num: v.vol_num,
+        series_name: meta?.name ?? null,
+        series_image_url: meta?.image ?? null,
+        loaned_to: v.loaned_to,
+        loan_started_at: v.loan_started_at,
+        loan_due_at: v.loan_due_at ?? null,
+      };
+    });
+
+    // Same sort as the server: overdue+due_soon first (sorted by
+    // due asc), then undated last (sorted by start asc as
+    // tiebreaker so the oldest open loan surfaces).
+    return enriched.sort((a, b) => {
+      const ad = a.loan_due_at;
+      const bd = b.loan_due_at;
+      if (ad && bd) return new Date(ad).getTime() - new Date(bd).getTime();
+      if (ad && !bd) return -1;
+      if (!ad && bd) return 1;
+      return (
+        new Date(a.loan_started_at).getTime() -
+        new Date(b.loan_started_at).getTime()
+      );
+    });
+  }, []);
+
+  // Backgrounded server fetch — keeps the cache fresh on focus and
+  // reconciles cross-device lends. Failures fold to "use the cache"
+  // (the server is the only authority but the cache is the fallback).
+  const query = useQuery({
     queryKey: ["loans", "active"],
     staleTime: 60 * 1000,
     queryFn: async () => {
@@ -27,6 +97,20 @@ export function useActiveLoans() {
       return failureCount < 2;
     },
   });
+
+  // Render priority: Dexie if it has answered, otherwise the
+  // server response, otherwise empty. The widget self-hides on
+  // empty so a brief loading flash isn't a concern.
+  const data = cached ?? query.data ?? [];
+
+  return {
+    data,
+    // Block the loader only while Dexie hasn't answered AND the
+    // network query is still pending.
+    isLoading: cached === undefined && query.isLoading,
+    isFetching: query.isFetching,
+    refetch: query.refetch,
+  };
 }
 
 /**
