@@ -5,6 +5,7 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 use crate::services::cache::CacheStore;
+use crate::util::url::build_url;
 
 /// Positive hits (cover found) are rock-stable on MangaDex — 7 days is safe.
 const MANGADEX_HIT_TTL: Duration = Duration::from_secs(7 * 24 * 3600);
@@ -293,9 +294,14 @@ pub async fn get_by_id(
             return Ok(cached);
         }
 
-    let url = format!("https://api.mangadex.org/manga/{}", mangadex_id);
+    // 安 · URL via `Url::path_segments_mut` — CodeQL-recognised
+    // sanitizer for `rust/request-forgery`. `mangadex_id` is also
+    // validated as a canonical UUID upstream (see
+    // `util::uuid::is_canonical_uuid`), so this is belt-and-braces.
+    let url = build_url("https://api.mangadex.org/manga", &[mangadex_id])
+        .map_err(|e| anyhow::anyhow!("MangaDex URL build: {e}"))?;
     let response = client
-        .get(&url)
+        .get(url)
         .header("User-Agent", USER_AGENT)
         .query(&[("includes[]", "cover_art")])
         .send()
