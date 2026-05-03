@@ -1317,9 +1317,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <button
                   type="button"
                   onClick={() => setCoffretModalOpen(true)}
-                  disabled={!online}
-                  title={!online ? t("coffret.offlineHint") : undefined}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-washi/30 bg-washi/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-washi/60 hover:bg-washi/10 hover:text-washi active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-washi/30 bg-washi/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-washi/60 hover:bg-washi/10 hover:text-washi active:scale-95"
                 >
                   <span
                     aria-hidden="true"

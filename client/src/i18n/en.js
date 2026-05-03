@@ -447,6 +447,8 @@ export default {
     notACoffret: "Not a box set? Back to single volume",
     offlineRequired:
       "Box set changes need a connection — the server applies them as one atomic transaction across the box + every volume inside.",
+    offlineQueued:
+      "Offline · the box set will sync once connectivity returns.",
   },
   add: {
     eyebrow: "ADD · 追加",

@@ -315,6 +315,51 @@ db.version(13).stores({
   volumeCoverMaps: "mal_id, ts",
 });
 
+// v14 — coffret CRUD outbox (offline-capable boxset operations).
+//
+// 盒 · `outboxCoffrets` queues create / update / delete ops keyed
+// by coffret `id`. The id is the same across local optimistic
+// state and the outbox: real positive PKs for already-synced
+// rows, negative timestamps (`-Date.now()`) for rows minted
+// offline that haven't reached the server yet.
+//
+// Coalesce semantics (one slot per id):
+//   • create then update → merge update into create payload
+//   • create then delete → drop both ops (the row never reached
+//     the server; un-link volumes locally)
+//   • update then update → merge patches
+//   • update then delete → replace with delete (terminal)
+//
+// On flush, a successful `create` returns the real positive id
+// from the server. The flush handler:
+//   1. Removes the temp coffret row from Dexie
+//   2. Inserts the real coffret row
+//   3. Re-keys volumes whose `coffret_id === temp_id` to the
+//      real id so the offline-applied bindings transfer
+//      cleanly
+db.version(14).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+  coffrets: "id, mal_id",
+  volumeCoverMaps: "mal_id, ts",
+  outboxCoffrets: "id, mal_id, ts",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 

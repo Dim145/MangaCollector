@@ -448,6 +448,8 @@ export default {
     notACoffret: "¿No es una caja? Volver al tomo simple",
     offlineRequired:
       "Los cambios de caja requieren conexión — el servidor los aplica en una transacción atómica sobre la caja y todos sus tomos.",
+    offlineQueued:
+      "Sin conexión · la caja se sincronizará cuando vuelva la conexión.",
   },
   add: {
     eyebrow: "AÑADIR · 追加",

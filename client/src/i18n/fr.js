@@ -455,6 +455,8 @@ export default {
     notACoffret: "Pas un coffret ? Revenir au tome classique",
     offlineRequired:
       "Les modifications de coffret nécessitent une connexion — le serveur les applique en une transaction atomique sur le coffret et chacun de ses tomes.",
+    offlineQueued:
+      "Hors ligne · le coffret sera synchronisé au retour de la connexion.",
   },
   add: {
     eyebrow: "AJOUTER · 追加",

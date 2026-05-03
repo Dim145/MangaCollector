@@ -1,8 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
-import { queryClient } from "@/lib/queryClient.js";
 import { cacheCoffretsForManga, db } from "@/lib/db.js";
+import {
+  enqueueCoffretCreate,
+  enqueueCoffretDelete,
+  enqueueCoffretUpdate,
+} from "@/lib/sync.js";
 
 /**
  * 盒 · Coffrets for a given manga. Hybrid Dexie + React Query so
@@ -57,45 +61,59 @@ export function useCoffretsForManga(mal_id) {
   };
 }
 
+/**
+ * 盒 · Offline-capable coffret create.
+ *
+ * Mints a temp negative id locally, writes the optimistic Dexie
+ * coffret row + binds every volume in [vol_start, vol_end], and
+ * queues a POST for sync. Returns a synthesized coffret-shaped
+ * object so callers that read the mutation's `data` (e.g. the
+ * AddCoffretModal post-success path that may navigate to the new
+ * coffret) keep working in both online and offline cases.
+ */
 export function useCreateCoffret(mal_id) {
   return useMutation({
     mutationFn: async (payload) => {
-      const { data } = await axios.post(
-        `/api/user/library/${mal_id}/coffrets`,
-        payload,
-      );
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["coffrets", mal_id] });
-      queryClient.invalidateQueries({ queryKey: ["volumes", mal_id] });
-      queryClient.invalidateQueries({ queryKey: ["volumes-all"] });
-      queryClient.invalidateQueries({ queryKey: ["library"] });
+      const tempId = await enqueueCoffretCreate(mal_id, payload);
+      return {
+        id: tempId,
+        mal_id,
+        name: payload.name,
+        vol_start: payload.vol_start,
+        vol_end: payload.vol_end,
+        price: payload.price ?? null,
+        store: payload.store ?? null,
+      };
     },
   });
 }
 
-export function useUpdateCoffret(mal_id) {
+/**
+ * 盒 · Offline-capable coffret update. The patch is applied
+ * optimistically to Dexie + queued for sync via `enqueueCoffretUpdate`.
+ * No direct axios call — `mutateAsync` resolves as soon as the
+ * queue accepts the op.
+ */
+export function useUpdateCoffret() {
   return useMutation({
     mutationFn: async ({ id, ...patch }) => {
-      const { data } = await axios.patch(`/api/user/coffrets/${id}`, patch);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["coffrets", mal_id] });
+      await enqueueCoffretUpdate(id, patch);
+      return { id, ...patch };
     },
   });
 }
 
-export function useDeleteCoffret(mal_id) {
+/**
+ * 盒 · Offline-capable coffret delete. Removes the local row +
+ * un-binds linked volumes synchronously; the outbox carries the
+ * server-side DELETE (or cancels the pending create if the
+ * coffret never reached the server).
+ */
+export function useDeleteCoffret() {
   return useMutation({
     mutationFn: async (coffretId) => {
-      await axios.delete(`/api/user/coffrets/${coffretId}`);
+      await enqueueCoffretDelete(coffretId);
       return coffretId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["coffrets", mal_id] });
-      queryClient.invalidateQueries({ queryKey: ["volumes", mal_id] });
     },
   });
 }
