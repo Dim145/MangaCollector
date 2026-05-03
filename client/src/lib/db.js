@@ -276,6 +276,45 @@ db.version(12).stores({
   snapshots: "id, taken_at",
 });
 
+// v13 — coffrets + per-volume cover map cache.
+//
+// 盒 · `coffrets` mirrors the per-series boxset rows from
+// `/api/user/library/{mal_id}/coffrets`. Keyed by `id` (server PK)
+// with a secondary index on `mal_id` so the MangaPage can resolve
+// the boxsets for one series in a single index probe. Read-only
+// client cache — create / update / delete remain online-only by
+// design (the server's bulk-volume mutations don't replay cleanly
+// through an outbox).
+//
+// 巻 · `volumeCoverMaps` caches the per-volume MangaDex cover map
+// returned by `/api/user/library/{mal_id}/volume-covers`. One row
+// per series keyed by `mal_id` — the response shape is a
+// `{ [vol_num]: url }` blob, small enough to store as a single
+// row. Image bytes themselves are SW-cached via the
+// `mangadex-covers` runtime rule, so the gallery offline-renders
+// without IndexedDB blob shuttling.
+db.version(13).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+  coffrets: "id, mal_id",
+  volumeCoverMaps: "mal_id, ts",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 
@@ -382,6 +421,39 @@ export async function cacheSnapshots(snapshots) {
 export async function readSnapshots() {
   const rows = await db.snapshots.orderBy("taken_at").reverse().toArray();
   return rows;
+}
+
+/**
+ * 盒 · Replace the cached coffret rows for one series. Same
+ * clear-then-bulkPut shape as `cacheVolumesForManga` so a coffret
+ * the server no longer reports vanishes from the local cache too
+ * (covers the post-delete reconciliation path).
+ */
+export async function cacheCoffretsForManga(mal_id, coffrets) {
+  if (mal_id == null) return;
+  await db.transaction("rw", db.coffrets, async () => {
+    await db.coffrets.where("mal_id").equals(mal_id).delete();
+    if (coffrets?.length) {
+      await db.coffrets.bulkPut(
+        coffrets.map((c) => ({ ...c, mal_id })),
+      );
+    }
+  });
+}
+
+/**
+ * 巻 · Cache the per-volume cover map for one series. The map
+ * itself is `{ [vol_num]: url }`; we wrap it with the mal_id
+ * primary key + a `ts` so a future eviction policy has the
+ * timestamp on hand.
+ */
+export async function cacheVolumeCoverMap(mal_id, covers) {
+  if (mal_id == null) return;
+  await db.volumeCoverMaps.put({
+    mal_id,
+    covers: covers ?? {},
+    ts: Date.now(),
+  });
 }
 
 export async function readSettings() {
