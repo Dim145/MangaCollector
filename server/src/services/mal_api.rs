@@ -4,6 +4,7 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 use crate::services::cache::CacheStore;
+use crate::util::url::build_url;
 
 /// Per-call timeout for Jikan requests served on a user-facing path
 /// (manga detail / pictures look-ups invoked from a request handler).
@@ -96,9 +97,18 @@ pub async fn get_manga_from_mal(
             return Ok(cached);
         }
 
-    let url = format!("https://api.jikan.moe/v4/manga/{}/full", mal_id);
+    // 安 · URL built through `Url::path_segments_mut` so CodeQL's
+    // `rust/request-forgery` taint analysis sees the sanitizer.
+    // `mal_id` is `i32` — `Display` only emits digits, so this is
+    // safe in practice; the builder is defence in depth (and would
+    // remain correct if the param ever became user-controlled text).
+    let url = build_url(
+        "https://api.jikan.moe/v4/manga",
+        &[&mal_id.to_string(), "full"],
+    )
+    .map_err(|e| anyhow::anyhow!("MAL URL build: {e}"))?;
     let response = client
-        .get(&url)
+        .get(url)
         .timeout(USER_FACING_FETCH_TIMEOUT)
         .send()
         .await
@@ -142,9 +152,13 @@ pub async fn get_pictures(
             return Ok(cached);
         }
 
-    let url = format!("https://api.jikan.moe/v4/manga/{}/pictures", mal_id);
+    let url = build_url(
+        "https://api.jikan.moe/v4/manga",
+        &[&mal_id.to_string(), "pictures"],
+    )
+    .map_err(|e| anyhow::anyhow!("MAL pictures URL build: {e}"))?;
     let response = client
-        .get(&url)
+        .get(url)
         .timeout(USER_FACING_FETCH_TIMEOUT)
         .send()
         .await

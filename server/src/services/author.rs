@@ -31,6 +31,7 @@ use serde::Deserialize;
 
 use crate::db::Db;
 use crate::errors::AppError;
+use crate::util::url::build_url;
 use crate::models::author::{
     self, AUTHOR_ABOUT_MAX_LEN, AUTHOR_NAME_MAX_LEN, ActiveModel, AuthorDetail,
     Entity as AuthorEntity,
@@ -174,9 +175,15 @@ async fn fetch_and_upsert_shared(
     http: &reqwest::Client,
     mal_id: i32,
 ) -> Result<Option<AuthorDetail>, AppError> {
-    let url = format!("https://api.jikan.moe/v4/people/{}/full", mal_id);
+    // 安 · URL constructed via `Url::path_segments_mut` so CodeQL's
+    // request-forgery taint analysis sees the sanitizer (i32 Display
+    // only emits digits, but the builder is defence in depth).
+    let url = build_url(
+        "https://api.jikan.moe/v4/people",
+        &[&mal_id.to_string(), "full"],
+    )?;
     let resp = http
-        .get(&url)
+        .get(url)
         .timeout(FETCH_TIMEOUT)
         .send()
         .await
