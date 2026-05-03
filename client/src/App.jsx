@@ -29,6 +29,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import DefaultBackground from "@/components/DefaultBackground.jsx";
 import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
+import UpdatePrompt from "@/components/UpdatePrompt.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import MangaPageSkeleton from "@/components/MangaPageSkeleton.jsx";
@@ -553,6 +554,13 @@ export default function App() {
       <I18nBoundary>
         <SettingsProvider>
           <AppShell />
+          {/* 更 · Service-worker update banner. Mounted as a
+              sibling of AppShell so it survives every route
+              change and stays anchored bottom-right regardless
+              of the page layout. The component self-hides when
+              there's nothing to prompt — zero visual cost in
+              the steady state. */}
+          <UpdatePrompt />
         </SettingsProvider>
       </I18nBoundary>
     </QueryClientProvider>

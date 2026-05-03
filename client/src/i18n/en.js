@@ -1925,6 +1925,15 @@ export default {
       "No owned-but-unread volumes. Either you've devoured the lot, or you've trimmed the shelf — both deserve a seal.",
     backToDashboard: "Back to dashboard",
   },
+  update: {
+    aria: "Update available",
+    kicker: "UPDATE · 更",
+    title: "A new version is ready",
+    body:
+      "A new build of the app is available. Reload to switch over now, or come back to it later.",
+    reloadAction: "Reload now",
+    laterAction: "Later",
+  },
   collection: {
     empty: "Empty catalogue",
     notFound: "No {kind} {name} series in your archive",

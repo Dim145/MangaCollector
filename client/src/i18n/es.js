@@ -1936,6 +1936,15 @@ export default {
       "Ningún tomo sin leer. Lo has devorado todo, o has aligerado la estantería — ambos merecen un sello.",
     backToDashboard: "Volver al dashboard",
   },
+  update: {
+    aria: "Actualización disponible",
+    kicker: "ACTUALIZACIÓN · 更",
+    title: "Una nueva versión está lista",
+    body:
+      "Una nueva versión de la app está disponible. Recargar para cambiar, o vuelve más tarde a tu ritmo.",
+    reloadAction: "Recargar ahora",
+    laterAction: "Más tarde",
+  },
   collection: {
     empty: "Catálogo vacío",
     notFound: "No hay series {kind} {name} en tu archivo",

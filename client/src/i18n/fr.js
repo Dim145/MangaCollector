@@ -1960,6 +1960,15 @@ export default {
       "Aucun tome possédé non lu. Soit vous avez tout dévoré, soit vous avez allégé l'étagère — les deux méritent un sceau.",
     backToDashboard: "Retour au tableau de bord",
   },
+  update: {
+    aria: "Mise à jour disponible",
+    kicker: "MISE À JOUR · 更",
+    title: "Une nouvelle version est prête",
+    body:
+      "Une nouvelle version de l'application est disponible. Recharger pour basculer dessus, ou plus tard à votre convenance.",
+    reloadAction: "Recharger maintenant",
+    laterAction: "Plus tard",
+  },
   collection: {
     empty: "Catalogue vide",
     notFound: "Aucune série {kind} {name} dans votre archive",
