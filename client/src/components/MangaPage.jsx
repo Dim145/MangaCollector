@@ -844,7 +844,10 @@ export default function MangaPage({ manga, adult_content_level }) {
               {/* 出版社 · Publisher / edition strip.
                   Read mode: a single quiet line "Glénat · Édition deluxe"
                   in mono micro — only rendered when at least one field is
-                  set, so an unedited series stays clean.
+                  set, so an unedited series stays clean. Each segment
+                  links to /publisher/:name or /edition/:name where the
+                  user sees every series in their library that shares
+                  that imprint / format.
                   Edit mode: two text inputs paired with a shared datalist
                   of common imprints so the user gets autocompletion
                   without any custom popup component. */}
@@ -853,13 +856,33 @@ export default function MangaPage({ manga, adult_content_level }) {
                   <span aria-hidden="true" className="font-jp text-xs text-hanko/70">
                     出版
                   </span>
-                  {publisher && <span className="text-washi-muted">{publisher}</span>}
+                  {publisher && (
+                    <Link
+                      to={`/publisher/${encodeURIComponent(publisher)}`}
+                      className="text-washi-muted underline-offset-2 transition hover:text-moegi hover:underline"
+                      aria-label={t("manga.publisherCollectionAria", {
+                        name: publisher,
+                      })}
+                    >
+                      {publisher}
+                    </Link>
+                  )}
                   {publisher && edition && (
                     <span aria-hidden="true" className="text-washi-dim">
                       ·
                     </span>
                   )}
-                  {edition && <span className="text-washi-muted italic">{edition}</span>}
+                  {edition && (
+                    <Link
+                      to={`/edition/${encodeURIComponent(edition)}`}
+                      className="italic text-washi-muted underline-offset-2 transition hover:text-moegi hover:underline"
+                      aria-label={t("manga.editionCollectionAria", {
+                        name: edition,
+                      })}
+                    >
+                      {edition}
+                    </Link>
+                  )}
                 </div>
               )}
               {/* 作家 · Read-only author display when not editing.

@@ -71,6 +71,7 @@ const AuthorPage = lazy(() => import("./components/AuthorPage.jsx"));
 const BacklogPage = lazy(() => import("./components/BacklogPage.jsx"));
 const SnapshotsPage = lazy(() => import("./components/SnapshotsPage.jsx"));
 const FriendsPage = lazy(() => import("./components/FriendsPage.jsx"));
+const CollectionPage = lazy(() => import("./components/CollectionPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -422,6 +423,28 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <FriendsPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 出版 · Per-publisher filtered library view. The slug
+                is the URL-encoded publisher string (free-text on
+                user_libraries.publisher); pure client-side filter. */}
+            <Route
+              path="/publisher/:name"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <CollectionPage kind="publisher" />
+                </ProtectedRoute>
+              }
+            />
+            {/* 版 · Per-edition filtered library view. Same shape
+                as /publisher/:name but filters on the `edition`
+                column (Standard / Kanzenban / Deluxe / etc.). */}
+            <Route
+              path="/edition/:name"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <CollectionPage kind="edition" />
                 </ProtectedRoute>
               }
             />
