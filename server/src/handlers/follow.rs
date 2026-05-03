@@ -11,6 +11,7 @@ use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::models::follow::{FeedEntry, FollowedUser};
 use crate::services::follow;
+use crate::services::realtime::SyncKind;
 use crate::state::AppState;
 
 /// GET /api/user/follows — list users the caller follows.
@@ -30,6 +31,7 @@ pub async fn follow_user(
     Path(slug): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     follow::follow_by_slug(&state.db, user.id, &slug).await?;
+    state.broker.publish(user.id, SyncKind::Friends).await;
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -40,6 +42,7 @@ pub async fn unfollow_user(
     Path(slug): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     follow::unfollow_by_slug(&state.db, user.id, &slug).await?;
+    state.broker.publish(user.id, SyncKind::Friends).await;
     Ok(Json(json!({ "ok": true })))
 }
 

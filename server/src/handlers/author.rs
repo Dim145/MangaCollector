@@ -11,6 +11,7 @@ use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::models::author::{AuthorDetail, CreateAuthorRequest, UpdateAuthorRequest};
 use crate::services::author;
+use crate::services::realtime::SyncKind;
 use crate::state::AppState;
 
 /// Photo size cap — same shape as the series-poster cap (5 MiB).
@@ -62,6 +63,7 @@ pub async fn create_author(
     Json(req): Json<CreateAuthorRequest>,
 ) -> Result<Json<AuthorDetail>, AppError> {
     let detail = author::create_custom_author(&state.db, user.id, req).await?;
+    state.broker.publish(user.id, SyncKind::Authors).await;
     Ok(Json(detail))
 }
 
@@ -71,10 +73,11 @@ pub async fn create_author(
 /// (custom authors have no upstream source).
 pub async fn refresh_author(
     State(state): State<AppState>,
-    AuthenticatedUser(_user): AuthenticatedUser,
+    AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
 ) -> Result<Json<AuthorDetail>, AppError> {
     let detail = author::refresh_shared_author(&state.db, &state.http_client, mal_id).await?;
+    state.broker.publish(user.id, SyncKind::Authors).await;
     detail
         .map(Json)
         .ok_or_else(|| AppError::NotFound("Author not found on MAL".into()))
@@ -89,6 +92,13 @@ pub async fn update_author(
     Json(req): Json<UpdateAuthorRequest>,
 ) -> Result<Json<AuthorDetail>, AppError> {
     let detail = author::update_custom_author(&state.db, user.id, mal_id, req).await?;
+    // Publish both: Authors so the AuthorPage cache evicts AND
+    // Library because `LibraryEntry.author` carries an embedded
+    // `{ id, mal_id, name }` ref — a name change must propagate
+    // to the byline rendered on every series the author was
+    // attributed to.
+    state.broker.publish(user.id, SyncKind::Authors).await;
+    state.broker.publish(user.id, SyncKind::Library).await;
     Ok(Json(detail))
 }
 
@@ -121,6 +131,11 @@ pub async fn delete_author(
             );
         }
     }
+    // Publish both kinds: Authors so the AuthorPage cache evicts,
+    // Library because deleting an author NULLs `user_libraries.author_id`
+    // for every series of THIS user that referenced it.
+    state.broker.publish(user.id, SyncKind::Authors).await;
+    state.broker.publish(user.id, SyncKind::Library).await;
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -196,6 +211,7 @@ pub async fn upload_author_photo(
     let public_url = format!("/api/authors/{}/photo", mal_id);
     let detail =
         author::set_custom_photo_url(&state.db, user.id, mal_id, Some(public_url)).await?;
+    state.broker.publish(user.id, SyncKind::Authors).await;
     Ok(Json(detail))
 }
 
@@ -214,6 +230,7 @@ pub async fn delete_author_photo(
     let key = author_photo_storage_path(user.id, mal_id);
     let _ = state.storage.remove(&key).await;
     let detail = author::set_custom_photo_url(&state.db, user.id, mal_id, None).await?;
+    state.broker.publish(user.id, SyncKind::Authors).await;
     Ok(Json(detail))
 }
 

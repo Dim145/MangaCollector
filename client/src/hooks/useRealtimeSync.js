@@ -33,6 +33,19 @@ const KIND_TO_KEYS = {
   settings: [["settings"], ["user-profile"]],
   seals: [["seals"]],
   activity: [["activity"]],
+  // 作家 · Author CRUD — invalidate every per-author detail
+  // query (AuthorPage reads `["author", malId]` keyed on each
+  // visited author). React Query treats `["author"]` as a
+  // prefix and matches every nested key.
+  authors: [["author"]],
+  // 印影 · Snapshot CRUD.
+  snapshots: [["snapshots"]],
+  // 友 · Follow graph mutation. Three keyed surfaces:
+  //   ["friends", "list"]      — the correspondents list
+  //   ["friends", "feed", N]   — the activity feed (per limit)
+  //   ["friends", "check", s]  — the per-slug FollowCTA state
+  // Prefix-invalidating with `["friends"]` covers all three.
+  friends: [["friends"]],
 };
 
 export function useRealtimeSync({ enabled = true } = {}) {

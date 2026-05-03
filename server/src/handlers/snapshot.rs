@@ -21,6 +21,7 @@ use serde_json::json;
 use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::models::snapshot::{CreateSnapshotRequest, SnapshotResponse};
+use crate::services::realtime::SyncKind;
 use crate::services::snapshot;
 use crate::state::AppState;
 
@@ -46,6 +47,7 @@ pub async fn create_snapshot(
     Json(req): Json<CreateSnapshotRequest>,
 ) -> Result<Json<SnapshotResponse>, AppError> {
     let res = snapshot::create(&state.db, user.id, req).await?;
+    state.broker.publish(user.id, SyncKind::Snapshots).await;
     Ok(Json(res))
 }
 
@@ -68,6 +70,7 @@ pub async fn delete_snapshot(
             );
         }
     }
+    state.broker.publish(user.id, SyncKind::Snapshots).await;
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -136,6 +139,7 @@ pub async fn upload_snapshot_image(
         .map_err(|e| AppError::Internal(format!("storage write: {e}")))?;
     let public_url = format!("/api/user/snapshots/{}/image", id);
     let res = snapshot::set_image_path(&state.db, user.id, id, Some(public_url)).await?;
+    state.broker.publish(user.id, SyncKind::Snapshots).await;
     Ok(Json(res))
 }
 
