@@ -87,8 +87,18 @@ export default defineConfig({
     tailwindcss(),
     i18nPreloadInjector(),
     VitePWA({
-      registerType: "autoUpdate",
-      injectRegister: "auto",
+      // 更 · `prompt` mode hands control of the SW activation to
+      // the SPA via `useRegisterSW`. We mount a `<UpdatePrompt>`
+      // banner that fires on `needRefresh` and lets the user
+      // reload at a convenient moment (rather than the previous
+      // `autoUpdate` behaviour, which silently swapped the SW
+      // and made the user discover the new code only on next hard
+      // refresh — too easy to keep running on stale assets).
+      // `cleanupOutdatedCaches` below still purges old workbox
+      // buckets the moment the new SW activates, so the
+      // transition is clean once the user clicks reload.
+      registerType: "prompt",
+      injectRegister: false,
       includeAssets: [
         "pwa-192x192.png",
         "pwa-512x512.png",
@@ -198,9 +208,15 @@ export default defineConfig({
       workbox: {
         // Precache the app shell (JS/CSS/HTML)
         globPatterns: ["**/*.{js,css,html,svg,png,jpg,webp,woff2}"],
-        // Skip the backend — we handle offline/sync at the app layer
+        // Skip the backend — we handle offline/sync at the app layer.
+        // The trailing slashes on each pattern matter: without them
+        // the regex `/^\/auth/` greedily matches `/author/-1` (the
+        // SPA's per-author route), kicking the navigation request
+        // back to the network and breaking offline reload of
+        // AuthorPage. Same defensive shape as the Traefik PathPrefix
+        // fix in `docker-compose.yml`.
         navigateFallback: "index.html",
-        navigateFallbackDenylist: [/^\/api/, /^\/auth/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/auth\//],
         // Drop runtime caches from prior deploys whose strategy or
         // version no longer matches this build. Without this, an old
         // bucket (different `cacheName`, retired URL pattern…) keeps
@@ -209,15 +225,19 @@ export default defineConfig({
         // there's no risk of nuking a still-valid bucket that happens
         // to share a substring of its name with the obsolete one.
         cleanupOutdatedCaches: true,
-        // Take control of any open tab as soon as a new SW is ready.
-        // Combined with `registerType: "autoUpdate"` above, this means
-        // a deploy doesn't wait for users to close every tab before
-        // their next request hits the new code paths. Trade-off: a
-        // request initiated mid-update is served by the new SW, so
-        // breaking changes to the runtime caching contract need a
-        // matching cleanup pass (covered by cleanupOutdatedCaches).
+        // Activation strategy paired with the `prompt` register type:
+        //   • `clientsClaim: true` — once the user accepts the
+        //     update prompt (which calls `updateServiceWorker(true)`
+        //     on the SPA side), the new SW immediately controls
+        //     every open tab. Without it, a partial reload would
+        //     leave some tabs on the old SW indefinitely.
+        //   • `skipWaiting: false` — DO NOT auto-activate the new
+        //     SW the moment it finishes installing. Wait for the
+        //     SPA to call `messageSkipWaiting()` via `updateServiceWorker(true)`.
+        //     This is the whole point of `prompt` mode: the user
+        //     decides when to swap.
         clientsClaim: true,
-        skipWaiting: true,
+        skipWaiting: false,
         runtimeCaching: [
           // Google Fonts stylesheets
           {
@@ -356,6 +376,27 @@ export default defineConfig({
               expiration: {
                 maxEntries: 300,
                 maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // 印影 · Snapshot images — `/api/user/snapshots/{id}/image`
+          // is a stable URL once the snapshot is created (the image
+          // never mutates: a new shelf state mints a new id, not a
+          // replacement). CacheFirst with a 1-year horizon means
+          // the gallery renders instantly on reload, AND viewing
+          // past prints offline works without our SPA having to
+          // shuttle blobs through Dexie ourselves. The matching
+          // listing payload is cached separately at the Dexie layer
+          // (db.snapshots).
+          {
+            urlPattern: /\/api\/user\/snapshots\/\d+\/image$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "snapshot-images",
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
               },
               cacheableResponse: { statuses: [0, 200] },
             },

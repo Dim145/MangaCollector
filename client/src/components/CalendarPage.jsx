@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import { useUpcomingCalendar } from "@/hooks/useUpcomingCalendar.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import { useT } from "@/i18n/index.jsx";
 
 // Lazy — only mounts the first time the user opens the modal.
@@ -77,8 +78,15 @@ export default function CalendarPage() {
   const trimmedQuery = query.trim().toLowerCase();
 
   // ── Data ────────────────────────────────────────────────────────
-  const { releases, isLoading, isError, refetch, isFetching } =
+  const { releases, isLoading, isError, refetch, isFetching, source } =
     useUpcomingCalendar({ from: range.from, until: range.until });
+
+  // 連 · Connectivity gate. Drives:
+  //   • the subscribe-button enabled state (ICS-token endpoint
+  //     requires a server round-trip — no offline analogue)
+  //   • the optional "served from cache" hint above the toolbar
+  //     when the live query failed but Dexie still has data
+  const online = useOnline();
 
   const filteredReleases = useMemo(() => {
     if (!trimmedQuery) return releases;
@@ -158,6 +166,27 @@ export default function CalendarPage() {
           </div>
         </header>
 
+        {/* 連 · Offline banner — surfaces ONLY when the live query
+            has nothing AND Dexie still does. The user is reading
+            stale data, which is fine for the calendar (a static
+            view of upcoming releases that already happened to be
+            captured) but worth flagging so a missing release isn't
+            mistaken for a cancellation. Suppressed when online to
+            stay quiet during the common case. */}
+        {!online && source === "cache" && (
+          <div
+            className="mb-4 flex items-center gap-2 rounded-xl border border-moegi/40 bg-moegi/5 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-moegi animate-fade-up"
+            role="status"
+            aria-live="polite"
+            style={{ animationDelay: "100ms" }}
+          >
+            <span aria-hidden="true" className="font-jp text-[12px] leading-none">
+              圏
+            </span>
+            <span>{t("calendar.servedFromCache")}</span>
+          </div>
+        )}
+
         {/* ── Toolbar (filters + view toggle + horizon) ─────────── */}
         <Toolbar
           view={view}
@@ -167,6 +196,7 @@ export default function CalendarPage() {
           windowMonths={windowMonths}
           setWindowMonths={setWindowMonths}
           isFetching={isFetching}
+          online={online}
           onRefetch={refetch}
           onSubscribe={() => setSubscribeOpen(true)}
           t={t}
@@ -225,6 +255,7 @@ function Toolbar({
   windowMonths,
   setWindowMonths,
   isFetching,
+  online = true,
   onRefetch,
   onSubscribe,
   t,
@@ -324,29 +355,53 @@ function Toolbar({
 
       {/* Subscribe — opens the ICS modal. Moegi-styled to align with
           the rest of the calendar's anticipation-tier vocabulary; the
-          tiny RSS-style glyph reads as "feed" without needing copy. */}
+          tiny RSS-style glyph reads as "feed" without needing copy.
+          ── Online gate ──
+          The subscribe modal mints a server-side ICS token (no
+          offline analogue: the calendar feed can be cached, but
+          minting the URL and emitting the bearer token both
+          require a live server). When `online === false`, the
+          button is disabled, swap to the offline glyph 圏 and the
+          tooltip explains why. */}
       <button
         type="button"
         onClick={onSubscribe}
-        title={t("calendar.subscribeTitle")}
-        aria-label={t("calendar.subscribeTitle")}
-        className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border border-moegi/40 bg-moegi/5 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-moegi-muted transition hover:border-moegi/70 hover:bg-moegi/15 hover:text-moegi"
+        disabled={!online}
+        title={
+          online
+            ? t("calendar.subscribeTitle")
+            : t("calendar.subscribeOfflineHint")
+        }
+        aria-label={
+          online
+            ? t("calendar.subscribeTitle")
+            : t("calendar.subscribeOfflineHint")
+        }
+        className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border border-moegi/40 bg-moegi/5 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-moegi-muted transition hover:border-moegi/70 hover:bg-moegi/15 hover:text-moegi disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-moegi/40 disabled:hover:bg-moegi/5 disabled:hover:text-moegi-muted"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-3.5 w-3.5"
-          aria-hidden="true"
-        >
-          <path d="M4 11a9 9 0 0 1 9 9" />
-          <path d="M4 4a16 16 0 0 1 16 16" />
-          <circle cx="5" cy="19" r="1" />
-        </svg>
-        <span className="hidden sm:inline">{t("calendar.subscribe")}</span>
+        {online ? (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-3.5 w-3.5"
+            aria-hidden="true"
+          >
+            <path d="M4 11a9 9 0 0 1 9 9" />
+            <path d="M4 4a16 16 0 0 1 16 16" />
+            <circle cx="5" cy="19" r="1" />
+          </svg>
+        ) : (
+          <span aria-hidden="true" className="font-jp text-[12px] leading-none">
+            圏
+          </span>
+        )}
+        <span className="hidden sm:inline">
+          {online ? t("calendar.subscribe") : t("calendar.subscribeOffline")}
+        </span>
       </button>
 
       {/* Refresh — explicit re-fetch (vs the nightly cron). Spinning
@@ -678,6 +733,12 @@ function MonthGrid({ label, kanji, releases, today, navigate, t }) {
   // a 7-column calendar grid with leading blank cells to align the
   // first row to the correct weekday.
   const grid = useMemo(() => buildMonthGrid(label, releases), [label, releases]);
+  // Memoise the locale-aware weekday header — without this, the
+  // 12-month window re-runs `Intl.DateTimeFormat` 7 × 12 = 84 times
+  // per render. Locale changes invalidate the cache via the empty
+  // deps `[]` boundary on the hook (the parent re-mounts on lang
+  // switch via the I18nProvider value identity).
+  const headers = useMemo(() => weekdayHeaders(), []);
 
   return (
     <section className="relative">
@@ -699,7 +760,7 @@ function MonthGrid({ label, kanji, releases, today, navigate, t }) {
 
       <div className="grid grid-cols-7 gap-1.5 rounded-2xl border border-border bg-ink-1/30 p-3 backdrop-blur-sm">
         {/* Weekday labels — locale-aware short form */}
-        {weekdayHeaders().map((d) => (
+        {headers.map((d) => (
           <div
             key={d}
             className="pb-1.5 text-center font-mono text-[9px] uppercase tracking-wider text-washi-dim"

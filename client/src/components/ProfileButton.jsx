@@ -142,7 +142,22 @@ export default function ProfileButton() {
           // claim a compositor pass for an effect the eye can't see.
           className="absolute right-0 mt-3 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2/96 shadow-2xl animate-slide-down"
         >
-          <div className="flex items-center gap-3 border-b border-border p-3">
+          {/* 個 · The user-info banner doubles as the entry point to
+              `/profile`. Previously the Statistics menu item was the
+              only path to it; now that Statistics has been repurposed
+              to point at /backlog, clicking the avatar+name strip is
+              how the user reaches their full profile (analytics, year-
+              in-review, snapshot, public-profile settings). Keeps
+              discoverability without adding a redundant menu row. */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              navigate("/profile");
+            }}
+            className="flex w-full items-center gap-3 border-b border-border p-3 text-left transition hover:bg-ink-1/60 focus-visible:bg-ink-1/60 focus-visible:outline-none"
+            aria-label={t("nav.openProfile")}
+          >
             <div
               className={`grid h-10 w-10 place-items-center overflow-hidden rounded-full font-display text-base font-bold text-ink-0 ${
                 avatarUrl
@@ -161,7 +176,7 @@ export default function ProfileButton() {
                 initial
               )}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-washi">
                 {user?.name ?? "Reader"}
               </p>
@@ -169,7 +184,13 @@ export default function ProfileButton() {
                 {t("nav.collector")}
               </p>
             </div>
-          </div>
+            <span
+              aria-hidden="true"
+              className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim"
+            >
+              →
+            </span>
+          </button>
 
           <ul className="flex flex-col py-1.5" role="none">
             <MenuItem
@@ -193,10 +214,17 @@ export default function ProfileButton() {
               }
               label={t("nav.library")}
             />
+            {/* 山積 · Backlog audit — replaces the previous "Statistics"
+                row that pointed at /profile. The full profile remains
+                reachable via the user-info banner above; this slot now
+                points at the dedicated reading-pile page where it lives
+                most naturally. Stacked-books icon (rectangles + line
+                stroke) replaces the earlier line-chart so the menu
+                doesn't read as "two analytics rows in a row". */}
             <MenuItem
               onClick={() => {
                 setIsOpen(false);
-                navigate("/profile");
+                navigate("/backlog");
               }}
               icon={
                 <svg
@@ -208,20 +236,22 @@ export default function ProfileButton() {
                   strokeLinejoin="round"
                   className="h-4 w-4"
                 >
-                  <path d="M3 3v18h18" />
-                  <path d="M7 14l4-4 4 4 5-5" />
+                  {/* Three stacked tomes — bottom widest, top thinnest */}
+                  <rect x="3" y="14" width="18" height="6" rx="1" />
+                  <rect x="5" y="8" width="14" height="6" rx="1" />
+                  <rect x="7" y="2" width="10" height="6" rx="1" />
                 </svg>
               }
-              label={t("nav.statistics")}
+              label={t("nav.backlog")}
             />
             {/* 印 · Seals (achievements / hanko-rewards) — moved here
                 from the top-level navbar to free up horizontal space.
-                Sits between Statistics and Settings because all three
+                Sits between Backlog and Settings because all three
                 are facets of "my own progression" rather than canonical
                 content; the seal panel is the most personal of the
-                three (your earned stamps), so keeping it next to Stats
-                preserves the natural reading order. Same SVG glyph as
-                before so muscle memory is preserved. */}
+                three (your earned stamps), so keeping it next to the
+                pile audit preserves the natural reading order. Same
+                SVG glyph as before so muscle memory is preserved. */}
             <MenuItem
               onClick={() => {
                 setIsOpen(false);

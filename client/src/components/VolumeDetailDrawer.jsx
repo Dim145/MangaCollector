@@ -61,6 +61,14 @@ export default function VolumeDetailDrawer({
   // 消 · Notify the parent that the row no longer exists so it can clean
   // up its own state (e.g. close the drawer, drop edit-mode flags).
   onAfterDelete,
+  // 預け · Loan-state overlay. The drawer doesn't manage the loan
+  // form itself — it surfaces a single chip that fires
+  // `onOpenLoanModal` so the parent can open the dedicated
+  // LoanModal. Optional: callers without loan UX leave it undefined
+  // and the chip stays hidden.
+  onOpenLoanModal,
+  loanedTo = null,
+  loanDueAt = null,
 }) {
   const t = useT();
   // useId() avoids the `drawer-price-undefined` collision custom volumes hit.
@@ -570,6 +578,25 @@ export default function VolumeDetailDrawer({
             onChange={setNote}
             t={t}
           />
+
+          {/* 預け · Loan chip. Appears in two states:
+              • lent → hanko-tinted band with borrower + due date,
+                clicking opens the LoanModal in edit mode
+              • not lent → muted "lend" CTA that opens the modal
+                with an empty form. Hidden entirely when the parent
+                doesn't pass `onOpenLoanModal`, when the volume is
+                upcoming (no real copy yet to lend), or when the
+                user doesn't currently own the tome (you can't lend
+                what isn't yours). The owned gate is symmetric with
+                the server's `set_loan` BadRequest. */}
+          {onOpenLoanModal && !isUpcoming && ownedStatus && (
+            <LoanChip
+              loanedTo={loanedTo}
+              loanDueAt={loanDueAt}
+              onOpen={onOpenLoanModal}
+              t={t}
+            />
+          )}
           </div>
         )}
 
@@ -663,6 +690,88 @@ function NoteField({ fieldId, value, onChange, t }) {
         {t("volume.noteHint")}
       </p>
     </div>
+  );
+}
+
+/**
+ * 預け · Inline loan-state chip rendered inside the volume drawer.
+ *
+ * Two visual states share the same band shape:
+ *   • lent (loanedTo set) → hanko-tinted, borrower name + due
+ *     date prominent, kanji 預 anchored on the left
+ *   • not lent → muted hairline border, mono-cap CTA
+ *
+ * Clicking the band fires `onOpen` so the parent surface (Volume.jsx)
+ * can mount the `LoanModal` over the drawer.
+ */
+function LoanChip({ loanedTo, loanDueAt, onOpen, t }) {
+  const isLent = Boolean(loanedTo);
+  const dueLabel = loanDueAt
+    ? new Date(loanDueAt).toLocaleDateString(undefined, {
+        day: "2-digit",
+        month: "short",
+        year: "2-digit",
+      })
+    : null;
+  const overdue =
+    loanDueAt && new Date(loanDueAt).getTime() < Date.now();
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`mt-4 group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+        isLent
+          ? overdue
+            ? "border-hanko/55 bg-hanko/10 hover:bg-hanko/15"
+            : "border-gold/45 bg-gold/8 hover:bg-gold/12"
+          : "border-dashed border-border bg-transparent hover:border-hanko/40 hover:bg-hanko/5"
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`grid h-9 w-9 shrink-0 place-items-center rounded-md font-jp text-base font-bold ${
+          isLent
+            ? overdue
+              ? "bg-hanko/20 text-hanko-bright"
+              : "bg-gold/15 text-gold"
+            : "border border-border text-washi-dim"
+        }`}
+      >
+        {isLent ? (overdue ? "過" : "預") : "貸"}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+          {isLent
+            ? overdue
+              ? t("loans.statusOverdue")
+              : t("loans.statusActive")
+            : t("loans.lendCtaKicker")}
+        </p>
+        {isLent ? (
+          <p className="mt-0.5 truncate font-display text-sm italic text-washi">
+            {loanedTo}
+            {dueLabel && (
+              <>
+                {" · "}
+                <span className="font-mono text-[11px] tabular-nums not-italic text-washi-muted">
+                  {t("loans.dueOn")} {dueLabel}
+                </span>
+              </>
+            )}
+          </p>
+        ) : (
+          <p className="mt-0.5 font-display text-sm italic text-washi-muted">
+            {t("loans.lendCtaTitle")}
+          </p>
+        )}
+      </div>
+      <span
+        aria-hidden="true"
+        className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim transition group-hover:translate-x-0.5 group-hover:text-washi"
+      >
+        →
+      </span>
+    </button>
   );
 }
 

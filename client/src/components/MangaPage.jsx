@@ -1,6 +1,6 @@
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
 import VolumeShelfTile from "./VolumeShelfTile.jsx";
@@ -39,6 +39,7 @@ import { useVolumesView } from "@/hooks/useVolumesView.js";
 import { useVolumeCovers } from "@/hooks/useVolumeCovers.js";
 import { useVolumePreviewController } from "@/hooks/useVolumePreviewController.js";
 import { useKnownPublishers } from "@/hooks/useKnownPublishers.js";
+import { useKnownAuthors } from "@/hooks/useKnownAuthors.js";
 import CoverPreview from "./ui/CoverPreview.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
@@ -96,6 +97,15 @@ export default function MangaPage({ manga, adult_content_level }) {
   // resolves, then keeps it synced through realtime pushes.
   const [publisher, setPublisher] = useState("");
   const [edition, setEdition] = useState("");
+  // 記憶 · Series-level review + public-visibility toggle. Same TDZ-
+  // avoiding seed-from-"" pattern as publisher/edition above; the
+  // effect a few lines below repopulates from the live Dexie row once
+  // it resolves.
+  const [review, setReview] = useState("");
+  const [reviewPublic, setReviewPublic] = useState(false);
+  // 作家 · Mangaka credit. MAL pre-fills it on add/refresh; users can
+  // override. Same seed-then-sync pattern as publisher.
+  const [author, setAuthor] = useState("");
 
   // 出版社 · Merge the static `PUBLISHER_PRESETS` with the user's own
   // history of typed publishers (pulled from every library row in
@@ -121,6 +131,28 @@ export default function MangaPage({ manga, adult_content_level }) {
     }
     return merged;
   }, [userPublishers]);
+
+  // 作家 · Same merge pattern for authors. Pulls every distinct
+  // mangaka the user has linked to a series in their library and
+  // surfaces them as datalist options on the author edit input. The
+  // hook returns frequency-sorted entries (most-collected mangaka
+  // first), so an existing entry naturally beats a fresh re-typing
+  // of the same name. No static preset list — author cardinality is
+  // user-specific by definition.
+  const userAuthors = useKnownAuthors();
+  const authorOptions = useMemo(() => {
+    const seen = new Set();
+    const merged = [];
+    for (const a of userAuthors ?? []) {
+      const name = a?.name;
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(name);
+    }
+    return merged;
+  }, [userAuthors]);
 
   const [showAddDropdown, setShowAddDropdown] = useState(false);
   const [addAvgPrice, setAddAvgPrice] = useState("");
@@ -253,14 +285,21 @@ export default function MangaPage({ manga, adult_content_level }) {
   }, [liveLibraryRow?.genres, isEditing]);
 
   useEffect(() => {
-    // Sync publisher / edition from the live row when not editing — same
-    // pattern as name / genres above, so an outbox flush or another tab's
-    // realtime push updates the read-only display immediately.
+    // Sync editable mirror fields from the live row when not
+    // editing — same pattern as name / genres above, so an outbox
+    // flush or another tab's realtime push updates the read-only
+    // display immediately. Watching `liveLibraryRow` directly (Dexie
+    // returns a new object reference on every update) is enough; the
+    // previous per-field deps array re-fired the effect on each
+    // sub-key change but did the same set of writes regardless.
     if (!isEditing) {
       setPublisher(liveLibraryRow?.publisher ?? "");
       setEdition(liveLibraryRow?.edition ?? "");
+      setReview(liveLibraryRow?.review ?? "");
+      setReviewPublic(Boolean(liveLibraryRow?.review_public));
+      setAuthor(liveLibraryRow?.author?.name ?? "");
     }
-  }, [liveLibraryRow?.publisher, liveLibraryRow?.edition, isEditing]);
+  }, [liveLibraryRow, isEditing]);
 
   useEffect(() => {
     if (liveLibraryRow?.image_url_jpg != null && !isEditing) {
@@ -315,11 +354,24 @@ export default function MangaPage({ manga, adult_content_level }) {
       // outbox enqueue; the server's sanitize_label finishes the job).
       const prevPublisher = liveLibraryRow?.publisher ?? "";
       const prevEdition = liveLibraryRow?.edition ?? "";
+      const prevReview = liveLibraryRow?.review ?? "";
+      const prevReviewPublic = Boolean(liveLibraryRow?.review_public);
+      const prevAuthor = liveLibraryRow?.author?.name ?? "";
       const nextPublisher = publisher.trim();
       const nextEdition = edition.trim();
+      const nextReview = review.trim();
+      const nextAuthor = author.trim();
       const metaPatch = {};
       if (nextPublisher !== prevPublisher) metaPatch.publisher = nextPublisher;
       if (nextEdition !== prevEdition) metaPatch.edition = nextEdition;
+      // The server treats `author` as free-text and resolves it to an
+      // `author_id` via `resolve_author_from_text` (find or create).
+      if (nextAuthor !== prevAuthor) metaPatch.author = nextAuthor;
+      // 記憶 · Same diff-then-patch contract as publisher/edition.
+      // The visibility flag rides separately so the user can flip the
+      // toggle without retyping the review text.
+      if (nextReview !== prevReview) metaPatch.review = nextReview;
+      if (reviewPublic !== prevReviewPublic) metaPatch.review_public = reviewPublic;
 
       // 自由 · Genres diff — only relevant for custom rows (the editor
       // is gated on the same condition; on a non-custom row `genres`
@@ -786,7 +838,10 @@ export default function MangaPage({ manga, adult_content_level }) {
               {/* 出版社 · Publisher / edition strip.
                   Read mode: a single quiet line "Glénat · Édition deluxe"
                   in mono micro — only rendered when at least one field is
-                  set, so an unedited series stays clean.
+                  set, so an unedited series stays clean. Each segment
+                  links to /publisher/:name or /edition/:name where the
+                  user sees every series in their library that shares
+                  that imprint / format.
                   Edit mode: two text inputs paired with a shared datalist
                   of common imprints so the user gets autocompletion
                   without any custom popup component. */}
@@ -795,37 +850,188 @@ export default function MangaPage({ manga, adult_content_level }) {
                   <span aria-hidden="true" className="font-jp text-xs text-hanko/70">
                     出版
                   </span>
-                  {publisher && <span className="text-washi-muted">{publisher}</span>}
+                  {publisher && (
+                    <Link
+                      to={`/publisher/${encodeURIComponent(publisher)}`}
+                      className="text-washi-muted underline-offset-2 transition hover:text-moegi hover:underline"
+                      aria-label={t("manga.publisherCollectionAria", {
+                        name: publisher,
+                      })}
+                    >
+                      {publisher}
+                    </Link>
+                  )}
                   {publisher && edition && (
                     <span aria-hidden="true" className="text-washi-dim">
                       ·
                     </span>
                   )}
-                  {edition && <span className="text-washi-muted italic">{edition}</span>}
+                  {edition && (
+                    <Link
+                      to={`/edition/${encodeURIComponent(edition)}`}
+                      className="italic text-washi-muted underline-offset-2 transition hover:text-moegi hover:underline"
+                      aria-label={t("manga.editionCollectionAria", {
+                        name: edition,
+                      })}
+                    >
+                      {edition}
+                    </Link>
+                  )}
                 </div>
               )}
+              {/* 作家 · Read-only author display when not editing.
+                  Clicking jumps to /author/:malId to see all your
+                  series by the same mangaka. Hidden when there's
+                  no author credit (custom row never refreshed via
+                  MAL, or upstream metadata didn't ship one).
+                  When `mal_id` is null we're in the brief
+                  optimistic-stub window between the user typing a
+                  name and the server resolving the FK — render the
+                  name flat (no link) until the next refetch lands. */}
+              {!isEditing && liveLibraryRow?.author?.name && (
+                <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.22em] text-washi-muted">
+                  <span className="text-washi-dim">{t("manga.byAuthor")}</span>{" "}
+                  {liveLibraryRow.author.mal_id != null ? (
+                    <Link
+                      to={`/author/${liveLibraryRow.author.mal_id}`}
+                      className="text-hanko-bright transition hover:text-hanko"
+                    >
+                      {liveLibraryRow.author.name}
+                    </Link>
+                  ) : (
+                    <span className="text-hanko-bright">
+                      {liveLibraryRow.author.name}
+                    </span>
+                  )}
+                </p>
+              )}
               {isEditing && (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <PublisherEditionField
-                    id="manga-publisher"
-                    label={t("manga.publisherLabel")}
-                    placeholder={t("manga.publisherPlaceholder")}
-                    value={publisher}
-                    onChange={setPublisher}
-                    listId="mc-publisher-list"
-                    maxLength={80}
-                    options={publisherOptions}
-                  />
-                  <PublisherEditionField
-                    id="manga-edition"
-                    label={t("manga.editionLabel")}
-                    placeholder={t("manga.editionPlaceholder")}
-                    value={edition}
-                    onChange={setEdition}
-                    listId="mc-edition-list"
-                    maxLength={60}
-                    options={EDITION_PRESETS.map((key) => t(`manga.editionPreset_${key}`))}
-                  />
+                <>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <PublisherEditionField
+                      id="manga-publisher"
+                      label={t("manga.publisherLabel")}
+                      placeholder={t("manga.publisherPlaceholder")}
+                      value={publisher}
+                      onChange={setPublisher}
+                      listId="mc-publisher-list"
+                      maxLength={80}
+                      options={publisherOptions}
+                    />
+                    <PublisherEditionField
+                      id="manga-edition"
+                      label={t("manga.editionLabel")}
+                      placeholder={t("manga.editionPlaceholder")}
+                      value={edition}
+                      onChange={setEdition}
+                      listId="mc-edition-list"
+                      maxLength={60}
+                      options={EDITION_PRESETS.map((key) => t(`manga.editionPreset_${key}`))}
+                    />
+                  </div>
+                  {/* 作家 · Author override with datalist autocomplete.
+                      The dropdown is sourced from the user's existing
+                      authors (`useKnownAuthors`) so picking an entry
+                      reuses the canonical name → server's
+                      `resolve_author_from_text` matches the existing
+                      row instead of minting a duplicate custom author.
+                      Free-text input still works for new mangaka the
+                      user hasn't recorded yet. */}
+                  <div className="mt-3">
+                    <label
+                      htmlFor="manga-author"
+                      className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim"
+                    >
+                      {t("manga.authorLabel")}
+                    </label>
+                    <input
+                      id="manga-author"
+                      type="text"
+                      value={author}
+                      onChange={(e) => setAuthor(e.target.value)}
+                      placeholder={t("manga.authorPlaceholder")}
+                      list="mc-author-list"
+                      maxLength={120}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+                    />
+                    <datalist id="mc-author-list">
+                      {authorOptions.map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  {/* 記憶 · Series-level review. Sits below the
+                      publisher/edition row because it's a longer
+                      input that benefits from full-width and a
+                      separate visual block. The public toggle is
+                      inline with the label so the user can flip
+                      visibility without scrolling. */}
+                  <div className="mt-4">
+                    <div className="mb-1.5 flex items-center justify-between gap-3">
+                      <label
+                        htmlFor="manga-review"
+                        className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim"
+                      >
+                        {t("manga.reviewLabel")}
+                      </label>
+                      <label
+                        htmlFor="manga-review-public"
+                        className="inline-flex cursor-pointer items-center gap-2 text-[11px] text-washi-muted transition hover:text-washi"
+                      >
+                        <input
+                          id="manga-review-public"
+                          type="checkbox"
+                          checked={reviewPublic}
+                          onChange={(e) => setReviewPublic(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-border bg-ink-0 text-hanko focus:ring-hanko/40"
+                        />
+                        <span className="font-mono text-[10px] uppercase tracking-[0.2em]">
+                          {t("manga.reviewPublicLabel")}
+                        </span>
+                      </label>
+                    </div>
+                    <textarea
+                      id="manga-review"
+                      value={review}
+                      onChange={(e) => setReview(e.target.value)}
+                      placeholder={t("manga.reviewPlaceholder")}
+                      maxLength={5000}
+                      rows={4}
+                      className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 font-sans text-sm leading-relaxed text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+                    />
+                    {review.length > 0 && (
+                      <p className="mt-1 text-right font-mono text-[10px] text-washi-dim">
+                        {review.length} / 5000
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+              {/* 記憶 · Read-only review block (only when there's
+                  something to show). The italic display matches the
+                  publisher/edition byline a few lines above, so the
+                  page reads as a coherent editorial layout rather
+                  than a stack of distinct cards. */}
+              {!isEditing && review && (
+                <div className="mt-5 rounded-xl border border-border/70 bg-ink-1/40 p-4 backdrop-blur">
+                  <div className="mb-2 flex items-baseline gap-2">
+                    <span className="font-jp text-sm font-bold text-hanko-bright">
+                      記憶
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+                      {t("manga.reviewHeader")}
+                    </span>
+                    {reviewPublic && (
+                      <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-hanko/80">
+                        · {t("manga.reviewPublicMark")}
+                      </span>
+                    )}
+                  </div>
+                  <p className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-washi">
+                    {review}
+                  </p>
                 </div>
               )}
 
@@ -1105,9 +1311,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <button
                   type="button"
                   onClick={() => setCoffretModalOpen(true)}
-                  disabled={!online}
-                  title={!online ? t("coffret.offlineHint") : undefined}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-washi/30 bg-washi/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-washi/60 hover:bg-washi/10 hover:text-washi active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-washi/30 bg-washi/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi-muted transition hover:border-washi/60 hover:bg-washi/10 hover:text-washi active:scale-95"
                 >
                   <span
                     aria-hidden="true"
@@ -1160,6 +1364,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                           coverUrl={volumeCoverMap?.[vol.vol_num]}
                           blurImage={isBlurred}
                           note={vol.notes}
+                          loanedTo={vol.loaned_to}
+                          loanDueAt={vol.loan_due_at}
                           locked
                         />
                       ) : (
@@ -1179,6 +1385,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                           releaseUrl={vol.release_url}
                           origin={vol.origin}
                           announcedAt={vol.announced_at}
+                          loanedTo={vol.loaned_to}
+                          loanDueAt={vol.loan_due_at}
                           locked
                           onUpdate={volumeUpdateCallback}
                           onEditUpcoming={(volData) => {
@@ -1214,6 +1422,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                           releaseDate={vol.release_date}
                           coverUrl={volumeCoverMap?.[vol.vol_num]}
                           blurImage={isBlurred}
+                          loanedTo={vol.loaned_to}
+                          loanDueAt={vol.loan_due_at}
                         />
                       ) : (
                         <Volume
@@ -1232,6 +1442,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                           releaseUrl={vol.release_url}
                           origin={vol.origin}
                           announcedAt={vol.announced_at}
+                          loanedTo={vol.loaned_to}
+                          loanDueAt={vol.loan_due_at}
                           onUpdate={volumeUpdateCallback}
                           onEditUpcoming={(volData) => {
                             setEditingUpcoming(volData);

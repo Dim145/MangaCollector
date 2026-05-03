@@ -46,6 +46,12 @@ export default function AddCoffretModal({
   // Re-seed fields every time the modal opens. AddCoffretModal stays
   // mounted across open toggles, so `useState` initialisers alone can't
   // pick up fresh prefill values from a new scan.
+  //
+  // eslint-disable react-hooks/exhaustive-deps — INTENTIONAL.
+  // We deliberately key on `open` only and read `prefill` /
+  // `totalVolumes` lazily. Including them in deps would re-run
+  // the effect every time the parent re-renders (and produces a
+  // new `prefill` object identity), nuking unsaved field edits.
   useEffect(() => {
     if (!open) return;
     setVolStart(prefill?.volStart ?? 1);
@@ -83,16 +89,12 @@ export default function AddCoffretModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (rangeInvalid || volumesCount === 0) return;
-    if (!online) {
-      // Coffret creation is online-only for now: the server atomically
-      // inserts the coffret row AND re-links every volume in the range
-      // (owned, price split, collector propagation). Queueing it would
-      // need a temp client-side coffret id and a full reconciliation
-      // pass on sync — deferred. Surface a clear message instead of
-      // letting the POST 0-hang-retry.
-      notifySyncError(t("coffret.offlineRequired"), "coffret-create");
-      return;
-    }
+    // 盒 · Offline submit is now supported via the coffret outbox.
+    // `enqueueCoffretCreate` mints a negative temp id, applies
+    // the volume bindings (owned + price split + store +
+    // collector) optimistically, and queues the POST for the
+    // next online sync — at which point the temp id is rekeyed
+    // to the server-issued real id everywhere it's referenced.
     try {
       await createCoffret.mutateAsync({
         name: effectiveName.trim() || autoName,
@@ -356,34 +358,20 @@ export default function AddCoffretModal({
               </button>
             </div>
           )}
-          {/* Offline notice — coffret creation is online-only (server
-              atomic transaction over coffret row + N volume rows, not
-              currently outbox-queueable without a temp-id reconciliation
-              pass). Explain rather than fail silently. */}
+          {/* Offline notice — coffret creation now goes through the
+              outbox (`enqueueCoffretCreate`). We still surface a
+              quiet hint when offline so the user understands the
+              save is queued rather than instantly server-confirmed,
+              but the submit is allowed to proceed. */}
           {!online && (
             <div
               role="status"
-              className="mb-3 flex items-start gap-2 rounded-md border border-hanko/30 bg-hanko/5 px-3 py-2 text-[11px] text-hanko-bright"
+              className="mb-3 flex items-start gap-2 rounded-md border border-moegi/30 bg-moegi/5 px-3 py-2 text-[11px] text-moegi"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                aria-hidden="true"
-              >
-                <path d="M1 1l22 22" />
-                <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
-                <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
-                <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
-                <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
-                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-                <line x1="12" y1="20" x2="12.01" y2="20" />
-              </svg>
-              <span>{t("coffret.offlineRequired")}</span>
+              <span aria-hidden="true" className="mt-0.5 font-jp text-[12px] not-italic leading-none">
+                圏
+              </span>
+              <span>{t("coffret.offlineQueued")}</span>
             </div>
           )}
 
@@ -402,10 +390,8 @@ export default function AddCoffretModal({
               disabled={
                 createCoffret.isPending ||
                 rangeInvalid ||
-                volumesCount === 0 ||
-                !online
+                volumesCount === 0
               }
-              title={!online ? t("coffret.offlineRequired") : undefined}
               className="relative flex-1 overflow-hidden rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi shadow-md transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {createCoffret.isPending

@@ -17,6 +17,7 @@ export {
   notifySyncError,
   onSyncInfo,
   notifySyncInfo,
+  onSyncEvent,
 } from "./sync/events.js";
 
 export {
@@ -30,6 +31,11 @@ export {
   enqueueVolumeUpdate,
   enqueueSettingsUpdate,
   enqueueBulkMark,
+  enqueueAuthorUpdate,
+  enqueueAuthorDelete,
+  enqueueCoffretCreate,
+  enqueueCoffretUpdate,
+  enqueueCoffretDelete,
   syncOutbox,
   triggerSync,
   forceResyncFromServer,

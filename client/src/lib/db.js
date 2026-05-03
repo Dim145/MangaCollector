@@ -176,6 +176,223 @@ db.version(9).stores({
   streak: "key",
 });
 
+// v10 — author detail cache + offline CRUD outbox.
+//
+// 作家 · `authors` mirrors the AuthorDetail payload from
+// `/api/authors/{mal_id}` keyed by mal_id (positive for shared
+// MAL rows, negative for custom rows owned by the caller). The
+// AuthorPage reads from this store via useLiveQuery so an offline
+// edit reflects immediately.
+//
+// `outboxAuthors` queues PATCH (edit name/about) and DELETE ops
+// for custom authors. Single-key by mal_id matches the per-author
+// merge semantics of the library outbox: a fresh edit on the same
+// author replaces the pending payload rather than stacking. Photo
+// upload/delete + create + refresh stay online-only — they involve
+// either binary blobs or upstream Jikan calls that don't replay
+// cleanly through an outbox.
+db.version(10).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+});
+
+// v11 — calendar upcoming-releases cache.
+//
+// 暦 · `calendarUpcoming` keys each range-scoped response by a
+// composite `${from}__${until}` string. Distinct from a SeaORM-
+// style "one row per resource" because the calendar resource IS
+// the range — the same dataset answers the same `(from, until)`
+// pair forever. Read-only on the client (no outbox), so this is
+// purely a service-worker-equivalent stale cache that lets the
+// CalendarPage render the user's planned acquisitions when the
+// server is unreachable. The companion `cacheCalendarUpcoming` /
+// `readCalendarUpcoming` helpers in this file write/read by key.
+db.version(11).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+});
+
+// v12 — snapshot list cache.
+//
+// 印影 · `snapshots` mirrors the per-row payload of
+// `/api/user/snapshots`. Each row is keyed by its `id` (the
+// server-issued PK) and the secondary index on `taken_at` lets
+// the gallery sort newest-first without an in-memory pass.
+//
+// The image PAYLOADS aren't kept in this table — they're cached
+// at the service-worker layer via a dedicated CacheFirst rule on
+// `/api/user/snapshots/:id/image`. Storing 1080×1350 PNGs in
+// IndexedDB is feasible but doubles the bytes (browser already
+// caches the network response in the SW cache); the SW path also
+// gives the browser-managed eviction we want.
+//
+// Read-only client cache: capture / delete / retry-upload are
+// mutations that need a live server (id minting + S3 multipart),
+// so there's no outbox to add here.
+db.version(12).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+});
+
+// v13 — coffrets + per-volume cover map cache.
+//
+// 盒 · `coffrets` mirrors the per-series boxset rows from
+// `/api/user/library/{mal_id}/coffrets`. Keyed by `id` (server PK)
+// with a secondary index on `mal_id` so the MangaPage can resolve
+// the boxsets for one series in a single index probe. Read-only
+// client cache — create / update / delete remain online-only by
+// design (the server's bulk-volume mutations don't replay cleanly
+// through an outbox).
+//
+// 巻 · `volumeCoverMaps` caches the per-volume MangaDex cover map
+// returned by `/api/user/library/{mal_id}/volume-covers`. One row
+// per series keyed by `mal_id` — the response shape is a
+// `{ [vol_num]: url }` blob, small enough to store as a single
+// row. Image bytes themselves are SW-cached via the
+// `mangadex-covers` runtime rule, so the gallery offline-renders
+// without IndexedDB blob shuttling.
+db.version(13).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+  coffrets: "id, mal_id",
+  volumeCoverMaps: "mal_id, ts",
+});
+
+// v14 — coffret CRUD outbox (offline-capable boxset operations).
+//
+// 盒 · `outboxCoffrets` queues create / update / delete ops keyed
+// by coffret `id`. The id is the same across local optimistic
+// state and the outbox: real positive PKs for already-synced
+// rows, negative timestamps (`-Date.now()`) for rows minted
+// offline that haven't reached the server yet.
+//
+// Coalesce semantics (one slot per id):
+//   • create then update → merge update into create payload
+//   • create then delete → drop both ops (the row never reached
+//     the server; un-link volumes locally)
+//   • update then update → merge patches
+//   • update then delete → replace with delete (terminal)
+//
+// On flush, a successful `create` returns the real positive id
+// from the server. The flush handler:
+//   1. Removes the temp coffret row from Dexie
+//   2. Inserts the real coffret row
+//   3. Re-keys volumes whose `coffret_id === temp_id` to the
+//      real id so the offline-applied bindings transfer
+//      cleanly
+db.version(14).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+  coffrets: "id, mal_id",
+  volumeCoverMaps: "mal_id, ts",
+  outboxCoffrets: "id, mal_id, ts",
+});
+
+// 友 · v15 — `friendsList` mirrors the response of GET
+// /api/user/follows so the correspondents rail stays readable
+// offline. The feed itself is online-only (freshness > availability)
+// but the list of who-you-follow is a relation graph the user
+// owns and benefits from seeing offline (e.g. to confirm a follow
+// landed before reconnecting).
+//
+// Single-row table keyed by the literal "user" — same convention
+// as `seals` and `settings`.
+db.version(15).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+  coffrets: "id, mal_id",
+  volumeCoverMaps: "mal_id, ts",
+  outboxCoffrets: "id, mal_id, ts",
+  friendsList: "key",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 
@@ -207,6 +424,114 @@ export async function cacheAllVolumes(volumes) {
 export async function cacheSettings(settings) {
   if (!settings) return;
   await db.settings.put({ key: SETTINGS_KEY, ...settings });
+}
+
+/**
+ * 作家 · Persist an AuthorDetail in Dexie. Stamps a `ts` so the
+ * SPA can later evict stale rows if needed; for now the cache is
+ * simple last-writer-wins. The `mal_id` is the primary key (server
+ * sends it on every detail payload).
+ */
+export async function cacheAuthor(detail) {
+  if (!detail || detail.mal_id == null) return;
+  await db.authors.put({ ...detail, ts: Date.now() });
+}
+
+/**
+ * 作家 · Drop a single author from the local cache. Called by the
+ * delete-author optimistic flow + the post-flush reconciliation.
+ */
+export async function dropCachedAuthor(mal_id) {
+  if (mal_id == null) return;
+  await db.authors.delete(mal_id);
+}
+
+/**
+ * 暦 · Build the composite cache key for a calendar-upcoming range.
+ * Both `from` and `until` may be null (server defaults to a 12-month
+ * window in that case) — `_default` then keys the catch-all entry.
+ */
+export function calendarUpcomingKey(from, until) {
+  const f = from ?? "_";
+  const u = until ?? "_";
+  if (f === "_" && u === "_") return "_default";
+  return `${f}__${u}`;
+}
+
+/**
+ * 暦 · Persist a `/api/user/calendar/upcoming` response keyed by
+ * the (from, until) range. Read-only client cache: subsequent
+ * offline visits to the same range get the last-known dataset
+ * via `useLiveQuery`. No eviction policy yet — the dataset per
+ * key is small (~bytes per entry × dozens of entries) and a
+ * single user typically navigates through few distinct ranges.
+ */
+export async function cacheCalendarUpcoming(from, until, payload) {
+  if (!payload) return;
+  await db.calendarUpcoming.put({
+    key: calendarUpcomingKey(from, until),
+    payload,
+    ts: Date.now(),
+  });
+}
+
+/** Read the cached payload for a (from, until) range. */
+export async function readCalendarUpcoming(from, until) {
+  const row = await db.calendarUpcoming.get(calendarUpcomingKey(from, until));
+  return row?.payload ?? null;
+}
+
+/**
+ * 印影 · Replace the snapshot list cache. The server returns rows
+ * sorted newest-first; we just bulkPut them and let the live query
+ * sort via the `taken_at` index. Clear-then-bulkPut over a partial
+ * merge so deletions land cleanly: a snapshot the server no
+ * longer reports vanishes from the local cache too.
+ */
+export async function cacheSnapshots(snapshots) {
+  await db.transaction("rw", db.snapshots, async () => {
+    await db.snapshots.clear();
+    if (snapshots?.length) await db.snapshots.bulkPut(snapshots);
+  });
+}
+
+/** Read every cached snapshot, newest-first. */
+export async function readSnapshots() {
+  const rows = await db.snapshots.orderBy("taken_at").reverse().toArray();
+  return rows;
+}
+
+/**
+ * 盒 · Replace the cached coffret rows for one series. Same
+ * clear-then-bulkPut shape as `cacheVolumesForManga` so a coffret
+ * the server no longer reports vanishes from the local cache too
+ * (covers the post-delete reconciliation path).
+ */
+export async function cacheCoffretsForManga(mal_id, coffrets) {
+  if (mal_id == null) return;
+  await db.transaction("rw", db.coffrets, async () => {
+    await db.coffrets.where("mal_id").equals(mal_id).delete();
+    if (coffrets?.length) {
+      await db.coffrets.bulkPut(
+        coffrets.map((c) => ({ ...c, mal_id })),
+      );
+    }
+  });
+}
+
+/**
+ * 巻 · Cache the per-volume cover map for one series. The map
+ * itself is `{ [vol_num]: url }`; we wrap it with the mal_id
+ * primary key + a `ts` so a future eviction policy has the
+ * timestamp on hand.
+ */
+export async function cacheVolumeCoverMap(mal_id, covers) {
+  if (mal_id == null) return;
+  await db.volumeCoverMaps.put({
+    mal_id,
+    covers: covers ?? {},
+    ts: Date.now(),
+  });
 }
 
 export async function readSettings() {

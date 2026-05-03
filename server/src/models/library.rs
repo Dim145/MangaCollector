@@ -25,6 +25,23 @@ pub struct Model {
     /// Free-text edition variant (Standard, Kanzenban, Deluxe…). Same
     /// validation contract as `publisher`.
     pub edition: Option<String>,
+    /// 記憶 Kioku · Free-text personal review of the series as a
+    /// whole. Distinct from per-volume `notes` — this is the user's
+    /// reflection on the work, not a per-tome data field. Capped at
+    /// 5 000 chars (mirrored in the textarea maxLength on the SPA).
+    pub review: Option<String>,
+    /// True iff `review` should be surfaced on the user's public
+    /// profile. NOT enough on its own — the user must also have a
+    /// `public_slug` set; the public-profile builder enforces both.
+    pub review_public: bool,
+    /// 作家 Sakka · FK reference into the normalised `authors` table.
+    /// Single source of truth for the author / mangaka credit:
+    ///   • Positive mal_id author → shared MAL row (user_id IS NULL)
+    ///   • Negative mal_id author → custom row owned by this user
+    /// NULL when the series has no recorded author yet. The previous
+    /// schema had both `author` (text) and `author_mal_id` (soft FK)
+    /// duplicated on every library row; this column replaces both.
+    pub author_id: Option<i32>,
 }
 
 /// Maximum byte length (after trim) for `publisher` / `edition`. Picked
@@ -32,6 +49,10 @@ pub struct Model {
 /// imprint names without letting a malicious client paste a megabyte.
 pub const PUBLISHER_MAX_LEN: usize = 80;
 pub const EDITION_MAX_LEN: usize = 60;
+/// Per-row review cap. 5 000 chars holds a comfortable few paragraphs
+/// while keeping the public profile rendering predictable. Mirrored in
+/// the SPA's textarea maxLength.
+pub const REVIEW_MAX_LEN: usize = 5_000;
 
 /// Per-genre length cap and per-row count cap, used by `sanitize_genres`.
 /// 40 chars is roomy enough for "Slice of Life" or "Comédie romantique"
@@ -95,7 +116,24 @@ pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
 
-/// API response shape — genres as Vec<String>
+/// 作家 · Embedded author summary on a LibraryEntry. Carries just
+/// enough info for the SPA to render the byline ("by X") and link
+/// to the author's monograph page. The full bio/photo lives on the
+/// authors table and is fetched on demand by /api/authors/{mal_id}.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthorRef {
+    /// Synthetic FK target — the authors.id PK. Lets the frontend
+    /// match library rows to author detail without round-tripping
+    /// the user_id (the route already implies the caller).
+    pub id: i32,
+    /// Routing identifier for the author detail page. Positive for
+    /// shared MAL rows, negative for custom rows.
+    pub mal_id: i32,
+    pub name: String,
+}
+
+/// API response shape — genres as Vec<String>, author embedded as
+/// a small reference object built by JOIN-in-memory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibraryEntry {
     pub id: i32,
@@ -111,6 +149,15 @@ pub struct LibraryEntry {
     pub mangadex_id: Option<String>,
     pub publisher: Option<String>,
     pub edition: Option<String>,
+    pub review: Option<String>,
+    pub review_public: bool,
+    /// Embedded author summary — None when the row has no recorded
+    /// author OR when the FK target was deleted. Constructed by the
+    /// service layer's enrichment pass (single batched lookup over
+    /// `authors WHERE id IN (collected_ids)`) — `From<Model>`
+    /// produces None and lets the caller fill it in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author: Option<AuthorRef>,
 }
 
 impl From<Model> for LibraryEntry {
@@ -138,8 +185,28 @@ impl From<Model> for LibraryEntry {
             mangadex_id: row.mangadex_id,
             publisher: row.publisher,
             edition: row.edition,
+            review: row.review,
+            review_public: row.review_public,
+            // Author is filled in by the service layer's enrichment
+            // pass — `From<Model>` alone can't JOIN. Default None
+            // here; the listing services collect distinct author_ids,
+            // batch-lookup, then attach AuthorRef.
+            author: None,
         }
     }
+}
+
+/// Build a LibraryEntry from a Model AND a pre-resolved author map.
+/// Single-row paths (add/update) call this directly; bulk paths
+/// (`get_user_library`) iterate after a single batched author fetch.
+pub fn entry_with_author(
+    row: Model,
+    author_lookup: &std::collections::HashMap<i32, AuthorRef>,
+) -> LibraryEntry {
+    let author = row.author_id.and_then(|id| author_lookup.get(&id)).cloned();
+    let mut entry: LibraryEntry = row.into();
+    entry.author = author;
+    entry
 }
 
 /// Request body for adding a manga to the library
@@ -163,6 +230,16 @@ pub struct AddLibraryRequest {
     pub publisher: Option<String>,
     #[serde(default)]
     pub edition: Option<String>,
+    /// 作家 · Optional MAL author id, surfaced by the MAL search
+    /// result when the picked manga ships with an author credit.
+    /// When present and positive, the service eagerly resolves it
+    /// to an `authors.id` (cache-aside via Jikan) and writes the
+    /// FK on the freshly-inserted row, so the user sees the author
+    /// on the manga page without first triggering a "refresh from
+    /// MAL". Absent / null / non-positive values leave `author_id`
+    /// NULL — the existing refresh path will populate it later.
+    #[serde(default)]
+    pub author_mal_id: Option<i32>,
 }
 
 /// Request body for adding an entry sourced from MangaDex (no MAL id).
@@ -222,6 +299,26 @@ pub struct UpdateLibraryRequest {
     /// can send `null` to clear all genres on a custom row.
     #[serde(default, deserialize_with = "deserialize_optional_genres")]
     pub genres: Option<Option<Vec<String>>>,
+    /// 記憶 · Personal review on the series. Three-state via
+    /// `Option<Option<String>>` exactly like `publisher` / `edition`:
+    ///   - field absent → leave the column untouched
+    ///   - `null` or `""` → clear the review
+    ///   - non-empty string → trim, clamp to `REVIEW_MAX_LEN`, persist
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub review: Option<Option<String>>,
+    /// `Some(true)`/`Some(false)` flips visibility, `None` leaves
+    /// alone. Plain `Option<bool>` (not nested) — the public flag is
+    /// boolean-valued, no "absent vs. null" distinction needed.
+    pub review_public: Option<bool>,
+    /// 作家 · Manual author override. Three-state shape mirrors
+    /// publisher/edition: omitted/null/value → leave/clear/set. The
+    /// service layer resolves the typed name to an `author_id`,
+    /// auto-creating a per-user custom row (negative mal_id) when no
+    /// existing author matches the trimmed name (case-insensitive).
+    /// Length-clamped at `AUTHOR_NAME_MAX_LEN` (160 chars) inside the
+    /// resolver.
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub author: Option<Option<String>>,
 }
 
 /// Three-state deserializer: omitted / null / value. Lets the handler

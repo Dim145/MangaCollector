@@ -5,6 +5,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::services::cache::CacheStore;
 
+/// Per-call timeout for Jikan requests served on a user-facing path
+/// (manga detail / pictures look-ups invoked from a request handler).
+/// The shared HTTP client has a 30s safety net but 30s on a user-
+/// facing endpoint is far too long; we tighten to 8s here so a Jikan
+/// blip surfaces quickly with a fallback rather than holding a
+/// connection.
+const USER_FACING_FETCH_TIMEOUT: Duration = Duration::from_secs(8);
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MalImages {
     pub jpg: Option<MalImageVariants>,
@@ -32,6 +40,23 @@ pub struct MalGenre {
     pub name: String,
 }
 
+/// 作家 · MAL author entry — shipped under `authors` on /full responses.
+///
+/// Multiple authors are common (writer + artist on shōnen, or
+/// `"Story by" / "Art by"` on collaborations); we collect them all
+/// but only the first non-empty `name` becomes the canonical
+/// `author` we persist. Both `mal_id` and `url` ride along so the
+/// caller can resolve the author detail page (`/api/authors/{id}`)
+/// and link out to MAL.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct MalAuthor {
+    #[serde(default)]
+    pub mal_id: Option<i32>,
+    pub name: String,
+    #[serde(default)]
+    pub url: Option<String>,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MalMangaData {
     pub mal_id: i32,
@@ -42,6 +67,11 @@ pub struct MalMangaData {
     pub genres: Option<Vec<MalGenre>>,
     pub explicit_genres: Option<Vec<MalGenre>>,
     pub demographics: Option<Vec<MalGenre>>,
+    /// `authors` from /v4/manga/{id}/full — array of name + role
+    /// pairs. Always Some on real responses, but defensive Option so
+    /// a flaky upstream doesn't break the deserializer.
+    #[serde(default)]
+    pub authors: Option<Vec<MalAuthor>>,
 }
 
 /// MAL metadata rarely changes — a 24h TTL is a good balance between
@@ -69,6 +99,7 @@ pub async fn get_manga_from_mal(
     let url = format!("https://api.jikan.moe/v4/manga/{}/full", mal_id);
     let response = client
         .get(&url)
+        .timeout(USER_FACING_FETCH_TIMEOUT)
         .send()
         .await
         .context("Failed to reach MAL API")?;
@@ -114,6 +145,7 @@ pub async fn get_pictures(
     let url = format!("https://api.jikan.moe/v4/manga/{}/pictures", mal_id);
     let response = client
         .get(&url)
+        .timeout(USER_FACING_FETCH_TIMEOUT)
         .send()
         .await
         .context("Failed to reach MAL pictures endpoint")?;

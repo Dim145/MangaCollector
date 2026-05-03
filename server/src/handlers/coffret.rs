@@ -1,12 +1,12 @@
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use serde_json::json;
 
 use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
-use crate::models::coffret::{CreateCoffretRequest, UpdateCoffretRequest};
+use crate::models::coffret::{Coffret, CreateCoffretRequest, UpdateCoffretRequest};
 use crate::services::coffret;
 use crate::services::realtime::SyncKind;
 use crate::state::AppState;
@@ -24,9 +24,9 @@ pub async fn list_for_manga(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Vec<Coffret>>, AppError> {
     let rows = coffret::list_for_manga(&state.db, user.id, mal_id).await?;
-    Ok(Json(serde_json::to_value(rows).unwrap()))
+    Ok(Json(rows))
 }
 
 /// POST /api/user/library/:mal_id/coffrets
@@ -35,10 +35,10 @@ pub async fn create(
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
     Json(body): Json<CreateCoffretRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Coffret>, AppError> {
     let row = coffret::create(&state.db, user.id, mal_id, &body).await?;
     publish_coffret_sync(&state, user.id).await;
-    Ok(Json(serde_json::to_value(row).unwrap()))
+    Ok(Json(row))
 }
 
 /// PATCH /api/user/coffrets/:id
@@ -47,10 +47,10 @@ pub async fn update(
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<i32>,
     Json(body): Json<UpdateCoffretRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Coffret>, AppError> {
     let row = coffret::update_by_id(&state.db, user.id, id, &body).await?;
     publish_coffret_sync(&state, user.id).await;
-    Ok(Json(serde_json::to_value(row).unwrap()))
+    Ok(Json(row))
 }
 
 /// DELETE /api/user/coffrets/:id

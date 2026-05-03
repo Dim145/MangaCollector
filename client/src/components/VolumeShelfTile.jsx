@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import CoverImage from "@/components/ui/CoverImage.jsx";
+import LoanStamp, { loanCoverFilter } from "@/components/ui/LoanStamp.jsx";
 import { useT } from "@/i18n/index.jsx";
 
 function VolumeShelfTileImpl({
@@ -12,6 +13,11 @@ function VolumeShelfTileImpl({
   blurImage = false,
   locked = false,
   note = null,
+  // 預け · Loan triplet — when `loanedTo` is non-null the cover
+  // gets a desaturating filter and a corner kanji stamp. Optional
+  // for legacy callers; absence collapses to plain rendering.
+  loanedTo = null,
+  loanDueAt = null,
 }) {
   const t = useT();
 
@@ -24,6 +30,7 @@ function VolumeShelfTileImpl({
   const isRead = Boolean(readAt);
   const isCollector = Boolean(collector);
   const hasNote = Boolean(note && String(note).trim());
+  const isLent = owned && !isUpcoming && Boolean(loanedTo);
 
   const altText = t("manga.coverAlt", { n: volNum });
 
@@ -48,6 +55,12 @@ function VolumeShelfTileImpl({
             ? "opacity-100"
             : "opacity-35 saturate-0 group-hover:opacity-50"
         }`}
+        // 預け · Loan-state desaturation. Applied at the wrapper
+        // level (vs. the inner img) so it composes cleanly with
+        // the existing opacity/saturate Tailwind classes above
+        // for the unowned branch — only one set of filters
+        // applies at a time since lent ⇒ owned.
+        style={isLent ? { filter: loanCoverFilter(loanedTo) } : undefined}
       >
         <CoverImage
           src={coverUrl}
@@ -77,7 +90,12 @@ function VolumeShelfTileImpl({
         </span>
       )}
 
-      {/* Upcoming takes precedence over collector when a tile is both. */}
+      {/* Upcoming takes precedence over collector when a tile is both.
+          When the volume is currently lent the loan stamp also lives
+          in the top-right corner; in that case we move the collector
+          (限) badge to the bottom-right so the two don't overlap.
+          Read (読) at top-left and the volNum chip at bottom-left
+          stay put — they're in clear corners. */}
       {isUpcoming ? (
         <span
           aria-label={t("manga.shelfBadgeUpcoming")}
@@ -91,12 +109,24 @@ function VolumeShelfTileImpl({
         owned && (
           <span
             aria-label={t("manga.shelfBadgeCollector")}
-            className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-sm bg-hanko/90 font-jp text-[10px] font-bold leading-none text-washi shadow-[0_0_6px_var(--hanko-glow)]"
+            className={`absolute grid h-5 w-5 place-items-center rounded-sm bg-hanko/90 font-jp text-[10px] font-bold leading-none text-washi shadow-[0_0_6px_var(--hanko-glow)] ${
+              isLent ? "right-1 bottom-7" : "right-1 top-1"
+            }`}
             style={{ transform: "rotate(6deg)" }}
           >
             限
           </span>
         )
+      )}
+
+      {/* 預け · Loan stamp — anchored top-right when not upcoming.
+          Pairs with the wrapper filter applied above. */}
+      {isLent && (
+        <LoanStamp
+          loanedTo={loanedTo}
+          loanDueAt={loanDueAt}
+          size="sm"
+        />
       )}
 
       {/* Locked + note glyphs share the bottom-right corner; offset

@@ -191,6 +191,12 @@ pub struct PublicLibraryEntry {
     /// `public_show_adult` — if the flag is off, adult entries are
     /// filtered out server-side and never reach this DTO.
     pub is_adult: bool,
+    /// 記憶 · The owner's personal review on this series. Only Some
+    /// when `library.review_public = true` AND the row carries a
+    /// non-empty review. Always None on private profiles or when the
+    /// review_public flag is off — no leakage path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review: Option<String>,
 }
 
 /// Derive the 2-character "hanko" stamp label shown on a user's profile

@@ -1,5 +1,11 @@
 import axios from "@/utils/axios.js";
-import { cacheLibrary, cacheVolumesForManga, cacheSettings, db } from "../db.js";
+import {
+  cacheCoffretsForManga,
+  cacheLibrary,
+  cacheSettings,
+  cacheVolumesForManga,
+  db,
+} from "../db.js";
 import { isFullyOnline, probeServer } from "../connectivity.js";
 import { queryClient } from "../queryClient.js";
 import { emitSyncError, notifyPendingChanged } from "./events.js";
@@ -24,13 +30,15 @@ let syncQueued = false;
 
 /** Count all pending ops across outbox tables. */
 export async function pendingCount() {
-  const [lib, vol, set, bulk] = await Promise.all([
+  const [lib, vol, set, bulk, authors, coffrets] = await Promise.all([
     db.outboxLibrary.count(),
     db.outboxVolumes.count(),
     db.outboxSettings.count(),
     db.outboxBulkMark.count(),
+    db.outboxAuthors.count(),
+    db.outboxCoffrets.count(),
   ]);
-  return lib + vol + set + bulk;
+  return lib + vol + set + bulk + authors + coffrets;
 }
 
 /*
@@ -95,13 +103,38 @@ export async function enqueueLibraryUpdateVolumes(mal_id, volumes) {
  * Length clamping is the server's job; we don't echo the cap here so
  * the two stay in sync via a single source of truth.
  */
+/**
+ * 像 · Cover URL whitelist. We accept either external HTTP(S) URLs
+ * (MAL CDN, MangaDex CDN) or in-app paths (`/api/...`). Any other
+ * scheme — `javascript:`, `data:`, `file:`, custom — is silently
+ * dropped so a hostile or malformed input can't ride into Dexie
+ * and reach the DOM through `<img src={poster}>`. React escapes
+ * the attribute value, so this is defence-in-depth, not the only
+ * line of defence — but Dexie persists across sessions and the
+ * server eventually mirrors what's there, so anything we let in
+ * here lives a long life.
+ */
+function isSafeImageRef(value) {
+  if (value == null) return true; // null clears the field — allowed
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed === "") return true;
+  if (trimmed.startsWith("/")) return true; // app-relative
+  return /^https?:\/\//i.test(trimmed);
+}
+
 export async function enqueueLibraryPatch(mal_id, fields) {
   // Normalise text fields once. `volumes` and `image_url_jpg` ride
   // through unchanged.
   const next = {};
   if ("volumes" in fields) next.volumes = fields.volumes;
-  if ("image_url_jpg" in fields) next.image_url_jpg = fields.image_url_jpg;
-  for (const key of ["publisher", "edition"]) {
+  if ("image_url_jpg" in fields) {
+    if (!isSafeImageRef(fields.image_url_jpg)) {
+      throw new Error("image_url_jpg must be a http(s) or app-relative URL");
+    }
+    next.image_url_jpg = fields.image_url_jpg;
+  }
+  for (const key of ["publisher", "edition", "review"]) {
     if (!(key in fields)) continue;
     const raw = fields[key];
     if (raw == null) {
@@ -110,6 +143,44 @@ export async function enqueueLibraryPatch(mal_id, fields) {
       const trimmed = String(raw).trim();
       next[key] = trimmed === "" ? null : trimmed;
     }
+  }
+  // 作家 · Author lives in two shapes:
+  //   • Outbox payload : free-text string (server resolves to FK)
+  //   • Dexie row      : `{ id, mal_id, name }` ref or null
+  // The user types text; we ship the text to the server but write a
+  // stub ref into Dexie so the optimistic read view (`row.author?.name`)
+  // doesn't see a raw string. The full ref (with id + mal_id) lands
+  // on the next refetchLibrary, replacing the stub.
+  // 作家 · `next.author` defaults to a stub `{ id, mal_id, name }`
+  // because the optimistic-read view in the SPA expects the object
+  // shape, not raw text. The stub is replaced inside the Dexie
+  // transaction below when the user re-types the SAME name we
+  // already have a FK for — avoiding a transient `id === null`
+  // flash that hides the row from `useKnownAuthors`.
+  let authorPayload;
+  let authorRequestedName = undefined;
+  if ("author" in fields) {
+    const raw = fields.author;
+    if (raw == null) {
+      next.author = null;
+      authorPayload = null;
+    } else {
+      const trimmed = String(raw).trim();
+      if (trimmed === "") {
+        next.author = null;
+        authorPayload = null;
+      } else {
+        next.author = { id: null, mal_id: null, name: trimmed };
+        authorPayload = trimmed;
+        authorRequestedName = trimmed;
+      }
+    }
+  }
+  // 公 · `review_public` is plain boolean — no trim/empty contract.
+  // Skip normalisation, just pass through (server treats null as "leave
+  // the flag alone" — see UpdateLibraryRequest::review_public).
+  if ("review_public" in fields) {
+    next.review_public = Boolean(fields.review_public);
   }
   // Genres ride as an array (not a comma-string). Server-side sanitize
   // (trim / dedup / cap) is the authoritative pass; we only do the
@@ -125,10 +196,28 @@ export async function enqueueLibraryPatch(mal_id, fields) {
           .filter((g, i, arr) => g.length > 0 && arr.indexOf(g) === i)
       : [];
   }
-  if (Object.keys(next).length === 0) return;
+  if (Object.keys(next).length === 0 && authorPayload === undefined) return;
+
+  // The outbox payload mirrors `next` for every field EXCEPT author —
+  // the server takes a free-text string and resolves the FK itself,
+  // so we strip the stub object and substitute the text variant.
+  const payloadDelta = { ...next };
+  if (authorPayload !== undefined) {
+    payloadDelta.author = authorPayload;
+  }
 
   await db.transaction("rw", db.library, db.outboxLibrary, async () => {
     const existing = await db.library.get(mal_id);
+    // Preserve the FK if the user re-typed an existing author's
+    // name (server will resolve to the same id; no need to flash
+    // a stub past the optimistic read).
+    if (
+      authorRequestedName !== undefined &&
+      existing?.author?.name === authorRequestedName &&
+      existing.author.id != null
+    ) {
+      next.author = existing.author;
+    }
     if (existing) {
       await db.library.put({ ...existing, ...next });
     }
@@ -138,7 +227,7 @@ export async function enqueueLibraryPatch(mal_id, fields) {
       payload: {},
       ts: Date.now(),
     };
-    current.payload = { ...current.payload, ...next };
+    current.payload = { ...current.payload, ...payloadDelta };
     // Preserve an in-flight `upsert` op (the row is being created),
     // otherwise this becomes a `patch` op so the flush handler treats
     // each field independently.
@@ -162,6 +251,9 @@ export async function enqueueLibraryPatch(mal_id, fields) {
  *   - nothing pending   → new `patch` op carrying only image_url_jpg
  */
 export async function enqueueLibraryPoster(mal_id, url) {
+  if (!isSafeImageRef(url)) {
+    throw new Error("poster URL must be a http(s) or app-relative URL");
+  }
   await db.transaction("rw", db.library, db.outboxLibrary, async () => {
     const existing = await db.library.get(mal_id);
     if (existing) {
@@ -221,10 +313,29 @@ export async function enqueueVolumeUpdate(volume) {
   // Translate the `read: boolean` flag from the call site into the
   // `read_at: iso|null` shape Dexie's live-query readers expect; the
   // matching server-side mapping lives in `services/volume.rs`.
-  const { read, ...rest } = volume;
+  // 預け · `loan` rides through unchanged — the optimistic Dexie row
+  // mirrors the loan triplet, the outbox payload carries the raw
+  // patch (null = return, { to, due_at } = lend / update).
+  const { read, loan, ...rest } = volume;
   const local = { ...rest };
   if (read !== undefined) {
     local.read_at = read ? new Date().toISOString() : null;
+  }
+  // Reflect the loan mutation onto the local row so live-query
+  // consumers (volume drawer, dashboard widget) update without
+  // waiting for a refetch.
+  if (loan !== undefined) {
+    if (loan === null) {
+      local.loaned_to = null;
+      local.loan_started_at = null;
+      local.loan_due_at = null;
+    } else if (loan && typeof loan.to === "string") {
+      local.loaned_to = loan.to;
+      // Don't overwrite an existing started_at — the server uses the
+      // same "preserve on edit" rule. We approximate locally by only
+      // stamping when there's nothing yet.
+      local.loan_due_at = loan.due_at ?? null;
+    }
   }
 
   await db.transaction("rw", db.volumes, db.outboxVolumes, async () => {
@@ -232,6 +343,16 @@ export async function enqueueVolumeUpdate(volume) {
     // the mutation didn't touch (e.g. user edits only `read` — we must
     // keep the existing price/store values intact in the local row).
     const existing = (await db.volumes.get(local.id)) ?? {};
+    // Loan stamp-on-first-lend: if local has a borrower set but no
+    // loan_started_at yet, mint one now. Mirrors the server's
+    // `existing.loan_started_at.is_none()` branch in `set_loan`.
+    if (
+      loan !== undefined &&
+      loan !== null &&
+      !existing.loan_started_at
+    ) {
+      local.loan_started_at = new Date().toISOString();
+    }
     await db.volumes.put({ ...existing, ...local });
 
     // Merge with any already-pending outbox op for this volume. The
@@ -264,6 +385,10 @@ export async function enqueueVolumeUpdate(volume) {
       // matching the server's leave-untouched contract.
       read: read !== undefined ? read : prev.read,
       notes: local.notes !== undefined ? local.notes : prev.notes,
+      // 預け · `loan` is optional like read/notes. Pass-through;
+      // `null` (return) is meaningfully different from `undefined`
+      // (don't touch), so use the `in` check rather than truthiness.
+      ...(loan !== undefined ? { loan } : "loan" in prev ? { loan: prev.loan } : {}),
     };
 
     await db.outboxVolumes.put({
@@ -302,6 +427,359 @@ export async function enqueueSettingsUpdate(settings) {
       ts: Date.now(),
     });
   });
+  notifyPendingChanged();
+  triggerSync();
+}
+
+/*
+ * ─── Author outbox ────────────────────────────────────────────────────────
+ *
+ * 作家 · Offline-first CRUD for custom authors. The flow:
+ *
+ *   1. The user opens an AuthorPage offline, hits "Modifier" and
+ *      submits the form. `enqueueAuthorUpdate` writes the new
+ *      `name` / `about` straight to the Dexie `authors` row so
+ *      the live-query consumers re-render with the edit applied.
+ *   2. The same call enqueues a single coalesced op into
+ *      `outboxAuthors`, keyed by mal_id. A second edit on the
+ *      same author replaces the pending payload (no stacking).
+ *   3. When connectivity returns, `flushAuthors` walks the queue
+ *      and fires PATCH/DELETE per row. Refetch of the affected
+ *      detail (and the library, on delete) happens after the
+ *      whole queue drains so the SPA reconciles to server truth.
+ *
+ * Photo upload/delete + create + refresh stay online-only:
+ *   - photo paths involve a multipart Blob that doesn't replay
+ *     cleanly through a JSON outbox
+ *   - create is no longer reachable from the SPA (the AuthorPage
+ *     trims the create CTA after the FK refactor — text-typed
+ *     authors get auto-created server-side via
+ *     `resolve_author_from_text` on the next library PATCH flush)
+ *   - refresh is a deliberate Jikan round-trip with no offline
+ *     analogue
+ *
+ * Conflict semantics: a PATCH then DELETE on the same author
+ * collapses to DELETE (the latest op wins via the put-by-key
+ * coalesce). A DELETE then PATCH stays a PATCH but will fail
+ * server-side (404) — the post-flush error path emits a syncError
+ * and re-fetches the author detail to reconcile.
+ */
+
+export async function enqueueAuthorUpdate({ mal_id, name, about }) {
+  if (mal_id == null) return;
+  await db.transaction("rw", db.authors, db.outboxAuthors, async () => {
+    const existing = (await db.authors.get(mal_id)) ?? {};
+    const next = { ...existing, mal_id };
+    if (name !== undefined) next.name = String(name).trim();
+    if (about !== undefined) {
+      const trimmed = about == null ? null : String(about).trim();
+      next.about = trimmed && trimmed.length > 0 ? trimmed : null;
+    }
+    next.ts = Date.now();
+    await db.authors.put(next);
+
+    const pending = await db.outboxAuthors.get(mal_id);
+    // If the previous op was a delete, the current edit
+    // implicitly cancels the delete (the user clicked "edit"
+    // BEFORE the delete had a chance to flush — they changed
+    // their mind). Replace with a fresh patch op.
+    const prevPayload =
+      pending?.op === "patch" ? (pending.payload ?? {}) : {};
+    const mergedPayload = {
+      ...prevPayload,
+      ...(name !== undefined ? { name: next.name } : {}),
+      ...(about !== undefined ? { about: next.about } : {}),
+    };
+    await db.outboxAuthors.put({
+      mal_id,
+      op: "patch",
+      payload: mergedPayload,
+      ts: Date.now(),
+    });
+  });
+  notifyPendingChanged();
+  triggerSync();
+}
+
+export async function enqueueAuthorDelete(mal_id) {
+  if (mal_id == null) return;
+  await db.transaction("rw", db.authors, db.outboxAuthors, async () => {
+    await db.authors.delete(mal_id);
+    // Whatever was queued before (patch or delete) is wholly
+    // superseded — a delete is terminal.
+    await db.outboxAuthors.put({
+      mal_id,
+      op: "delete",
+      payload: null,
+      ts: Date.now(),
+    });
+  });
+  notifyPendingChanged();
+  triggerSync();
+}
+
+/*
+ * ─── Coffret outbox ──────────────────────────────────────────────────────
+ *
+ * 盒 · Offline-capable boxset CRUD. Three ops, one slot per
+ * coffret id (real positive PK after sync, negative timestamp
+ * for offline-minted rows). The optimistic state mirrors the
+ * server's atomic create/delete contract:
+ *
+ *   • CREATE ─ optimistically inserts the temp coffret row in
+ *     Dexie + binds every volume in [vol_start, vol_end]:
+ *       owned = true
+ *       coffret_id = <temp_id>
+ *       price = total_price / volume_count (per-vol split)
+ *       store = coffret.store
+ *       collector = collector_flag
+ *     The flush handler POSTs to `/api/user/library/{mal_id}/coffrets`
+ *     and re-keys both the coffret row + the bound volumes from
+ *     the temp id to the server-issued real id.
+ *
+ *   • UPDATE ─ patches the coffret header (name / price / store).
+ *     Volumes are NOT re-touched — server-side update doesn't
+ *     redistribute the per-volume split (the user can edit per-
+ *     volume prices independently after coffret creation).
+ *
+ *   • DELETE ─ removes the coffret + clears `coffret_id` on the
+ *     volumes that were bound. If the coffret was offline-only
+ *     (still has a temp id), the create op is dropped without
+ *     ever touching the server.
+ *
+ * Coalesce table:
+ *   pending  + new      → result
+ *   create   + update   → create with merged payload
+ *   create   + delete   → drop everything (cancel local + outbox)
+ *   update   + update   → update with merged patches
+ *   update   + delete   → delete (terminal, supersedes update)
+ *   delete   + anything → keep delete
+ */
+
+/** Mint a temp coffret id used until server sync replaces it. */
+function mintTempCoffretId() {
+  // -Date.now() is unique per ms within a session. Real PKs are
+  // SERIAL positives starting at 1, so the negative space is
+  // collision-free.
+  return -Date.now();
+}
+
+/**
+ * Apply / revert the per-volume bindings of a coffret. Used by:
+ *   - create: bind volumes when the user submits the modal
+ *   - delete: un-bind volumes when the user removes the coffret
+ *
+ * Pure Dexie — no network. Tx-scoped against `db.volumes`.
+ */
+async function applyCoffretVolumeBindings({
+  mal_id,
+  vol_start,
+  vol_end,
+  per_vol_price,
+  store,
+  collector,
+  coffret_id,
+}) {
+  const nowIso = new Date().toISOString();
+  const vols = await db.volumes
+    .where("mal_id")
+    .equals(mal_id)
+    .filter((v) => v.vol_num >= vol_start && v.vol_num <= vol_end)
+    .toArray();
+  for (const v of vols) {
+    const next = {
+      ...v,
+      owned: true,
+      coffret_id,
+      price: per_vol_price,
+      store: store ?? null,
+      collector: Boolean(collector),
+      modified_on: nowIso,
+    };
+    await db.volumes.put(next);
+  }
+}
+
+async function unbindCoffretVolumes(mal_id, coffret_id) {
+  const nowIso = new Date().toISOString();
+  const vols = await db.volumes
+    .where("mal_id")
+    .equals(mal_id)
+    .filter((v) => v.coffret_id === coffret_id)
+    .toArray();
+  for (const v of vols) {
+    await db.volumes.put({
+      ...v,
+      coffret_id: null,
+      modified_on: nowIso,
+    });
+  }
+}
+
+/**
+ * 盒 · Offline-capable coffret create. Mints a temp id, writes
+ * the coffret row + volume bindings to Dexie, and queues the
+ * POST for flush. Returns the temp id so the caller can navigate
+ * to the new coffret immediately.
+ */
+export async function enqueueCoffretCreate(mal_id, payload) {
+  if (mal_id == null) return null;
+  const tempId = mintTempCoffretId();
+  const nowIso = new Date().toISOString();
+  const volStart = Number(payload.vol_start) || 0;
+  const volEnd = Number(payload.vol_end) || 0;
+  const count = Math.max(1, volEnd - volStart + 1);
+  const totalPrice =
+    typeof payload.price === "number"
+      ? payload.price
+      : payload.price != null
+        ? Number(payload.price) || 0
+        : null;
+  const perVolPrice =
+    totalPrice != null && totalPrice > 0 ? totalPrice / count : 0;
+
+  await db.transaction(
+    "rw",
+    db.coffrets,
+    db.volumes,
+    db.outboxCoffrets,
+    async () => {
+      // 1. Optimistic coffret row
+      await db.coffrets.put({
+        id: tempId,
+        // user_id is unknown client-side; consumers (CoffretGroup
+        // etc.) only read mal_id + the header fields. The server
+        // fills in user_id authoritatively on its insert.
+        user_id: -1,
+        mal_id,
+        name: payload.name ?? "",
+        vol_start: volStart,
+        vol_end: volEnd,
+        price: totalPrice,
+        store: payload.store ?? null,
+        created_on: nowIso,
+        modified_on: nowIso,
+      });
+      // 2. Bind volumes
+      await applyCoffretVolumeBindings({
+        mal_id,
+        vol_start: volStart,
+        vol_end: volEnd,
+        per_vol_price: perVolPrice,
+        store: payload.store,
+        collector: payload.collector,
+        coffret_id: tempId,
+      });
+      // 3. Outbox
+      await db.outboxCoffrets.put({
+        id: tempId,
+        mal_id,
+        op: "create",
+        payload: { ...payload, mal_id },
+        ts: Date.now(),
+      });
+    },
+  );
+  notifyPendingChanged();
+  triggerSync();
+  return tempId;
+}
+
+/**
+ * 盒 · Offline-capable coffret update. Patches the optimistic
+ * Dexie row + coalesces into any pending op (create or prior
+ * update) so a single flush replays the latest desired state.
+ */
+export async function enqueueCoffretUpdate(coffretId, patch) {
+  if (coffretId == null || !patch) return;
+  await db.transaction("rw", db.coffrets, db.outboxCoffrets, async () => {
+    const existing = await db.coffrets.get(coffretId);
+    if (!existing) return;
+    // Apply patch optimistically. The `clear_*` flags translate
+    // to explicit nulls so the live consumer sees the cleared
+    // value immediately.
+    const next = { ...existing };
+    if (patch.name !== undefined) next.name = patch.name;
+    if (patch.price !== undefined) next.price = patch.price;
+    if (patch.store !== undefined) next.store = patch.store;
+    if (patch.clear_price) next.price = null;
+    if (patch.clear_store) next.store = null;
+    next.modified_on = new Date().toISOString();
+    await db.coffrets.put(next);
+
+    const pending = await db.outboxCoffrets.get(coffretId);
+    if (pending?.op === "create") {
+      // Pre-sync coffret. Merge patch into the create payload so
+      // the eventual POST emits the latest desired state.
+      const merged = { ...pending.payload };
+      if (patch.name !== undefined) merged.name = patch.name;
+      if (patch.price !== undefined) merged.price = patch.price;
+      if (patch.store !== undefined) merged.store = patch.store;
+      if (patch.clear_price) merged.price = null;
+      if (patch.clear_store) merged.store = null;
+      await db.outboxCoffrets.put({
+        ...pending,
+        payload: merged,
+        ts: Date.now(),
+      });
+    } else if (pending?.op === "delete") {
+      // Already pending delete — ignore the update.
+      return;
+    } else {
+      // Replace or merge with a prior update op.
+      const prevPatch = pending?.op === "update" ? (pending.payload ?? {}) : {};
+      await db.outboxCoffrets.put({
+        id: coffretId,
+        mal_id: existing.mal_id,
+        op: "update",
+        payload: { ...prevPatch, ...patch },
+        ts: Date.now(),
+      });
+    }
+  });
+  notifyPendingChanged();
+  triggerSync();
+}
+
+/**
+ * 盒 · Offline-capable coffret delete. Removes the coffret row +
+ * un-binds the volumes locally; the outbox carries the DELETE
+ * call (or, when the coffret never reached the server, just
+ * cancels the pending create).
+ */
+export async function enqueueCoffretDelete(coffretId) {
+  if (coffretId == null) return;
+  await db.transaction(
+    "rw",
+    db.coffrets,
+    db.volumes,
+    db.outboxCoffrets,
+    async () => {
+      const existing = await db.coffrets.get(coffretId);
+      if (!existing) return;
+      const mal_id = existing.mal_id;
+      await unbindCoffretVolumes(mal_id, coffretId);
+      await db.coffrets.delete(coffretId);
+
+      const pending = await db.outboxCoffrets.get(coffretId);
+      if (pending?.op === "create") {
+        // Offline-only coffret — never reached the server. Drop
+        // the create op; the optimistic local state is already
+        // unwound (coffret deleted + volumes un-bound).
+        await db.outboxCoffrets.delete(coffretId);
+      } else {
+        // Real id (or already-pending update) → enqueue a
+        // terminal delete op.
+        await db.outboxCoffrets.put({
+          id: coffretId,
+          mal_id,
+          op: "delete",
+          payload: null,
+          ts: Date.now(),
+        });
+      }
+    },
+  );
   notifyPendingChanged();
   triggerSync();
 }
@@ -430,6 +908,11 @@ async function flushLibrary() {
         if (op.payload?.volumes != null) meta.volumes = op.payload.volumes;
         if ("publisher" in (op.payload ?? {})) meta.publisher = op.payload.publisher;
         if ("edition" in (op.payload ?? {})) meta.edition = op.payload.edition;
+        if ("review" in (op.payload ?? {})) meta.review = op.payload.review;
+        if ("review_public" in (op.payload ?? {})) {
+          meta.review_public = op.payload.review_public;
+        }
+        if ("author" in (op.payload ?? {})) meta.author = op.payload.author;
         // Genres ship as an array; server gates the write to custom-only
         // rows (mal_id < 0 AND mangadex_id IS NULL) and silently drops
         // the field on any other row. The frontend already only opens
@@ -490,6 +973,14 @@ async function flushVolumes() {
         ...(op.payload.notes !== undefined
           ? { notes: String(op.payload.notes ?? "") }
           : {}),
+        // 預け · Loan mutation. Three-state in the payload mirrors
+        // the server's `Option<Option<LoanPatch>>`:
+        //   - omitted → leave loan triplet alone
+        //   - null → return the volume (clear loan)
+        //   - { to, due_at } → mark as lent
+        ...("loan" in (op.payload ?? {})
+          ? { loan: op.payload.loan }
+          : {}),
       });
       await db.outboxVolumes.delete(op.id);
       notifyPendingChanged();
@@ -531,6 +1022,79 @@ async function flushSettings() {
         throw err;
       }
     }
+  }
+}
+
+/**
+ * 作家 · Replay queued author CRUD ops. Each op is one of:
+ *   • "patch"  → PATCH /api/authors/{mal_id} { name?, about? }
+ *   • "delete" → DELETE /api/authors/{mal_id}
+ *
+ * On success, the local cache is reconciled with the server's
+ * response (PATCH echoes the row; DELETE drops it). On unretriable
+ * errors (4xx) the op is discarded + a syncError surfaces so the
+ * UI can prompt the user to retry. The library is invalidated
+ * after a delete since unlinking touches user_libraries.author_id.
+ */
+async function flushAuthors() {
+  const ops = await db.outboxAuthors.orderBy("ts").toArray();
+  let touchedDelete = false;
+  for (const op of ops) {
+    try {
+      if (op.op === "patch") {
+        const { data } = await axios.patch(
+          `/api/authors/${op.mal_id}`,
+          op.payload ?? {},
+        );
+        await db.outboxAuthors.delete(op.mal_id);
+        // Server echoes the updated AuthorDetail — reconcile cache.
+        if (data && data.mal_id != null) {
+          await db.authors.put({ ...data, ts: Date.now() });
+        }
+        queryClient.setQueryData(["author", op.mal_id], data);
+      } else if (op.op === "delete") {
+        await axios.delete(`/api/authors/${op.mal_id}`);
+        await db.outboxAuthors.delete(op.mal_id);
+        await db.authors.delete(op.mal_id);
+        queryClient.removeQueries({ queryKey: ["author", op.mal_id] });
+        touchedDelete = true;
+      } else {
+        // Unknown op shape — drop to avoid blocking the queue.
+        await db.outboxAuthors.delete(op.mal_id);
+      }
+      notifyPendingChanged();
+    } catch (err) {
+      if (isUnretriable(err)) {
+        await db.outboxAuthors.delete(op.mal_id);
+        emitSyncError({
+          op: "author",
+          mal_id: op.mal_id,
+          message:
+            err?.response?.data?.error ?? err.message ?? "Sync failed",
+        });
+        // Pull the canonical row back so the SPA reconciles to
+        // server truth (and the optimistic edit visually unwinds).
+        try {
+          const { data } = await axios.get(`/api/authors/${op.mal_id}`);
+          if (data && data.mal_id != null) {
+            await db.authors.put({ ...data, ts: Date.now() });
+            queryClient.setQueryData(["author", op.mal_id], data);
+          }
+        } catch {
+          /* fetch reconcile is best-effort */
+        }
+        notifyPendingChanged();
+      } else {
+        throw err;
+      }
+    }
+  }
+  // After a delete drains, the library has unlinked rows — refetch
+  // so embedded `author` refs disappear from the SPA without
+  // waiting for the user to navigate. Skip the refetch when no
+  // delete happened (a pure patch flush leaves library untouched).
+  if (touchedDelete) {
+    await refetchLibrary().catch(() => {});
   }
 }
 
@@ -582,6 +1146,127 @@ async function flushBulkMark() {
   }
 }
 
+/**
+ * 盒 · Replay queued coffret CRUD ops. Walks the queue oldest-
+ * first; each op is one of:
+ *   • create → POST /api/user/library/{mal_id}/coffrets
+ *     On success, re-keys the temp coffret + bound volumes from
+ *     the negative temp id to the server-issued real id.
+ *   • update → PATCH /api/user/coffrets/{id}
+ *     Mirrors the server response back into Dexie.
+ *   • delete → DELETE /api/user/coffrets/{id}
+ *     The local coffret + volume bindings were already cleared
+ *     by `enqueueCoffretDelete`; this op just notifies the
+ *     server.
+ *
+ * Unretriable errors drop the op + emit a syncError + reconcile
+ * the affected mal_id by refetching coffrets + volumes (the
+ * server's truth wins; the optimistic local diff is unwound).
+ *
+ * Retriable errors propagate up so the outer `syncOutbox` retry
+ * pass picks them up later.
+ */
+async function flushCoffrets() {
+  const ops = await db.outboxCoffrets.orderBy("ts").toArray();
+  let touchedDeleteOrCreate = false;
+  for (const op of ops) {
+    try {
+      if (op.op === "create") {
+        const { data } = await axios.post(
+          `/api/user/library/${op.mal_id}/coffrets`,
+          op.payload ?? {},
+        );
+        await db.outboxCoffrets.delete(op.id);
+        const tempId = op.id;
+        const realId = data?.id;
+        if (realId != null && realId !== tempId) {
+          // Re-key locally: drop the temp row, insert the real
+          // one, swap `coffret_id` on every bound volume.
+          await db.transaction(
+            "rw",
+            db.coffrets,
+            db.volumes,
+            async () => {
+              await db.coffrets.delete(tempId);
+              await db.coffrets.put(data);
+              const bound = await db.volumes
+                .where("mal_id")
+                .equals(op.mal_id)
+                .filter((v) => v.coffret_id === tempId)
+                .toArray();
+              for (const v of bound) {
+                await db.volumes.put({ ...v, coffret_id: realId });
+              }
+            },
+          );
+        } else if (data) {
+          // Temp id matched real id (extremely unlikely), or no
+          // real id returned — still mirror the server row.
+          await db.coffrets.put(data);
+        }
+        touchedDeleteOrCreate = true;
+      } else if (op.op === "update") {
+        const { data } = await axios.patch(
+          `/api/user/coffrets/${op.id}`,
+          op.payload ?? {},
+        );
+        await db.outboxCoffrets.delete(op.id);
+        if (data && data.id != null) {
+          await db.coffrets.put(data);
+        }
+      } else if (op.op === "delete") {
+        await axios.delete(`/api/user/coffrets/${op.id}`);
+        await db.outboxCoffrets.delete(op.id);
+        // The Dexie coffret row + volume bindings were already
+        // cleared in `enqueueCoffretDelete`; nothing to do here.
+        touchedDeleteOrCreate = true;
+      } else {
+        // Unknown op shape — drop to avoid blocking the queue.
+        await db.outboxCoffrets.delete(op.id);
+      }
+      notifyPendingChanged();
+    } catch (err) {
+      if (isUnretriable(err)) {
+        await db.outboxCoffrets.delete(op.id);
+        emitSyncError({
+          op: "coffret",
+          coffret_id: op.id,
+          mal_id: op.mal_id,
+          message:
+            err?.response?.data?.error ?? err.message ?? "Sync failed",
+        });
+        // Reconcile to server truth — the optimistic state just
+        // unwinds visually. Best-effort: a Jikan/db blip skipping
+        // this is fine, the next foreground refetch picks it up.
+        try {
+          const { data } = await axios.get(
+            `/api/user/library/${op.mal_id}/coffrets`,
+          );
+          await cacheCoffretsForManga(
+            op.mal_id,
+            Array.isArray(data) ? data : [],
+          );
+          queryClient.invalidateQueries({
+            queryKey: ["coffrets", op.mal_id],
+          });
+        } catch {
+          /* best-effort */
+        }
+        await refetchVolumes(op.mal_id).catch(() => {});
+        notifyPendingChanged();
+      } else {
+        throw err;
+      }
+    }
+  }
+  // Coffret create + delete touch the bound volumes (price split,
+  // owned flip, coffret_id rewrite). Refetch volumes so any
+  // server-side adjustment we couldn't predict locally lands.
+  // We don't refetch on update-only flushes — the patch is
+  // header-only and the coffret row was already mirrored.
+  return touchedDeleteOrCreate;
+}
+
 async function refetchLibrary() {
   const { data } = await axios.get(`/api/user/library`);
   await cacheLibrary(data);
@@ -622,6 +1307,24 @@ export async function syncOutbox({ force = false } = {}) {
     await flushVolumes();
     await flushSettings();
     await flushBulkMark();
+    // 作家 · Authors flush AFTER library — a deleted author needs
+    // the library refetch to reconcile unlinked rows, and that
+    // refetch is what we trigger anyway right below. Order also
+    // means a library PATCH carrying free-text author + a
+    // subsequent direct author edit on the same person both land
+    // in the right order: library PATCH creates the author via
+    // `resolve_author_from_text`, then the author PATCH updates it.
+    await flushAuthors();
+    // 盒 · Coffrets flush AFTER volumes so an offline-created
+    // coffret's bound-volumes are already on the server before
+    // the coffret POST runs. Without this ordering, the server-
+    // side bulk update of those volumes (owned + price split)
+    // would race a still-pending volume edit and the latter
+    // would land second, overwriting the coffret-applied state
+    // for that volume. Sequencing matches the user's intent:
+    // "I edited a tome, then grouped it into a coffret" → the
+    // coffret operation is the authoritative final state.
+    await flushCoffrets();
     // Only pull fresh server state when we actually pushed something —
     // otherwise the read hooks already have what they need.
     await Promise.all([

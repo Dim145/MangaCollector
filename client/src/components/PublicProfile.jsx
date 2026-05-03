@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { usePublicProfile, useOwnPublicSlug } from "@/hooks/usePublicProfile.js";
+import {
+  useFollow,
+  useIsFollowing,
+  useUnfollow,
+} from "@/hooks/useFriends.js";
 import { getCachedUser } from "@/utils/auth.js";
+import { useOnline } from "@/hooks/useOnline.js";
 import Skeleton from "./ui/Skeleton.jsx";
 import CoverImage from "./ui/CoverImage.jsx";
 import { useT } from "@/i18n/index.jsx";
@@ -262,7 +268,12 @@ function Masthead({ data, isLoading, slug }) {
       {/* Compare CTA — only shown when a logged-in visitor is looking
           at someone ELSE's profile. Anonymous visitors and the
           profile's owner see nothing here. */}
-      {!isLoading && data && <CompareCTA slug={slug} />}
+      {!isLoading && data && (
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <CompareCTA slug={slug} />
+          <FollowCTA slug={slug} />
+        </div>
+      )}
       </div>
     </header>
   );
@@ -285,17 +296,74 @@ function CompareCTA({ slug }) {
   if (isLoading) return null;
   if (ownSlug && ownSlug === slug) return null;
   return (
-    <div className="mt-6">
-      <Link
-        to={`/compare/${encodeURIComponent(slug)}`}
-        className="inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-hanko-bright transition hover:bg-hanko/20 hover:border-hanko/60"
-      >
-        <span aria-hidden="true" className="font-jp text-sm leading-none">
-          対
-        </span>
-        {t("publicProfile.compareCta")}
-      </Link>
-    </div>
+    <Link
+      to={`/compare/${encodeURIComponent(slug)}`}
+      className="inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-hanko-bright transition hover:bg-hanko/20 hover:border-hanko/60"
+    >
+      <span aria-hidden="true" className="font-jp text-sm leading-none">
+        対
+      </span>
+      {t("publicProfile.compareCta")}
+    </Link>
+  );
+}
+
+/**
+ * 友 · Follow / Unfollow toggle. Shown alongside CompareCTA — same
+ * gating (logged-in + not-own-profile). Reads the current state via
+ * `useIsFollowing` so the button label flips correctly across page
+ * mounts; mutations write through the React Query cache for instant
+ * feedback. Aesthetic — a wax-sealed envelope as a chip, with the
+ * 友 kanji acting as the seal motif. Active (following) state shifts
+ * to gold to mark the established correspondence.
+ */
+function FollowCTA({ slug }) {
+  const t = useT();
+  const cached = typeof window !== "undefined" ? getCachedUser() : null;
+  const online = useOnline();
+  const { slug: ownSlug, isLoading: ownLoading } = useOwnPublicSlug();
+  const { data: following } = useIsFollowing(cached ? slug : null);
+  const followM = useFollow();
+  const unfollowM = useUnfollow();
+  if (!cached) return null;
+  if (ownLoading) return null;
+  if (ownSlug && ownSlug === slug) return null;
+  const pending = followM.isPending || unfollowM.isPending;
+  const isFollowing = Boolean(following);
+  const onClick = () => {
+    if (pending || !online) return;
+    if (isFollowing) unfollowM.mutate(slug);
+    else followM.mutate(slug);
+  };
+  // 連 · Same offline gate as the FriendsPage / friends chip on
+  // ProfilePage. Follow/unfollow mutations are not offline-capable
+  // (no outbox: the user-facing semantic is "subscribe to a public
+  // profile NOW", not "queue a subscription for later"). Disabled
+  // state swaps the kanji to 圏 and surfaces the explanatory hint.
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending || !online}
+      title={!online ? t("friends.followOfflineHint") : undefined}
+      aria-label={!online ? t("friends.followOfflineHint") : undefined}
+      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.25em] transition disabled:opacity-50 disabled:cursor-not-allowed ${
+        isFollowing
+          ? "border-gold/55 bg-gold/10 text-gold hover:border-gold/80 hover:bg-gold/15"
+          : "border-moegi/45 bg-moegi/8 text-moegi hover:border-moegi hover:bg-moegi/15"
+      }`}
+    >
+      <span aria-hidden="true" className="font-jp text-sm leading-none">
+        {!online ? "圏" : isFollowing ? "印" : "友"}
+      </span>
+      {pending
+        ? t("common.saving")
+        : !online
+          ? t("friends.followOffline")
+          : isFollowing
+            ? t("friends.followingState")
+            : t("friends.followAction")}
+    </button>
   );
 }
 

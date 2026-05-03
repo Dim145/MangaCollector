@@ -63,6 +63,17 @@ export const SEAL_CATALOG = [
   { code: "first_full_read", kanji: "破", category: "dokuha", tier: 2 },
   { code: "full_read_10", kanji: "精", category: "dokuha", tier: 3 },
   { code: "full_read_50", kanji: "究", category: "dokuha", tier: 5 },
+  // 季節 Sceaux saisonniers — only grantable inside a specific
+  // calendar window. The `season` object carries the window (1-12,
+  // both ends inclusive) plus a single-kanji hint for the chip
+  // overlay. `start > end` wraps year-end (winter Rintō).
+  // Tier defaults to 4 (kin / gold leaf) — earnable but rare,
+  // since the user has to stumble onto the right month.
+  { code: "kisetsu_sakura",   kanji: "桜", category: "seasonal", tier: 4, season: { start: 4,  end: 5,  kanji: "春" } },
+  { code: "kisetsu_tanabata", kanji: "祭", category: "seasonal", tier: 4, season: { start: 7,  end: 7,  kanji: "夏" } },
+  { code: "kisetsu_tsukimi",  kanji: "月", category: "seasonal", tier: 4, season: { start: 9,  end: 10, kanji: "月" } },
+  { code: "kisetsu_kouyou",   kanji: "紅", category: "seasonal", tier: 4, season: { start: 10, end: 11, kanji: "秋" } },
+  { code: "kisetsu_rinto",    kanji: "凛", category: "seasonal", tier: 5, season: { start: 12, end: 2,  kanji: "冬" } },
 ];
 
 export const SEAL_CATEGORIES = [
@@ -76,7 +87,22 @@ export const SEAL_CATEGORIES = [
   { code: "anniversary", kanji: "年" },
   { code: "reading", kanji: "読" },
   { code: "dokuha", kanji: "破" },
+  { code: "seasonal", kanji: "季" },
 ];
+
+/**
+ * 季節 · Helper — true when a seasonal seal's window covers the
+ * supplied month (1-12). Returns false (i.e. "not currently
+ * available") for non-seasonal seals so callers can drive a single
+ * "active now" indicator across the catalog. Wrapping windows
+ * (start > end) cover the year-end seam.
+ */
+export function isSealActiveInMonth(seal, month) {
+  const w = seal?.season;
+  if (!w) return false;
+  if (w.start <= w.end) return month >= w.start && month <= w.end;
+  return month >= w.start || month <= w.end;
+}
 
 /** Seals grouped by category, in catalog order. */
 export const SEALS_BY_CATEGORY = SEAL_CATEGORIES.map((cat) => ({

@@ -93,6 +93,15 @@ pub async fn fetch_mal_by_username(
     client: &reqwest::Client,
     username: &str,
 ) -> Result<ExportBundle, AppError> {
+    // Cap the raw input BEFORE trim so a 10 MiB JSON body stuffed
+    // with a single huge `username` doesn't allocate twice (once
+    // pre-trim, once post). 64 chars is comfortably above the 32
+    // accepted by `is_safe_handle` and bounds DoS amplification.
+    if username.len() > 64 {
+        return Err(AppError::BadRequest(
+            "MAL username is too long (max 32 chars).".into(),
+        ));
+    }
     let user = username.trim();
     if user.is_empty() {
         return Err(AppError::BadRequest("MAL username is empty.".into()));
@@ -306,6 +315,11 @@ pub async fn fetch_anilist_by_username(
     client: &reqwest::Client,
     username: &str,
 ) -> Result<ExportBundle, AppError> {
+    if username.len() > 64 {
+        return Err(AppError::BadRequest(
+            "AniList username is too long (max 32 chars).".into(),
+        ));
+    }
     let user = username.trim();
     if user.is_empty() {
         return Err(AppError::BadRequest("AniList username is empty.".into()));
@@ -448,7 +462,7 @@ pub async fn fetch_mangadex_by_input(
     // 8-4-4-4-12 hex chars separated by hyphens.
     let tokens: Vec<String> = trimmed
         .split(|c: char| !c.is_ascii_hexdigit() && c != '-')
-        .filter(|s| is_uuid(s))
+        .filter(|s| crate::util::uuid::is_canonical_uuid(s))
         .map(|s| s.to_lowercase())
         .collect();
 
@@ -524,35 +538,37 @@ pub async fn fetch_mangadex_by_input(
     Ok(wrap_bundle("MangaDex", series))
 }
 
-fn is_uuid(s: &str) -> bool {
-    // 8-4-4-4-12 hex
-    let s = s.trim().to_lowercase();
-    if s.len() != 36 {
-        return false;
-    }
-    let bytes = s.as_bytes();
-    for (i, b) in bytes.iter().enumerate() {
-        let expected_hyphen = i == 8 || i == 13 || i == 18 || i == 23;
-        if expected_hyphen {
-            if *b != b'-' {
-                return false;
-            }
-        } else if !b.is_ascii_hexdigit() {
-            return false;
-        }
-    }
-    true
-}
-
 /// MAL / AniList usernames are documented to use `[A-Za-z0-9_-]` with
 /// length 2..=16. We allow a wider 2..=32 window to be forgiving for
-/// edge cases but reject anything that could break a URL path.
+/// edge cases but reject anything that could break a URL path or
+/// surface a confusing upstream error:
+///   • leading / trailing `-` or `_`        → rejected
+///   • two adjacent separators (`--`/`__`)  → rejected
+///   • non-alphanumeric / non-separator     → rejected
 fn is_safe_handle(s: &str) -> bool {
     let len = s.chars().count();
     if !(2..=32).contains(&len) {
         return false;
     }
-    s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    let bytes = s.as_bytes();
+    let first = bytes[0];
+    let last = bytes[bytes.len() - 1];
+    if matches!(first, b'-' | b'_') || matches!(last, b'-' | b'_') {
+        return false;
+    }
+    let mut prev = 0u8;
+    for &b in bytes {
+        let separator = matches!(b, b'-' | b'_');
+        let alnum = b.is_ascii_alphanumeric();
+        if !(separator || alnum) {
+            return false;
+        }
+        if separator && (prev == b'-' || prev == b'_') {
+            return false;
+        }
+        prev = b;
+    }
+    true
 }
 
 /* ══════════════════════════════════════════════════════════════════

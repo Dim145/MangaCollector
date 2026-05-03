@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { emitSyncEvent } from "@/lib/sync/events.js";
 
 /**
  * 同期 · Realtime invalidation receiver.
@@ -33,6 +34,19 @@ const KIND_TO_KEYS = {
   settings: [["settings"], ["user-profile"]],
   seals: [["seals"]],
   activity: [["activity"]],
+  // 作家 · Author CRUD — invalidate every per-author detail
+  // query (AuthorPage reads `["author", malId]` keyed on each
+  // visited author). React Query treats `["author"]` as a
+  // prefix and matches every nested key.
+  authors: [["author"]],
+  // 印影 · Snapshot CRUD.
+  snapshots: [["snapshots"]],
+  // 友 · Follow graph mutation. Three keyed surfaces:
+  //   ["friends", "list"]      — the correspondents list
+  //   ["friends", "feed", N]   — the activity feed (per limit)
+  //   ["friends", "check", s]  — the per-slug FollowCTA state
+  // Prefix-invalidating with `["friends"]` covers all three.
+  friends: [["friends"]],
 };
 
 export function useRealtimeSync({ enabled = true } = {}) {
@@ -93,9 +107,29 @@ export function useRealtimeSync({ enabled = true } = {}) {
 
       ws.addEventListener("message", (evt) => {
         try {
-          const event = JSON.parse(evt.data);
-          const keys = KIND_TO_KEYS[event?.kind];
-          if (!keys) return;
+          const raw = JSON.parse(evt.data);
+          // 検 · Schema gate. The socket runs over the same origin as
+          // the SPA, but a same-origin XSS or a future broadening of
+          // CSP could let an attacker emit messages a subscriber
+          // would treat as authoritative. Validate the payload shape
+          // before we either re-broadcast or invalidate query caches.
+          if (!raw || typeof raw !== "object") return;
+          const kind = raw.kind;
+          if (typeof kind !== "string") return;
+          const keys = KIND_TO_KEYS[kind];
+          if (!keys) return; // unknown kind → drop, never re-broadcast
+          // Re-broadcast every received event for downstream
+          // subscribers (toasters, badges, custom side effects).
+          // Done BEFORE the React Query invalidation so listeners
+          // that want to react to "what just changed" don't lose
+          // events whose only side effect is in their handler.
+          // Pass a freshly-built object instead of `raw` so a hostile
+          // payload can't smuggle extra fields into subscribers.
+          emitSyncEvent({
+            kind,
+            user_id: typeof raw.user_id === "number" ? raw.user_id : null,
+            payload: raw.payload,
+          });
           for (const key of keys) {
             qc.invalidateQueries({ queryKey: key });
           }
@@ -106,9 +140,13 @@ export function useRealtimeSync({ enabled = true } = {}) {
 
       ws.addEventListener("close", (evt) => {
         socketRef.current = null;
-        // 1000 (normal) is usually an intentional close on unmount;
-        // 1008/1011 shouldn't retry either (auth / protocol issues).
-        if (evt.code === 1000 || evt.code === 1008) return;
+        // Codes that should NOT trigger a reconnect:
+        //   1000 — normal close (intentional, e.g. unmount)
+        //   1008 — policy violation (auth / origin)
+        //   1011 — server error (the upstream is unhealthy; let it
+        //          recover and the next visibility change reconnects)
+        if (evt.code === 1000 || evt.code === 1008 || evt.code === 1011)
+          return;
         if (stoppedRef.current) return;
         schedule();
       });

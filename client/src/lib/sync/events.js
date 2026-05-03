@@ -21,6 +21,13 @@ const SYNC_ERROR_EVENT = "mc:sync-error";
 // ink for confirmations) instead of one toaster trying to convey
 // both with the same shell.
 const SYNC_INFO_EVENT = "mc:sync-info";
+// 同期 · Realtime push relay. Fires every time `useRealtimeSync`
+// receives a server-pushed `SyncEvent` over the websocket. Used by
+// downstream components that want to react to specific kinds
+// without re-implementing the websocket plumbing or coupling to
+// React Query invalidation paths. The detail shape mirrors the
+// server-side `SyncEvent`: `{ user_id, kind, payload? }`.
+const SYNC_EVENT = "mc:sync-event";
 
 function emit(name, detail) {
   window.dispatchEvent(new CustomEvent(name, { detail }));
@@ -97,4 +104,15 @@ export function onSyncInfo(handler) {
  */
 export function notifySyncInfo(payload) {
   emit(SYNC_INFO_EVENT, payload || {});
+}
+
+/** Re-emit a server-pushed SyncEvent for downstream subscribers. */
+export function emitSyncEvent(detail) {
+  emit(SYNC_EVENT, detail || {});
+}
+
+/** Subscribe to every realtime SyncEvent. Returns an unsubscribe fn. */
+export function onSyncEvent(handler) {
+  window.addEventListener(SYNC_EVENT, handler);
+  return () => window.removeEventListener(SYNC_EVENT, handler);
 }

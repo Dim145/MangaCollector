@@ -2,13 +2,13 @@
 
 A condensed history of every meaningful change since the project was
 forked, walking from the bare-bones URL-cleanup commit through the
-v2.10.0 release.
+v2.11.0 release.
 
-**226 commits across two distinct development phases**:
+**227+ commits across two distinct development phases**:
 - **Phase 1 (solo)**: 62 commits laying the auth, storage and metadata
   foundations.
-- **Phase 2 (AI-assisted)**: 164 commits — feature explosion, full Rust
-  port, full UI redesign, nine version bumps.
+- **Phase 2 (AI-assisted)**: 165+ commits — feature explosion, full Rust
+  port, full UI redesign, ten minor releases.
 
 ---
 
@@ -249,6 +249,137 @@ database — no hidden localStorage state.
   states; 選・削・鍵・解・確 in actions; 棚 in vessels) across all
   three locales.
 
+### Step 15 — Batch 2 features, offline-first, audit (v2.11.0)
+Four new feature pillars, a sweeping offline-capability extension,
+and a full security/quality audit pass. Backward-compatible
+across the API surface.
+
+#### 季節 Kisetsu — seasonal seals
+Five sceaux that only stamp during specific calendar windows
+(sakura, tanabata, tsukimi, kouyou, rinto). Server-side
+`MonthWindow` predicate gates `evaluate_and_grant`; the carnet
+shows the upcoming window for each one.
+
+#### 印影 Inei — shelf snapshots
+Capture-and-archive flow: a 1080×1350 PNG of the user's library
+at a moment, with denormalised stats, free-text label, and an
+optional photo cover. Renders as a contact-sheet gallery with
+retry-upload on flaky network. Capture is online-only; viewing
+and naming work offline.
+
+#### 預け Azuke — loan tracker
+Mark a volume as lent (borrower handle, optional due date) from
+the volume drawer or a per-series rail on the dashboard. A
+hanko stamp overlays the cover; a "sealed envelope" treatment
+covers volumes with no cover art. Auto-clear on unown so a
+no-longer-owned volume can't stay stuck as lent. Visible in
+the Dashboard's "outstanding loans" widget.
+
+#### 友 Tomo — friends + activity feed
+Follow/unfollow public profiles via slug; aggregated activity
+feed groups events by calendar day with brushstroke separators
+and per-event kanji. The follow graph is cached in Dexie so the
+correspondents rail keeps working offline; the feed itself is
+online-only (freshness > availability).
+
+#### Offline-first across the SPA
+- **Library / volumes / settings / coffrets / authors** — outbox
+  pattern with create/update/delete queued locally and replayed
+  on reconnect. Coffret create/update/delete uses temp-id rekey
+  (negative ids minted client-side, swapped for server ids on
+  flush).
+- **Calendar** — upcoming releases cached, subscribe modal gated
+  online.
+- **Snapshots** — listing offline, capture/upload online-only.
+- **Author pages** — full read offline; edit/delete offline-
+  capable; refresh-from-MAL gated online.
+- **Friends list** — Dexie-cached, feed online-only.
+- **PWA `navigateFallbackDenylist`** — anchored regex
+  `[/^\/api\//, /^\/auth\//]` so `/author/...` no longer 404s
+  on hard reload (`/^\/auth/` was greedy-matching `/author/`).
+
+#### Realtime sync extension
+- **`SyncKind` enum** extended with `Authors`, `Snapshots`,
+  `Friends`. Every new mutation handler publishes the right
+  kind so other tabs / devices invalidate the matching queries.
+- **WebSocket ping/pong** — server pings every 30 s, kills
+  zombies after 60 s of silence (mobile captive portals were
+  leaving sockets open indefinitely).
+- **WebSocket message validation** — incoming events are filtered
+  through a `kind` allow-list before being re-broadcast or
+  invalidating React Query caches.
+
+#### Seal-unlock notifications
+A new toast appears bottom-right whenever a milestone unlocks a
+seal, clickable through to `/seals` for the ceremony animation.
+Race condition between the page-level useSeals fetch and the
+App-level `SealsUnlockToaster` resolved with a shared
+`notifySealsUnlocked(codes, t)` helper called from both paths;
+server-side atomicity prevents double-fire.
+
+#### Service-worker update detection
+Switched from `autoUpdate` to `prompt` mode with workbox-window
+heartbeat (30 min poll). When a new SW finishes installing, a
+quiet bottom-right banner offers "Recharger" — the user reloads
+at their own pace. `cleanupOutdatedCaches` purges old workbox
+buckets on activation.
+
+#### Security & quality audit
+Critical RGPD fix: account deletion now wipes *every* user
+blob (snapshot PNGs, custom-author photos) and the raw
+`tower_sessions` rows that don't cascade from `users`. DB
+transaction commits FIRST, storage cleanup runs after — a
+rollback can't leave orphaned references.
+
+Other notable hardening:
+- Image handlers detect format from magic bytes, serve the
+  correct `Content-Type` instead of a hard-coded one.
+- `LocalStorage` rejects non-normal path components (defence in
+  depth — keys are server-built today, but a future user-
+  controlled segment can't open a Zip-Slip).
+- `mangadex_id` validated as canonical UUID at the service
+  layer too, not just the dedicated handler.
+- CSP widened to allow Google Fonts cleanly.
+- `image_url_jpg` whitelisted to `http(s)` / app-relative in
+  the outbox before reaching Dexie.
+- Healthcheck now probes S3 + Redis, returns a `degraded`
+  status when any backend is down.
+- Graceful shutdown on SIGTERM / Ctrl-C drains in-flight
+  requests instead of cutting transactions.
+- `tokio::spawn` background tasks now ride a `spawn_supervised`
+  wrapper that logs panics instead of swallowing them.
+
+#### Refactors & helpers
+- `services/jobs.rs` — `nightly_upcoming_sweep` extracted from
+  `main.rs` (190 lines), `prune_session_meta_loop` and the
+  governor cleanup loop now go through `spawn_supervised`.
+- `util/image.rs` + `util/uuid.rs` + `services/genres.rs` —
+  three near-duplicates collapsed into single sources of
+  truth.
+- `volume::update_by_id` split into `coerce_upcoming_flags`
+  + `apply_read_transition` + `auto_clear_loan_if_unown`.
+- `serde_json::to_value(...).unwrap()` removed from 10
+  handler call sites — handlers now return typed `Json<T>`.
+- Frontend: `utils/date.js` (5 formatters), `utils/libraryStats.js`
+  (single source for series/volume aggregates), `hooks/useLatest.js`
+  (helper for the stale-closure-on-empty-deps pattern).
+
+#### Dependencies
+- Backend: bumped `redis`, `serde_with`, `bytestring`, `digest`,
+  `aws-sdk-s3` patches; investigated and re-confirmed pins on
+  `reqwest 0.12` (held by `oauth2 v5` whose master still uses
+  reqwest 0.12) and `tower-sessions 0.14` (held by published
+  `tower-sessions-sqlx-store 0.15.0`'s declared
+  `tower-sessions-core ^0.14`; upstream master has migrated).
+- Frontend: `axios 1.16`, `@tanstack/react-query 5.100.9`,
+  `eslint 10.3` (Node 22+ required by ESLint 10.3 — engines
+  bumped accordingly).
+
+#### Dexie schema → v15
+- v14: `authors`, `outboxAuthors`, `calendarUpcoming`,
+  `snapshots`, `coffrets`, `volumeCoverMaps`, `outboxCoffrets`.
+- v15: `friendsList` for the offline correspondents rail.
+
 ---
 
 ## Stats
@@ -256,5 +387,5 @@ database — no hidden localStorage state.
 | Phase | Commits | Notable |
 |---|---|---|
 | 1 (solo) | 62 | OAuth, Knex, MAL sync, posters |
-| 2 (AI-assisted) | 164 | Rust port, 31-seal system, public profiles, realtime, full UI redesign, performance + delight tiers, observability stack |
-| **Total** | **226** | 9 minor releases, v1 → v2.10 |
+| 2 (AI-assisted) | 165+ | Rust port, 31-seal system, public profiles, realtime, full UI redesign, performance + delight tiers, observability stack, Batch 2 features, offline-first, security audit |
+| **Total** | **227+** | 10 minor releases, v1 → v2.11 |

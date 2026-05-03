@@ -4,9 +4,9 @@ use axum::{
 };
 
 use crate::handlers::{
-    activity, archive, auth as auth_handlers, calendar, coffret, compare, external,
-    external_import, health, library, public, public_config, realtime, seals, settings, storage,
-    user_profile, volume,
+    activity, archive, auth as auth_handlers, author, calendar, coffret, compare, external,
+    external_import, follow, health, library, public, public_config, realtime, seals, settings,
+    snapshot, storage, user_profile, volume,
 };
 use crate::state::AppState;
 
@@ -20,6 +20,28 @@ pub fn api_router() -> Router<AppState> {
         .route("/public-config", get(public_config::get_public_config))
         // Unified search endpoint — merges MAL + MangaDex results
         .route("/external/search", get(external::search))
+        // 作家 · Author endpoints. The same `/authors/{mal_id}`
+        // shape covers both shared MAL authors (cache-aside via
+        // Jikan, positive mal_id) and custom authors owned by the
+        // caller (negative mal_id, scoped per-user). The handler
+        // routes internally based on the mal_id sign.
+        //
+        // POST creates a custom author and mints a fresh negative
+        // id; PATCH / DELETE / photo endpoints all refuse positive
+        // mal_ids (shared rows aren't editable).
+        .route("/authors", post(author::create_author))
+        .route("/authors/{mal_id}", get(author::get_author))
+        .route("/authors/{mal_id}", patch(author::update_author))
+        .route("/authors/{mal_id}", delete(author::delete_author))
+        // POST /authors/{mal_id}/refresh — force re-fetch from Jikan
+        // for a shared MAL row. Bypasses the 7-day staleness gate.
+        .route("/authors/{mal_id}/refresh", post(author::refresh_author))
+        .route(
+            "/authors/{mal_id}/photo",
+            get(author::get_author_photo)
+                .post(author::upload_author_photo)
+                .delete(author::delete_author_photo),
+        )
         // Read-only public profile — `/public/u/{slug}` — no auth.
         // Nested under /api by the main router but carries no session
         // logic at the handler level so it's trivially cacheable later.
@@ -113,8 +135,38 @@ fn user_router() -> Router<AppState> {
         // namespace mirrors the existing convention for `/coffrets/{id}`
         // and `/sessions/{session_id}`.
         .route("/volume", get(volume::get_all_volumes))
+        .route("/volume/loans", get(volume::list_loans))
         .route("/volume/{mal_id}", get(volume::get_volumes_by_id))
         .route("/volume", patch(volume::update_volume))
+        // 印影 Inei · Snapshot history endpoints. POST creates a new
+        // stats-only row; the image upload rides on a separate POST
+        // so the SPA can capture stats first then attach the PNG
+        // after `shelfSnapshot.js` finishes drawing. Mounted under
+        // the `/user` nest, so the public path is `/api/user/snapshots/...`.
+        .route(
+            "/snapshots",
+            get(snapshot::list_snapshots).post(snapshot::create_snapshot),
+        )
+        .route(
+            "/snapshots/{id}",
+            delete(snapshot::delete_snapshot),
+        )
+        .route(
+            "/snapshots/{id}/image",
+            get(snapshot::get_snapshot_image).post(snapshot::upload_snapshot_image),
+        )
+        // 友 Tomo · Follow + activity feed. Routes mounted under
+        // `/user`, so public paths are `/api/user/follows/...`.
+        // The literal `/feed` route is registered before the
+        // `{slug}` variants so Axum's specificity matcher prefers
+        // it over the parameterised siblings.
+        .route("/follows", get(follow::list_follows))
+        .route("/follows/feed", get(follow::get_feed))
+        .route("/follows/{slug}/check", get(follow::check_following))
+        .route(
+            "/follows/{slug}",
+            post(follow::follow_user).delete(follow::unfollow_user),
+        )
         // 来 · Edit / delete a manually-created upcoming volume by id.
         // API-origin rows are still served by these routes, but the
         // service layer rejects them with 409 so the nightly sweep

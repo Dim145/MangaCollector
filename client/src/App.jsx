@@ -29,6 +29,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import DefaultBackground from "@/components/DefaultBackground.jsx";
 import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
+import SealsUnlockToaster from "@/components/SealsUnlockToaster.jsx";
+import UpdatePrompt from "@/components/UpdatePrompt.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 import MangaPageSkeleton from "@/components/MangaPageSkeleton.jsx";
@@ -67,6 +69,11 @@ const ShelfStickersPage = lazy(() =>
 );
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
 const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
+const AuthorPage = lazy(() => import("./components/AuthorPage.jsx"));
+const BacklogPage = lazy(() => import("./components/BacklogPage.jsx"));
+const SnapshotsPage = lazy(() => import("./components/SnapshotsPage.jsx"));
+const FriendsPage = lazy(() => import("./components/FriendsPage.jsx"));
+const CollectionPage = lazy(() => import("./components/CollectionPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -279,6 +286,13 @@ function AppShell() {
       <Header />
       <OfflineBanner />
       <SyncToaster />
+      {/* 印鑑 · Seal-unlock notifier — listens to realtime sync
+          events for kinds that could move a seal threshold and
+          fires a click-to-/seals toast through the same SyncToaster
+          shell. Mounted only inside the auth-gated `AppShell` so
+          the GET /api/user/seals call is only ever fired for a
+          logged-in user. */}
+      <SealsUnlockToaster />
       {/* Keypress-gated overlays — wrapped in their own Suspense so a
           chunk-load failure (offline at the moment of first ⌘K) doesn't
           crash the whole tree. `fallback={null}` is intentional: the
@@ -376,6 +390,73 @@ function AppShell() {
                 filters adult content + sensitive fields. */}
             <Route path="/u/:slug" element={<PublicProfile />} />
             <Route path="/glossary" element={<GlossaryPage />} />
+            {/* 作家 · Per-author detail — reverse-lookup of all your
+                series by the same mangaka. The slug is the author's
+                mal_id (the synthetic identifier the FK refactor
+                introduced): positive for shared MAL rows, negative
+                for custom per-user rows. Routing by id sidesteps
+                URL-encoding and case-folding gotchas, and the page
+                can JOIN the library by `author.mal_id` directly.
+                Authenticated since it reads the personal library. */}
+            <Route
+              path="/author/:malId"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <AuthorPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 山積 · Backlog audit — owned-but-unread analytics. Pure
+                client read from Dexie, works offline. */}
+            <Route
+              path="/backlog"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <BacklogPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 印影 · Snapshot history gallery. */}
+            <Route
+              path="/snapshots"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <SnapshotsPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 友 · Friends feed — follow other archivists, see their
+                public-profile activity in a chronological correspondence. */}
+            <Route
+              path="/friends"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <FriendsPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* 出版 · Per-publisher filtered library view. The slug
+                is the URL-encoded publisher string (free-text on
+                user_libraries.publisher); pure client-side filter. */}
+            <Route
+              path="/publisher/:name"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <CollectionPage kind="publisher" />
+                </ProtectedRoute>
+              }
+            />
+            {/* 版 · Per-edition filtered library view. Same shape
+                as /publisher/:name but filters on the `edition`
+                column (Standard / Kanzenban / Deluxe / etc.). */}
+            <Route
+              path="/edition/:name"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <CollectionPage kind="edition" />
+                </ProtectedRoute>
+              }
+            />
             {/* External imports — accessed from Settings → Archive. */}
             <Route
               path="/settings/import-external"
@@ -481,6 +562,13 @@ export default function App() {
       <I18nBoundary>
         <SettingsProvider>
           <AppShell />
+          {/* 更 · Service-worker update banner. Mounted as a
+              sibling of AppShell so it survives every route
+              change and stays anchored bottom-right regardless
+              of the page layout. The component self-hides when
+              there's nothing to prompt — zero visual cost in
+              the steady state. */}
+          <UpdatePrompt />
         </SettingsProvider>
       </I18nBoundary>
     </QueryClientProvider>

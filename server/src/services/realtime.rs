@@ -39,6 +39,21 @@ pub enum SyncKind {
     Settings,
     Seals,
     Activity,
+    /// 作家 · Author CRUD — fires on create/update/delete of a
+    /// custom author, on refresh of a shared MAL author, and on
+    /// photo upload/delete. Subscribers (AuthorPage) invalidate
+    /// the `["author", mal_id]` React Query key + refetch the
+    /// Dexie author cache.
+    Authors,
+    /// 印影 · Snapshot CRUD — fires on capture / delete / image
+    /// upload. Subscribers (SnapshotsPage) invalidate the
+    /// `["snapshots"]` query key + refresh `db.snapshots`.
+    Snapshots,
+    /// 友 · Follow graph mutation — fires on follow/unfollow.
+    /// Subscribers (FriendsPage, PublicProfile FollowCTA)
+    /// invalidate `["friends", "list"]` and the per-slug
+    /// `["friends", "check", slug]` keys.
+    Friends,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

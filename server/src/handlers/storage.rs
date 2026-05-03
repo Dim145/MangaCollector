@@ -11,6 +11,10 @@ use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
 use crate::services::{library, mal_api};
 use crate::state::AppState;
+use crate::util::image::{self as image_util, ImageFormat};
+
+const POSTER_FORMATS: &[ImageFormat] =
+    &[ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::Webp];
 
 fn poster_storage_path(user_id: i32, mal_id: i32) -> String {
     format!("uploads/images/{}/{}.jpg", user_id, mal_id)
@@ -26,45 +30,16 @@ fn is_custom_poster(image_url: Option<&str>) -> bool {
     }
 }
 
-/// Validate a poster's bytes by magic-number inspection.
-///
-/// We trust neither the `Content-Type` header (client-controlled) nor
-/// the file extension (there isn't one). The only source of truth is
-/// the file's bytes themselves. We accept the three image codecs the
-/// frontend actually renders:
-///
-///   • JPEG — `FF D8 FF`
-///   • PNG  — `89 50 4E 47 0D 0A 1A 0A`
-///   • WebP — `RIFF xxxx WEBP`
-///
-/// Everything else (HTML/JS, SVG with embedded scripts, executables,
-/// archives…) is rejected with 400. The served Content-Type is always
-/// `image/jpeg` via `get_poster`, so even if a malicious upload
-/// sneaked through, browsers wouldn't execute it — but we defend in
-/// depth, because bucket pollution alone (storing attacker-controlled
-/// binaries) is undesirable.
-fn is_supported_image(bytes: &[u8]) -> bool {
-    // JPEG: starts with FF D8 FF
-    if bytes.len() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF {
-        return true;
-    }
-    // PNG: fixed 8-byte signature
-    const PNG_SIG: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    if bytes.len() >= 8 && bytes[..8] == PNG_SIG {
-        return true;
-    }
-    // WebP: "RIFF" ........ "WEBP"
-    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
-        return true;
-    }
-    false
-}
-
 /// Maximum size for a single poster upload, in bytes. The global HTTP
 /// body limit (main.rs) covers CSV imports so it's at 10 MiB by
 /// default; posters should be much smaller. 5 MiB is generous enough
 /// for a high-res cover scan.
 const MAX_POSTER_SIZE: usize = 5 * 1024 * 1024;
+
+/// `private` cache lifetime for served blobs (5 days). Same value
+/// used by the snapshot and author-photo handlers — see comment at
+/// the call site for why intermediate caches must not store these.
+const PRIVATE_IMAGE_CACHE_MAX_AGE_SEC: u32 = 60 * 60 * 24 * 5;
 
 /// GET /api/user/storage/poster/:mal_id
 pub async fn get_poster(
@@ -137,11 +112,23 @@ pub async fn get_poster(
     let disposition = format!("inline; filename=\"{}_poster\"", mal_id)
         .parse()
         .map_err(|e| AppError::Internal(format!("disposition header: {e}")))?;
+    // Detect format from the actual bytes — the path uses `.jpg` for
+    // legacy reasons but the upload accepts JPEG/PNG/WebP. Serving
+    // the wrong Content-Type combined with `nosniff` breaks rendering
+    // in some browsers. Default to image/jpeg if detection fails
+    // (the upload validator should have rejected anything else, but
+    // a stored blob from before the validator was added might still
+    // be lurking).
+    let content_type = image_util::detect(&data)
+        .map(ImageFormat::content_type)
+        .unwrap_or("image/jpeg");
+    let cache_control = format!("private, max-age={}", PRIVATE_IMAGE_CACHE_MAX_AGE_SEC);
     let response = (
         [
             (
                 header::CONTENT_TYPE,
-                http::HeaderValue::from_static("image/jpeg"),
+                http::HeaderValue::from_str(content_type)
+                    .map_err(|e| AppError::Internal(format!("content-type header: {e}")))?,
             ),
             (header::CONTENT_DISPOSITION, disposition),
             (
@@ -155,7 +142,8 @@ pub async fn get_poster(
                 // from storing the response — only the end-user's
                 // browser keeps it, scoped to their own session.
                 header::CACHE_CONTROL,
-                http::HeaderValue::from_static("private, max-age=425061"),
+                http::HeaderValue::from_str(&cache_control)
+                    .map_err(|e| AppError::Internal(format!("cache-control header: {e}")))?,
             ),
         ],
         Body::from(data),
@@ -219,7 +207,7 @@ pub async fn upload_poster(
             MAX_POSTER_SIZE
         )));
     }
-    if !is_supported_image(&data) {
+    if !image_util::is_supported(&data, POSTER_FORMATS) {
         return Err(AppError::BadRequest(
             "Poster must be a JPEG, PNG, or WebP image".into(),
         ));
