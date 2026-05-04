@@ -56,11 +56,15 @@ export default function StatsNavRail({ sections, t }) {
 
   return (
     <>
-      {/* Mobile chip-row — fades the right edge so the user
-          notices there's more to scroll. */}
+      {/* Mobile chip-row — sticks BELOW the global navbar
+          (`top-16` ≈ 4 rem matches the Header's resting height).
+          Without the offset the chips would slide under the
+          navbar's `backdrop-blur` and disappear visually behind
+          the brand wordmark. The bg + blur on this nav makes it
+          a second translucent strip stacked under the header. */}
       <nav
         aria-label={t("stats.nav.aria")}
-        className="sticky top-0 z-20 -mx-4 mb-2 overflow-x-auto bg-ink-0/80 px-4 backdrop-blur-md sm:-mx-6 sm:px-6 lg:hidden"
+        className="sticky top-16 z-20 -mx-4 mb-2 overflow-x-auto border-y border-border/40 bg-ink-0/80 px-4 backdrop-blur-md sm:-mx-6 sm:px-6 lg:hidden"
       >
         <ul className="flex gap-2 py-3">
           {sections.map((s) => {
