@@ -2,6 +2,7 @@ import { useContext, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import CoverImage from "./ui/CoverImage.jsx";
+import MarginaliaPaper from "./ui/MarginaliaPaper.jsx";
 import { useBacklog } from "@/hooks/useBacklog.js";
 import { hasToBlurImage } from "@/utils/library.js";
 import SettingsContext from "@/SettingsContext.js";
@@ -488,34 +489,33 @@ function Chip({ kanji, value, label, tone }) {
 // ─── Empty state ───────────────────────────────────────────────────
 
 function EmptyState({ t }) {
+  // 完 · Tsundoku-cleared celebration. The page's dominant
+  // emotion when the backlog is empty is honoured completion,
+  // not absence — every owned-but-unread volume has been read.
+  // Accent stays moegi (the "completed" green that marks 完
+  // throughout the app); the marginalia inscription frames the
+  // achievement as a moment in the archivist's journal.
   return (
-    <div className="relative mx-auto max-w-2xl rounded-3xl border border-moegi/30 bg-gradient-to-br from-moegi/8 via-ink-1/60 to-ink-1/30 p-10 text-center backdrop-blur md:p-14 animate-fade-up">
-      {/* Decorative kanji watermark in the corner — opposite balance
-          to the centre 完 stamp. Adds visual weight without clutter. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-4 -right-4 font-jp text-[10rem] font-bold leading-none text-moegi/8"
-        style={{ transform: "rotate(-6deg)" }}
+    <div className="mx-auto max-w-2xl">
+      <MarginaliaPaper
+        glyph="完"
+        glyphRotation={-2}
+        chapterMark={t("backlog.chapterMark")}
+        cornerStamp="読"
+        inscription={t("backlog.inscription")}
+        accent="moegi"
+        className="tour-stamp-press-target"
       >
-        無
-      </span>
-
-      <p className="relative font-mono text-[10px] uppercase tracking-[0.32em] text-moegi">
-        {t("backlog.emptyKicker")}
-      </p>
-      <p
-        aria-hidden="true"
-        className="tour-stamp-press-target relative mt-4 font-jp text-7xl font-bold leading-none text-moegi md:text-9xl"
-        style={{ filter: "drop-shadow(0 4px 24px rgba(163,201,97,0.4))" }}
-      >
-        完
-      </p>
-      <h2 className="relative mt-5 font-display text-2xl font-semibold italic leading-tight text-washi md:text-3xl">
-        {t("backlog.emptyTitle")}
-      </h2>
-      <p className="relative mx-auto mt-3 max-w-md text-sm leading-relaxed text-washi-muted">
-        {t("backlog.emptyBody")}
-      </p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-moegi">
+          {t("backlog.emptyKicker")}
+        </p>
+        <h2 className="mt-3 font-display text-2xl font-semibold italic leading-tight text-washi md:text-3xl">
+          {t("backlog.emptyTitle")}
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-washi-muted">
+          {t("backlog.emptyBody")}
+        </p>
+      </MarginaliaPaper>
     </div>
   );
 }

@@ -87,6 +87,9 @@ export default {
     emptySearchEyebrow: "NOTHING MATCHES · 静",
     emptySearchTitle: "No release matches that filter",
     emptySearchBody: "Try a shorter query or widen the time horizon.",
+    chapterMark: "暦帖",
+    inscriptionEmpty: "The almanac is quiet this season.",
+    inscriptionSearched: "The filter returned nothing — widen the horizon.",
   },
   calendarSubscribe: {
     eyebrow: "SUBSCRIBE · 暦",
@@ -168,6 +171,12 @@ export default {
     emptyBody:
       "Start curating your collection — search a title, add a volume, and watch your archive grow.",
     addFirst: "Add your first series",
+    chapterEmpty: "第一章",
+    chapterSearch: "探索",
+    chapterFilter: "濾過",
+    inscriptionEmpty: "The shelf awaits its first inscription.",
+    inscriptionSearched: "No trace, but the archive is breathing.",
+    inscriptionFiltered: "The filter hides everything — release to see again.",
     genresLabel: "TAGS · 題箋",
     genreFilterLabel: "Filter by genre",
     tagsSelected: "active",
@@ -1959,6 +1968,8 @@ export default {
     emptyTitle: "Tsundoku complete",
     emptyBody:
       "No owned-but-unread volumes. Either you've devoured the lot, or you've trimmed the shelf — both deserve a seal.",
+    chapterMark: "終章",
+    inscription: "The pile has dispersed — a seal for the quiet that follows.",
     backToDashboard: "Back to dashboard",
   },
   update: {
@@ -2220,6 +2231,9 @@ export default {
       "Add one or two correspondents first so their acquisitions can land here.",
     feedEmptyBodyQuiet:
       "Your correspondents haven't posted recently. The mailbox fills as soon as they touch their archive.",
+    chapterMark: "便箋",
+    feedInscriptionNone: "No correspondents yet — the lane is open.",
+    feedInscriptionQuiet: "The post still passes through — patience.",
     followAction: "Follow",
     followingState: "Following",
     followOffline: "Offline",

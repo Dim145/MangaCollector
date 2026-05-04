@@ -17,7 +17,7 @@ import GapSuggestions from "./GapSuggestions.jsx";
 import LoansWidget from "./LoansWidget.jsx";
 import { FilterButton, ActiveChips } from "./TagFilter.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
-import EmptyStateGlyph from "./ui/EmptyStateGlyph.jsx";
+import MarginaliaPaper from "./ui/MarginaliaPaper.jsx";
 import WelcomeTour from "./WelcomeTour.jsx";
 import SeasonGreeting from "./SeasonGreeting.jsx";
 import { hasSeenTour } from "@/lib/tour.js";
@@ -980,53 +980,64 @@ function EmptyState({ hasQuery, hasActiveTags, onAdd, onClearTags }) {
     : hasQuery
       ? t("dashboard.noMatchBody")
       : t("dashboard.emptyBody");
+  // 余白 · Marginalia inscription per-state. The line is
+  // deliberately ceremonial — it tells the user the absence is
+  // intentional rather than a glitch. Bottom-right of the panel,
+  // italic, hand-rotated.
+  const inscription = hasActiveTags
+    ? t("dashboard.inscriptionFiltered")
+    : hasQuery
+      ? t("dashboard.inscriptionSearched")
+      : t("dashboard.inscriptionEmpty");
+  // 第N · Chapter mark per-state — small running header in the
+  // top-left, like the chapter number on a printed manga page.
+  const chapterMark = hasActiveTags
+    ? t("dashboard.chapterFilter")
+    : hasQuery
+      ? t("dashboard.chapterSearch")
+      : t("dashboard.chapterEmpty");
   return (
-    <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border bg-ink-1/30 px-6 py-20 text-center animate-fade-up">
-      {/* Kanji backdrop — sits behind the textual content via
-          absolute positioning + low opacity. Pointer-events none
-          so the CTA stays clickable. */}
-      <span
-        aria-hidden="true"
-        className="absolute inset-0 z-0 grid place-items-center text-hanko/[0.09]"
-      >
-        <EmptyStateGlyph glyph={glyph} rotation={rotation} />
-      </span>
-
-      <div className="relative z-10 flex flex-col items-center">
-        <h2 className="font-display text-2xl italic text-washi md:text-3xl">
-          {title}
-        </h2>
-        <p className="mt-2 max-w-md text-sm text-washi-muted">{body}</p>
-        {hasActiveTags ? (
-          <button
-            onClick={onClearTags}
-            className="mt-6 inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko/20 hover:border-hanko"
+    <MarginaliaPaper
+      glyph={glyph}
+      glyphRotation={rotation}
+      chapterMark={chapterMark}
+      cornerStamp="棚"
+      inscription={inscription}
+      accent="hanko"
+    >
+      <h2 className="font-display text-2xl italic text-washi md:text-3xl">
+        {title}
+      </h2>
+      <p className="mt-1 max-w-md text-sm text-washi-muted">{body}</p>
+      {hasActiveTags ? (
+        <button
+          onClick={onClearTags}
+          className="mt-6 inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko/20 hover:border-hanko"
+        >
+          <span aria-hidden="true" className="font-jp text-base leading-none">
+            解
+          </span>
+          {t("dashboard.clearTags")}
+        </button>
+      ) : !hasQuery ? (
+        <button
+          onClick={onAdd}
+          className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
           >
-            <span aria-hidden="true" className="font-jp text-base leading-none">
-              解
-            </span>
-            {t("dashboard.clearTags")}
-          </button>
-        ) : !hasQuery ? (
-          <button
-            onClick={onAdd}
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            {t("dashboard.addFirst")}
-          </button>
-        ) : null}
-      </div>
-    </div>
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          {t("dashboard.addFirst")}
+        </button>
+      ) : null}
+    </MarginaliaPaper>
   );
 }

@@ -2606,6 +2606,231 @@
   z-index: 90;
 }
 
+/* ─── 墨 · Sumi-e dispersion loader ───
+   PageLoader's hero animation: a brush touching the page once.
+   The puddle, mid-wash, halo, satellites and tendrils each
+   animate on their own cue, all anchored to the same centre,
+   then the whole group settles into a 4 s breathing loop. The
+   irregular ink-stain edge comes from SVG `feTurbulence` +
+   `feDisplacementMap` filters defined inline on the loader;
+   nothing here re-creates that effect — these rules only
+   choreograph the dispersion timing.
+
+   `transform-box: fill-box` is critical for SVG elements: it
+   makes `transform-origin: <px> <px>` resolve relative to each
+   element's own bounding box, so the puddle scales from its
+   centre instead of from the SVG's (0, 0). Without it, every
+   `scale()` would translate the element sideways. */
+.loader-sumi-svg {
+  /* The whole composition breathes once per 4 s after the
+     dispersion sequence completes (delay = 2 s). */
+  animation: mc-loader-breath 4s 2s ease-in-out infinite;
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+}
+.loader-sumi-puddle,
+.loader-sumi-wash,
+.loader-sumi-halo,
+.loader-sumi-satellite,
+.loader-sumi-kanji {
+  transform-box: fill-box;
+}
+.loader-sumi-puddle {
+  opacity: 0;
+  transform: scale(0);
+  animation: mc-loader-drop 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.loader-sumi-wash {
+  opacity: 0;
+  transform: scale(0.5);
+  animation: mc-loader-wash 0.95s 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.loader-sumi-halo {
+  opacity: 0;
+  transform: scale(0.4);
+  animation: mc-loader-halo 1.3s 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.loader-sumi-satellite {
+  opacity: 0;
+  transform: scale(0);
+  animation: mc-loader-satellite 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.loader-sumi-tendril {
+  /* Tendrils draw on via stroke-dashoffset. Setting both dasharray
+     and offset to the path length produces "invisible" → animation
+     pulls the dashoffset to 0, revealing the stroke from origin to
+     tip. Path length = ~66 here (radius difference 102 - 36); we
+     overshoot to 80 for safety against sub-pixel rounding. */
+  stroke-dasharray: 80;
+  stroke-dashoffset: 80;
+  opacity: 0;
+  animation: mc-loader-tendril-draw 0.85s cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
+}
+.loader-sumi-kanji {
+  opacity: 0;
+  transform: scale(0.6);
+  filter: blur(8px);
+  animation: mc-loader-kanji-emerge 0.55s 0.85s cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
+}
+.loader-sumi-stroke {
+  display: block;
+  width: 9rem;
+  height: 2.5px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in oklab, var(--hanko) 60%, transparent) 25%,
+    color-mix(in oklab, var(--hanko) 80%, transparent) 50%,
+    color-mix(in oklab, var(--hanko) 60%, transparent) 75%,
+    transparent 100%
+  );
+  /* The single brushstroke replaces the original three dashes.
+     A continuous left→right wash that loops in 1.8 s — same
+     period as the breathing pulse so the two motions phase
+     together. */
+  transform-origin: 0% 50%;
+  animation: mc-loader-stroke 1.8s 0.6s cubic-bezier(0.4, 0.1, 0.2, 1) infinite;
+}
+
+@keyframes mc-loader-drop {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes mc-loader-wash {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+}
+@keyframes mc-loader-halo {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.28;
+  }
+}
+@keyframes mc-loader-satellite {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.2);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+}
+@keyframes mc-loader-tendril-draw {
+  0% {
+    stroke-dashoffset: 80;
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.6;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.55;
+  }
+}
+@keyframes mc-loader-kanji-emerge {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+}
+@keyframes mc-loader-breath {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+@keyframes mc-loader-stroke {
+  0%,
+  100% {
+    transform: scaleX(0.2);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-sumi-svg,
+  .loader-sumi-puddle,
+  .loader-sumi-wash,
+  .loader-sumi-halo,
+  .loader-sumi-satellite,
+  .loader-sumi-tendril,
+  .loader-sumi-kanji,
+  .loader-sumi-stroke {
+    animation: none !important;
+  }
+  /* Reduced motion: every layer holds its end-state at full
+     opacity, no transforms, no draw-on. The page still gets the
+     irregular ink-stain look; only the motion is suppressed. */
+  .loader-sumi-puddle,
+  .loader-sumi-kanji {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  .loader-sumi-wash {
+    opacity: 0.5;
+    transform: none;
+  }
+  .loader-sumi-halo {
+    opacity: 0.28;
+    transform: none;
+  }
+  .loader-sumi-satellite {
+    opacity: 0.7;
+    transform: none;
+  }
+  .loader-sumi-tendril {
+    opacity: 0.55;
+    stroke-dashoffset: 0;
+  }
+  .loader-sumi-stroke {
+    transform: scaleX(1);
+    opacity: 0.5;
+  }
+}
+
 /* Seasonal-atmosphere particles. Each particle is a single
    absolutely-positioned `<span>` driven by per-particle CSS variables
    set in JSX (`--scale`, `--delay`, `--duration`, `--rot`); the four

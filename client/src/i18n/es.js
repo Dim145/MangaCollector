@@ -87,6 +87,9 @@ export default {
     emptySearchEyebrow: "SIN COINCIDENCIAS · 静",
     emptySearchTitle: "Ninguna salida coincide con el filtro",
     emptySearchBody: "Prueba una búsqueda más corta o amplía el horizonte.",
+    chapterMark: "暦帖",
+    inscriptionEmpty: "El almanaque está en calma esta temporada.",
+    inscriptionSearched: "El filtro no devolvió nada — amplía el horizonte.",
   },
   calendarSubscribe: {
     eyebrow: "SUSCRIBIRSE · 暦",
@@ -168,6 +171,12 @@ export default {
     emptyBody:
       "Empieza a curar tu colección — busca un título, añade un tomo y ve crecer tu archivo.",
     addFirst: "Añadir tu primera serie",
+    chapterEmpty: "第一章",
+    chapterSearch: "探索",
+    chapterFilter: "濾過",
+    inscriptionEmpty: "El estante espera su primera inscripción.",
+    inscriptionSearched: "Ninguna huella, pero el archivo respira.",
+    inscriptionFiltered: "El filtro lo oculta todo — suelta para volver a ver.",
     genresLabel: "ETIQUETAS · 題箋",
     genreFilterLabel: "Filtrar por género",
     tagsSelected: "activas",
@@ -1970,6 +1979,8 @@ export default {
     emptyTitle: "Tsundoku completado",
     emptyBody:
       "Ningún tomo sin leer. Lo has devorado todo, o has aligerado la estantería — ambos merecen un sello.",
+    chapterMark: "終章",
+    inscription: "La pila se ha disipado — un sello para la calma reencontrada.",
     backToDashboard: "Volver al dashboard",
   },
   update: {
@@ -2231,6 +2242,9 @@ export default {
       "Añade primero uno o dos corresponsales para que sus adquisiciones lleguen aquí.",
     feedEmptyBodyQuiet:
       "Tus corresponsales no han publicado nada recientemente. El buzón se llenará cuando toquen su archivo.",
+    chapterMark: "便箋",
+    feedInscriptionNone: "Aún sin corresponsales — la vía está abierta.",
+    feedInscriptionQuiet: "El cartero pasa igualmente — paciencia.",
     followAction: "Seguir",
     followingState: "Siguiendo",
     followOffline: "Sin conexión",

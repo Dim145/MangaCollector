@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
+import MarginaliaPaper from "./ui/MarginaliaPaper.jsx";
 import {
   useFollowList,
   useFriendsFeed,
@@ -425,21 +426,33 @@ function FeedEntryCard({ entry, t, lang }) {
 }
 
 function FeedEmpty({ hasFollows, t }) {
+  // 文 · Friends correspondence empty — sakura accent (soft
+  // rose) signals quiet correspondence rather than absence.
+  // Two flavours: "you follow people but they're quiet" vs.
+  // "you follow nobody yet". The kanji and marginalia both
+  // shift to match the underlying meaning — 待 (await) when
+  // the mailbox is just empty, 文 (correspondence) when there's
+  // simply nobody to write yet.
   return (
-    <div className="rounded-md border border-border/70 bg-ink-1/40 p-10 text-center backdrop-blur md:p-14">
-      <p
-        aria-hidden="true"
-        className="font-jp text-6xl font-bold leading-none text-washi-dim md:text-8xl"
-      >
-        無
-      </p>
-      <h3 className="mt-5 font-display text-lg font-light italic text-washi md:text-xl">
+    <MarginaliaPaper
+      glyph={hasFollows ? "待" : "文"}
+      glyphRotation={hasFollows ? 2 : -3}
+      chapterMark={t("friends.chapterMark")}
+      cornerStamp="便"
+      inscription={
+        hasFollows
+          ? t("friends.feedInscriptionQuiet")
+          : t("friends.feedInscriptionNone")
+      }
+      accent="sakura"
+    >
+      <h3 className="font-display text-lg font-light italic text-washi md:text-xl">
         {hasFollows ? t("friends.feedEmptyTitleQuiet") : t("friends.feedEmptyTitleNone")}
       </h3>
-      <p className="mt-3 max-w-md mx-auto font-display text-sm italic text-washi-muted">
+      <p className="mt-2 max-w-md mx-auto font-display text-sm italic text-washi-muted">
         {hasFollows ? t("friends.feedEmptyBodyQuiet") : t("friends.feedEmptyBodyNone")}
       </p>
-    </div>
+    </MarginaliaPaper>
   );
 }
 
