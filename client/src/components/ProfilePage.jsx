@@ -31,6 +31,11 @@ import { useUserSettings } from "@/hooks/useSettings.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useOwnPublicSlug } from "@/hooks/usePublicProfile.js";
 import { useT } from "@/i18n/index.jsx";
+import {
+  pickBracket,
+  useDailyByline,
+  useDailyInsight,
+} from "@/lib/dailyTexts.js";
 
 export default function ProfilePage({ googleUser }) {
   const { currency: currencySetting, adult_content_level } =
@@ -205,6 +210,15 @@ export default function ProfilePage({ googleUser }) {
   const initial = userName?.[0]?.toUpperCase() ?? "U";
   const avatarUrl = !avatarFailed ? (settings?.avatarUrl ?? null) : null;
   const publicSlug = (slugData?.public_slug ?? slugData?.slug ?? "").trim();
+  // 日替り · Daily-rotating prose for the byline + insight banner.
+  // The byline pool is uniform across users; the insight pool is
+  // bracketed by completion ratio so the prose always matches the
+  // shape of the user's archive ("you're at the start" vs "the
+  // archive is complete"). Both rotate every UTC midnight via a
+  // deterministic seed — see `lib/dailyTexts.js`.
+  const dailyByline = useDailyByline();
+  const insightBracket = pickBracket({ totalVolumesOwned, completionRate });
+  const dailyInsight = useDailyInsight(insightBracket);
   // 暦 · Member-since formatting. Cap at "X years" past 365 d, drop
   // to "Y months" past 30 d, "N days" otherwise. Localised via the
   // existing i18n keys.
@@ -367,8 +381,8 @@ export default function ProfilePage({ googleUser }) {
                   ) : null}
                 </p>
               )}
-              <p className="mt-2 text-sm text-washi-muted">
-                {t("profile.byline")}
+              <p className="mt-2 text-sm italic text-washi-muted">
+                {dailyByline}
               </p>
               {/* 五 · Five identity-portal chips — ONE accent each,
                   picked semantically rather than for visual variety
@@ -698,15 +712,7 @@ export default function ProfilePage({ googleUser }) {
               {t("profile.insightLabel")}
             </p>
             <h3 className="mt-2 max-w-xl font-display text-xl font-semibold italic text-washi md:text-2xl">
-              {totalVolumesOwned === 0
-                ? t("profile.insightEmpty")
-                : completionRate === 100
-                  ? t("profile.insightComplete")
-                  : completionRate > 75
-                    ? t("profile.insightAlmost")
-                    : completionRate > 50
-                      ? t("profile.insightHalfway")
-                      : t("profile.insightBeginning")}
+              {dailyInsight}
             </h3>
           </div>
         </section>

@@ -4,10 +4,17 @@
  * Big rotated 帳 watermark, eyebrow + display title, optional sub-
  * heading, and a back link to /profile. Designed to span the page
  * width so it sets the tonality before the section nav kicks in.
+ *
+ * Subtitle prose rotates daily — see `lib/dailyTexts.js`. The
+ * pool stays on theme ("the ledger of an archivist") so the
+ * page voice is consistent regardless of which line surfaces
+ * on a given day.
  */
 import { Link } from "react-router-dom";
+import { useDailyStatsSubtitle } from "@/lib/dailyTexts.js";
 
 export default function StatsHero({ t, totals, loading }) {
+  const dailySubtitle = useDailyStatsSubtitle();
   const heroStats = [
     {
       kanji: "巻",
@@ -79,7 +86,7 @@ export default function StatsHero({ t, totals, loading }) {
         </h1>
 
         <p className="mt-5 max-w-2xl font-display text-base italic leading-relaxed text-washi-muted md:text-lg">
-          {t("stats.hero.subtitle")}
+          {dailySubtitle}
         </p>
 
         {/* Hero stat row — four ceremonial figures. Renders as a
