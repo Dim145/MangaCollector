@@ -666,6 +666,8 @@ export default {
     memberDays: "Membre depuis {n} jours",
     memberMonths: "Membre depuis {n} mois",
     memberYears: "Membre depuis {n} ans",
+    anniversaryYears: "{n}ᵉ année d'archive",
+    anniversaryAria: "Anniversaire d'archive : {n} ans",
     yearReviewCta: "Rétrospective {year}",
     snapshotCta: "Partager mon étagère",
     backlogCta: "Pile à lire",

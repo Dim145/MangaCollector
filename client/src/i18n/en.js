@@ -648,6 +648,8 @@ export default {
     memberDays: "Member for {n} days",
     memberMonths: "Member for {n} months",
     memberYears: "Member for {n} years",
+    anniversaryYears: "{n} year archiving",
+    anniversaryAria: "Archive anniversary: {n} years",
     yearReviewCta: "{year} in review",
     snapshotCta: "Share my shelf",
     backlogCta: "Reading pile",

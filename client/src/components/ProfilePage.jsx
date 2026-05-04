@@ -235,6 +235,23 @@ export default function ProfilePage({ googleUser }) {
     return t("profile.memberDays", { n: memberSinceDays });
   }, [memberSinceDays, t]);
 
+  // 祝 · Anniversary detection — fires the celebratory ribbon
+  // when the user is within 7 days AFTER an exact-year boundary
+  // (so a 367-day member catches the 1-year ribbon for a week,
+  // a 1099-day member catches the 3-year ribbon, etc.). The
+  // post-boundary window keeps the anniversary feeling like
+  // "you just hit it" rather than "it's coming"; predicting the
+  // upcoming anniversary would need a server-side timestamp
+  // anchor that the current memberSinceDays count doesn't
+  // expose. `null` means no ribbon — the common case.
+  const anniversaryYears = useMemo(() => {
+    if (memberSinceDays == null || memberSinceDays < 365) return null;
+    const wholeYears = Math.floor(memberSinceDays / 365);
+    const daysIntoCurrentYear = memberSinceDays - wholeYears * 365;
+    if (daysIntoCurrentYear > 7) return null;
+    return wholeYears;
+  }, [memberSinceDays]);
+
   return (
     <DefaultBackground>
       <div className="mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
@@ -263,6 +280,29 @@ export default function ProfilePage({ googleUser }) {
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-hanko/30 via-border to-transparent" />
           </div>
+
+          {/* 祝 · Anniversary pennant — only renders during the
+              7-day window after each yearly archive milestone.
+              Pinned to the top edge of the hero, slight tilt so
+              it reads as set down with intent rather than nailed
+              square. The pennant points right toward the avatar
+              cluster, drawing the eye into the hero content. */}
+          {anniversaryYears != null && (
+            <span
+              className="anniversary-pennant"
+              role="status"
+              aria-label={t("profile.anniversaryAria", {
+                n: anniversaryYears,
+              })}
+            >
+              <span aria-hidden="true" className="font-jp text-[14px] font-bold leading-none">
+                祝
+              </span>
+              <span className="anniversary-pennant-label">
+                {t("profile.anniversaryYears", { n: anniversaryYears })}
+              </span>
+            </span>
+          )}
 
           <div className="relative mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
             {/* Avatar — click to open picker. Wrapped in a relative

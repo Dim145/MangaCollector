@@ -2711,6 +2711,79 @@
   z-index: 90;
 }
 
+/* ─── 祝 · Anniversary pennant ───
+   Small flag-shaped ribbon pinned to the top of the ProfilePage
+   hero during the 7-day window after each yearly archive
+   milestone. Composed of:
+     • A horizontal gold gradient strip with carved-stone bevel
+       (inset shadow + outer drop) — same vocabulary as the
+       hanko stamps everywhere else.
+     • A pennant cut on the trailing edge (clip-path polygon
+       chevroning into the centre) so the strip reads as a flag,
+       not a button.
+     • A 祝 (iwa-u, "to celebrate") kanji at the leading edge —
+       the universal Japanese visual for "this is a moment".
+     • A subtle entrance animation (fade-up + slight settle) so
+       the ribbon feels like it was just pinned to the page.
+   Honours `prefers-reduced-motion` via the global rule that
+   kills all transitions / animations under that pref. */
+.anniversary-pennant {
+  position: absolute;
+  top: -0.65rem;
+  right: 1.25rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 1.4rem 0.4rem 0.8rem;
+  background:
+    linear-gradient(
+      135deg,
+      var(--gold) 0%,
+      color-mix(in oklab, var(--gold) 65%, white 35%) 50%,
+      var(--gold) 100%
+    );
+  color: var(--ink-0);
+  font-family: "Fraunces", "Noto Serif JP", serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+  /* Pennant cut — flat top, flat bottom, chevron point at
+     trailing edge. The 84% / 92% notch cuts a triangular bite
+     out of the right edge so the strip reads as a flag rather
+     than a sliced rectangle. */
+  clip-path: polygon(0% 0%, 100% 0%, 92% 50%, 100% 100%, 0% 100%);
+  box-shadow:
+    0 6px 16px -4px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px color-mix(in oklab, var(--gold) 60%, white 40%);
+  /* Slight tilt — same set-down-with-intent angle as the
+     bottom-nav add seal and the hanko brand mark. */
+  transform: rotate(-2.5deg);
+  transform-origin: top right;
+  animation: mc-pennant-pin 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anniversary-pennant-label {
+  font-style: italic;
+}
+@keyframes mc-pennant-pin {
+  /* Drops in from above, lands on the tilt. The brief
+     overshoot at 70% gives the pennant a "released and
+     settling" beat — like a real flag pinned to a board. */
+  0% {
+    opacity: 0;
+    transform: translateY(-1.5rem) rotate(-7deg);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0.15rem) rotate(-1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(-2.5deg);
+  }
+}
+
 /* ─── 水引 · Mizuhiki tag chips ───
    Mizuhiki are decorative paper cords used to tie envelopes
    and gifts in Japan; this chip variant treats each filter
