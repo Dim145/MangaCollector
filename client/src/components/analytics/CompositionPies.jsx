@@ -94,7 +94,7 @@ export default function CompositionPies({ stores, genres, loading }) {
   const t = useT();
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <PieCard
         label={t("analytics.genres.label")}
         title={t("analytics.genres.title")}

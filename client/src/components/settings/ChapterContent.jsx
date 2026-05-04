@@ -74,7 +74,7 @@ function LanguageSection({ value, onChange, t }) {
         title={t("settings.language")}
         body={t("settings.languageBody")}
       />
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {LANGUAGES.map((lang) => (
           <RadioCard
             key={lang.code}
@@ -112,7 +112,7 @@ function TitleLanguageSection({ options, value, onChange, t }) {
         title={t("settings.titleLanguage")}
         body={t("settings.titleBody")}
       />
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {options.map((opt) => (
           <RadioCard
             key={opt.value}
@@ -209,7 +209,7 @@ function AdultContentSection({ options, value, onChange, t }) {
         title={t("settings.adultContent")}
         body={t("settings.adultBody")}
       />
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {options.map((opt) => (
           <RadioCard
             key={opt.value}

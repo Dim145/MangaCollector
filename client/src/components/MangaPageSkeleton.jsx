@@ -22,7 +22,7 @@ export default function MangaPageSkeleton() {
         <Skeleton className="mb-6 h-3 w-24 rounded" />
 
         <section className="relative mb-8">
-          <div className="grid gap-6 md:grid-cols-[minmax(0,280px)_1fr] md:gap-10">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-10">
             {/* Cover */}
             <div className="mx-auto w-full max-w-[220px] md:mx-0 md:max-w-none">
               <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border shadow-2xl">

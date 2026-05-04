@@ -132,7 +132,7 @@ export default function BacklogPage() {
 function Hero({ data, t }) {
   return (
     <header className="relative mb-10 animate-fade-up md:mb-14">
-      <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:gap-8 sm:items-center">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-8 sm:items-center">
         {/* Big kanji 積 — same stamp-press treatment as the welcome
             tour hero. Adds the bloom ring underneath so the impact
             reads as wet-ink-on-paper. */}

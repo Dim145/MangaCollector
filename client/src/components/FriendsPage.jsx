@@ -65,7 +65,7 @@ export default function FriendsPage() {
           // (cached in Dexie by `useFollowList`) so users still see
           // who they follow. Only the activity feed and follow CTA
           // are gated — those need fresh server data.
-          <div className="grid gap-8 md:grid-cols-[280px_1fr] md:gap-10 lg:grid-cols-[320px_1fr] lg:gap-12">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-[280px_minmax(0,1fr)] md:gap-10 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-12">
             <aside className="md:sticky md:top-8 md:self-start">
               <CorrespondentsPanel
                 follows={follows}
@@ -79,7 +79,7 @@ export default function FriendsPage() {
             </section>
           </div>
         ) : (
-          <div className="grid gap-8 md:grid-cols-[280px_1fr] md:gap-10 lg:grid-cols-[320px_1fr] lg:gap-12">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-[280px_minmax(0,1fr)] md:gap-10 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-12">
             {/* Left rail — correspondents (the people you follow) */}
             <aside className="md:sticky md:top-8 md:self-start">
               <CorrespondentsPanel

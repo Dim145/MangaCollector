@@ -356,7 +356,7 @@ function Hero({
         )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[auto_1fr] md:items-start md:gap-10">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[auto_minmax(0,1fr)] md:items-start md:gap-10">
         {/* LEFT — portrait. Renders a placeholder seal when no photo
             is available (custom author override or MAL row without
             an image_url). The frame is a hanko-stamped circle to

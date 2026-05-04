@@ -83,7 +83,7 @@ function ThemeSection({ options, value, onChange, t }) {
         title={t("settings.appearance")}
         body={t("settings.appearanceBody")}
       />
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {options.map((opt) => (
           <RadioCard
             key={opt.value}

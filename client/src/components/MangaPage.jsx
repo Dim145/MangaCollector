@@ -625,7 +625,7 @@ export default function MangaPage({ manga, adult_content_level }) {
             </div>
           )}
 
-          <div className="grid gap-6 md:grid-cols-[minmax(0,280px)_1fr] md:gap-10">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-10">
             <div className="mx-auto w-full max-w-[220px] md:mx-0 md:max-w-none">
               <div
                 // 遷 · `view-transition-name` matches the Dashboard
