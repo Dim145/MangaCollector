@@ -50,6 +50,8 @@
   --sakura: oklch(0.82 0.07 12); /* pale rose */
   --moegi: oklch(0.78 0.16 140); /* moegi · spring shoot — "completed" */
   --moegi-muted: oklch(0.62 0.14 140);
+  --ai: oklch(0.7 0.13 245); /* 藍 · indigo — archive blue */
+  --ai-muted: oklch(0.55 0.12 248);
 
   /* Semantic */
   --success: oklch(0.72 0.16 150);
@@ -213,6 +215,8 @@
   --sakura: oklch(0.56 0.15 20);
   --moegi: oklch(0.55 0.17 140); /* moegi · deep leaf on paper */
   --moegi-muted: oklch(0.45 0.15 140);
+  --ai: oklch(0.45 0.16 248); /* 藍 · indigo on paper (light theme) */
+  --ai-muted: oklch(0.4 0.14 248);
 
   /* Semantic */
   --success: oklch(0.5 0.16 150);
@@ -361,6 +365,8 @@
   --color-sakura: var(--sakura);
   --color-moegi: var(--moegi);
   --color-moegi-muted: var(--moegi-muted);
+  --color-ai: var(--ai);
+  --color-ai-muted: var(--ai-muted);
 
   --font-display: "Fraunces", "Playfair Display", Georgia, serif;
   --font-sans: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
