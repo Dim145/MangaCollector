@@ -2711,6 +2711,135 @@
   z-index: 90;
 }
 
+/* ─── 水引 · Mizuhiki tag chips ───
+   Mizuhiki are decorative paper cords used to tie envelopes
+   and gifts in Japan; this chip variant treats each filter
+   tag as a small bundled cord with a knotted leading edge
+   and a frayed trailing edge.
+
+   Anatomy (left → right):
+     • The knot ornament — two crossing curved cords with a
+       small nub at the centre — sits at the leading edge.
+       Drawn as an inline SVG so it picks up `currentColor`
+       from the chip's accent.
+     • The body — capsule outlined by two horizontal cord
+       lines on the top and bottom edges, with a repeating
+       stripe pattern between them suggesting twisted strands.
+     • The label — italic display font, capitalised first letter.
+     • The fray — three short strokes fanning out from the
+       trailing edge, drawn as inline SVG. Doubles as the
+       remove-affordance: clicking the chip removes the tag,
+       and the fray is what the user reaches for visually.
+
+   `--chip-accent` is set per-instance via inline style so each
+   chip can carry the colour of its own genre token (or the
+   default hanko cinnabar). The cord stripes / knot / fray all
+   read from this variable so the colour story stays consistent
+   across the chip surface.
+
+   Honours `prefers-reduced-motion`: the hover lift is the only
+   motion; reduced-motion users get the static state. */
+.mizuhiki-chip {
+  --chip-accent: var(--hanko);
+  --chip-soft: color-mix(in oklab, var(--chip-accent) 14%, transparent);
+  --chip-mid: color-mix(in oklab, var(--chip-accent) 42%, transparent);
+  --chip-strong: color-mix(in oklab, var(--chip-accent) 70%, transparent);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.5rem;
+  border-radius: 0.35rem;
+  border-top: 1.5px solid var(--chip-mid);
+  border-bottom: 1.5px solid var(--chip-mid);
+  border-left: 0;
+  border-right: 0;
+  /* Cord stripes — 3 px periodic horizontal lines between the
+     two thicker borders. Reads as twisted-cord texture without
+     committing to a per-strand SVG. */
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2.5px,
+      color-mix(in oklab, var(--chip-accent) 14%, transparent) 2.5px,
+      color-mix(in oklab, var(--chip-accent) 14%, transparent) 3.3px
+    ),
+    var(--chip-soft);
+  font-family: "Fraunces", "Noto Serif JP", serif;
+  font-style: italic;
+  font-size: 0.8125rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--washi);
+  cursor: pointer;
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.18s,
+    background-color 0.18s;
+}
+.mizuhiki-chip:hover,
+.mizuhiki-chip:focus-visible {
+  border-top-color: var(--chip-strong);
+  border-bottom-color: var(--chip-strong);
+  transform: translateY(-1px);
+  outline: none;
+}
+.mizuhiki-chip:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--ink-1),
+    0 0 0 3px var(--chip-accent);
+}
+.mizuhiki-chip:active {
+  transform: translateY(0);
+}
+.mizuhiki-knot,
+.mizuhiki-fray {
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1.05rem;
+  color: var(--chip-accent);
+  flex-shrink: 0;
+}
+.mizuhiki-knot svg,
+.mizuhiki-fray svg {
+  width: 100%;
+  height: 100%;
+  /* The strokes read sharper at small sizes when the line
+     joins are mitred and the caps are rounded — emulates the
+     actual silk-cord profile rather than a flat printer line. */
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+.mizuhiki-chip:hover .mizuhiki-fray,
+.mizuhiki-chip:focus-visible .mizuhiki-fray {
+  /* On hover, the fray rotates a touch — the cord's last
+     strand catching the breeze. Functional too: it cues the
+     user that the trailing edge is interactive (the click
+     removes the tag). */
+  transform: rotate(15deg);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mizuhiki-fray {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mizuhiki-chip,
+  .mizuhiki-fray {
+    transition: none;
+  }
+  .mizuhiki-chip:hover,
+  .mizuhiki-chip:focus-visible {
+    transform: none;
+  }
+  .mizuhiki-chip:hover .mizuhiki-fray,
+  .mizuhiki-chip:focus-visible .mizuhiki-fray {
+    transform: none;
+  }
+}
+
 /* ─── 紙 · Aged washi panel ───
    Subtle vignette + foxing on a panel so it reads as printed
    on slightly aged paper rather than freshly stamped. Applied
