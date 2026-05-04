@@ -1303,6 +1303,7 @@ export default {
     title: "Quizá también te guste",
     byline:
       "Sugerencias basadas en las series de las que más tomos tienes, tomadas de las recomendaciones de lectores de MyAnimeList.",
+    rotating: "El panel rota — pasa el ratón por encima para pausar",
     rateLimited:
       "MyAnimeList nos está limitando ahora — vuelve en un minuto y las sugerencias aparecerán.",
     recommendedBy: "Por {n} de tus series",

@@ -1295,6 +1295,7 @@ export default {
     title: "You might also like",
     byline:
       "Based on the series you own most of, drawn from MyAnimeList reader picks.",
+    rotating: "The deck is shuffling — hover to pause",
     rateLimited:
       "MyAnimeList is throttling us right now — come back in a minute and suggestions will populate.",
     recommendedBy: "By {n} of your series",

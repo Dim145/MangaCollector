@@ -1320,6 +1320,7 @@ export default {
     title: "Vous aimerez peut-être",
     byline:
       "Suggestions basées sur les séries dont vous possédez le plus de tomes, issues des recommandations de lecteurs MyAnimeList.",
+    rotating: "Le panneau pivote — passez la souris pour le mettre en pause",
     rateLimited:
       "MyAnimeList nous limite pour l'instant — reviens dans une minute et les suggestions apparaîtront.",
     recommendedBy: "Par {n} de vos séries",
