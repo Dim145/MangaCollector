@@ -21,7 +21,7 @@ export default function TreasureGrid({
   loading,
 }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-6">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-6">
       <TopTomeCard
         top={topVolumePrices?.[0]}
         currency={currency}
@@ -85,11 +85,11 @@ function TopTomeCard({ top, currency, t, loading }) {
         </span>
       </div>
 
-      <div className="relative flex flex-1 flex-col gap-2 p-5 md:p-6">
+      <div className="relative flex min-w-0 flex-1 flex-col gap-2 p-5 md:p-6">
         <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-muted">
           {t("stats.treasure.topEyebrow")}
         </p>
-        <h3 className="font-display text-xl font-light italic leading-tight text-washi md:text-2xl">
+        <h3 className="break-words font-display text-xl font-light italic leading-tight text-washi md:text-2xl">
           {top.series_name}
         </h3>
         <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-washi-dim">

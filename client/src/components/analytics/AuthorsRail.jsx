@@ -38,7 +38,7 @@ export default function AuthorsRail({ authors, t, loading }) {
   const [first, ...rest] = authors;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr] lg:gap-6">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-6">
       {/* Hero — top author. Oversized, with poster collage. */}
       <FeaturedRow rank={1} author={first} t={t} />
 
@@ -91,12 +91,12 @@ function FeaturedRow({ rank, author, t }) {
         <RankBadge rank={rank} />
       </div>
 
-      <div className="relative flex flex-1 flex-col gap-3 p-5 md:p-6">
-        <div>
+      <div className="relative flex min-w-0 flex-1 flex-col gap-3 p-5 md:p-6">
+        <div className="min-w-0">
           <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-muted">
             {t("stats.authors.featuredEyebrow")}
           </p>
-          <h3 className="mt-1 font-display text-2xl font-light italic leading-tight text-washi md:text-3xl">
+          <h3 className="mt-1 break-words font-display text-2xl font-light italic leading-tight text-washi md:text-3xl">
             {name}
           </h3>
         </div>

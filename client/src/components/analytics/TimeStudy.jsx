@@ -12,7 +12,7 @@ import { formatShortDate } from "@/utils/date.js";
 
 export default function TimeStudy({ bestQuarter, anniversary, t, lang, loading }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <BestQuarterCard quarter={bestQuarter} t={t} loading={loading} />
       <AnniversaryCard anniversary={anniversary} t={t} lang={lang} loading={loading} />
     </div>

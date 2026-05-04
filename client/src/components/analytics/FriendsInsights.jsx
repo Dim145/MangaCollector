@@ -17,7 +17,7 @@ import CoverImage from "../ui/CoverImage.jsx";
 export default function FriendsInsights({ overlap, t, loading }) {
   if (loading) {
     return (
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)]">
         <div className="h-72 animate-pulse rounded-2xl border border-border/60 bg-ink-1/40" />
         <div className="h-72 animate-pulse rounded-2xl border border-border/60 bg-ink-1/40" />
       </div>
@@ -44,7 +44,7 @@ export default function FriendsInsights({ overlap, t, loading }) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)] lg:gap-6">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)] lg:gap-6">
       <SharedHero
         top={overlap?.shared?.[0]}
         friendTotal={overlap?.friend_total ?? 0}
@@ -101,11 +101,15 @@ function SharedHero({ top, friendTotal, t }) {
         </span>
       </div>
 
-      <div className="relative flex flex-1 flex-col gap-2 p-5 md:p-6">
+      <div className="relative flex min-w-0 flex-1 flex-col gap-2 p-5 md:p-6">
         <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-muted">
           {t("stats.tomo.sharedEyebrow")}
         </p>
-        <h3 className="font-display text-2xl font-light italic leading-tight text-washi md:text-3xl">
+        {/* `break-words` so a long romaji title with no internal
+            spaces (or one whose word boundaries fall past the
+            container) wraps inside the card instead of pushing
+            the layout past the viewport edge on mobile. */}
+        <h3 className="break-words font-display text-2xl font-light italic leading-tight text-washi md:text-3xl">
           {top.name}
         </h3>
         <p className="font-display text-[12px] italic text-washi-muted md:text-[13px]">
@@ -138,7 +142,7 @@ function LatentRail({ latent, friendTotal, t }) {
         </span>
       </header>
 
-      <ol className="grid gap-3 sm:grid-cols-2">
+      <ol className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {latent.slice(0, 6).map((entry) => (
           <li key={entry.mal_id}>
             <LatentRow entry={entry} friendTotal={friendTotal} t={t} />
