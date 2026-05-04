@@ -91,6 +91,7 @@ import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync.js";
+import { useTimeOfDay } from "@/hooks/useTimeOfDay.js";
 import axios from "@/utils/axios.js";
 import {
   cacheAllVolumes,
@@ -279,6 +280,12 @@ function AppShell() {
   // The hook is mounted once at the shell level so the bindings are
   // available on every page. See `hooks/useGlobalShortcuts.js`.
   useGlobalShortcuts({ onOpenCheatSheet: () => setCheatSheetOpen(true) });
+
+  // 時 · Time-of-day haze. Sets `data-tod` on <html> so body's
+  // background picks up the right hour-tinted overlay. Inline
+  // bootstrap in index.html primes the value at first paint;
+  // this hook keeps it fresh as the wall clock advances.
+  useTimeOfDay();
 
   // Scroll handling: top on PUSH/REPLACE; on POP we leave it alone so
   // each destination page can run its own data-aware restore (see

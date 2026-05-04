@@ -64,7 +64,12 @@ export default function MarginaliaPaper({
 
   return (
     <div
-      className={`marginalia-paper relative isolate overflow-hidden rounded-2xl border border-border/60 px-6 py-14 text-center backdrop-blur-sm md:px-12 md:py-20 animate-fade-up ${className}`}
+      // 紙 · `washi-aged` adds a vignette + two foxing spots via
+      // a `mix-blend-mode: multiply` overlay. Composes on top of
+      // the inline background gradients below — the overlay
+      // deepens the corners and adds the ochre stains that read
+      // as "this page has been kept in a drawer".
+      className={`marginalia-paper washi-aged relative isolate overflow-hidden rounded-2xl border border-border/60 px-6 py-14 text-center backdrop-blur-sm md:px-12 md:py-20 animate-fade-up ${className}`}
       style={{
         // Cream washi overlay on the dark page. Two stacked
         // layers: a near-transparent radial bloom in the centre

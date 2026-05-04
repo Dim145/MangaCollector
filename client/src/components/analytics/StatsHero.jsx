@@ -39,7 +39,7 @@ export default function StatsHero({ t, totals, loading }) {
   ];
 
   return (
-    <header className="relative isolate overflow-hidden border-b border-border/60 px-4 pt-12 pb-12 sm:px-6 md:pt-20 md:pb-16">
+    <header className="washi-aged relative isolate overflow-hidden border-b border-border/60 px-4 pt-12 pb-12 sm:px-6 md:pt-20 md:pb-16">
       {/* Massive rotated kanji watermark. Sits behind the text;
           pointer events disabled. */}
       <span

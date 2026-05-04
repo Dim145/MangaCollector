@@ -191,7 +191,12 @@ export default function Header() {
             aria-label="MangaCollector home"
           >
             <div className="relative">
-              <span className="hanko-seal grid h-9 w-9 place-items-center rounded-md text-[10px] font-bold animate-stamp">
+              {/* 金 · The brand mark gets a `gold-shimmer-strong`
+                  sweep on top of the hanko fill — a slow gilded
+                  highlight catching the eye every 5 s. The class
+                  is decorative-only; reduced-motion users see a
+                  static stamp. */}
+              <span className="hanko-seal gold-shimmer gold-shimmer-strong grid h-9 w-9 place-items-center rounded-md text-[10px] font-bold animate-stamp">
                 MC
               </span>
             </div>
