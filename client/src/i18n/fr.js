@@ -1309,6 +1309,17 @@ export default {
     aMoment: "Un instant",
     slower: "Cela prend un peu plus de temps que d'habitude…",
   },
+  notFound: {
+    chapterMark: "迷帖",
+    kicker: "ROUTE INCONNUE · 迷",
+    titlePre: "Cette page s'est",
+    titleAccent: "perdue",
+    titlePost: " dans les rayonnages",
+    body: "L'archiviste a parcouru les couloirs deux fois et n'a pas trouvé ce volume. Peut-être un lien périmé, ou un chemin tapé de mémoire qui ne correspond plus. La bibliothèque est vaste — revenons sur nos pas.",
+    backToDashboard: "Retour au tableau de bord",
+    goBack: "Page précédente",
+    inscription: "Tout volume égaré finit par retrouver son rayon — patience.",
+  },
   activity: {
     label: "RÉCENT · 最近",
     title: "Activité",

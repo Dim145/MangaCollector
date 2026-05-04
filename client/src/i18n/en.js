@@ -1285,6 +1285,17 @@ export default {
     aMoment: "A single moment",
     slower: "Taking a bit longer than usual…",
   },
+  notFound: {
+    chapterMark: "迷帖",
+    kicker: "ROUTE UNKNOWN · 迷",
+    titlePre: "This page got",
+    titleAccent: "lost",
+    titlePost: " in the stacks",
+    body: "The archivist walked the corridor twice but couldn't find this volume. Maybe a stale link, or a path typed from memory that no longer matches. The archive is vast — let's retrace our steps.",
+    backToDashboard: "Back to dashboard",
+    goBack: "Previous page",
+    inscription: "Every misplaced volume finds its shelf eventually — patience.",
+  },
   activity: {
     label: "RECENT · 最近",
     title: "Activity",

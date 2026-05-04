@@ -79,6 +79,11 @@ const BacklogPage = lazy(() => import("./components/BacklogPage.jsx"));
 const SnapshotsPage = lazy(() => import("./components/SnapshotsPage.jsx"));
 const FriendsPage = lazy(() => import("./components/FriendsPage.jsx"));
 const CollectionPage = lazy(() => import("./components/CollectionPage.jsx"));
+// 迷子 · 404 page — rendered for any URL that doesn't match a
+// known route. Lazy-loaded since it's a low-frequency surface
+// (most users never see it); shipping the chibi SVG + page
+// chrome on the cold-path keeps the main bundle lean.
+const NotFoundPage = lazy(() => import("./components/NotFoundPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -551,6 +556,13 @@ function AppShell() {
                 </ProtectedRoute>
               }
             />
+            {/* 迷子 · Catch-all 404. MUST stay last in the route list
+                — React Router matches top-down and `*` matches any
+                pathname that wasn't claimed by a more specific
+                route above. Auth-agnostic on purpose: visitors who
+                mistype a URL while logged out should still see the
+                friendly page rather than a redirect dance. */}
+            <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
         </RouteErrorBoundary>

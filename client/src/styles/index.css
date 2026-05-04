@@ -2711,6 +2711,112 @@
   z-index: 90;
 }
 
+/* ─── 迷子 · Chibi archivist mascot ───
+   Three independent animations choreograph the ChibiArchivist
+   composition on the 404 page. The character itself is a
+   static CC0 SVG loaded as an `<img>`; this stylesheet only
+   choreographs the wrapper layers added on top.
+
+   Animations:
+     • mc-chibi-bob   — the whole `<img>` bobs ±6 px on a 2.4 s
+                        loop so the mascot reads as alive
+                        rather than a static poster.
+     • mc-chibi-sweat — sweat drop near the temple slides 22 px
+                        down and fades out over 3 s, with a
+                        0.5 s offset so it doesn't coincide
+                        with the bob's first downstroke.
+     • mc-chibi-q     — three "?" glyphs each on a 3 s phase,
+                        offset by 0/0.5/1 s so they don't bob
+                        in lockstep. Subtle rotation drift
+                        keeps them feeling hand-floated.
+
+   The previous revision used `transform-box: fill-box` because
+   the chibi was inline SVG; with the static-image refactor the
+   animated elements are now plain HTML, where transforms
+   already pivot around each element's own box by default. */
+.chibi-bob {
+  transform-origin: center bottom;
+  animation: mc-chibi-bob 2.4s ease-in-out infinite;
+}
+.chibi-sweat {
+  transform-origin: center top;
+  animation: mc-chibi-sweat 3s ease-in-out infinite;
+  animation-delay: 0.5s;
+  opacity: 0;
+}
+.chibi-q {
+  transform-origin: center;
+  animation: mc-chibi-q 3s ease-in-out infinite;
+}
+.chibi-q1 {
+  animation-delay: 0s;
+}
+.chibi-q2 {
+  animation-delay: 0.5s;
+}
+.chibi-q3 {
+  animation-delay: 1s;
+}
+@keyframes mc-chibi-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes mc-chibi-sweat {
+  /* The drop materialises near the temple, slides past the
+     cheek, then fades just before reaching the chin. The
+     gap at 0% / 100% with opacity 0 makes the loop feel like
+     successive drops rather than a single oscillating bead. */
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(2px);
+    opacity: 0.95;
+  }
+  60% {
+    transform: translateY(20px);
+    opacity: 0.95;
+  }
+  85% {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+}
+@keyframes mc-chibi-q {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3deg);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-8px) rotate(6deg);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chibi-bob,
+  .chibi-sweat,
+  .chibi-q {
+    animation: none;
+  }
+  /* Reduced-motion users still see the mascot fully — only
+     the motion is suppressed. Sweat drop is held at its
+     starting position (visible, no slide). */
+  .chibi-sweat {
+    opacity: 0.9;
+  }
+}
+
 /* ─── 祝 · Anniversary pennant ───
    Small flag-shaped ribbon pinned to the top of the ProfilePage
    hero during the 7-day window after each yearly archive

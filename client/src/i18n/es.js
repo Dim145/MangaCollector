@@ -1293,6 +1293,17 @@ export default {
     aMoment: "Un instante",
     slower: "Está tardando un poco más de lo habitual…",
   },
+  notFound: {
+    chapterMark: "迷帖",
+    kicker: "RUTA DESCONOCIDA · 迷",
+    titlePre: "Esta página se ha",
+    titleAccent: "perdido",
+    titlePost: " entre los estantes",
+    body: "El archivista recorrió el pasillo dos veces y no encontró este volumen. Quizás un enlace caduco, o una ruta tecleada de memoria que ya no coincide. El archivo es vasto — volvamos sobre nuestros pasos.",
+    backToDashboard: "Volver al panel",
+    goBack: "Página anterior",
+    inscription: "Todo volumen extraviado acaba encontrando su estante — paciencia.",
+  },
   activity: {
     label: "RECIENTE · 最近",
     title: "Actividad",
