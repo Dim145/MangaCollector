@@ -639,9 +639,16 @@ export default function ProfilePage({ googleUser }) {
               )}
             </div>
 
-            <div className="mt-4 h-64">
+            {/* No fixed height — the widget used to share a row
+                with `<MostValuedChart>` and the `h-64` cap was
+                tuned to match that chart's intrinsic height. With
+                the chart now living on /stats, the cap was just
+                clipping the 5th row. Letting the flex column flow
+                naturally fits all five entries plus the empty
+                state without a scrollbar. */}
+            <div className="mt-4">
               {loading ? (
-                <ul className="flex h-full flex-col gap-3">
+                <ul className="flex flex-col gap-3">
                   {[...Array(5)].map((_, i) => (
                     <li
                       key={i}
@@ -656,7 +663,9 @@ export default function ProfilePage({ googleUser }) {
                   ))}
                 </ul>
               ) : inProgress.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                // py-12 gives the empty state breathing room now
+                // that the parent no longer enforces h-64.
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
                   <span
                     className="font-display text-4xl italic text-hanko/30"
                     aria-hidden="true"
@@ -668,7 +677,7 @@ export default function ProfilePage({ googleUser }) {
                   </p>
                 </div>
               ) : (
-                <ul className="flex h-full flex-col gap-2">
+                <ul className="flex flex-col gap-2">
                   {inProgress.map((row, i) => {
                     const pct = Math.round(row.progress * 100);
                     return (
