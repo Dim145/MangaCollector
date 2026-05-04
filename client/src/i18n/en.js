@@ -1002,6 +1002,10 @@ export default {
     shelf3dBody:
       "Dashboard cards take on a light perspective tilt with edge shadows, resting on a wood-grain line — like browsing an actual bookshelf. Disabled in multi-select mode.",
     shelf3dToggleAria: "Toggle 3D shelf view",
+    inkTrailTitle: "Ink trail",
+    inkTrailBody:
+      "The cursor deposits a hanko brush stroke under large headings — a sumi-e flourish as you hover a page title. Off by default, ignored on touch screens and when reduced motion is requested.",
+    inkTrailToggleAria: "Toggle ink trail",
     hapticsTitle: "Haptic feedback",
     hapticsBody:
       "Short vibration on key actions — volume toggle, coffret confirm. Silent on devices without a motor.",

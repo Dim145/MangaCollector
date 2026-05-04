@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -30,6 +31,7 @@ import DefaultBackground from "@/components/DefaultBackground.jsx";
 import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
 import SealsUnlockToaster from "@/components/SealsUnlockToaster.jsx";
+import InkTrailCursor from "@/components/ui/InkTrailCursor.jsx";
 import UpdatePrompt from "@/components/UpdatePrompt.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
@@ -251,6 +253,21 @@ function MangaPageRoute({ stateManga, adult_content_level }) {
   );
 }
 
+/**
+ * 筆 · Ink-trail gate — only mounts the canvas when the user has
+ * opted in via Settings → Apparence → 筆 Traînée d'encre. Reading
+ * the setting from `SettingsContext` keeps this in sync with the
+ * rest of the UI and avoids an extra useUserSettings call. The
+ * component itself does its own coarse-pointer / reduced-motion
+ * checks, so the gate is upper-bound: false here = guaranteed off,
+ * true here = honoured iff the device + motion preference allow.
+ */
+function InkTrailGate() {
+  const { ink_trail_enabled } = useContext(SettingsContext);
+  if (!ink_trail_enabled) return null;
+  return <InkTrailCursor />;
+}
+
 function AppShell() {
   const location = useLocation();
   const navType = useNavigationType();
@@ -296,6 +313,13 @@ function AppShell() {
           the GET /api/user/seals call is only ever fired for a
           logged-in user. */}
       <SealsUnlockToaster />
+      {/* 筆 · Ink-trail cursor — paints a trailing brush line
+          over headings marked `data-ink-trail`. Off by default;
+          users opt in from Settings → Apparence. The component
+          also self-disables on coarse-pointer devices and when
+          `prefers-reduced-motion: reduce` is requested, so the
+          visible toggle is upper-bound only. */}
+      <InkTrailGate />
       {/* Keypress-gated overlays — wrapped in their own Suspense so a
           chunk-load failure (offline at the moment of first ⌘K) doesn't
           crash the whole tree. `fallback={null}` is intentional: the

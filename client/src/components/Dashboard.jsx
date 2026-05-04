@@ -521,7 +521,10 @@ export default function Dashboard() {
             <StreakChip />
           </div>
 
-          <h1 className="mt-3 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl">
+          <h1
+            data-ink-trail="true"
+            className="mt-3 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl"
+          >
             {t("dashboard.yourLibrary")}{" "}
             <span className="text-hanko-gradient font-semibold not-italic">
               {t("dashboard.library")}

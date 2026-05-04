@@ -27,6 +27,7 @@ pub async fn get_settings(
         sound_enabled: row.sound_enabled,
         accent_color: row.accent_color,
         shelf_3d_enabled: row.shelf_3d_enabled,
+        ink_trail_enabled: row.ink_trail_enabled,
         auth_name: state.config.auth_name.clone(),
         auth_icon: state.config.auth_icon.clone(),
     }))
@@ -54,6 +55,7 @@ pub async fn update_settings(
         sound_enabled: row.sound_enabled,
         accent_color: row.accent_color,
         shelf_3d_enabled: row.shelf_3d_enabled,
+        ink_trail_enabled: row.ink_trail_enabled,
         auth_name: state.config.auth_name.clone(),
         auth_icon: state.config.auth_icon.clone(),
     }))

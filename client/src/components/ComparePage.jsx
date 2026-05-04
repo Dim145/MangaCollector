@@ -1,5 +1,5 @@
 import { useContext, useMemo, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import CoverImage from "./ui/CoverImage.jsx";
 import Skeleton from "./ui/Skeleton.jsx";

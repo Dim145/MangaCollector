@@ -65,6 +65,7 @@ pub async fn get_user_settings(db: &Db, user_id: i32) -> Result<SettingRow, AppE
         sound_enabled: false,
         accent_color: None,
         shelf_3d_enabled: false,
+        ink_trail_enabled: false,
     }))
 }
 
@@ -152,6 +153,7 @@ pub async fn update_user_settings(
     };
 
     let shelf_3d_enabled = req.shelf_3d_enabled.unwrap_or(existing.shelf_3d_enabled);
+    let ink_trail_enabled = req.ink_trail_enabled.unwrap_or(existing.ink_trail_enabled);
 
     let model = ActiveModel {
         created_on: Set(now),
@@ -166,6 +168,7 @@ pub async fn update_user_settings(
         sound_enabled: Set(sound_enabled),
         accent_color: Set(accent_color),
         shelf_3d_enabled: Set(shelf_3d_enabled),
+        ink_trail_enabled: Set(ink_trail_enabled),
         ..Default::default()
     };
 
@@ -180,6 +183,7 @@ pub async fn update_user_settings(
             setting::Column::SoundEnabled,
             setting::Column::AccentColor,
             setting::Column::Shelf3dEnabled,
+            setting::Column::InkTrailEnabled,
             setting::Column::ModifiedOn,
         ])
         .to_owned();

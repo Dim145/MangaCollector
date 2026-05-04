@@ -341,7 +341,10 @@ export default function ProfilePage({ googleUser }) {
             </div>
 
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">
+              <h1
+                data-ink-trail="true"
+                className="font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl"
+              >
                 {t("profile.helloName")}{" "}
                 <span className="text-hanko-gradient font-semibold not-italic">
                   {userName}

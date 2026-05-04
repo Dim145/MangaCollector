@@ -106,7 +106,10 @@ export default function About({ googleUser } = {}) {
               {t("about.version")}
             </span>
 
-            <h1 className="mt-6 font-display text-5xl font-light leading-[0.95] tracking-tight text-washi md:text-7xl lg:text-8xl animate-fade-up">
+            <h1
+              data-ink-trail="true"
+              className="mt-6 font-display text-5xl font-light leading-[0.95] tracking-tight text-washi md:text-7xl lg:text-8xl animate-fade-up"
+            >
               {t("about.heroStart")}{" "}
               <em className="italic font-semibold text-hanko-gradient not-italic md:italic">
                 {t("about.heroAccent")}

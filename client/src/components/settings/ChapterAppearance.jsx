@@ -14,6 +14,8 @@ export default function ChapterAppearance({
   onAccentChange,
   shelf3d,
   onShelf3dChange,
+  inkTrail,
+  onInkTrailChange,
   soundEnabled,
   onSoundChange,
   hapticsOn,
@@ -51,6 +53,11 @@ export default function ChapterAppearance({
         <Shelf3DSection
           enabled={shelf3d}
           onToggle={onShelf3dChange}
+          t={t}
+        />
+        <InkTrailSection
+          enabled={inkTrail}
+          onToggle={onInkTrailChange}
           t={t}
         />
       </SubBlock>
@@ -238,6 +245,64 @@ function Shelf3DSection({ enabled, onToggle, t }) {
           role="switch"
           aria-checked={enabled}
           aria-label={t("settings.shelf3dToggleAria")}
+          onClick={() => onToggle(!enabled)}
+          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${
+            enabled
+              ? "border-hanko bg-hanko/80"
+              : "border-border bg-ink-2"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
+              enabled
+                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
+                : "left-0.5 bg-washi-dim"
+            }`}
+          />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * 筆 · Ink-trail toggle.
+ *
+ * Off by default. The brush-trail cursor is decorative,
+ * fine-pointer-only, and only fires over headings explicitly
+ * marked with `data-ink-trail`. Same toggle anatomy as the
+ * 3D shelf section above so the visual sub-block keeps a
+ * single rhythm: kanji chip + title + body + switch.
+ */
+function InkTrailSection({ enabled, onToggle, t }) {
+  return (
+    <section
+      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
+      style={{ animationDelay: "240ms" }}
+    >
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-hanko/20 font-jp text-[10px] font-bold text-hanko-bright"
+          >
+            筆
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-semibold text-washi">
+              {t("settings.inkTrailTitle")}
+            </h2>
+            <p className="mt-1 text-xs text-washi-muted">
+              {t("settings.inkTrailBody")}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={t("settings.inkTrailToggleAria")}
           onClick={() => onToggle(!enabled)}
           className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${
             enabled

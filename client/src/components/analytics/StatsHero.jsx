@@ -77,7 +77,10 @@ export default function StatsHero({ t, totals, loading }) {
           {t("stats.hero.eyebrow")}
         </p>
 
-        <h1 className="mt-3 font-display text-4xl font-light leading-[1.02] tracking-tight text-washi sm:text-5xl md:text-6xl lg:text-7xl">
+        <h1
+          data-ink-trail="true"
+          className="mt-3 font-display text-4xl font-light leading-[1.02] tracking-tight text-washi sm:text-5xl md:text-6xl lg:text-7xl"
+        >
           {t("stats.hero.titlePre")}{" "}
           <em className="text-hanko-gradient italic font-semibold not-italic md:italic">
             {t("stats.hero.titleAccent")}

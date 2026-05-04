@@ -423,6 +423,7 @@ export async function enqueueSettingsUpdate(settings) {
         sound_enabled: settings.sound_enabled,
         accent_color: settings.accent_color,
         shelf_3d_enabled: settings.shelf_3d_enabled,
+        ink_trail_enabled: settings.ink_trail_enabled,
       },
       ts: Date.now(),
     });

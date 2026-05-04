@@ -1,5 +1,5 @@
 import { useContext, useMemo, useRef, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import {
@@ -378,7 +378,10 @@ function Hero({
 
         {/* RIGHT — name + brushstroke + bio + stats triad */}
         <div className="min-w-0">
-          <h1 className="font-display text-5xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl lg:text-7xl">
+          <h1
+            data-ink-trail="true"
+            className="font-display text-5xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl lg:text-7xl"
+          >
             <span className="text-hanko-gradient font-semibold not-italic">
               {heroName}
             </span>

@@ -26,6 +26,11 @@ pub struct Model {
     /// 棚 · Toggle the 3D "shelf" rendering on Dashboard cards.
     /// Off by default — the flat grid is the canonical layout.
     pub shelf_3d_enabled: bool,
+    /// 筆 · Toggle the ink-trail cursor that paints a brush stroke
+    /// over headings marked `data-ink-trail`. Off by default — the
+    /// effect is decorative and fine-pointer-only; users explicitly
+    /// opt in from Settings.
+    pub ink_trail_enabled: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -62,6 +67,7 @@ pub struct SettingsResponse {
     pub sound_enabled: bool,
     pub accent_color: Option<String>,
     pub shelf_3d_enabled: bool,
+    pub ink_trail_enabled: bool,
     #[serde(rename = "authName")]
     pub auth_name: String,
     #[serde(rename = "authIcon")]
@@ -86,4 +92,8 @@ pub struct UpdateSettingsRequest {
     pub accent_color: Option<String>,
     /// 棚 · Toggle the 3D shelf view on Dashboard.
     pub shelf_3d_enabled: Option<bool>,
+    /// 筆 · Toggle the ink-trail cursor over titles. Off by default
+    /// since the effect is opt-in eye-candy that fine-pointer users
+    /// may or may not want.
+    pub ink_trail_enabled: Option<bool>,
 }

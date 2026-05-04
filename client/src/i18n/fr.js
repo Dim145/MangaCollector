@@ -1022,6 +1022,10 @@ export default {
     shelf3dBody:
       "Les cartes du tableau de bord adoptent une légère perspective avec des ombres de tranche, posées sur une ligne de bois — comme une vraie étagère parcourue à l'œil. Désactivé en mode sélection multiple.",
     shelf3dToggleAria: "Activer la vue étagère 3D",
+    inkTrailTitle: "Traînée d'encre",
+    inkTrailBody:
+      "Le curseur dépose une traînée pinceau hanko sous les grands titres — un clin d'œil sumi-e quand vous survolez un titre de page. Désactivé par défaut, sans effet sur écran tactile ni en mode mouvement réduit.",
+    inkTrailToggleAria: "Activer la traînée d'encre",
     hapticsTitle: "Retour haptique",
     hapticsBody:
       "Vibration brève sur les actions clés — toggle de tome, validation de coffret. Sans effet sur les appareils sans moteur.",

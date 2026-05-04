@@ -1008,6 +1008,10 @@ export default {
     shelf3dBody:
       "Las tarjetas del panel adoptan una ligera inclinación con sombras laterales, apoyadas en una línea de madera — como recorrer una estantería de verdad. Desactivado en modo selección múltiple.",
     shelf3dToggleAria: "Activar la vista estantería 3D",
+    inkTrailTitle: "Estela de tinta",
+    inkTrailBody:
+      "El cursor deja un trazo de pincel hanko bajo los títulos grandes — un guiño sumi-e al pasar sobre un título de página. Desactivado por defecto; ignorado en pantallas táctiles y con movimiento reducido.",
+    inkTrailToggleAria: "Activar la estela de tinta",
     hapticsTitle: "Respuesta háptica",
     hapticsBody:
       "Vibración breve en acciones clave — toggle de tomo, confirmación de cofre. Sin efecto en dispositivos sin motor.",
