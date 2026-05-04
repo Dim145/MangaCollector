@@ -56,6 +56,9 @@ const Dashboard = lazy(() => import("./components/Dashboard"));
 const MangaPage = lazy(() => import("./components/MangaPage"));
 const AddPage = lazy(() => import("@/components/AddPage.jsx"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
+// 帳 · StatsPage — deep-dive ledger with the heavy charts +
+// extended analytics. Lazy so the /profile chunk doesn't grow.
+const StatsPage = lazy(() => import("./components/StatsPage"));
 const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
 const SealsPage = lazy(() => import("./components/SealsPage"));
 const PublicProfile = lazy(() => import("./components/PublicProfile"));
@@ -331,6 +334,17 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <ProfilePage googleUser={googleUser} />
+                </ProtectedRoute>
+              }
+            />
+            {/* 帳 · Deep-dive analytics ledger — sibling of
+                /profile, opened from the "Voir toutes les
+                statistiques" CTA on the slim profile hero. */}
+            <Route
+              path="/stats"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <StatsPage />
                 </ProtectedRoute>
               }
             />

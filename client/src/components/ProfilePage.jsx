@@ -6,20 +6,7 @@ import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
 import ActivityFeed from "./ActivityFeed.jsx";
 import MalRecommendations from "./MalRecommendations.jsx";
-import InsightCards from "./analytics/InsightCards.jsx";
-import ActionableLists from "./analytics/ActionableLists.jsx";
 
-// 金 · Recharts is heavy (380 KB / 110 KB gzipped). Every component
-// in this app that touches it lives behind a `lazy()` boundary so
-// /profile lands instantly with stat cards + the closest-to-completion
-// list, then streams the chart bundle alongside the first chart's
-// own skeleton. The Suspense fallback below mirrors each card's
-// idle-loading visuals so the layout doesn't jank when the chunk
-// finishes downloading.
-const MostValuedChart = lazy(() => import("./analytics/MostValuedChart.jsx"));
-const SpendingChart = lazy(() => import("./analytics/SpendingChart.jsx"));
-const ReadingChart = lazy(() => import("./analytics/ReadingChart.jsx"));
-const CompositionPies = lazy(() => import("./analytics/CompositionPies.jsx"));
 // Modal — only needed on click, deferred so it doesn't bloat the profile chunk.
 const AvatarPicker = lazy(() => import("./AvatarPicker.jsx"));
 // 棚 · Snapshot modal — same lazy treatment as AvatarPicker. The
@@ -32,8 +19,8 @@ import { useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
-import { useProfileAnalytics } from "@/hooks/useProfileAnalytics.js";
 import { formatCurrency } from "@/utils/price.js";
+import { useOwnPublicSlug } from "@/hooks/usePublicProfile.js";
 import { useT } from "@/i18n/index.jsx";
 
 export default function ProfilePage({ googleUser }) {
@@ -129,10 +116,11 @@ export default function ProfilePage({ googleUser }) {
 
   const loading = loadingLib || loadingVol;
 
-  // One-shot analytics bundle — everything derives from library + volumes
-  // already in memory, so no extra network round-trip. Components below
-  // receive their own slice via props.
-  const analytics = useProfileAnalytics();
+  // 個 · Identity meta — public slug lets the hero render `@slug`
+  // under the display name, mirroring how friends see this user.
+  // The deep-dive numbers + chart wall used to live here too;
+  // they've moved to /stats so the page stays a true profile.
+  const { data: slugData } = useOwnPublicSlug();
 
   const {
     totalSeries,
@@ -140,38 +128,34 @@ export default function ProfilePage({ googleUser }) {
     totalVolumesOwned,
     totalCost,
     completionRate,
-    seriesByCost,
+    memberSinceDays,
   } = useMemo(() => {
     const totalSeries = library.length;
     const totalVolumes = volumes.length;
-    const titleMap = {};
-    for (const series of library) titleMap[series.mal_id] = series.name;
 
     let owned = 0;
     let cost = 0;
-    const costMap = {};
+    let firstAddedTs = Infinity;
+    for (const series of library) {
+      const ts = series.created_on
+        ? new Date(series.created_on).getTime()
+        : NaN;
+      if (Number.isFinite(ts) && ts < firstAddedTs) firstAddedTs = ts;
+    }
 
     for (const vol of volumes) {
       if (vol.owned) {
         owned += 1;
         cost += Number(vol.price) || 0;
-        const title = titleMap[vol.mal_id] || "Unknown";
-        if (!costMap[title]) costMap[title] = 0;
-        costMap[title] += Number(vol.price) || 0;
       }
     }
 
     const completion =
       totalVolumes > 0 ? Number(((owned / totalVolumes) * 100).toFixed(1)) : 0;
 
-    const sorted = Object.entries(costMap)
-      .map(([title, c]) => ({
-        title: title.split(" ").slice(0, 2).join(" ").slice(0, 12),
-        fullTitle: title,
-        totalCost: Number(c.toFixed(2)),
-      }))
-      .sort((a, b) => b.totalCost - a.totalCost)
-      .slice(0, 5);
+    const memberSinceDays = Number.isFinite(firstAddedTs)
+      ? Math.max(0, Math.floor((Date.now() - firstAddedTs) / (1000 * 60 * 60 * 24)))
+      : null;
 
     return {
       totalSeries,
@@ -179,7 +163,7 @@ export default function ProfilePage({ googleUser }) {
       totalVolumesOwned: owned,
       totalCost: cost,
       completionRate: completion,
-      seriesByCost: sorted,
+      memberSinceDays,
     };
   }, [library, volumes]);
 
@@ -211,19 +195,53 @@ export default function ProfilePage({ googleUser }) {
   const userName = googleUser?.name ?? t("profile.reader");
   const initial = userName?.[0]?.toUpperCase() ?? "U";
   const avatarUrl = !avatarFailed ? (settings?.avatarUrl ?? null) : null;
+  const publicSlug = (slugData?.public_slug ?? slugData?.slug ?? "").trim();
+  // 暦 · Member-since formatting. Cap at "X years" past 365 d, drop
+  // to "Y months" past 30 d, "N days" otherwise. Localised via the
+  // existing i18n keys.
+  const memberSinceLabel = useMemo(() => {
+    if (memberSinceDays == null) return null;
+    if (memberSinceDays >= 365) {
+      const years = Math.floor(memberSinceDays / 365);
+      return t("profile.memberYears", { n: years });
+    }
+    if (memberSinceDays >= 30) {
+      const months = Math.floor(memberSinceDays / 30);
+      return t("profile.memberMonths", { n: months });
+    }
+    return t("profile.memberDays", { n: memberSinceDays });
+  }, [memberSinceDays, t]);
 
   return (
     <DefaultBackground>
       <div className="mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-        <header className="mb-10 animate-fade-up">
-          <div className="flex items-baseline gap-3">
-            <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
-              {t("profile.profile")}
+        {/* 名刺 · Calling-card hero — the page's identity panel.
+            Replaces the previous mixed identity-+-stat hero now
+            that /stats owns the deep-dive numbers. Avatar in a
+            hanko-bordered medallion, name in big italic display,
+            slug + tenure stamped underneath like the "what to
+            call them by" line on a meishi. */}
+        <header className="relative mb-10 animate-fade-up overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-ink-1/70 via-ink-1/55 to-hanko/[0.08] px-5 py-6 backdrop-blur-sm md:px-8 md:py-8">
+          {/* 個 · Massive watermark — same vocabulary as the StatsHero
+              but using the "individual / person" kanji to mark this
+              page as the personal one. Pointer-events disabled so
+              cards above it stay clickable. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-4 -top-4 select-none font-jp text-[clamp(7rem,17vw,13rem)] font-bold leading-none text-hanko/[0.07] md:-right-6"
+            style={{ transform: "rotate(-6deg)" }}
+          >
+            個
+          </span>
+
+          <div className="relative flex items-baseline gap-3">
+            <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+              {t("profile.profile")} · 名刺
             </span>
-            <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
+            <span className="h-px flex-1 bg-gradient-to-r from-hanko/30 via-border to-transparent" />
           </div>
 
-          <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-center">
+          <div className="relative mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
             {/* Avatar — click to open picker. Wrapped in a relative
                 container so the welcome-tour spotlight (caption + ring)
                 can be positioned absolutely against the same anchor. */}
@@ -306,6 +324,40 @@ export default function ProfilePage({ googleUser }) {
                   {userName}
                 </span>
               </h1>
+              {/* Identity meta-line — slug if set + tenure. Both
+                  pieces sit on the same row so the visual
+                  vocabulary reads like a printed meishi: "@handle
+                  · membre depuis 2 ans". Either piece can be
+                  absent without breaking the layout (the · is
+                  conditionally rendered). */}
+              {(publicSlug || memberSinceLabel) && (
+                <p className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-muted">
+                  {publicSlug ? (
+                    <Link
+                      to={`/u/${publicSlug}`}
+                      className="text-hanko-bright transition hover:text-hanko"
+                    >
+                      @{publicSlug}
+                    </Link>
+                  ) : null}
+                  {publicSlug && memberSinceLabel ? (
+                    <span aria-hidden="true" className="text-washi-dim">
+                      ·
+                    </span>
+                  ) : null}
+                  {memberSinceLabel ? (
+                    <span>
+                      <span
+                        aria-hidden="true"
+                        className="font-jp text-[12px] font-bold not-italic text-gold"
+                      >
+                        始
+                      </span>{" "}
+                      {memberSinceLabel}
+                    </span>
+                  ) : null}
+                </p>
+              )}
               <p className="mt-2 text-sm text-washi-muted">
                 {t("profile.byline")}
               </p>
@@ -530,15 +582,46 @@ export default function ProfilePage({ googleUser }) {
           />
         </section>
 
+        {/* 帳 · Bridge to the deep-dive ledger. Sits between the
+            hero stats and the chart wall — the user already has
+            the at-a-glance numbers above; this CTA tells them
+            where to go for the rest. */}
+        <Link
+          to="/stats"
+          className="group relative mb-10 flex items-center gap-4 overflow-hidden rounded-2xl border border-border/70 bg-ink-1/55 px-5 py-4 backdrop-blur-sm transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:border-hanko/55 hover:shadow-[0_22px_36px_-22px_rgba(176,30,42,0.4)] md:px-6"
+        >
+          <span
+            aria-hidden="true"
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-hanko/55 bg-hanko/15 font-jp text-2xl font-bold leading-none text-hanko shadow-inner md:h-14 md:w-14"
+            style={{ transform: "rotate(-4deg)" }}
+          >
+            帳
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-hanko">
+              {t("stats.profileCtaHint")}
+            </p>
+            <p className="mt-1 font-display text-lg italic text-washi md:text-xl">
+              {t("stats.profileCta")}
+            </p>
+          </div>
+          <span
+            aria-hidden="true"
+            className="font-mono text-[14px] text-washi-muted transition-transform group-hover:translate-x-0.5 group-hover:text-hanko"
+          >
+            →
+          </span>
+        </Link>
+
         <section
-          className="mb-8 grid gap-6 animate-fade-up md:grid-cols-2"
+          className="mb-8 animate-fade-up"
           style={{ animationDelay: "200ms" }}
         >
-          {/* "Closest to completion" — replaces the previous global donut.
-              Five rows × (cover + title + bar + remaining), each one a
-              tappable shortcut to that series' edit page. Density-first:
-              the donut showed a single percentage already in the stat strip
-              above; this card shows five concrete next targets. */}
+          {/* 完 · Closest to completion — five tappable rows
+              shortcutting straight to each series' detail page.
+              Used to share the row with `<MostValuedChart>`; the
+              chart moved to /stats and this widget gets the full
+              column to itself. */}
           <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
             <div className="flex items-baseline justify-between gap-2">
               <div>
@@ -657,17 +740,15 @@ export default function ProfilePage({ googleUser }) {
             </div>
           </div>
 
-          <Suspense fallback={<ChartSkeletonCard kind="bars" />}>
-            <MostValuedChart
-              data={seriesByCost}
-              loading={loading}
-              currencySetting={currencySetting}
-            />
-          </Suspense>
         </section>
 
+        {/* 報 · One-line ceremonial line that frames the user's
+            current standing — sibling of the rotating poster
+            messages on the homepage hero. Empty / mid / late-game
+            phrasing keeps the page from feeling silent the day
+            you join, and warm the day you finish your hundredth. */}
         <section
-          className="animate-fade-up"
+          className="mb-8 animate-fade-up"
           style={{ animationDelay: "350ms" }}
         >
           <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-hanko/10 via-ink-1/50 to-gold/5 p-6 backdrop-blur md:p-8">
@@ -693,74 +774,20 @@ export default function ProfilePage({ googleUser }) {
           </div>
         </section>
 
-        {/* ─── Analytics deep-dive ─────────────────────────────── */}
+        {/* 連 · Recent activity — the personal correspondence
+            stream. Capped at 20 to keep the page profile-shaped
+            (the dedicated /year-in-review opens for a longer
+            retrospective). */}
         <section
-          className="mt-8 animate-fade-up"
+          className="mb-8 animate-fade-up"
           style={{ animationDelay: "400ms" }}
-        >
-          <Suspense fallback={<ChartSkeletonCard kind="bars" />}>
-            <SpendingChart data={analytics.monthly.spending} loading={loading} />
-          </Suspense>
-        </section>
-
-        {/* 読破 · Reading cadence — sibling of SpendingChart, moegi-tinted,
-            rolled-up quick-stats + monthly bar chart of read_at timestamps. */}
-        <section
-          className="mt-6 animate-fade-up"
-          style={{ animationDelay: "430ms" }}
-        >
-          <Suspense fallback={<ChartSkeletonCard kind="bars" />}>
-            <ReadingChart reading={analytics.reading} loading={loading} />
-          </Suspense>
-        </section>
-
-        <section
-          className="mt-6 animate-fade-up"
-          style={{ animationDelay: "470ms" }}
-        >
-          <Suspense fallback={<ChartSkeletonCard kind="pie" />}>
-            <CompositionPies
-              stores={analytics.composition.stores}
-              genres={analytics.composition.genres}
-              loading={loading}
-            />
-          </Suspense>
-        </section>
-
-        <section
-          className="mt-6 animate-fade-up"
-          style={{ animationDelay: "500ms" }}
-        >
-          <InsightCards
-            collector={analytics.collector}
-            coffret={analytics.coffret}
-            milestones={analytics.milestones}
-            loading={loading}
-          />
-        </section>
-
-        <section
-          className="mt-6 animate-fade-up"
-          style={{ animationDelay: "550ms" }}
-        >
-          <ActionableLists
-            middleGaps={analytics.middleGaps}
-            stale={analytics.stale}
-            loading={loading}
-            library={library}
-          />
-        </section>
-
-        <section
-          className="mt-8 animate-fade-up"
-          style={{ animationDelay: "600ms" }}
         >
           <ActivityFeed limit={20} />
         </section>
 
         <section
-          className="mt-8 animate-fade-up"
-          style={{ animationDelay: "650ms" }}
+          className="animate-fade-up"
+          style={{ animationDelay: "450ms" }}
         >
           <MalRecommendations />
         </section>
@@ -803,31 +830,3 @@ function HeroStat({ label, value, sub, hint, accent, loading }) {
   );
 }
 
-/**
- * 金 · Suspense fallback for the lazy-loaded chart cards.
- *
- * Mirrors the inner skeleton each chart shows during its own
- * `loading` branch, so the layout stays put when the recharts
- * chunk arrives — no jank, no card flicker. `kind` switches
- * between bar-chart and pie-chart skeletons; both occupy the same
- * 16rem card height the live components do.
- */
-function ChartSkeletonCard({ kind }) {
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-5 w-40" />
-      </div>
-      <div className="mt-4 h-64">
-        {kind === "pie" ? (
-          <div className="flex h-full items-center justify-center">
-            <Skeleton.Circle size={180} thickness={28} />
-          </div>
-        ) : (
-          <Skeleton.Bars count={6} maxHeight={230} />
-        )}
-      </div>
-    </div>
-  );
-}

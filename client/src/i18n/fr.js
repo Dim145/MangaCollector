@@ -649,11 +649,14 @@ export default {
       "Limite de taux Google Books atteinte. Ajoutez une clé API dans Paramètres ou patientez avant de scanner d'autres tomes.",
   },
   profile: {
-    profile: "PROFIL · 統計",
+    profile: "PROFIL",
     helloName: "Bonjour,",
     reader: "Lecteur",
     byline:
       "Votre archive en un coup d'œil — curée avec soin, tome après tome.",
+    memberDays: "Membre depuis {n} jours",
+    memberMonths: "Membre depuis {n} mois",
+    memberYears: "Membre depuis {n} ans",
     yearReviewCta: "Rétrospective {year}",
     snapshotCta: "Partager mon étagère",
     backlogCta: "Pile à lire",
@@ -797,6 +800,21 @@ export default {
     "places_読破_literal": "lire jusqu'au bout",
     "places_読破_usage":
       "Journal de lecture — tomes terminés, avec dates et cadence mensuelle.",
+    "places_人_literal": "personne, auteur",
+    "places_人_usage":
+      "Feuillet Auteurs du registre Statistiques. Top des mangaka qui pèsent le plus dans votre étagère — par tomes possédés et séries achevées.",
+    "places_版_literal": "édition, imprimé",
+    "places_版_usage":
+      "Feuillet Éditeurs du registre. Quel éditeur fournit le plus votre étagère, avec barres de complétion par maison.",
+    "places_銭_literal": "monnaie ancienne, valeur",
+    "places_銭_usage":
+      "Feuillet Trésor. Pièce maîtresse, évolution du panier moyen, économies réalisées via les coffrets.",
+    "places_暦_literal": "calendrier, almanach",
+    "places_暦_usage":
+      "Feuillet Temps. Saison favorite, ancienneté de l'archive, première série jamais ajoutée — la mémoire chronologique du carnet.",
+    "places_友_literal": "ami, compagnon",
+    "places_友_usage":
+      "Page Correspondance et feuillet Tomo du registre. Suivi d'archivistes amis, fil d'activité, recommandations latentes.",
 
     "vessels_巻_literal": "rouleau, tome",
     "vessels_巻_usage":
@@ -813,6 +831,12 @@ export default {
     "vessels_棚_literal": "étagère, rayon",
     "vessels_棚_usage":
       "L'étagère elle-même — anchor du mode 3D du tableau de bord (perspective + grain de bois) et du snapshot partageable du profil. À distinguer de 本棚 (bibliothèque), qui désigne la page entière.",
+    "vessels_帳_literal": "registre, livre de comptes",
+    "vessels_帳_usage":
+      "Le grand cahier d'archives — la page Statistiques. Sceau d'identité visible en filigrane sur le hero, et en badge tournoyant sur le pont CTA depuis le profil. Le livre que feuillette l'archiviste pour comprendre sa propre collection.",
+    "vessels_籠_literal": "panier, corbeille tressée",
+    "vessels_籠_usage":
+      "La carte « panier moyen » du feuillet Trésor — courbe sur 12 mois du prix moyen des tomes que vous ajoutez. La forme évoque le panier qu'on remplit chez le libraire, pour mesurer si la cadence d'achat se renchérit.",
 
     "palette_漆黒_literal": "noir laqué, encre de Chine",
     "palette_漆黒_usage":
@@ -839,6 +863,9 @@ export default {
     "mokuji_字典_literal": "dictionnaire de caractères",
     "mokuji_字典_usage":
       "Cette page même — accessible depuis Réglages → Découverte. La référence ouverte du vocabulaire de l'app.",
+    "mokuji_索引_literal": "index, table des renvois",
+    "mokuji_索引_usage":
+      "Le rail de navigation du registre Statistiques — chaque kanji conduit à un feuillet (人 auteurs, 版 éditeurs, 読 lecture, 銭 trésor, 暦 temps, 印 sceaux, 友 correspondants). Sticky vertical sur grand écran, condensé en chips horizontales sur mobile. Cousin du 目次 des Réglages : même métaphore d'index, registre différent.",
     "mokuji_風_literal": "vent, atmosphère",
     "mokuji_風_usage":
       "Chapitre 1 des Réglages : thème, palette saisonnière, particules d'ambiance. Tout ce qui touche à la respiration visuelle de l'app.",
@@ -1352,6 +1379,7 @@ export default {
     navAdd: "Ajouter un manga",
     navCalendar: "Calendrier",
     navProfile: "Profil",
+    navStats: "Statistiques",
     navSeals: "Sceaux",
     navSettings: "Paramètres",
     navGlossary: "Glossaire",
@@ -2075,6 +2103,132 @@ export default {
     deleteAction: "Détruire le tirage",
     deleteConfirm: "Confirmer la destruction ?",
     backToDashboard: "Retour au tableau de bord",
+  },
+  // 帳 · StatsPage — page d'analyse approfondie.
+  stats: {
+    backToProfile: "Retour au profil",
+    profileCta: "Voir toutes les statistiques",
+    profileCtaHint: "Auteurs, éditeurs, lecture, trésor, temps · 帳",
+    hero: {
+      eyebrow: "MAÎTRE-CAHIER · 帳簿",
+      titlePre: "Votre archive",
+      titleAccent: "en chiffres",
+      titlePost: ".",
+      subtitle:
+        "Chaque tome, chaque saison, chaque main qui a tenu un volume — l'archive entière disposée comme un grand cahier de comptable.",
+      volumes: "Tomes possédés",
+      series: "Séries",
+      completion: "Complétion",
+      seals: "Sceaux",
+    },
+    nav: {
+      eyebrow: "FEUILLETS · 索引",
+      aria: "Navigation des sections",
+      authors: "Auteurs",
+      publishers: "Éditeurs",
+      reading: "Lecture",
+      treasure: "Trésor",
+      time: "Temps",
+      seals: "Sceaux",
+      tomo: "Correspondants",
+    },
+    authors: {
+      eyebrow: "FEUILLET · 人",
+      title: "Vos auteurs de chevet",
+      subtitle:
+        "Les mangaka qui pèsent le plus dans votre étagère — par tomes possédés et séries achevées.",
+      featuredEyebrow: "AUTEUR PHARE",
+      volumes: "Tomes",
+      series: "Séries",
+      completion: "Complétion",
+      volumesShort: "vol.",
+      seriesShort: "sér.",
+      empty: "Encore aucun auteur référencé. Renseignez le champ Auteur sur vos séries pour activer ce feuillet.",
+    },
+    publishers: {
+      eyebrow: "FEUILLET · 版",
+      title: "Vos éditeurs préférés",
+      subtitle:
+        "Quel éditeur fournit le plus de votre étagère ? La barre se remplit en proportion du leader.",
+      seriesShort: "séries",
+      empty: "Aucune information éditeur disponible. Ajoutez-en sur la fiche d'une série pour activer ce feuillet.",
+    },
+    reading: {
+      eyebrow: "FEUILLET · 読",
+      title: "Cadence de lecture",
+      subtitle:
+        "Vos volumes lus dans le temps, et le rapport entre ce qui dort sur l'étagère et ce qui a été parcouru.",
+      delayEyebrow: "DÉLAI ACHAT → LECTURE",
+      delayDays: "{n} jours",
+      delaySamples: "sur {n} tomes lus",
+      delayEmpty: "—",
+      delayHint: "Temps moyen entre l'ajout d'un tome et sa première lecture.",
+      dokuhaEyebrow: "DOKUHA · 読破",
+      dokuhaCounts: "{read} sur {total}",
+      dokuhaHint:
+        "Part des séries que vous possédez intégralement ET avez lues intégralement.",
+    },
+    treasure: {
+      eyebrow: "FEUILLET · 銭",
+      title: "Trésor de l'archive",
+      subtitle:
+        "La pièce la plus précieuse, l'évolution du panier moyen, les dépenses du semestre.",
+      topEyebrow: "PIÈCE MAÎTRESSE",
+      topEmpty: "Aucun prix renseigné pour le moment.",
+      basketEyebrow: "PANIER MOYEN · 12 MOIS",
+      basketHint: "Prix moyen des tomes ajoutés mois par mois.",
+      basketEmpty: "Pas encore assez de tomes prix-renseignés.",
+      volNum: "Vol. {n}",
+      collector: "Collector",
+    },
+    time: {
+      eyebrow: "FEUILLET · 暦",
+      title: "Mémoire des saisons",
+      subtitle:
+        "Quel trimestre vous a vu le plus actif, depuis quand l'archive grandit, et quelle série a tout commencé.",
+      bestQuarterEyebrow: "SAISON FAVORITE",
+      bestQuarterEmpty: "—",
+      bestQuarterEvents: "{n} événements",
+      bestQuarterHint:
+        "Le trimestre où vous avez le plus ajouté ou lu de tomes (toutes années confondues).",
+      anniversaryEyebrow: "ANCIENNETÉ",
+      anniversaryYearsMonths: "{y} ans · {m} mois",
+      anniversaryDays: "{n} jours",
+      anniversaryHint: "Depuis le {since}.",
+      anniversaryEmpty: "Ajoutez votre premier tome pour démarrer le compteur.",
+      firstSeriesEyebrow: "PREMIER TOME",
+    },
+    seals: {
+      eyebrow: "FEUILLET · 印",
+      title: "Sceau le plus récent",
+      subtitle:
+        "Votre dernière apposition. Cliquez le hanko pour rejoindre le carnet et revoir la cérémonie.",
+      recentEyebrow: "DERNIER SCEAU",
+      recentEmpty: "Pas encore de sceau apposé.",
+      cta: "Voir le carnet",
+    },
+    tomo: {
+      eyebrow: "FEUILLET · 友",
+      title: "Lien avec vos correspondants",
+      subtitle:
+        "Ce que vous partagez avec vos correspondants, et ce qu'ils possèdent que vous n'avez pas encore découvert.",
+      sharedEyebrow: "SÉRIE LA PLUS PARTAGÉE",
+      sharedHint:
+        "Possédée par {n} de vos {total} correspondants — vous y compris.",
+      sharedEmpty: "Aucune série en commun pour l'instant.",
+      latentEyebrow: "RECOMMANDATIONS LATENTES",
+      latentEmpty:
+        "Vos correspondants n'ont rien à vous proposer pour l'instant.",
+      latentCount: "{n} séries",
+      latentMore: "+{n} autres",
+      latentRowHint: "{n}/{total} correspondants",
+      offline: "Le feuillet Tomo a besoin du serveur pour s'afficher.",
+      empty: {
+        eyebrow: "FEUILLET · 友",
+        body: "Suivez d'autres archivistes pour activer ce feuillet.",
+        cta: "Trouver des correspondants",
+      },
+    },
   },
   friends: {
     title: "Correspondance",

@@ -44,7 +44,12 @@ const NAV_ITEMS_BASE = [
     featured: true,
   },
   {
-    to: "/profile",
+    // 帳 · The bottom-nav slot used to point at /profile back when
+    // /profile was the analytics destination. Now /profile is a
+    // proper identity page (reachable via the avatar in the
+    // top-right) and the deep-dive ledger lives at /stats — the
+    // chart icon below maps cleanly onto that destination.
+    to: "/stats",
     key: "stats",
     icon: (
       <svg

@@ -21,8 +21,13 @@ use sea_orm::{
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity;
-use crate::models::follow::{self, ActiveModel, Entity as FollowEntity, FeedEntry, FollowedUser};
+use crate::models::follow::{
+    self, ActiveModel, Entity as FollowEntity, FeedEntry, FollowedUser, LatentRecommendation,
+    OverlapResponse, SharedSeries,
+};
+use crate::models::library::{self as library_mod, Entity as LibraryEntity};
 use crate::models::user::{self, Entity as UserEntity};
+use crate::services::genres::is_adult as is_adult_genres;
 
 /// Default page size for the activity feed. Caller can override via
 /// the handler's query string; clamped to FEED_LIMIT_MAX inside the
@@ -280,4 +285,159 @@ pub async fn is_following(
         .await
         .map_err(AppError::from)?;
     Ok(row.is_some())
+}
+
+/// Bounds applied server-side. The lists serve a UI rail, no need
+/// for unbounded payloads.
+const SHARED_LIMIT: usize = 8;
+const LATENT_LIMIT: usize = 12;
+
+/// Compute the social-graph overlap for `user_id`.
+///
+/// Walks every series in every followed user's library. For each
+/// distinct mal_id we count how many followed users own it; the
+/// requesting user's library splits the result in two:
+///
+///   - `shared` — series the user owns AND ≥1 friend owns.
+///   - `latent` — series the user does NOT own AND ≥1 friend
+///     owns. Recommendations.
+///
+/// Adult-tagged series (per `services::genres::is_adult`) are
+/// dropped from `latent` regardless of any individual viewing
+/// preference — the recommendation rail is a discovery surface,
+/// not a lifted privacy gate. They stay in `shared` because the
+/// user already owns them, no surprise.
+pub async fn compute_overlap(db: &Db, user_id: i32) -> Result<OverlapResponse, AppError> {
+    use std::collections::HashMap;
+
+    // Step 1 — followed user_ids, gated on `public_slug IS NOT
+    // NULL` so a friend who flipped private mid-stream stops
+    // contributing without us cascade-deleting the row. SeaORM
+    // doesn't have a `Related` impl between Follow ↔ User in
+    // this project, so we use an explicit `Query::select()` join
+    // with an `Alias` projection — same pattern as
+    // `list_following` above.
+    use sea_orm::FromQueryResult;
+    #[derive(FromQueryResult)]
+    struct FollowingId {
+        user_id: i32,
+    }
+    let stmt = Query::select()
+        .expr_as(
+            Expr::col((follow::Entity, follow::Column::FollowingId)),
+            Alias::new("user_id"),
+        )
+        .from(follow::Entity)
+        .inner_join(
+            user::Entity,
+            Expr::col((user::Entity, user::Column::Id))
+                .equals((follow::Entity, follow::Column::FollowingId)),
+        )
+        .and_where(Expr::col((follow::Entity, follow::Column::FollowerId)).eq(user_id))
+        .and_where(Expr::col((user::Entity, user::Column::PublicSlug)).is_not_null())
+        .to_owned();
+    let following: Vec<i32> = FollowingId::find_by_statement(db.get_database_backend().build(&stmt))
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .map(|r| r.user_id)
+        .collect();
+    let friend_total = following.len() as i64;
+    if following.is_empty() {
+        return Ok(OverlapResponse {
+            shared: Vec::new(),
+            latent: Vec::new(),
+            friend_total: 0,
+        });
+    }
+
+    // Step 2 — friend libraries. One query, collected into a
+    // (mal_id → (count, name, image_url, genres)) map.
+    let friend_rows = LibraryEntity::find()
+        .filter(library_mod::Column::UserId.is_in(following.clone()))
+        .filter(library_mod::Column::MalId.is_not_null())
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+
+    type Bucket = (i64, String, Option<String>, Vec<String>);
+    let mut tally: HashMap<i32, Bucket> = HashMap::new();
+    for row in &friend_rows {
+        let Some(mal_id) = row.mal_id else { continue };
+        // Negative mal_ids are per-user custom entries — they
+        // can't meaningfully overlap across users (each user has
+        // their own namespace), so we skip them.
+        if mal_id < 0 {
+            continue;
+        }
+        let genres: Vec<String> = row
+            .genres
+            .as_deref()
+            .map(|s| {
+                s.split(',')
+                    .map(|g| g.trim().to_string())
+                    .filter(|g| !g.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let entry = tally
+            .entry(mal_id)
+            .or_insert_with(|| (0, row.name.clone(), row.image_url_jpg.clone(), genres.clone()));
+        entry.0 += 1;
+        // Keep the first non-empty image_url we see — bookkeeping
+        // detail, the rail just needs *a* cover.
+        if entry.2.is_none() && row.image_url_jpg.is_some() {
+            entry.2 = row.image_url_jpg.clone();
+        }
+    }
+
+    // Step 3 — the requesting user's library, just the mal_ids
+    // (don't need the rows themselves, just set membership).
+    let mine: std::collections::HashSet<i32> = LibraryEntity::find()
+        .filter(library_mod::Column::UserId.eq(user_id))
+        .filter(library_mod::Column::MalId.is_not_null())
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .filter_map(|r| r.mal_id)
+        .collect();
+
+    // Step 4 — split + sort.
+    let mut shared = Vec::with_capacity(tally.len());
+    let mut latent = Vec::with_capacity(tally.len());
+    for (mal_id, (count, name, image_url, genres)) in tally {
+        if mine.contains(&mal_id) {
+            shared.push(SharedSeries {
+                mal_id,
+                name,
+                image_url,
+                friend_count: count,
+            });
+        } else {
+            // Adult content guard — recommendations cross the
+            // social graph boundary; respect the discovery-
+            // surface policy regardless of viewer setting.
+            if is_adult_genres(&genres) {
+                continue;
+            }
+            latent.push(LatentRecommendation {
+                mal_id,
+                name,
+                image_url,
+                friend_count: count,
+            });
+        }
+    }
+    shared.sort_by(|a, b| b.friend_count.cmp(&a.friend_count).then(a.name.cmp(&b.name)));
+    latent.sort_by(|a, b| b.friend_count.cmp(&a.friend_count).then(a.name.cmp(&b.name)));
+    shared.truncate(SHARED_LIMIT);
+    latent.truncate(LATENT_LIMIT);
+
+    Ok(OverlapResponse {
+        shared,
+        latent,
+        friend_total,
+    })
 }

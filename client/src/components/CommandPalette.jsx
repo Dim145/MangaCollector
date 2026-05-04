@@ -61,6 +61,9 @@ export default function CommandPalette() {
       { id: "nav-add", kanji: "加", label: t("palette.navAdd"), path: "/addmanga" },
       { id: "nav-calendar", kanji: "暦", label: t("palette.navCalendar"), path: "/calendrier" },
       { id: "nav-profile", kanji: "個", label: t("palette.navProfile"), path: "/profile" },
+      // 帳 · Stats ledger — sibling of /profile, deep-dive
+      // analytics. Kanji 帳 mirrors the StatsPage hero watermark.
+      { id: "nav-stats", kanji: "帳", label: t("palette.navStats"), path: "/stats" },
       { id: "nav-seals", kanji: "印", label: t("palette.navSeals"), path: "/seals" },
       { id: "nav-settings", kanji: "設", label: t("palette.navSettings"), path: "/settings" },
       { id: "nav-glossary", kanji: "字", label: t("palette.navGlossary"), path: "/glossary" },

@@ -162,6 +162,7 @@ fn user_router() -> Router<AppState> {
         // it over the parameterised siblings.
         .route("/follows", get(follow::list_follows))
         .route("/follows/feed", get(follow::get_feed))
+        .route("/follows/overlap", get(follow::get_overlap))
         .route("/follows/{slug}/check", get(follow::check_following))
         .route(
             "/follows/{slug}",
