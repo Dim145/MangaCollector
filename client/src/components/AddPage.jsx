@@ -50,6 +50,18 @@ import {
 import { useT } from "@/i18n/index.jsx";
 
 const TRANSIENT_ERROR_TIMEOUT_MS = 2500;
+// 待 · Minimum on-screen duration of `ScanLoadingView` after a
+// barcode is detected. The lookup itself can complete in <100 ms
+// (warm Google Books cache, snappy 4G), and on those paths the
+// transition `BarcodeScanner → ScanLoadingView → result modal`
+// blinks past so fast the user perceives "scanner closed → nothing
+// → modal" with no acknowledgement that the app was working. By
+// holding the loading view for at least this long, the user
+// always gets visual confirmation that "yes, I'm looking it up"
+// before the next state lands. 400 ms is below the 500 ms
+// "feels slow" threshold but well above the 200 ms perception
+// floor.
+const MIN_LOADING_VIEW_MS = 400;
 
 export default function AddPage() {
   const [query, setQuery] = useState("");
@@ -368,12 +380,31 @@ export default function AddPage() {
     setScanPhase("looking-up");
     setScanStatus(`ISBN ${isbn} — looking up…`);
 
+    // 待 · Anchor the on-screen-time guarantee. Every state
+    // transition that leaves the "looking-up" phase calls
+    // `holdLoadingView()` first to wait out the remaining slice
+    // of `MIN_LOADING_VIEW_MS` (no-op if the lookup was slow
+    // enough that the threshold is already met). This stops the
+    // scanner from blinking from "camera live" through "loading"
+    // to "result modal" so fast the user can't tell the lookup
+    // happened at all.
+    const lookupStart = Date.now();
+    const holdLoadingView = async () => {
+      const elapsed = Date.now() - lookupStart;
+      if (elapsed < MIN_LOADING_VIEW_MS) {
+        await new Promise((r) =>
+          setTimeout(r, MIN_LOADING_VIEW_MS - elapsed),
+        );
+      }
+    };
+
     let book;
     try {
       book = await lookupISBN(isbn);
     } catch (err) {
       if (err?.code === "RATE_LIMITED") {
         // Scanner closes; dedicated modal explains + points to Settings
+        await holdLoadingView();
         setRateLimited({
           message:
             err.message ??
@@ -383,12 +414,14 @@ export default function AddPage() {
         return;
       }
       // Any other 5xx / network hiccup → transient, auto-resume
+      await holdLoadingView();
       setScanTransientError(err?.message ?? "Lookup failed — will retry.");
       setScanPhase("transient");
       return;
     }
 
     if (!book) {
+      await holdLoadingView();
       setScanNotFound({ isbn });
       setScanPhase("not-found");
       return;
@@ -404,6 +437,7 @@ export default function AddPage() {
       candidates = await searchExternal(book.title);
     } catch (err) {
       // External lookup hiccup = transient, will retry the whole scan
+      await holdLoadingView();
       setScanTransientError(
         err?.message ?? "External lookup failed — will retry.",
       );
@@ -412,6 +446,7 @@ export default function AddPage() {
     }
 
     if (!candidates.length) {
+      await holdLoadingView();
       setScanNotFound({ isbn, bookTitle: book.title });
       setScanPhase("not-found");
       return;
@@ -426,6 +461,7 @@ export default function AddPage() {
     const coffretCandidate = candidates.find((c) => c.mal_id != null);
     if (coffretHint.isCoffret && coffretCandidate) {
       // Close the scanner overlay — the coffret modal takes over the screen.
+      await holdLoadingView();
       setScannerOpen(false);
       const prefilledPrice = pickDefaultPrice(book, currencyCodeRef.current);
       setScanCoffret({
@@ -445,6 +481,7 @@ export default function AddPage() {
       return;
     }
 
+    await holdLoadingView();
     setScanResult({
       isbn,
       book,
