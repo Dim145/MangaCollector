@@ -1,7 +1,8 @@
+import { memo } from "react";
 import Manga from "../Manga";
 import VirtualMangaGrid, { VIRTUALIZE_THRESHOLD } from "./VirtualMangaGrid.jsx";
 
-export default function MangaGrid({
+function MangaGrid({
   filtered,
   adult_content_level,
   allCollectorSet,
@@ -55,3 +56,15 @@ export default function MangaGrid({
   }
   return <VirtualMangaGrid filtered={filtered} {...cardProps} />;
 }
+
+/**
+ * 記憶 · Memoize the grid itself so it re-renders only when its
+ * own props change. Dashboard re-renders on every keystroke into
+ * the search input; without memo, that would force the grid to
+ * rebuild its 200+ children on every char typed even though the
+ * filtered slice and the lookup Maps are stable until the user
+ * actually mutates the library. Combined with the per-card
+ * `memo()` on `<Manga>`, the typing path stays at O(filter pass)
+ * instead of O(filter pass + N card re-renders).
+ */
+export default memo(MangaGrid);

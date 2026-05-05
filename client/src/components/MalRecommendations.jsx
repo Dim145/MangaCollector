@@ -67,8 +67,27 @@ export default function MalRecommendations() {
   // visible — otherwise we'd just be re-rendering the same 8 tiles.
   const canCycle = (recs?.length ?? 0) > VISIBLE_COUNT;
 
+  // 蛍幕 · Tab-visibility tracking. When the user switches tabs or
+  // the page goes to a background-throttled state, we want the
+  // carousel to pause its `setInterval` — not because the timer
+  // itself is expensive, but because every tick re-renders the
+  // section's tile slice + bumps its animations. Backgrounded
+  // tabs already get throttled to 1 Hz by the browser, but we
+  // can save the React work entirely with a hard pause.
+  // `visibilitychange` fires on tab switch, window minimise, and
+  // OS-level hides (PWA → home screen on mobile).
+  const [tabVisible, setTabVisible] = useState(
+    typeof document === "undefined" ? true : !document.hidden,
+  );
   useEffect(() => {
-    if (!canCycle || paused) return;
+    if (typeof document === "undefined") return;
+    const handler = () => setTabVisible(!document.hidden);
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, []);
+
+  useEffect(() => {
+    if (!canCycle || paused || !tabVisible) return;
     if (typeof window === "undefined") return;
     // Honour reduced-motion preferences — vestibular-sensitive
     // users get the static layout instead of a moving carousel.
@@ -78,7 +97,7 @@ export default function MalRecommendations() {
       setCursor((c) => (c + VISIBLE_COUNT / 2) % recs.length);
     }, CYCLE_MS);
     return () => clearInterval(id);
-  }, [canCycle, paused, recs?.length]);
+  }, [canCycle, paused, tabVisible, recs?.length]);
 
   if (!hasSources) return null;
 

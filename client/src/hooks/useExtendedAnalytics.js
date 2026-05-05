@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useDeferredValue, useMemo } from "react";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 
@@ -59,9 +59,19 @@ export function useExtendedAnalytics({ lang = "en" } = {}) {
 
   const loading = libLoading || volLoading;
 
+  // 後 · Same deferred-value pattern as `useProfileAnalytics`.
+  // The aggregation below is even heavier (top-N authors +
+  // publishers + reading-delay scan + dokuha series scan +
+  // basket evolution + best-quarter tally) — easily 200+ ms
+  // on a big library. Deferring lets React keep StatsPage's
+  // chrome interactive while the background slice rebuilds
+  // the bundle after each Dexie mutation.
+  const deferredLibrary = useDeferredValue(library);
+  const deferredVolumes = useDeferredValue(volumes);
+
   const bundle = useMemo(() => {
-    const lib = library ?? [];
-    const vols = volumes ?? [];
+    const lib = deferredLibrary ?? [];
+    const vols = deferredVolumes ?? [];
     const owned = vols.filter((v) => v.owned);
 
     const byMalId = new Map(lib.map((m) => [m.mal_id, m]));
@@ -314,7 +324,7 @@ export function useExtendedAnalytics({ lang = "en" } = {}) {
       bestQuarter,
       anniversary,
     };
-  }, [library, volumes, lang]);
+  }, [deferredLibrary, deferredVolumes, lang]);
 
   return { ...bundle, loading };
 }

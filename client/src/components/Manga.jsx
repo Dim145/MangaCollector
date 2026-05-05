@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import CoverImage from "./ui/CoverImage.jsx";
 import { hasToBlurImage } from "@/utils/library.js";
@@ -10,7 +10,7 @@ import { useT, useLang } from "@/i18n/index.jsx";
 const LONG_PRESS_MS = 500;
 const LONG_PRESS_MOVE_THRESHOLD = 8;
 
-export default function Manga({
+function Manga({
   manga,
   adult_content_level,
   allCollector,
@@ -447,6 +447,36 @@ export default function Manga({
  * matching: passing `"fr"` yields the French short-month form,
  * which the project's existing `useLang` hook already provides.
  */
+/**
+ * 記憶 · `React.memo` with the default shallow-equal comparator.
+ *
+ * Why this matters: Dashboard re-renders on every keystroke into
+ * the search input (and on every filter / lens / selection-mode
+ * toggle). Without memoization, every typed character cascades a
+ * re-render through all ~200 visible Manga cards even when none
+ * of THEIR props actually changed. `content-visibility: auto`
+ * skips the off-screen paint, but the JSX traversal + diff still
+ * runs ⟹ +50–200 ms of jank per keystroke on big libraries.
+ *
+ * The default shallow comparator is sufficient here because:
+ *   • `manga` is the same object reference inside `filtered` as
+ *     long as the underlying Dexie data hasn't changed (Dashboard
+ *     only filters; it doesn't clone the rows).
+ *   • `adult_content_level`, `tsundokuCount`, `selectionMode`,
+ *     `isSelected`, `allCollector` are primitives.
+ *   • `nextUpcoming` is read from a `useMemo`-stabilised Map in
+ *     Dashboard, so the lookup yields the same object reference
+ *     across renders unless the underlying volumes change.
+ *   • `onToggleSelect` / `onEnterSelection` are wrapped in
+ *     `useCallback` upstream.
+ *
+ * When the underlying Dexie data DOES change (a volume mutation
+ * fires), every `manga` reference changes and all cards re-render
+ * — which is the correct behaviour: the data they display is
+ * stale until the new render lands.
+ */
+export default memo(Manga);
+
 function formatNextDate(ms, lang) {
   if (typeof ms !== "number" || Number.isNaN(ms)) return null;
   const target = new Date(ms);

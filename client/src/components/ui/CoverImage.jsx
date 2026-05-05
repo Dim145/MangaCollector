@@ -26,6 +26,16 @@ export default function CoverImage({
   fetchPriority = "auto",
   draggable,
   paletteSeed,
+  // 寸 · Intrinsic dimensions — used for `width` / `height`
+  // attributes on the `<img>`. Modern browsers derive an
+  // `aspect-ratio` from these even when CSS sizes the element
+  // with `h-full w-full`, which prevents the layout shift that
+  // would otherwise happen between the slot allocation and the
+  // first decoded frame. Defaults to 200×300 (the canonical
+  // 2:3 manga cover ratio); avatar / non-cover callers can
+  // override with their own ratio (e.g. 1:1 for square avatars).
+  width = 200,
+  height = 300,
 }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -68,6 +78,17 @@ export default function CoverImage({
           <img
             src={src}
             alt={alt}
+            // 寸 · Intrinsic width/height attributes set the
+            // `aspect-ratio` the browser uses to reserve the
+            // image's slot before bytes arrive. Without them,
+            // a grid of 200 covers can trigger cascading
+            // layouts as each one decodes (≈30–50 ms on a
+            // mid-range mobile). The CSS sizing utilities
+            // (`h-full w-full object-cover` etc. via
+            // `imgClassName`) still drive the actual rendered
+            // dimensions.
+            width={width}
+            height={height}
             // Native `loading="lazy"` stays as a safety net — on the
             // off-chance our IntersectionObserver fires too early
             // (e.g. extreme `rootMargin` accidents) the browser still
