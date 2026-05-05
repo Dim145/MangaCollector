@@ -122,13 +122,20 @@ export default function PageLoader({
         >
           <defs>
             {/* `bleed` — the workhorse filter. feTurbulence
-                generates a 2-octave fractal noise; feDisplacementMap
+                generates a 1-octave fractal noise; feDisplacementMap
                 pushes each pixel by up to ±9 units along that noise
                 field; a half-pixel Gaussian softens the displaced
                 outline so it reads as paper bleed, not pixelation.
                 Filter region is generously oversized (-30%/160%) so
                 the displacement can push pixels outside the source
-                bounding box without getting clipped. */}
+                bounding box without getting clipped.
+
+                Reduced from 2 octaves → 1 octave: the 2-octave
+                noise produced a slightly richer fibre but the
+                rasterisation cost roughly doubles. At the loader's
+                size + viewport scale the eye doesn't read the
+                second octave as detail anyway. ~50% cheaper per
+                frame, visually indistinguishable. */}
             <filter
               id={bleedId}
               x="-30%"
@@ -140,7 +147,7 @@ export default function PageLoader({
               <feTurbulence
                 type="fractalNoise"
                 baseFrequency="0.018"
-                numOctaves="2"
+                numOctaves="1"
                 seed="3"
                 result="noise"
               />
@@ -155,8 +162,9 @@ export default function PageLoader({
               <feGaussianBlur in="displaced" stdDeviation="0.7" />
             </filter>
             {/* `soft` — heavier displacement + a 3 px blur. Used on
-                the outer halo and tendril paths so the most diffuse
-                layers read as wet bleed rather than as clean ink. */}
+                the outer halo so the most diffuse layer reads as
+                wet bleed rather than a clean disc. Same 1-octave
+                tuning rationale as `bleed`. */}
             <filter
               id={softId}
               x="-50%"
@@ -168,7 +176,7 @@ export default function PageLoader({
               <feTurbulence
                 type="fractalNoise"
                 baseFrequency="0.024"
-                numOctaves="2"
+                numOctaves="1"
                 seed="7"
                 result="noise"
               />
@@ -206,10 +214,16 @@ export default function PageLoader({
             {/* Tendrils — five capillary paths radiating outward at
                 72° apart. stroke-dashoffset animation draws each one
                 from puddle outward; staggered delays give a "branching"
-                feel rather than a synchronised burst. */}
+                feel rather than a synchronised burst.
+
+                NOT filtered: the previous revision applied the `soft`
+                filter to this group, but a thin stroke (2.2-2.8 px)
+                shows almost no displacement — most of the
+                irregularity from feTurbulence is felt on filled
+                shapes, not strokes. Dropping the filter saves one
+                full filter chain per frame at no visible cost. */}
             <g
               className="loader-sumi-tendrils"
-              filter={`url(#${softId})`}
               stroke="var(--hanko)"
               strokeLinecap="round"
               fill="none"
@@ -263,9 +277,15 @@ export default function PageLoader({
             {/* Satellites — small flicked-off droplets that scatter
                 outside the main blob. Real ink dispersion always has
                 these; without them the composition reads too
-                composed. Each one gets the bleed filter so its edge
-                also frays. */}
-            <g className="loader-sumi-satellites" filter={`url(#${bleedId})`}>
+                composed.
+
+                NOT filtered: at r=2.5–4 px the displacement filter's
+                visible effect is negligible (the noise scale doesn't
+                resolve below ~6 px of feature size). Skipping the
+                filter on these tiny circles saves another full
+                filter chain per frame. The bleed look on the puddle,
+                wash and halo carries the aesthetic on its own. */}
+            <g className="loader-sumi-satellites">
               {SATELLITES.map((sat, i) => {
                 const rad = (sat.angle * Math.PI) / 180;
                 const cx = CENTER + Math.cos(rad) * sat.radius;

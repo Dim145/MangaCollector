@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { cacheAllVolumes, cacheVolumesForManga, db } from "@/lib/db.js";
 import { deriveListState } from "@/lib/queryState.js";
+import { useDebouncedLiveQuery } from "@/hooks/useDebouncedLiveQuery.js";
 import { enqueueVolumeUpdate } from "@/lib/sync.js";
 
 /** Live volumes for one manga, sorted by vol_num. */
@@ -26,9 +27,34 @@ export function useVolumesForManga(mal_id) {
   return deriveListState(data, query, { enabled: mal_id != null });
 }
 
-/** All volumes across the user's library (for /profile). */
+/**
+ * All volumes across the user's library (for /profile, /stats,
+ * /backlog).
+ *
+ * Uses `useDebouncedLiveQuery` instead of the raw `useLiveQuery`
+ * because the volumes table is the most write-active surface in
+ * Dexie — every mark-read / mark-owned toggle touches it, the
+ * WS sync rewrites large slices on its own cadence, and the
+ * downstream analytics that consume this data are heavy
+ * (`useProfileAnalytics` and `useExtendedAnalytics` walk every
+ * row to build per-author / per-publisher / per-month rollups).
+ *
+ * Without debouncing, a user toggling 5 volumes in quick
+ * succession triggers 5 separate React updates and 5 analytics
+ * recomputations. With the 80 ms trailing-edge window, those
+ * collapse into a single update — the analytics are still
+ * accurate, they just settle once after the burst rather than
+ * mid-burst. The single-mutation case pays an 80 ms latency tax
+ * which is below the perception threshold for chart/list
+ * surfaces.
+ *
+ * Per-manga reads (`useVolumesForManga`) keep the un-debounced
+ * `useLiveQuery` because their consumer (the volume drawer)
+ * IS interactive — the user expects the toggle they just
+ * clicked to render the next frame.
+ */
 export function useAllVolumes() {
-  const data = useLiveQuery(() => db.volumes.toArray(), []);
+  const data = useDebouncedLiveQuery(() => db.volumes.toArray(), []);
 
   const query = useQuery({
     queryKey: ["volumes-all"],
