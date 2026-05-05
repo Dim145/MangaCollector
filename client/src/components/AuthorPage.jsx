@@ -142,7 +142,23 @@ export default function AuthorPage() {
 
   return (
     <DefaultBackground>
-      <div className="relative mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+      {/* `overflow-y-clip` contains ONLY the vertical bleed of
+          ornamental absolutes — the 家 watermark at `-bottom-6`
+          and the gold/hanko atmosphere blooms at `-bottom-24` /
+          `-top-40` — so they can't escape the page-content area
+          and reveal the body's radial gradients in a thin strip
+          below. Y-only is deliberate: the same blooms ALSO sit
+          at `-left-24` / `-right-32` and are SUPPOSED to bleed
+          horizontally (that's the soft corner halo the page
+          designs around). A full `overflow-clip` would clip
+          those too and the page would lose its atmospheric
+          glow on either side.
+
+          `clip` (not `hidden`) keeps the wrapper non-scroll-
+          container, so any future sticky descendant still
+          works — same rationale as DefaultBackground's
+          `overflow-x-clip`. */}
+      <div className="relative mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12 overflow-y-clip">
         {/* ── Atmosphere ── gold radial top-right (the honour-corner
             for an author page) + hanko radial bottom-left.
             Pointer-events none so they don't interfere with hover. */}

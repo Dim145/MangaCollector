@@ -71,7 +71,22 @@ export default function CollectionPage({ kind = "publisher" }) {
 
   return (
     <DefaultBackground>
-      <div className="relative mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+      {/* `overflow-y-clip` contains the corner watermarks +
+          atmosphere blooms that protrude vertically
+          (`-bottom-24`, `-top-40`, the `CornerWatermark` siblings
+          at `-bottom-6` / `-top-2`). Without it, on tall edition /
+          publisher layouts the bottom watermark bleeds past the
+          inner div's bottom into the body's radial gradients
+          (which differ from DefaultBackground's grain + vignette)
+          — visible as a sharp horizontal cut.
+          Y-only is deliberate: the same blooms ALSO sit at
+          `-left-24` / `-right-32` and are SUPPOSED to bleed
+          horizontally (that's the soft corner halo the page
+          designs around). A full `overflow-clip` chops them
+          flush with the max-w-5xl edge, leaving a hard vertical
+          cut in the dark backdrop. See the matching comment in
+          `AuthorPage.jsx`. */}
+      <div className="relative mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12 overflow-y-clip">
         {/* Atmosphere — diagonal pair: moegi (publishing trade
             inks) top-right, gold (binding leaf) bottom-left.
             Distinct from AuthorPage's hanko/gold to mark the

@@ -79,7 +79,7 @@ export default function About({ googleUser } = {}) {
   }, []);
 
   return (
-    <div className="relative isolate overflow-hidden grain min-h-[calc(100svh-4rem)]">
+    <div className="relative isolate overflow-hidden grain min-h-[calc(100svh_-_4rem)]">
       {/* Ambient */}
       <div
         className="pointer-events-none absolute inset-0 -z-10"

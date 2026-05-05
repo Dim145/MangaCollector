@@ -13,7 +13,7 @@ import SeasonAtmosphere from "./SeasonAtmosphere.jsx";
 // the sticky header).
 export default function DefaultBackground({ children }) {
   return (
-    <div className="relative isolate grain min-h-[calc(100svh-4rem)] overflow-x-clip">
+    <div className="relative isolate grain min-h-[calc(100svh_-_4rem)] overflow-x-clip">
       {/* 季節 · Ambient season layer.
           Renders behind every other background detail — sits between
           the page colour and the radial gradients, so the gradients

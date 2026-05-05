@@ -57,7 +57,7 @@ export default function PublicProfile() {
   };
 
   return (
-    <div className="public-profile min-h-[calc(100svh-4rem)] relative">
+    <div className="public-profile min-h-[calc(100svh_-_4rem)] relative">
       {/* Ambient background — soft washi gradient distinct from the
           private dashboard. Goldleaf halo at bottom-right, hanko glow
           at top-left, grain overlay on top. */}
