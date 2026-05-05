@@ -44,6 +44,21 @@
   --hanko-deep: oklch(0.48 0.2 25);
   --hanko-glow: oklch(0.6 0.22 25 / 0.35);
 
+  /* 消 · Erase / destructive — accent-INDEPENDENT red.
+     `--hanko-*` rotates through the user's accent palette (kin
+     gold, moegi green, ai blue, etc.), but the destructive-action
+     surface (delete account button + the irrecoverable confirm
+     modal) MUST stay red regardless of accent: the colour is the
+     primary safety cue ("this is the dangerous one") and a
+     gold/blue/green delete CTA would dilute it. These tokens are
+     defined here only and intentionally NOT overridden in any
+     `:root[data-accent="…"]` block, so they always resolve to the
+     canonical hanko red shades. */
+  --erase: oklch(0.6 0.22 25);
+  --erase-bright: oklch(0.68 0.24 25);
+  --erase-deep: oklch(0.48 0.2 25);
+  --erase-glow: oklch(0.6 0.22 25 / 0.35);
+
   /* Accent */
   --gold: oklch(0.82 0.13 78); /* gold leaf */
   --gold-muted: oklch(0.7 0.1 72);
@@ -448,6 +463,9 @@
   --color-hanko: var(--hanko);
   --color-hanko-bright: var(--hanko-bright);
   --color-hanko-deep: var(--hanko-deep);
+  --color-erase: var(--erase);
+  --color-erase-bright: var(--erase-bright);
+  --color-erase-deep: var(--erase-deep);
   --color-gold: var(--gold);
   --color-gold-muted: var(--gold-muted);
   --color-sakura: var(--sakura);
