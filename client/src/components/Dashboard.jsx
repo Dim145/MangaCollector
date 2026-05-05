@@ -21,7 +21,6 @@ import MarginaliaPaper from "./ui/MarginaliaPaper.jsx";
 import WelcomeTour from "./WelcomeTour.jsx";
 import SeasonGreeting from "./SeasonGreeting.jsx";
 import { hasSeenTour } from "@/lib/tour.js";
-import { withViewTransition } from "@/lib/viewTransition.js";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
@@ -184,28 +183,25 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const t = useT();
 
-  // 並 · Tag toggles wrap the state mutation in `withViewTransition`
-  // so the grid reorder animates as a smooth slide instead of a jump-
-  // cut. Each `<Manga>` card carries a `view-transition-name` keyed on
-  // its `mal_id`, which is what gives the browser the per-card
-  // FLIP-style morph between filter states. Search input is
-  // intentionally NOT wrapped — VTs trigger per keystroke would feel
-  // janky given each transition takes ~250ms.
+  // 並 · Tag toggles update state directly. The earlier revisions
+  // wrapped them in `withViewTransition` for a per-card FLIP morph
+  // between filter states, but the View Transitions composited the
+  // page chrome's translucent surfaces (search bar, atmosphere)
+  // visibly darker for the duration of the animation, and every
+  // attempted opt-out (root opacity hard-cut, view-transition-name:
+  // none, opaque-during-VT, transition-all removal) either left
+  // residual flicker or broke the card animation entirely. The
+  // brutal-but-stable behaviour is the surviving compromise.
   const toggleTag = useCallback((name) => {
-    withViewTransition(() => {
-      setActiveTags((prev) => {
-        const next = new Set(prev);
-        if (next.has(name)) next.delete(name);
-        else next.add(name);
-        return next;
-      });
+    setActiveTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
     });
   }, []);
 
-  const clearTags = useCallback(
-    () => withViewTransition(() => setActiveTags(new Set())),
-    [],
-  );
+  const clearTags = useCallback(() => setActiveTags(new Set()), []);
 
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const { data: allVolumes } = useAllVolumes();
