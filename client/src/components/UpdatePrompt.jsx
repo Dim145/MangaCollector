@@ -93,7 +93,7 @@ export default function UpdatePrompt() {
       role="dialog"
       aria-live="polite"
       aria-label={t("update.aria")}
-      className="update-prompt animate-fade-up fixed bottom-4 right-4 z-[100] max-w-[calc(100vw-2rem)] sm:max-w-md"
+      className="update-prompt animate-fade-up fixed bottom-4 right-4 z-[100] max-w-[calc(100vw_-_2rem)] sm:max-w-md"
     >
       <div className="relative overflow-hidden rounded-lg border border-gold/55 bg-ink-1/95 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.85)] backdrop-blur">
         {/* Decorative torn gold corner — same vocabulary as the

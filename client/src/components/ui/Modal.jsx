@@ -141,7 +141,7 @@ export default function Modal({
       )}
 
       <div
-        className={`relative max-h-[calc(100dvh-2rem)] max-w-full overflow-auto ${contentAnim} ${additionalClasses}`}
+        className={`relative max-h-[calc(100dvh_-_2rem)] max-w-full overflow-auto ${contentAnim} ${additionalClasses}`}
       >
         {children}
       </div>

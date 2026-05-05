@@ -47,7 +47,7 @@ export default function Login() {
   const isGoogle = String(authName || "").toLowerCase() === "google";
 
   return (
-    <div className="relative isolate min-h-[calc(100svh-4rem)] overflow-hidden grain flex items-center justify-center px-4 py-12">
+    <div className="relative isolate min-h-[calc(100svh_-_4rem)] overflow-hidden grain flex items-center justify-center px-4 py-12">
       {/* Atmospheric background */}
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div

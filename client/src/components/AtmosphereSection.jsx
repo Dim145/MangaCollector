@@ -43,7 +43,7 @@ export default function AtmosphereSection() {
           <span
             className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
               enabled
-                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
+                ? "left-[calc(100%_-_1.375rem)] bg-ink-0 shadow-md"
                 : "left-0.5 bg-washi-dim"
             }`}
           />

@@ -71,15 +71,50 @@ export default function CollectionPage({ kind = "publisher" }) {
 
   return (
     <DefaultBackground>
-      <div className="relative mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-        {/* Atmosphere — diagonal pair: moegi (publishing trade
-            inks) top-right, gold (binding leaf) bottom-left.
-            Distinct from AuthorPage's hanko/gold to mark the
-            different surface without breaking the palette. */}
+      {/* 上 · Top-right moegi bloom — lives OUTSIDE the clipped
+          inner div on purpose. With the bloom anchored at
+          `-top-40`, the inner div's `overflow-y-clip` (used to
+          contain the bottom ornaments — see below) would also
+          chop the bloom's upward bleed and leave a hard horizontal
+          edge under the navbar. Hoisting it out makes the bloom
+          a sibling of the content wrapper, so its top extends
+          freely under the sticky header for the soft corner-halo
+          glow. The empty `mx-auto max-w-5xl` wrapper anchors the
+          bloom's right edge to the same column as the inner div
+          (because its border-box right matches), so `-right-32`
+          places the orb 8rem past the same column edge as before
+          this refactor. Height 0 since the only descendant is
+          absolute. See the matching pattern in `AuthorPage.jsx`. */}
+      <div className="relative mx-auto max-w-5xl">
         <span
           aria-hidden="true"
           className="pointer-events-none absolute -right-32 -top-40 -z-10 h-96 w-96 rounded-full bg-moegi/10 blur-3xl"
         />
+      </div>
+
+      {/* `overflow-y-clip` contains ONLY the bottom bleed of the
+          ornamental absolutes that still live INSIDE this wrapper
+          — the `CornerWatermark` at `-bottom-6` and the gold
+          atmosphere bloom at `-bottom-24`. On tall edition /
+          publisher layouts they otherwise extend past the inner
+          div's bottom into the body's radial gradients (different
+          palette than DefaultBackground's grain + vignette),
+          producing a visible horizontal cut at the page bottom.
+          Y-axis clip is symmetrical (top + bottom) but the top has
+          no negative-anchored ornament left to clip — the bloom
+          that USED to sit here was hoisted to the wrapper above
+          exactly so this `overflow-y-clip` could stay simple and
+          not need a bespoke asymmetric clip-path. X stays open so
+          the bottom bloom at `-left-24` keeps its soft corner halo
+          (a full `overflow-clip` produced a hard vertical cut on
+          the dark backdrop). `clip` (not `hidden`) keeps the
+          wrapper non-scroll-container so any future sticky
+          descendant still works. See `AuthorPage.jsx` for the
+          same pattern. */}
+      <div className="relative mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12 overflow-y-clip">
+        {/* Atmosphere — gold radial bottom-left only (the moegi
+            top-right counterpart was hoisted above to dodge the
+            overflow-y-clip; see comment on the wrapper). */}
         <span
           aria-hidden="true"
           className="pointer-events-none absolute -left-24 -bottom-24 -z-10 h-72 w-72 rounded-full bg-gold/10 blur-3xl"
