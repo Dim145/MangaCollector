@@ -44,6 +44,126 @@ export function CardHeader({ title, body, kanji, accent = "hanko" }) {
   );
 }
 
+/**
+ * 重 · Multi-toggle card — groups several closely-related toggles
+ * inside a single tile.
+ *
+ * The previous revision spread settings like `Shelf 3D`, `Ink trail`,
+ * `Sound`, `Haptics` across one full-width Card per toggle. Each card
+ * carried its own kanji chip + title + body + switch — visually
+ * heavy for a single boolean. When two such cards always sit
+ * side-by-side under the same sub-block (e.g. Shelf 3D + Ink trail
+ * are both "decorative visual flourishes"), it makes more sense to
+ * collapse them into one tile with a shared header and a vertical
+ * stack of compact rows.
+ *
+ * Each row carries:
+ *   • `kanji`   — small leading glyph (same vocabulary as the
+ *                 standalone cards used)
+ *   • `title`   — short label
+ *   • `body`    — explanatory paragraph (kept short; long bodies
+ *                 belong in their own card)
+ *   • `enabled` + `onToggle` — switch state + setter
+ *   • `accent`  — `"hanko"` (default) or `"gold"`. Drives the
+ *                 chip background colour AND the switch's accent
+ *                 ring/fill so each row keeps its individual
+ *                 colour story even inside a shared card.
+ *   • `gating`  — optional `{ label, detail }` rendered as a
+ *                 muted disclosure box below the row (preserves
+ *                 the per-toggle gating notes the standalone
+ *                 cards used to surface).
+ *
+ * Layout: header → rows separated by a hairline divider. The
+ * dividers preserve a clear "two distinct settings" reading even
+ * though they share a tile.
+ */
+export function MultiToggleCard({ title, body, kanji, accent = "hanko", toggles }) {
+  return (
+    <Card>
+      <CardHeader title={title} body={body} kanji={kanji} accent={accent} />
+      <ul className="divide-y divide-border/50">
+        {toggles.map((toggle, i) => (
+          <ToggleRow key={toggle.id ?? i} {...toggle} />
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function ToggleRow({
+  kanji,
+  title,
+  body,
+  enabled,
+  onToggle,
+  accent = "hanko",
+  ariaLabel,
+  gating,
+}) {
+  // Per-row chip + switch styling. Hanko is the default (red), gold
+  // is reserved for "earned"/celebratory affordances (sounds in our
+  // case). The switch's focus-visible ring also tracks the accent.
+  const chipBg = accent === "gold" ? "bg-gold/20" : "bg-hanko/20";
+  const chipFg = accent === "gold" ? "text-gold" : "text-hanko-bright";
+  const switchOn =
+    accent === "gold" ? "border-gold bg-gold/80" : "border-hanko bg-hanko/80";
+  const switchRing =
+    accent === "gold"
+      ? "focus-visible:ring-gold/60"
+      : "focus-visible:ring-hanko/60";
+
+  return (
+    <li className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            aria-hidden="true"
+            className={`grid h-5 w-5 shrink-0 place-items-center rounded-full font-jp text-[10px] font-bold ${chipBg} ${chipFg}`}
+          >
+            {kanji}
+          </span>
+          <div className="min-w-0">
+            <p className="font-display text-sm font-semibold text-washi sm:text-base">
+              {title}
+            </p>
+            {body && (
+              <p className="mt-0.5 text-xs text-washi-muted">{body}</p>
+            )}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={ariaLabel}
+          onClick={() => onToggle(!enabled)}
+          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${switchRing} ${
+            enabled ? switchOn : "border-border bg-ink-2"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
+              enabled
+                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
+                : "left-0.5 bg-washi-dim"
+            }`}
+          />
+        </button>
+      </div>
+
+      {gating && (
+        <p className="mt-2 rounded-lg border border-border bg-ink-0/40 px-3 py-2 text-[11px] leading-relaxed text-washi-muted">
+          <span className="font-mono uppercase tracking-[0.2em] text-washi-dim">
+            {gating.label}
+          </span>{" "}
+          {gating.detail}
+        </p>
+      )}
+    </li>
+  );
+}
+
 export function RadioCard({ checked, onClick, name, value, children }) {
   return (
     <label

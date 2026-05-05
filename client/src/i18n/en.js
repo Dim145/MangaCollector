@@ -87,6 +87,9 @@ export default {
     emptySearchEyebrow: "NOTHING MATCHES · 静",
     emptySearchTitle: "No release matches that filter",
     emptySearchBody: "Try a shorter query or widen the time horizon.",
+    chapterMark: "暦帖",
+    inscriptionEmpty: "The almanac is quiet this season.",
+    inscriptionSearched: "The filter returned nothing — widen the horizon.",
   },
   calendarSubscribe: {
     eyebrow: "SUBSCRIBE · 暦",
@@ -168,6 +171,12 @@ export default {
     emptyBody:
       "Start curating your collection — search a title, add a volume, and watch your archive grow.",
     addFirst: "Add your first series",
+    chapterEmpty: "第一章",
+    chapterSearch: "探索",
+    chapterFilter: "濾過",
+    inscriptionEmpty: "The shelf awaits its first inscription.",
+    inscriptionSearched: "No trace, but the archive is breathing.",
+    inscriptionFiltered: "The filter hides everything — release to see again.",
     genresLabel: "TAGS · 題箋",
     genreFilterLabel: "Filter by genre",
     tagsSelected: "active",
@@ -632,10 +641,15 @@ export default {
       "Google Books rate-limit reached. Set an API key in Settings or wait a bit before scanning more.",
   },
   profile: {
-    profile: "PROFILE · 統計",
+    profile: "PROFILE",
     helloName: "Hello,",
     reader: "Reader",
     byline: "Your archive at a glance — curated with care, volume by volume.",
+    memberDays: "Member for {n} days",
+    memberMonths: "Member for {n} months",
+    memberYears: "Member for {n} years",
+    anniversaryYears: "{n} year archiving",
+    anniversaryAria: "Archive anniversary: {n} years",
     yearReviewCta: "{year} in review",
     snapshotCta: "Share my shelf",
     backlogCta: "Reading pile",
@@ -777,6 +791,21 @@ export default {
     "places_読破_literal": "to read all the way through",
     "places_読破_usage":
       "Reading log — volumes you've finished, with timestamps and monthly cadence.",
+    "places_人_literal": "person, author",
+    "places_人_usage":
+      "Authors folio of the Stats ledger. Top mangaka who weigh the most on your shelves — by volumes owned and series completed.",
+    "places_版_literal": "edition, imprint",
+    "places_版_usage":
+      "Publishers folio. Which imprint fills the most of your shelf, with completion bars per house.",
+    "places_銭_literal": "coin, value",
+    "places_銭_usage":
+      "Treasure folio. Crown jewel, basket-price evolution, savings made through coffrets.",
+    "places_暦_literal": "calendar, almanac",
+    "places_暦_usage":
+      "Time folio. Favourite quarter, archive tenure, the very first series ever added — the chronological memory of the carnet.",
+    "places_友_literal": "friend, companion",
+    "places_友_usage":
+      "Correspondence page and Tomo folio of the ledger. Following fellow archivists, activity feed, latent recommendations.",
 
     "vessels_巻_literal": "scroll, volume",
     "vessels_巻_usage":
@@ -793,6 +822,12 @@ export default {
     "vessels_棚_literal": "shelf, rack",
     "vessels_棚_usage":
       "The shelf as an object — anchors the 3D dashboard mode (perspective + wood grain) and the shareable profile snapshot. Distinct from 本棚 (bookshelf), which names the dashboard surface itself.",
+    "vessels_帳_literal": "ledger, book of accounts",
+    "vessels_帳_usage":
+      "The master ledger book — identity of the StatsPage. Borne as a giant watermark on the hero, and as a small spinning badge on the bridge CTA from /profile. The book the archivist leafs through to understand their own collection.",
+    "vessels_籠_literal": "basket, woven bowl",
+    "vessels_籠_usage":
+      "The “average basket” card on the Treasure folio — 12-month sparkline of the average price of volumes you add. Evokes the basket you fill at the bookseller, to gauge whether your buying cadence is getting pricier.",
 
     "palette_漆黒_literal": "lacquer black, jet ink",
     "palette_漆黒_usage":
@@ -819,6 +854,9 @@ export default {
     "mokuji_字典_literal": "kanji dictionary",
     "mokuji_字典_usage":
       "This very page — reached from Settings → Onboarding. The app's open vocabulary reference.",
+    "mokuji_索引_literal": "index, cross-reference table",
+    "mokuji_索引_usage":
+      "The navigation rail of the Stats ledger — each kanji leads to a folio (人 authors, 版 publishers, 読 reading, 銭 treasure, 暦 time, 印 seals, 友 correspondents). Sticky vertical on large screens, condensed into horizontal chips on mobile. Sibling of 目次 in Settings: same index metaphor, different ledger.",
     "mokuji_風_literal": "wind, atmosphere",
     "mokuji_風_usage":
       "Settings chapter 1: theme, seasonal palette, ambient particles. Everything that touches the app's visual breath.",
@@ -975,6 +1013,14 @@ export default {
     shelf3dBody:
       "Dashboard cards take on a light perspective tilt with edge shadows, resting on a wood-grain line — like browsing an actual bookshelf. Disabled in multi-select mode.",
     shelf3dToggleAria: "Toggle 3D shelf view",
+    flourishesTitle: "Visual flourishes",
+    flourishesBody: "Optional decorative effects — each adds a detail to the rest of the interface without touching the theme or the accent.",
+    feedbackTitle: "Sensory feedback",
+    feedbackBody: "Interface sounds and haptic vibrations — two independent confirmation channels, each gated by the OS permissions.",
+    inkTrailTitle: "Ink trail",
+    inkTrailBody:
+      "The cursor deposits a hanko brush stroke under large headings — a sumi-e flourish as you hover a page title. Off by default, ignored on touch screens and when reduced motion is requested.",
+    inkTrailToggleAria: "Toggle ink trail",
     hapticsTitle: "Haptic feedback",
     hapticsBody:
       "Short vibration on key actions — volume toggle, coffret confirm. Silent on devices without a motor.",
@@ -1156,7 +1202,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.11.0 · Archive your collection",
+    version: "v2.12.0 · Archive your collection",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",
@@ -1243,6 +1289,17 @@ export default {
     aMoment: "A single moment",
     slower: "Taking a bit longer than usual…",
   },
+  notFound: {
+    chapterMark: "迷帖",
+    kicker: "ROUTE UNKNOWN · 迷",
+    titlePre: "This page got",
+    titleAccent: "lost",
+    titlePost: " in the stacks",
+    body: "The archivist walked the corridor twice but couldn't find this volume. Maybe a stale link, or a path typed from memory that no longer matches. The archive is vast — let's retrace our steps.",
+    backToDashboard: "Back to dashboard",
+    goBack: "Previous page",
+    inscription: "Every misplaced volume finds its shelf eventually — patience.",
+  },
   activity: {
     label: "RECENT · 最近",
     title: "Activity",
@@ -1268,6 +1325,7 @@ export default {
     title: "You might also like",
     byline:
       "Based on the series you own most of, drawn from MyAnimeList reader picks.",
+    rotating: "The deck is shuffling — hover to pause",
     rateLimited:
       "MyAnimeList is throttling us right now — come back in a minute and suggestions will populate.",
     recommendedBy: "By {n} of your series",
@@ -1325,6 +1383,7 @@ export default {
     navAdd: "Add manga",
     navCalendar: "Calendar",
     navProfile: "Profile",
+    navStats: "Statistics",
     navSeals: "Seals",
     navSettings: "Settings",
     navGlossary: "Glossary",
@@ -1926,6 +1985,8 @@ export default {
     emptyTitle: "Tsundoku complete",
     emptyBody:
       "No owned-but-unread volumes. Either you've devoured the lot, or you've trimmed the shelf — both deserve a seal.",
+    chapterMark: "終章",
+    inscription: "The pile has dispersed — a seal for the quiet that follows.",
     backToDashboard: "Back to dashboard",
   },
   update: {
@@ -2041,6 +2102,132 @@ export default {
     deleteConfirm: "Confirm destruction?",
     backToDashboard: "Back to dashboard",
   },
+  // 帳 · StatsPage — deep-dive analytics ledger.
+  stats: {
+    backToProfile: "Back to profile",
+    profileCta: "See all statistics",
+    profileCtaHint: "Authors, publishers, reading, treasure, time · 帳",
+    hero: {
+      eyebrow: "MASTER LEDGER · 帳簿",
+      titlePre: "Your archive",
+      titleAccent: "in figures",
+      titlePost: ".",
+      subtitle:
+        "Every volume, every season, every hand that held a tome — the full archive laid out like a great ledger book.",
+      volumes: "Volumes owned",
+      series: "Series",
+      completion: "Completion",
+      seals: "Seals",
+    },
+    nav: {
+      eyebrow: "FOLIOS · 索引",
+      aria: "Section navigation",
+      authors: "Authors",
+      publishers: "Publishers",
+      reading: "Reading",
+      treasure: "Treasure",
+      time: "Time",
+      seals: "Seals",
+      tomo: "Correspondents",
+    },
+    authors: {
+      eyebrow: "FOLIO · 人",
+      title: "The mangaka of your shelf",
+      subtitle:
+        "The authors who weigh the most on your shelves — by volumes owned and series completed.",
+      featuredEyebrow: "HEADLINE AUTHOR",
+      volumes: "Volumes",
+      series: "Series",
+      completion: "Completion",
+      volumesShort: "vol.",
+      seriesShort: "ser.",
+      empty: "No author tagged yet. Fill the Author field on your series to enable this folio.",
+    },
+    publishers: {
+      eyebrow: "FOLIO · 版",
+      title: "Your favourite imprints",
+      subtitle:
+        "Which publisher fills the most of your shelf? Bars scale to the leader.",
+      seriesShort: "series",
+      empty: "No publisher information available. Add some on a series page to enable this folio.",
+    },
+    reading: {
+      eyebrow: "FOLIO · 読",
+      title: "Reading cadence",
+      subtitle:
+        "Volumes you've read over time, and the ratio between what sleeps on your shelf and what you've actually opened.",
+      delayEyebrow: "BUY → READ DELAY",
+      delayDays: "{n} days",
+      delaySamples: "across {n} read volumes",
+      delayEmpty: "—",
+      delayHint: "Average time between adding a volume and reading it.",
+      dokuhaEyebrow: "DOKUHA · 読破",
+      dokuhaCounts: "{read} of {total}",
+      dokuhaHint:
+        "Share of series you fully own AND fully read.",
+    },
+    treasure: {
+      eyebrow: "FOLIO · 銭",
+      title: "Treasure of the archive",
+      subtitle:
+        "The most valuable volume, the basket-price trend, the spending of the past months.",
+      topEyebrow: "CROWN JEWEL",
+      topEmpty: "No price recorded yet.",
+      basketEyebrow: "AVG BASKET · 12 MONTHS",
+      basketHint: "Average price of volumes added month by month.",
+      basketEmpty: "Not enough priced volumes yet.",
+      volNum: "Vol. {n}",
+      collector: "Collector",
+    },
+    time: {
+      eyebrow: "FOLIO · 暦",
+      title: "Memory of seasons",
+      subtitle:
+        "Which quarter saw you most active, since when the archive grows, and the series that started it all.",
+      bestQuarterEyebrow: "FAVOURITE SEASON",
+      bestQuarterEmpty: "—",
+      bestQuarterEvents: "{n} events",
+      bestQuarterHint:
+        "The quarter where you added or read the most volumes (across all years).",
+      anniversaryEyebrow: "TENURE",
+      anniversaryYearsMonths: "{y} yr · {m} mo",
+      anniversaryDays: "{n} days",
+      anniversaryHint: "Since {since}.",
+      anniversaryEmpty: "Add your first volume to start the counter.",
+      firstSeriesEyebrow: "FIRST SERIES",
+    },
+    seals: {
+      eyebrow: "FOLIO · 印",
+      title: "Most recent seal",
+      subtitle:
+        "Your latest stamp. Click the hanko to revisit the ceremony in the carnet.",
+      recentEyebrow: "LATEST SEAL",
+      recentEmpty: "No seal pressed yet.",
+      cta: "Open the carnet",
+    },
+    tomo: {
+      eyebrow: "FOLIO · 友",
+      title: "Bond with your correspondents",
+      subtitle:
+        "What you share with your correspondents, and what they own that you haven't discovered yet.",
+      sharedEyebrow: "MOST-SHARED SERIES",
+      sharedHint:
+        "Owned by {n} of your {total} correspondents — you included.",
+      sharedEmpty: "No series in common for now.",
+      latentEyebrow: "LATENT RECOMMENDATIONS",
+      latentEmpty:
+        "Your correspondents have nothing to suggest for now.",
+      latentCount: "{n} series",
+      latentMore: "+{n} more",
+      latentRowHint: "{n}/{total} correspondents",
+      offline: "The Tomo folio needs the server to render.",
+      empty: {
+        eyebrow: "FOLIO · 友",
+        body: "Follow other archivists to enable this folio.",
+        cta: "Find correspondents",
+      },
+    },
+  },
   friends: {
     title: "Correspondence",
     kicker: "ARCHIVE · 友",
@@ -2061,6 +2248,9 @@ export default {
       "Add one or two correspondents first so their acquisitions can land here.",
     feedEmptyBodyQuiet:
       "Your correspondents haven't posted recently. The mailbox fills as soon as they touch their archive.",
+    chapterMark: "便箋",
+    feedInscriptionNone: "No correspondents yet — the lane is open.",
+    feedInscriptionQuiet: "The post still passes through — patience.",
     followAction: "Follow",
     followingState: "Following",
     followOffline: "Offline",

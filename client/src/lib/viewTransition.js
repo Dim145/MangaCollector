@@ -40,6 +40,17 @@ import { flushSync } from "react-dom";
  * Returns the `ViewTransition` object on supported browsers (so
  * callers can `await transition.finished` for chaining), or `null`
  * on unsupported browsers / SSR.
+ *
+ * No callers wrap Dashboard's filter / lens / tag toggles anymore:
+ * every variant we tried (default cross-fade, root opacity hard-
+ * cut, view-transition-name: none, opaque-during-VT, transition-all
+ * removal) either left the page chrome's translucent surfaces
+ * (search bar, atmosphere) visibly darker mid-transition, or broke
+ * the named-children animations / introduced a click-to-paint
+ * latency. The Dashboard now hard-cuts those state changes — no
+ * VT — and the helper survives only for places where the trade-off
+ * lands favourably (e.g. drawers / sort ops where there's no
+ * translucent chrome in the snapshot pair).
  */
 export function withViewTransition(updateFn) {
   if (

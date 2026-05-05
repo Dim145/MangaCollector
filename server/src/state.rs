@@ -5,6 +5,7 @@ use crate::auth::OidcState;
 use crate::config::Config;
 use crate::db::{Db, DbPool};
 use crate::observability::FrontendObservabilityConfig;
+use crate::services::activity_coalescer::ActivityCoalescer;
 use crate::services::cache::CacheStore;
 use crate::services::realtime::SyncBroker;
 use crate::storage::StorageBackend;
@@ -27,6 +28,13 @@ pub struct AppState {
     /// devices. Always present; Redis is an optional scale-out
     /// backend under the hood.
     pub broker: SyncBroker,
+    /// Activity-feed coalescing buffer. Toggleable events
+    /// (`volume_owned` ↔ `volume_unowned`, `series_added` ↔
+    /// `series_removed`) wait a few seconds before persisting so a
+    /// rapid undo cancels the pair instead of polluting the feed.
+    /// Other event types route through it transparently and flush
+    /// immediately.
+    pub activity: ActivityCoalescer,
     /// Snapshot of the FRONTEND_* env vars resolved at boot. Served
     /// verbatim by `GET /api/public-config` so the SPA can wire its
     /// SDKs at runtime without rebuilding the bundle. Wrapped in `Arc`

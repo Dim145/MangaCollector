@@ -45,7 +45,7 @@ export default function ArchiveSection() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* ─── Export column ─── */}
         <div className="rounded-xl border border-border bg-ink-0/40 p-4">
           <div className="mb-3 flex items-center gap-2">

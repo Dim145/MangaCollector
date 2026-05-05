@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -30,6 +31,7 @@ import DefaultBackground from "@/components/DefaultBackground.jsx";
 import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
 import SealsUnlockToaster from "@/components/SealsUnlockToaster.jsx";
+import InkTrailCursor from "@/components/ui/InkTrailCursor.jsx";
 import UpdatePrompt from "@/components/UpdatePrompt.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
@@ -56,6 +58,9 @@ const Dashboard = lazy(() => import("./components/Dashboard"));
 const MangaPage = lazy(() => import("./components/MangaPage"));
 const AddPage = lazy(() => import("@/components/AddPage.jsx"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
+// 帳 · StatsPage — deep-dive ledger with the heavy charts +
+// extended analytics. Lazy so the /profile chunk doesn't grow.
+const StatsPage = lazy(() => import("./components/StatsPage"));
 const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
 const SealsPage = lazy(() => import("./components/SealsPage"));
 const PublicProfile = lazy(() => import("./components/PublicProfile"));
@@ -74,6 +79,11 @@ const BacklogPage = lazy(() => import("./components/BacklogPage.jsx"));
 const SnapshotsPage = lazy(() => import("./components/SnapshotsPage.jsx"));
 const FriendsPage = lazy(() => import("./components/FriendsPage.jsx"));
 const CollectionPage = lazy(() => import("./components/CollectionPage.jsx"));
+// 迷子 · 404 page — rendered for any URL that doesn't match a
+// known route. Lazy-loaded since it's a low-frequency surface
+// (most users never see it); shipping the chibi SVG + page
+// chrome on the cold-path keeps the main bundle lean.
+const NotFoundPage = lazy(() => import("./components/NotFoundPage.jsx"));
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -86,6 +96,7 @@ import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync.js";
+import { useTimeOfDay } from "@/hooks/useTimeOfDay.js";
 import axios from "@/utils/axios.js";
 import {
   cacheAllVolumes,
@@ -248,6 +259,21 @@ function MangaPageRoute({ stateManga, adult_content_level }) {
   );
 }
 
+/**
+ * 筆 · Ink-trail gate — only mounts the canvas when the user has
+ * opted in via Settings → Apparence → 筆 Traînée d'encre. Reading
+ * the setting from `SettingsContext` keeps this in sync with the
+ * rest of the UI and avoids an extra useUserSettings call. The
+ * component itself does its own coarse-pointer / reduced-motion
+ * checks, so the gate is upper-bound: false here = guaranteed off,
+ * true here = honoured iff the device + motion preference allow.
+ */
+function InkTrailGate() {
+  const { ink_trail_enabled } = useContext(SettingsContext);
+  if (!ink_trail_enabled) return null;
+  return <InkTrailCursor />;
+}
+
 function AppShell() {
   const location = useLocation();
   const navType = useNavigationType();
@@ -259,6 +285,12 @@ function AppShell() {
   // The hook is mounted once at the shell level so the bindings are
   // available on every page. See `hooks/useGlobalShortcuts.js`.
   useGlobalShortcuts({ onOpenCheatSheet: () => setCheatSheetOpen(true) });
+
+  // 時 · Time-of-day haze. Sets `data-tod` on <html> so body's
+  // background picks up the right hour-tinted overlay. Inline
+  // bootstrap in index.html primes the value at first paint;
+  // this hook keeps it fresh as the wall clock advances.
+  useTimeOfDay();
 
   // Scroll handling: top on PUSH/REPLACE; on POP we leave it alone so
   // each destination page can run its own data-aware restore (see
@@ -293,6 +325,13 @@ function AppShell() {
           the GET /api/user/seals call is only ever fired for a
           logged-in user. */}
       <SealsUnlockToaster />
+      {/* 筆 · Ink-trail cursor — paints a trailing brush line
+          over headings marked `data-ink-trail`. Off by default;
+          users opt in from Settings → Apparence. The component
+          also self-disables on coarse-pointer devices and when
+          `prefers-reduced-motion: reduce` is requested, so the
+          visible toggle is upper-bound only. */}
+      <InkTrailGate />
       {/* Keypress-gated overlays — wrapped in their own Suspense so a
           chunk-load failure (offline at the moment of first ⌘K) doesn't
           crash the whole tree. `fallback={null}` is intentional: the
@@ -331,6 +370,17 @@ function AppShell() {
               element={
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <ProfilePage googleUser={googleUser} />
+                </ProtectedRoute>
+              }
+            />
+            {/* 帳 · Deep-dive analytics ledger — sibling of
+                /profile, opened from the "Voir toutes les
+                statistiques" CTA on the slim profile hero. */}
+            <Route
+              path="/stats"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <StatsPage />
                 </ProtectedRoute>
               }
             />
@@ -506,6 +556,13 @@ function AppShell() {
                 </ProtectedRoute>
               }
             />
+            {/* 迷子 · Catch-all 404. MUST stay last in the route list
+                — React Router matches top-down and `*` matches any
+                pathname that wasn't claimed by a more specific
+                route above. Auth-agnostic on purpose: visitors who
+                mistype a URL while logged out should still see the
+                friendly page rather than a redirect dance. */}
+            <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
         </RouteErrorBoundary>

@@ -214,13 +214,34 @@ export default function ProfileButton() {
               }
               label={t("nav.library")}
             />
-            {/* 山積 · Backlog audit — replaces the previous "Statistics"
-                row that pointed at /profile. The full profile remains
-                reachable via the user-info banner above; this slot now
-                points at the dedicated reading-pile page where it lives
-                most naturally. Stacked-books icon (rectangles + line
-                stroke) replaces the earlier line-chart so the menu
-                doesn't read as "two analytics rows in a row". */}
+            {/* 帳 · Stats ledger — deep-dive analytics. Re-introduced
+                here as a top-of-list portal because /profile is no
+                longer the data destination (it's now an identity
+                page). Line-chart icon mirrors the bottom-nav slot
+                that points at the same route, so muscle memory
+                works either way. */}
+            <MenuItem
+              onClick={() => {
+                setIsOpen(false);
+                navigate("/stats");
+              }}
+              icon={
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                >
+                  <path d="M3 3v18h18" />
+                  <path d="M7 14l4-4 4 4 5-5" />
+                </svg>
+              }
+              label={t("nav.statistics")}
+            />
+            {/* 山積 · Backlog audit — dedicated reading-pile page. */}
             <MenuItem
               onClick={() => {
                 setIsOpen(false);

@@ -104,6 +104,10 @@ export default function SettingsPage() {
   const [soundEnabled, setSoundEnabledState] = useState(false);
   const [accentColor, setAccentColor] = useState(DEFAULT_ACCENT);
   const [shelf3d, setShelf3d] = useState(false);
+  // 筆 · Ink-trail toggle. Mirror of the server's `ink_trail_enabled`
+  // setting, default false. Seeded from the server response in the
+  // same effect that hydrates the rest of the appearance state.
+  const [inkTrail, setInkTrail] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -177,6 +181,7 @@ export default function SettingsPage() {
     setSoundEnabledState(Boolean(settings?.sound_enabled));
     setAccentColor(settings?.accent_color || DEFAULT_ACCENT);
     setShelf3d(Boolean(settings?.shelf_3d_enabled));
+    setInkTrail(Boolean(settings?.ink_trail_enabled));
     seededRef.current = true;
   }, [settings]);
 
@@ -248,6 +253,7 @@ export default function SettingsPage() {
     // `null` server-side via the empty-string convention.
     accent_color: accentColor === DEFAULT_ACCENT ? "" : accentColor,
     shelf_3d_enabled: shelf3d,
+    ink_trail_enabled: inkTrail,
   });
 
   const handleAdultChange = (value) => {
@@ -276,6 +282,10 @@ export default function SettingsPage() {
   const handleShelf3dChange = (value) => {
     setShelf3d(value);
     save({ ...baseSettings(), shelf_3d_enabled: value });
+  };
+  const handleInkTrailChange = (value) => {
+    setInkTrail(value);
+    save({ ...baseSettings(), ink_trail_enabled: value });
   };
   const handleSoundChange = (value) => {
     setSoundEnabledState(value);
@@ -375,6 +385,8 @@ export default function SettingsPage() {
             onAccentChange={handleAccentChange}
             shelf3d={shelf3d}
             onShelf3dChange={handleShelf3dChange}
+            inkTrail={inkTrail}
+            onInkTrailChange={handleInkTrailChange}
             soundEnabled={soundEnabled}
             onSoundChange={handleSoundChange}
             hapticsOn={hapticsOn}

@@ -236,7 +236,10 @@ export default function SealsPage() {
                 </span>
               </div>
 
-              <h1 className="mt-3 font-display text-4xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl">
+              <h1
+                data-ink-trail="true"
+                className="mt-3 font-display text-4xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl"
+              >
                 {t("seals.yourTitle")}{" "}
                 <span className="text-hanko-gradient font-semibold not-italic">
                   {t("seals.titleAccent")}
@@ -458,7 +461,11 @@ function RankBadge({ tier, t }) {
       {/* Faster, sharper inner rays for a layered halo */}
       <span aria-hidden="true" className="seal-rank-rays-fast" />
 
-      {/* The medallion itself */}
+      {/* The medallion itself. Tier 4 (kin / gold) and 5 (the
+          honoured rank) get the `gold-shimmer` sweep on top of
+          the gold fill — a moving gilded highlight that signals
+          "this is a precious tier" without adding chrome. The
+          shimmer respects reduced-motion via the global rule. */}
       <div
         title={tierFullLabel ?? undefined}
         className={`relative grid h-32 w-32 place-items-center rounded-full border-2 backdrop-blur transition-all ${
@@ -471,8 +478,8 @@ function RankBadge({ tier, t }) {
                 : tier === 3
                   ? "border-moegi/60 bg-gradient-to-br from-moegi/15 to-ink-1/90 shadow-[0_0_28px_rgba(167,209,114,0.45)]"
                   : tier === 4
-                    ? "border-gold/70 bg-gradient-to-br from-gold/15 to-ink-1/90 shadow-[0_0_30px_rgba(212,160,57,0.5)]"
-                    : "border-gold/80 bg-gradient-to-br from-ink-0 via-ink-1 to-ink-0 shadow-[0_0_36px_rgba(212,160,57,0.55)]"
+                    ? "gold-shimmer border-gold/70 bg-gradient-to-br from-gold/15 to-ink-1/90 shadow-[0_0_30px_rgba(212,160,57,0.5)]"
+                    : "gold-shimmer gold-shimmer-strong border-gold/80 bg-gradient-to-br from-ink-0 via-ink-1 to-ink-0 shadow-[0_0_36px_rgba(212,160,57,0.55)]"
         }`}
       >
         {tier > 0 ? (

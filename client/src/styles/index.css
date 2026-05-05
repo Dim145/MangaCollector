@@ -44,12 +44,29 @@
   --hanko-deep: oklch(0.48 0.2 25);
   --hanko-glow: oklch(0.6 0.22 25 / 0.35);
 
+  /* 消 · Erase / destructive — accent-INDEPENDENT red.
+     `--hanko-*` rotates through the user's accent palette (kin
+     gold, moegi green, ai blue, etc.), but the destructive-action
+     surface (delete account button + the irrecoverable confirm
+     modal) MUST stay red regardless of accent: the colour is the
+     primary safety cue ("this is the dangerous one") and a
+     gold/blue/green delete CTA would dilute it. These tokens are
+     defined here only and intentionally NOT overridden in any
+     `:root[data-accent="…"]` block, so they always resolve to the
+     canonical hanko red shades. */
+  --erase: oklch(0.6 0.22 25);
+  --erase-bright: oklch(0.68 0.24 25);
+  --erase-deep: oklch(0.48 0.2 25);
+  --erase-glow: oklch(0.6 0.22 25 / 0.35);
+
   /* Accent */
   --gold: oklch(0.82 0.13 78); /* gold leaf */
   --gold-muted: oklch(0.7 0.1 72);
   --sakura: oklch(0.82 0.07 12); /* pale rose */
   --moegi: oklch(0.78 0.16 140); /* moegi · spring shoot — "completed" */
   --moegi-muted: oklch(0.62 0.14 140);
+  --ai: oklch(0.7 0.13 245); /* 藍 · indigo — archive blue */
+  --ai-muted: oklch(0.55 0.12 248);
 
   /* Semantic */
   --success: oklch(0.72 0.16 150);
@@ -213,6 +230,8 @@
   --sakura: oklch(0.56 0.15 20);
   --moegi: oklch(0.55 0.17 140); /* moegi · deep leaf on paper */
   --moegi-muted: oklch(0.45 0.15 140);
+  --ai: oklch(0.45 0.16 248); /* 藍 · indigo on paper (light theme) */
+  --ai-muted: oklch(0.4 0.14 248);
 
   /* Semantic */
   --success: oklch(0.5 0.16 150);
@@ -308,6 +327,94 @@
   --scene-sakura: oklch(0.7 0.11 250 / 0.48);
 }
 
+/* ─────────────────────────────────────────────
+   時 · Time-of-day color drift
+   The page tonality whispers a second tint based on local hour
+   via `data-tod` set on <html> by the inline bootstrap +
+   `useTimeOfDay` hook. The drift is *additive* on top of the
+   season palette: it only re-defines `--tod-haze-tone` and
+   `--tod-haze-position`, which body's background-image picks up
+   as a 4th radial gradient layer.
+
+   `@property` registers `--tod-haze-tone` as a typed colour so
+   browsers can interpolate it across bracket transitions — when
+   afternoon flips to dusk, the user sees a 1.2 s smooth fade
+   from amber to gold-orange instead of a hard swap. The `*`
+   syntax for `--tod-haze-position` accepts arbitrary values but
+   isn't animatable (positions involve `<percentage>` + `<length>`
+   composition that the spec doesn't allow); the position
+   discontinuity is masked by the tone fade either way. */
+@property --tod-haze-tone {
+  syntax: "<color>";
+  initial-value: transparent;
+  inherits: true;
+}
+
+/* Six brackets covering the day:
+     夜 night     · 20:00 → 04:30  · indigo blue, low up high
+     暁 dawn      · 04:30 → 07:30  · cool dew blue, ground-level
+     朝 morning   · 07:30 → 11:00  · warm rising gold
+     昼 noon      · 11:00 → 14:00  · clear neutral white
+     午 afternoon · 14:00 → 17:30  · amber drift
+     暮 dusk      · 17:30 → 20:00  · saturated gold-orange
+
+   Each tone uses oklch with a low alpha (0.05–0.18) so it
+   composes gracefully with the existing season tint without
+   muddying the palette. Position varies so different brackets
+   read as light coming from different angles — dawn from low
+   east-ish, dusk from low west-ish, night from above, etc.
+   ───────────────────────────────────────────── */
+:root {
+  /* Defaults — fully transparent so the layer is invisible if
+     no `data-tod` is set (older clients, JS disabled, server-
+     rendered pre-bootstrap). */
+  --tod-haze-tone: transparent;
+  --tod-haze-position: 50% 100%;
+}
+:root[data-tod="dawn"] {
+  /* 暁 Dawn — first-dew cool blue rising from the horizon.
+     Hue 235 (cool blue), low chroma so it reads as morning haze
+     rather than a saturated wash. Alpha 0.12 — present but
+     deniable. */
+  --tod-haze-tone: oklch(0.7 0.07 235 / 0.12);
+  --tod-haze-position: 25% 100%;
+}
+:root[data-tod="morning"] {
+  /* 朝 Morning — warm sunrise gold, gentler than full noon.
+     Hue 75 (warm yellow-orange), low chroma, low alpha. */
+  --tod-haze-tone: oklch(0.85 0.07 75 / 0.08);
+  --tod-haze-position: 30% 100%;
+}
+:root[data-tod="noon"] {
+  /* 昼 Noon — clear neutral high light from above. Hue 90 with
+     very low chroma — almost achromatic — so it reads as
+     "bright day" without tinting the page yellow. */
+  --tod-haze-tone: oklch(0.92 0.03 90 / 0.06);
+  --tod-haze-position: 50% 0%;
+}
+:root[data-tod="afternoon"] {
+  /* 午 Afternoon — amber drift; the page warms as the sun
+     declines. Hue 60 (amber), starting to gain chroma. */
+  --tod-haze-tone: oklch(0.78 0.09 60 / 0.1);
+  --tod-haze-position: 70% 100%;
+}
+:root[data-tod="dusk"] {
+  /* 暮 Dusk — golden hour transitioning to alpenglow. Hue 35
+     (orange-gold), highest chroma of the day; alpha 0.18 so
+     dusk is the most visible drift — that's the time the
+     page should feel most "tinted". */
+  --tod-haze-tone: oklch(0.65 0.13 35 / 0.18);
+  --tod-haze-position: 80% 100%;
+}
+:root[data-tod="night"] {
+  /* 夜 Night — indigo wash overhead, like a lamp-lit room
+     with the ceiling reading darker. Hue 270 (indigo-purple),
+     mid chroma. Position high so the night tint reads as
+     sky-from-above rather than ground-level. */
+  --tod-haze-tone: oklch(0.45 0.1 270 / 0.16);
+  --tod-haze-position: 50% 0%;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -356,11 +463,16 @@
   --color-hanko: var(--hanko);
   --color-hanko-bright: var(--hanko-bright);
   --color-hanko-deep: var(--hanko-deep);
+  --color-erase: var(--erase);
+  --color-erase-bright: var(--erase-bright);
+  --color-erase-deep: var(--erase-deep);
   --color-gold: var(--gold);
   --color-gold-muted: var(--gold-muted);
   --color-sakura: var(--sakura);
   --color-moegi: var(--moegi);
   --color-moegi-muted: var(--moegi-muted);
+  --color-ai: var(--ai);
+  --color-ai-muted: var(--ai-muted);
 
   --font-display: "Fraunces", "Playfair Display", Georgia, serif;
   --font-sans: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -397,7 +509,17 @@
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11", "cv02";
+    /* The 1st layer is the time-of-day haze — sits OVER the
+       season blooms so it tints them rather than getting
+       buried. `--tod-haze-tone` defaults to `transparent` (no
+       attribute set) so older / JS-disabled clients see the
+       same chrome as before this layer was added. */
     background-image:
+      radial-gradient(
+        ellipse 110% 70% at var(--tod-haze-position),
+        var(--tod-haze-tone),
+        transparent 65%
+      ),
       radial-gradient(
         ellipse 85% 50% at 50% -10%,
         var(--bg-glow-red),
@@ -413,6 +535,13 @@
         var(--bg-glow-sakura),
         transparent 70%
       );
+    /* Smooth tone fade when the TOD bracket flips at the
+       boundary minute. The `@property`-registered `--tod-haze-tone`
+       interpolates over 1.2 s; the gradient picks up the new
+       value continuously. Reduced-motion users skip this via
+       the global `* { transition-duration: 0 }` rule already
+       in place near the top of this stylesheet. */
+    transition: --tod-haze-tone 1.2s linear;
     background-attachment: fixed;
     min-height: 100vh;
   }
@@ -2598,6 +2727,676 @@
 }
 ::view-transition-group(app-bottom-nav) {
   z-index: 90;
+}
+
+
+/* ─── 迷子 · Chibi archivist mascot ───
+   Three independent animations choreograph the ChibiArchivist
+   composition on the 404 page. The character itself is a
+   static CC0 SVG loaded as an `<img>`; this stylesheet only
+   choreographs the wrapper layers added on top.
+
+   Animations:
+     • mc-chibi-bob   — the whole `<img>` bobs ±6 px on a 2.4 s
+                        loop so the mascot reads as alive
+                        rather than a static poster.
+     • mc-chibi-sweat — sweat drop near the temple slides 22 px
+                        down and fades out over 3 s, with a
+                        0.5 s offset so it doesn't coincide
+                        with the bob's first downstroke.
+     • mc-chibi-q     — three "?" glyphs each on a 3 s phase,
+                        offset by 0/0.5/1 s so they don't bob
+                        in lockstep. Subtle rotation drift
+                        keeps them feeling hand-floated.
+
+   The previous revision used `transform-box: fill-box` because
+   the chibi was inline SVG; with the static-image refactor the
+   animated elements are now plain HTML, where transforms
+   already pivot around each element's own box by default. */
+.chibi-bob {
+  transform-origin: center bottom;
+  animation: mc-chibi-bob 2.4s ease-in-out infinite;
+}
+.chibi-sweat {
+  transform-origin: center top;
+  animation: mc-chibi-sweat 3s ease-in-out infinite;
+  animation-delay: 0.5s;
+  opacity: 0;
+}
+.chibi-q {
+  transform-origin: center;
+  animation: mc-chibi-q 3s ease-in-out infinite;
+}
+.chibi-q1 {
+  animation-delay: 0s;
+}
+.chibi-q2 {
+  animation-delay: 0.5s;
+}
+.chibi-q3 {
+  animation-delay: 1s;
+}
+@keyframes mc-chibi-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes mc-chibi-sweat {
+  /* The drop materialises near the temple, slides past the
+     cheek, then fades just before reaching the chin. The
+     gap at 0% / 100% with opacity 0 makes the loop feel like
+     successive drops rather than a single oscillating bead. */
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(2px);
+    opacity: 0.95;
+  }
+  60% {
+    transform: translateY(20px);
+    opacity: 0.95;
+  }
+  85% {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+}
+@keyframes mc-chibi-q {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3deg);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-8px) rotate(6deg);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chibi-bob,
+  .chibi-sweat,
+  .chibi-q {
+    animation: none;
+  }
+  /* Reduced-motion users still see the mascot fully — only
+     the motion is suppressed. Sweat drop is held at its
+     starting position (visible, no slide). */
+  .chibi-sweat {
+    opacity: 0.9;
+  }
+}
+
+/* ─── 祝 · Anniversary pennant ───
+   Small flag-shaped ribbon pinned to the top of the ProfilePage
+   hero during the 7-day window after each yearly archive
+   milestone. Composed of:
+     • A horizontal gold gradient strip with carved-stone bevel
+       (inset shadow + outer drop) — same vocabulary as the
+       hanko stamps everywhere else.
+     • A pennant cut on the trailing edge (clip-path polygon
+       chevroning into the centre) so the strip reads as a flag,
+       not a button.
+     • A 祝 (iwa-u, "to celebrate") kanji at the leading edge —
+       the universal Japanese visual for "this is a moment".
+     • A subtle entrance animation (fade-up + slight settle) so
+       the ribbon feels like it was just pinned to the page.
+   Honours `prefers-reduced-motion` via the global rule that
+   kills all transitions / animations under that pref. */
+.anniversary-pennant {
+  position: absolute;
+  top: -0.65rem;
+  right: 1.25rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 1.4rem 0.4rem 0.8rem;
+  background:
+    linear-gradient(
+      135deg,
+      var(--gold) 0%,
+      color-mix(in oklab, var(--gold) 65%, white 35%) 50%,
+      var(--gold) 100%
+    );
+  color: var(--ink-0);
+  font-family: "Fraunces", "Noto Serif JP", serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+  /* Pennant cut — flat top, flat bottom, chevron point at
+     trailing edge. The 84% / 92% notch cuts a triangular bite
+     out of the right edge so the strip reads as a flag rather
+     than a sliced rectangle. */
+  clip-path: polygon(0% 0%, 100% 0%, 92% 50%, 100% 100%, 0% 100%);
+  box-shadow:
+    0 6px 16px -4px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px color-mix(in oklab, var(--gold) 60%, white 40%);
+  /* Slight tilt — same set-down-with-intent angle as the
+     bottom-nav add seal and the hanko brand mark. */
+  transform: rotate(-2.5deg);
+  transform-origin: top right;
+  animation: mc-pennant-pin 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anniversary-pennant-label {
+  font-style: italic;
+}
+@keyframes mc-pennant-pin {
+  /* Drops in from above, lands on the tilt. The brief
+     overshoot at 70% gives the pennant a "released and
+     settling" beat — like a real flag pinned to a board. */
+  0% {
+    opacity: 0;
+    transform: translateY(-1.5rem) rotate(-7deg);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0.15rem) rotate(-1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(-2.5deg);
+  }
+}
+
+/* ─── 水引 · Mizuhiki tag chips ───
+   Mizuhiki are decorative paper cords used to tie envelopes
+   and gifts in Japan; this chip variant treats each filter
+   tag as a small bundled cord with a knotted leading edge
+   and a frayed trailing edge.
+
+   Anatomy (left → right):
+     • The knot ornament — two crossing curved cords with a
+       small nub at the centre — sits at the leading edge.
+       Drawn as an inline SVG so it picks up `currentColor`
+       from the chip's accent.
+     • The body — capsule outlined by two horizontal cord
+       lines on the top and bottom edges, with a repeating
+       stripe pattern between them suggesting twisted strands.
+     • The label — italic display font, capitalised first letter.
+     • The fray — three short strokes fanning out from the
+       trailing edge, drawn as inline SVG. Doubles as the
+       remove-affordance: clicking the chip removes the tag,
+       and the fray is what the user reaches for visually.
+
+   `--chip-accent` is set per-instance via inline style so each
+   chip can carry the colour of its own genre token (or the
+   default hanko cinnabar). The cord stripes / knot / fray all
+   read from this variable so the colour story stays consistent
+   across the chip surface.
+
+   Honours `prefers-reduced-motion`: the hover lift is the only
+   motion; reduced-motion users get the static state. */
+.mizuhiki-chip {
+  --chip-accent: var(--hanko);
+  --chip-soft: color-mix(in oklab, var(--chip-accent) 14%, transparent);
+  --chip-mid: color-mix(in oklab, var(--chip-accent) 42%, transparent);
+  --chip-strong: color-mix(in oklab, var(--chip-accent) 70%, transparent);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.5rem;
+  border-radius: 0.35rem;
+  border-top: 1.5px solid var(--chip-mid);
+  border-bottom: 1.5px solid var(--chip-mid);
+  border-left: 0;
+  border-right: 0;
+  /* Cord stripes — 3 px periodic horizontal lines between the
+     two thicker borders. Reads as twisted-cord texture without
+     committing to a per-strand SVG. */
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2.5px,
+      color-mix(in oklab, var(--chip-accent) 14%, transparent) 2.5px,
+      color-mix(in oklab, var(--chip-accent) 14%, transparent) 3.3px
+    ),
+    var(--chip-soft);
+  font-family: "Fraunces", "Noto Serif JP", serif;
+  font-style: italic;
+  font-size: 0.8125rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--washi);
+  cursor: pointer;
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.18s,
+    background-color 0.18s;
+}
+.mizuhiki-chip:hover,
+.mizuhiki-chip:focus-visible {
+  border-top-color: var(--chip-strong);
+  border-bottom-color: var(--chip-strong);
+  transform: translateY(-1px);
+  outline: none;
+}
+.mizuhiki-chip:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--ink-1),
+    0 0 0 3px var(--chip-accent);
+}
+.mizuhiki-chip:active {
+  transform: translateY(0);
+}
+.mizuhiki-knot,
+.mizuhiki-fray {
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1.05rem;
+  color: var(--chip-accent);
+  flex-shrink: 0;
+}
+.mizuhiki-knot svg,
+.mizuhiki-fray svg {
+  width: 100%;
+  height: 100%;
+  /* The strokes read sharper at small sizes when the line
+     joins are mitred and the caps are rounded — emulates the
+     actual silk-cord profile rather than a flat printer line. */
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+.mizuhiki-chip:hover .mizuhiki-fray,
+.mizuhiki-chip:focus-visible .mizuhiki-fray {
+  /* On hover, the fray rotates a touch — the cord's last
+     strand catching the breeze. Functional too: it cues the
+     user that the trailing edge is interactive (the click
+     removes the tag). */
+  transform: rotate(15deg);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mizuhiki-fray {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mizuhiki-chip,
+  .mizuhiki-fray {
+    transition: none;
+  }
+  .mizuhiki-chip:hover,
+  .mizuhiki-chip:focus-visible {
+    transform: none;
+  }
+  .mizuhiki-chip:hover .mizuhiki-fray,
+  .mizuhiki-chip:focus-visible .mizuhiki-fray {
+    transform: none;
+  }
+}
+
+/* ─── 紙 · Aged washi panel ───
+   Subtle vignette + foxing on a panel so it reads as printed
+   on slightly aged paper rather than freshly stamped. Applied
+   selectively to hero surfaces and ceremonial panels via the
+   `.washi-aged` class.
+
+   The effect is composed of three layered gradients in a
+   single `::before` pseudo-element:
+     1. A radial vignette darkening the corners — the "this
+        page has been kept in a drawer" feel.
+     2. A foxing spot in the upper-left — small ochre stain
+        like the spotting old paper develops with age.
+     3. A second foxing spot in the lower-right — same idea,
+        different position, smaller. Two spots is enough to
+        suggest age without making the surface look damaged.
+
+   `mix-blend-mode: multiply` makes the overlay deepen the
+   underlying surface rather than wash it out. `pointer-events:
+   none` ensures clicks pass through to the panel content.
+
+   The pseudo-element inherits border-radius so the foxing
+   doesn't bleed past rounded corners. */
+.washi-aged {
+  position: relative;
+  isolation: isolate;
+}
+.washi-aged::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+  /* Foxing colour — ochre that reads as oxidised cellulose.
+     Hue 60–70, low chroma, semi-transparent so the panel
+     beneath shows through. */
+  background:
+    radial-gradient(
+      ellipse 95% 78% at 50% 50%,
+      transparent 55%,
+      color-mix(in oklab, var(--ink-0) 35%, transparent) 100%
+    ),
+    radial-gradient(
+      circle at 14% 22%,
+      color-mix(in oklab, oklch(0.65 0.12 60) 22%, transparent) 0%,
+      transparent 12%
+    ),
+    radial-gradient(
+      circle at 82% 76%,
+      color-mix(in oklab, oklch(0.65 0.12 60) 16%, transparent) 0%,
+      transparent 9%
+    );
+  mix-blend-mode: multiply;
+  opacity: 0.45;
+}
+
+/* ─── 金 · Gold-leaf shimmer ───
+   A slow diagonal highlight that sweeps across a gold surface,
+   simulating light catching gold-leaf as it moves. Applied
+   selectively to ceremonial gold accents (kin-tier seals,
+   completion stamps, the brand mark in Header) via the
+   `.gold-shimmer` class. The effect is decorative, never
+   functional — it draws the eye to surfaces that have already
+   earned attention.
+
+   Implementation:
+     • A single `::after` pseudo-element with a 115° linear
+       gradient — transparent edges, a bright cream band in
+       the middle.
+     • Animation translates the gradient horizontally across
+       the surface every 5 s, then waits 3 s before the next
+       sweep so the highlight feels intermittent rather than
+       constant motion.
+     • `mix-blend-mode: overlay` deepens the highlight on the
+       gold underneath while desaturating slightly — the
+       physical reality of light on metallic leaf.
+
+   `prefers-reduced-motion: reduce` suppresses the sweep
+   entirely (the surface stays gold, just no moving glint).
+   The `.gold-shimmer-strong` variant is for the most
+   prominent surfaces (the brand mark) — same animation, just
+   a more visible highlight. */
+.gold-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.gold-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    115deg,
+    transparent 42%,
+    color-mix(in oklab, var(--gold) 60%, white 40%) 50%,
+    transparent 58%
+  );
+  mix-blend-mode: overlay;
+  animation: mc-gold-shimmer 5s linear infinite;
+  transform: translateX(-100%);
+}
+.gold-shimmer-strong::after {
+  background: linear-gradient(
+    115deg,
+    transparent 38%,
+    color-mix(in oklab, var(--gold) 70%, white 50%) 50%,
+    transparent 62%
+  );
+  opacity: 0.85;
+}
+@keyframes mc-gold-shimmer {
+  /* 0-30%: hold off-screen (the highlight is between
+     sweeps). 30-45%: sweep across. 45-100%: hold off-screen
+     again. The 3-of-5-second hold makes the glint feel
+     intentional, not a constant decoration. */
+  0%,
+  30% {
+    transform: translateX(-100%);
+  }
+  45% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gold-shimmer::after {
+    animation: none;
+    transform: none;
+    opacity: 0;
+  }
+}
+
+/* ─── 墨 · Sumi-e dispersion loader ───
+   PageLoader's hero animation: a brush touching the page once.
+   The puddle, mid-wash, halo, satellites and tendrils each
+   animate on their own cue, all anchored to the same centre,
+   then the whole group settles into a 4 s breathing loop. The
+   irregular ink-stain edge comes from SVG `feTurbulence` +
+   `feDisplacementMap` filters defined inline on the loader;
+   nothing here re-creates that effect — these rules only
+   choreograph the dispersion timing.
+
+   `transform-box: fill-box` is critical for SVG elements: it
+   makes `transform-origin: <px> <px>` resolve relative to each
+   element's own bounding box, so the puddle scales from its
+   centre instead of from the SVG's (0, 0). Without it, every
+   `scale()` would translate the element sideways. */
+.loader-sumi-svg {
+  /* The whole composition breathes once per 4 s after the
+     dispersion sequence completes (delay = 2 s). */
+  animation: mc-loader-breath 4s 2s ease-in-out infinite;
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+}
+.loader-sumi-puddle,
+.loader-sumi-wash,
+.loader-sumi-halo,
+.loader-sumi-satellite,
+.loader-sumi-kanji {
+  transform-box: fill-box;
+}
+.loader-sumi-puddle {
+  opacity: 0;
+  transform: scale(0);
+  animation: mc-loader-drop 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.loader-sumi-wash {
+  opacity: 0;
+  transform: scale(0.5);
+  animation: mc-loader-wash 0.95s 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.loader-sumi-halo {
+  opacity: 0;
+  transform: scale(0.4);
+  animation: mc-loader-halo 1.3s 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.loader-sumi-satellite {
+  opacity: 0;
+  transform: scale(0);
+  animation: mc-loader-satellite 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.loader-sumi-tendril {
+  /* Tendrils draw on via stroke-dashoffset. Setting both dasharray
+     and offset to the path length produces "invisible" → animation
+     pulls the dashoffset to 0, revealing the stroke from origin to
+     tip. Path length = ~66 here (radius difference 102 - 36); we
+     overshoot to 80 for safety against sub-pixel rounding. */
+  stroke-dasharray: 80;
+  stroke-dashoffset: 80;
+  opacity: 0;
+  animation: mc-loader-tendril-draw 0.85s cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
+}
+.loader-sumi-kanji {
+  opacity: 0;
+  transform: scale(0.6);
+  filter: blur(8px);
+  animation: mc-loader-kanji-emerge 0.55s 0.85s cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
+}
+.loader-sumi-stroke {
+  display: block;
+  width: 9rem;
+  height: 2.5px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in oklab, var(--hanko) 60%, transparent) 25%,
+    color-mix(in oklab, var(--hanko) 80%, transparent) 50%,
+    color-mix(in oklab, var(--hanko) 60%, transparent) 75%,
+    transparent 100%
+  );
+  /* The single brushstroke replaces the original three dashes.
+     A continuous left→right wash that loops in 1.8 s — same
+     period as the breathing pulse so the two motions phase
+     together. */
+  transform-origin: 0% 50%;
+  animation: mc-loader-stroke 1.8s 0.6s cubic-bezier(0.4, 0.1, 0.2, 1) infinite;
+}
+
+@keyframes mc-loader-drop {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes mc-loader-wash {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+}
+@keyframes mc-loader-halo {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.28;
+  }
+}
+@keyframes mc-loader-satellite {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.2);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+}
+@keyframes mc-loader-tendril-draw {
+  0% {
+    stroke-dashoffset: 80;
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.6;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.55;
+  }
+}
+@keyframes mc-loader-kanji-emerge {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+}
+@keyframes mc-loader-breath {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+@keyframes mc-loader-stroke {
+  0%,
+  100% {
+    transform: scaleX(0.2);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-sumi-svg,
+  .loader-sumi-puddle,
+  .loader-sumi-wash,
+  .loader-sumi-halo,
+  .loader-sumi-satellite,
+  .loader-sumi-tendril,
+  .loader-sumi-kanji,
+  .loader-sumi-stroke {
+    animation: none !important;
+  }
+  /* Reduced motion: every layer holds its end-state at full
+     opacity, no transforms, no draw-on. The page still gets the
+     irregular ink-stain look; only the motion is suppressed. */
+  .loader-sumi-puddle,
+  .loader-sumi-kanji {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  .loader-sumi-wash {
+    opacity: 0.5;
+    transform: none;
+  }
+  .loader-sumi-halo {
+    opacity: 0.28;
+    transform: none;
+  }
+  .loader-sumi-satellite {
+    opacity: 0.7;
+    transform: none;
+  }
+  .loader-sumi-tendril {
+    opacity: 0.55;
+    stroke-dashoffset: 0;
+  }
+  .loader-sumi-stroke {
+    transform: scaleX(1);
+    opacity: 0.5;
+  }
 }
 
 /* Seasonal-atmosphere particles. Each particle is a single

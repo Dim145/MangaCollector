@@ -184,6 +184,16 @@ async fn main() -> anyhow::Result<()> {
         .with_same_site(SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(Duration::days(30)));
 
+    // 活動 · Activity-feed coalescing buffer. Holds toggleable
+    // events for a few seconds so a rapid undo cancels both sides
+    // instead of leaving a noise pair in the feed. The buffer
+    // owns its own `Db` clone (SeaORM connections are Arc-backed
+    // — sharing the pool is essentially free).
+    let activity = crate::services::activity_coalescer::ActivityCoalescer::new(
+        orm_db.clone(),
+        crate::services::activity_coalescer::DEFAULT_DELAY,
+    );
+
     // Application state
     let state = AppState {
         db: orm_db,
@@ -194,6 +204,7 @@ async fn main() -> anyhow::Result<()> {
         http_client,
         cache,
         broker,
+        activity,
         frontend_config: frontend_obs_config,
         start_time: Instant::now(),
     };

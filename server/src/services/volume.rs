@@ -144,6 +144,7 @@ where
 #[allow(clippy::too_many_arguments)]
 pub async fn update_by_id(
     db: &Db,
+    activity_buffer: &crate::services::activity_coalescer::ActivityCoalescer,
     id: i32,
     user_id: i32,
     owned: bool,
@@ -249,20 +250,23 @@ pub async fn update_by_id(
                 }
             };
 
-            activity::record(
-                db,
-                prev.user_id,
-                if owned {
-                    event_types::VOLUME_OWNED
-                } else {
-                    event_types::VOLUME_UNOWNED
-                },
-                Some(mal_id),
-                Some(prev.vol_num),
-                series_name,
-                None,
-            )
-            .await;
+            // Routed through the coalescer: a rapid undo within
+            // the buffer window cancels both events instead of
+            // surfacing them as a noise pair in the feed.
+            activity_buffer
+                .record(
+                    prev.user_id,
+                    if owned {
+                        event_types::VOLUME_OWNED
+                    } else {
+                        event_types::VOLUME_UNOWNED
+                    },
+                    Some(mal_id),
+                    Some(prev.vol_num),
+                    series_name,
+                    None,
+                )
+                .await;
         }
 
     Ok(())

@@ -1,8 +1,19 @@
 import SeasonAtmosphere from "./SeasonAtmosphere.jsx";
 
+// `overflow-x-clip` (not `overflow-hidden`) on the wrapper below
+// — same horizontal containment for the bloom gradients (which
+// extend slightly past the left edge), but `clip` is NOT a CSS
+// scroll container, so descendants with `position: sticky` still
+// work. The previous `overflow-hidden` was silently breaking the
+// kanji rail on /stats: the rail's `lg:sticky` was downgraded to
+// relative because this ancestor truncated its scroll containment.
+// `clip` keeps the visual contract identical while letting sticky
+// behave as advertised. Vertical bleed is invisible in practice —
+// the blooms position with `-top-40` (above the wrapper, behind
+// the sticky header).
 export default function DefaultBackground({ children }) {
   return (
-    <div className="relative isolate grain min-h-[calc(100svh-4rem)] overflow-hidden">
+    <div className="relative isolate grain min-h-[calc(100svh-4rem)] overflow-x-clip">
       {/* 季節 · Ambient season layer.
           Renders behind every other background detail — sits between
           the page colour and the radial gradients, so the gradients

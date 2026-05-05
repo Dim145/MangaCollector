@@ -241,7 +241,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
               />
             </ul>
 
-            <p className="mt-6 rounded-md border border-hanko/40 bg-hanko/5 px-3 py-2 text-center font-mono text-[11px] uppercase tracking-[0.15em] text-hanko-bright">
+            <p className="mt-6 rounded-md border border-erase/40 bg-erase/5 px-3 py-2 text-center font-mono text-[11px] uppercase tracking-[0.15em] text-erase-bright">
               {t("deleteAccount.irreversibleNotice")}
             </p>
           </div>
@@ -277,7 +277,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
           //     speedup on that layer with no perceptible change
           //     (60px was way past the point of visual diminishing
           //     returns for this use case).
-          className={`relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-hanko/70 bg-ink-0/95 shadow-[0_0_28px_rgba(220,38,38,0.45)] ${
+          className={`relative w-full max-w-md overflow-hidden rounded-2xl border-2 border-erase/70 bg-ink-0/95 shadow-[0_0_28px_rgba(220,38,38,0.45)] ${
             shake ? "animate-shake" : ""
           }`}
         >
@@ -292,7 +292,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
             className="pointer-events-none absolute -inset-20 animate-delete-pulse opacity-40"
             style={{
               backgroundImage:
-                "radial-gradient(ellipse 60% 50% at 50% 30%, var(--hanko-glow), transparent 70%)",
+                "radial-gradient(ellipse 60% 50% at 50% 30%, var(--erase-glow), transparent 70%)",
               willChange: "transform, opacity",
             }}
           />
@@ -306,7 +306,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
                 same GPU-cost reason as the container. */}
             <span
               aria-hidden="true"
-              className={`grid h-16 w-16 place-items-center rounded-md bg-gradient-to-br from-hanko-bright to-hanko-deep text-washi shadow-[0_0_14px_var(--hanko-glow)] transition-transform duration-500 ${
+              className={`grid h-16 w-16 place-items-center rounded-md bg-gradient-to-br from-erase-bright to-erase-deep text-washi shadow-[0_0_14px_var(--erase-glow)] transition-transform duration-500 ${
                 submitting
                   ? "[transform:rotate(-3deg)_scale(1.6)]"
                   : matches
@@ -318,7 +318,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
                 消
               </span>
             </span>
-            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.4em] text-hanko-bright">
+            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.4em] text-erase-bright">
               {t("deleteAccount.actLabel")}
             </p>
             <h2 className="mt-1 text-center font-display text-xl font-semibold italic text-washi md:text-2xl">
@@ -339,7 +339,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
               {/* ── The vow card ──
                   Calligraphic display of the expected phrase, rendered
                   as a leaning brush-stroke oath. The verb gets the
-                  hanko accent, the identity half gets washi. A subtle
+                  erase accent, the identity half gets washi. A subtle
                   rotation + hairline underline sell the "seal on
                   paper" feel. Matches the actTitle tone rather than
                   the utilitarian <code> block we had before. */}
@@ -362,12 +362,12 @@ export default function DeleteAccountFlow({ open, onClose }) {
                 placeholder={t("deleteAccount.vowPlaceholder")}
                 aria-label={t("deleteAccount.vowLabel")}
                 aria-invalid={typed.length > 0 && !matches}
-                className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2.5 text-center font-mono text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/70 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+                className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2.5 text-center font-mono text-sm text-washi placeholder:text-washi-dim transition focus:border-erase/70 focus:outline-none focus:ring-2 focus:ring-erase/20"
               />
               {/* Progress bar — fills based on matching PREFIX length,
                   not raw length. Random keystrokes don't advance it;
                   only correct typing does. When complete, the gradient
-                  locks to the hanko tones.
+                  locks to the erase tones.
                   Driven by `transform: scaleX` with a fixed-width
                   inner bar — compositor-only. The previous version
                   animated `width` directly, which fires a layout +
@@ -378,8 +378,8 @@ export default function DeleteAccountFlow({ open, onClose }) {
                 <div
                   className={`h-full w-full origin-left transition-transform duration-300 will-change-transform ${
                     matches
-                      ? "bg-gradient-to-r from-hanko to-hanko-bright"
-                      : "bg-gradient-to-r from-washi-dim to-hanko/40"
+                      ? "bg-gradient-to-r from-erase to-erase-bright"
+                      : "bg-gradient-to-r from-washi-dim to-erase/40"
                   }`}
                   style={{ transform: `scaleX(${progress})` }}
                 />
@@ -387,7 +387,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
             </label>
 
             {errorMsg && (
-              <p className="mt-3 rounded border border-hanko/40 bg-hanko/10 px-3 py-2 text-xs text-hanko-bright">
+              <p className="mt-3 rounded border border-erase/40 bg-erase/10 px-3 py-2 text-xs text-erase-bright">
                 {errorMsg}
               </p>
             )}
@@ -401,7 +401,7 @@ export default function DeleteAccountFlow({ open, onClose }) {
               // Progressive materialisation — even disabled, the button
               // is partly visible so the user SEES what awaits them.
               style={{ opacity: 0.25 + progress * 0.75 }}
-              className={`group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-hanko bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright px-5 py-3 font-display text-sm font-bold uppercase tracking-[0.2em] text-washi shadow-[0_0_12px_var(--hanko-glow)] transition-transform active:scale-95 ${
+              className={`group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-erase bg-gradient-to-r from-erase-deep via-erase to-erase-bright px-5 py-3 font-display text-sm font-bold uppercase tracking-[0.2em] text-washi shadow-[0_0_12px_var(--erase-glow)] transition-transform active:scale-95 ${
                 matches && !submitting
                   ? "cursor-pointer hover:brightness-110"
                   : "cursor-not-allowed"
@@ -436,13 +436,13 @@ export default function DeleteAccountFlow({ open, onClose }) {
  * adjacent input demands they reproduce it.
  *
  * Two modes:
- *   • `identity` set   →  split display: VERB in hanko, identity in
+ *   • `identity` set   →  split display: VERB in erase, identity in
  *                         washi, a middle-dot kanji-style separator
  *                         between them.
  *   • `fallbackPhrase` →  single-line rendering of the ceremonial
  *                         phrase when the user has no name/slug.
  *
- * When the user's typed text matches, the card gets a soft hanko glow
+ * When the user's typed text matches, the card gets a soft erase glow
  * (no loud animation — this is still a destructive flow, not a
  * celebration).
  */
@@ -456,20 +456,20 @@ function VowCard({ verb, identity, fallbackPhrase, hint, matches }) {
   // stronger border color + the existing bg tint for the same
   // visual "the match is registered" signal, without the shadow.
   const tone = matches
-    ? "border-hanko/70 bg-hanko/10"
-    : "border-hanko/30 bg-ink-1";
+    ? "border-erase/70 bg-erase/10"
+    : "border-erase/30 bg-ink-1";
 
   return (
     <div className={`${base} ${tone}`} style={{ transform: "rotate(-0.35deg)" }}>
       {/* Paper-seal hairline — top */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-hanko/60 to-transparent"
+        className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-erase/60 to-transparent"
       />
       {/* Small 消 sigil, quietly placed as a stamp */}
       <span
         aria-hidden="true"
-        className="absolute right-2.5 top-2 font-display text-[11px] leading-none text-hanko/60"
+        className="absolute right-2.5 top-2 font-display text-[11px] leading-none text-erase/60"
         style={{ letterSpacing: "-0.05em" }}
       >
         消
@@ -479,12 +479,12 @@ function VowCard({ verb, identity, fallbackPhrase, hint, matches }) {
         // No name available — render the full ceremonial phrase on
         // one line, no identity split. Slightly tighter tracking so
         // it doesn't overflow on narrow viewports.
-        <p className="text-center font-display text-base italic leading-snug tracking-tight text-hanko-bright sm:text-lg">
+        <p className="text-center font-display text-base italic leading-snug tracking-tight text-erase-bright sm:text-lg">
           {fallbackPhrase}
         </p>
       ) : (
         <p className="flex flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5 text-center leading-tight">
-          <span className="font-display text-xl font-bold uppercase tracking-[0.12em] text-hanko-bright sm:text-2xl">
+          <span className="font-display text-xl font-bold uppercase tracking-[0.12em] text-erase-bright sm:text-2xl">
             {verb}
           </span>
           <span

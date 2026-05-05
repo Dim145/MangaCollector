@@ -32,7 +32,7 @@ export default function GapSuggestions() {
         <span className="h-px flex-1 bg-gradient-to-r from-gold/30 to-transparent" />
       </div>
       <p className="mb-4 text-sm text-washi-muted">{t("gap.byline")}</p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {suggestions.map(({ manga, missing, gap }) => (
           <GapCard
             key={manga.mal_id}

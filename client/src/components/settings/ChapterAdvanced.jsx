@@ -74,18 +74,42 @@ function DataSection({ online, pending, onRestoreClick, onDeleteClick, t }) {
         </div>
       </div>
 
-      {/* Delete — irreversible. Darker frame, kanji 消, hanko gradient. */}
-      <div className="relative mt-3 overflow-hidden rounded-xl border border-hanko/60 bg-gradient-to-br from-hanko/10 via-ink-0/60 to-ink-0/40 p-4">
+      {/* Delete — irreversible. Darker frame, kanji 消, fixed
+          erase-red gradient. The colour intentionally does NOT
+          follow the user's accent palette: a destructive surface
+          must read as red regardless of whether the rest of the
+          UI is accented in gold, moegi, ai, etc. The `erase-*`
+          tokens are defined once at the root level in
+          styles/index.css and never re-declared inside a
+          `data-accent` override, so they stay anchored to the
+          default hanko cinnabar shades. */}
+      <div
+        className="relative mt-3 overflow-hidden rounded-xl border p-4"
+        style={{
+          borderColor: "color-mix(in oklab, var(--erase) 60%, transparent)",
+          background:
+            "linear-gradient(to bottom right, color-mix(in oklab, var(--erase) 10%, transparent), color-mix(in oklab, var(--ink-0) 60%, transparent), color-mix(in oklab, var(--ink-0) 40%, transparent))",
+        }}
+      >
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-hanko/70 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px"
+          style={{
+            background:
+              "linear-gradient(to right, transparent, color-mix(in oklab, var(--erase) 70%, transparent), transparent)",
+          }}
         />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 flex-1 items-start gap-3">
             <span
               aria-hidden="true"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-gradient-to-br from-hanko-bright to-hanko-deep text-washi shadow-[0_0_12px_var(--hanko-glow)]"
-              style={{ transform: "rotate(-4deg)" }}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-washi"
+              style={{
+                transform: "rotate(-4deg)",
+                background:
+                  "linear-gradient(to bottom right, var(--erase-bright), var(--erase-deep))",
+                boxShadow: "0 0 12px var(--erase-glow)",
+              }}
             >
               <span className="font-display text-sm font-bold leading-none">消</span>
             </span>
@@ -102,7 +126,13 @@ function DataSection({ online, pending, onRestoreClick, onDeleteClick, t }) {
             onClick={onDeleteClick}
             disabled={!online}
             title={online ? "" : t("settings.restoreConnectionHint")}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-hanko bg-gradient-to-br from-hanko-deep to-hanko px-4 py-2 text-xs font-bold uppercase tracking-wider text-washi shadow-[0_4px_14px_var(--hanko-glow)] transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-wider text-washi transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            style={{
+              borderColor: "var(--erase)",
+              background:
+                "linear-gradient(to bottom right, var(--erase-deep), var(--erase))",
+              boxShadow: "0 4px 14px var(--erase-glow)",
+            }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
               <path d="M3 6h18" />

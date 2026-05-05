@@ -9,7 +9,7 @@ use serde_json::json;
 
 use crate::auth::AuthenticatedUser;
 use crate::errors::AppError;
-use crate::models::follow::{FeedEntry, FollowedUser};
+use crate::models::follow::{FeedEntry, FollowedUser, OverlapResponse};
 use crate::services::follow;
 use crate::services::realtime::SyncKind;
 use crate::state::AppState;
@@ -63,6 +63,20 @@ pub async fn check_following(
 pub struct FeedQuery {
     #[serde(default)]
     pub limit: Option<u64>,
+}
+
+/// GET /api/user/follows/overlap — social-graph overlap analytics.
+/// Returns the most-shared series the caller already owns + a
+/// short list of series friends own that the caller doesn't
+/// (latent recommendations). Backs the Tomo section on the
+/// StatsPage; payload is bounded server-side so the rail stays
+/// snappy.
+pub async fn get_overlap(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+) -> Result<Json<OverlapResponse>, AppError> {
+    let payload = follow::compute_overlap(&state.db, user.id).await?;
+    Ok(Json(payload))
 }
 
 /// GET /api/user/follows/feed — aggregate activity feed across

@@ -17,7 +17,7 @@ export default function InsightCards({ collector, coffret, milestones, loading }
   const t = useT();
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       <CollectorCard collector={collector} loading={loading} t={t} />
       <CoffretCard coffret={coffret} loading={loading} t={t} />
       <MilestoneCard milestones={milestones} loading={loading} t={t} />

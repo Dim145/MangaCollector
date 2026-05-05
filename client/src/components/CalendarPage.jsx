@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
+import MarginaliaPaper from "./ui/MarginaliaPaper.jsx";
 import { useUpcomingCalendar } from "@/hooks/useUpcomingCalendar.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useT } from "@/i18n/index.jsx";
@@ -870,37 +871,44 @@ function ErrorState({ onRetry, t }) {
 }
 
 function EmptyState({ hasQuery, t }) {
+  // 暦 · Calendar empty state — accent ai (indigo) so it reads
+  // as "scheduled / archive blue" rather than the dashboard's
+  // hanko cinnabar. The kanji 静 (sei = quiet/still) carries the
+  // same calm-season feel the previous revision had; we just
+  // give it the marginalia frame so the absence becomes a
+  // composed silence rather than blank chrome.
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-ink-1/40 p-10 text-center">
-      <span
-        aria-hidden
-        className="absolute inset-0 grid select-none place-items-center font-jp text-[18rem] font-bold leading-none text-moegi/[0.06]"
-      >
-        静
-      </span>
-      <div className="relative">
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-moegi-muted">
-          {hasQuery ? t("calendar.emptySearchEyebrow") : t("calendar.emptyEyebrow")}
-        </p>
-        <p className="mt-3 font-display text-2xl font-light italic text-washi">
-          {hasQuery ? t("calendar.emptySearchTitle") : t("calendar.emptyTitle")}
-        </p>
-        <p className="mt-2 max-w-md mx-auto text-sm text-washi-muted">
-          {hasQuery ? t("calendar.emptySearchBody") : t("calendar.emptyBody")}
-        </p>
-        {!hasQuery && (
-          <Link
-            to="/dashboard"
-            className="mt-5 inline-flex items-center gap-2 rounded-full border border-moegi/40 bg-moegi/5 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-moegi transition hover:border-moegi hover:bg-moegi/15"
-          >
-            <span aria-hidden className="font-jp text-[13px] font-bold leading-none">
-              本
-            </span>
-            {t("calendar.emptyCta")}
-          </Link>
-        )}
-      </div>
-    </div>
+    <MarginaliaPaper
+      glyph="静"
+      glyphRotation={-3}
+      chapterMark={t("calendar.chapterMark")}
+      cornerStamp="月"
+      inscription={
+        hasQuery ? t("calendar.inscriptionSearched") : t("calendar.inscriptionEmpty")
+      }
+      accent="ai"
+    >
+      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-moegi-muted">
+        {hasQuery ? t("calendar.emptySearchEyebrow") : t("calendar.emptyEyebrow")}
+      </p>
+      <p className="mt-2 font-display text-2xl font-light italic text-washi">
+        {hasQuery ? t("calendar.emptySearchTitle") : t("calendar.emptyTitle")}
+      </p>
+      <p className="mt-2 max-w-md mx-auto text-sm text-washi-muted">
+        {hasQuery ? t("calendar.emptySearchBody") : t("calendar.emptyBody")}
+      </p>
+      {!hasQuery && (
+        <Link
+          to="/dashboard"
+          className="mt-5 inline-flex items-center gap-2 rounded-full border border-ai/40 bg-ai/5 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-ai transition hover:border-ai hover:bg-ai/15"
+        >
+          <span aria-hidden className="font-jp text-[13px] font-bold leading-none">
+            本
+          </span>
+          {t("calendar.emptyCta")}
+        </Link>
+      )}
+    </MarginaliaPaper>
   );
 }
 

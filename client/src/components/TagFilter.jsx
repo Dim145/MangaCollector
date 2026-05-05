@@ -361,26 +361,11 @@ export function ActiveChips({ activeTags, onToggle, onClear }) {
           type="button"
           onClick={() => onToggle(name)}
           aria-label={t("dashboard.removeChip", { name })}
-          className="group inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-hanko/10 py-1 pl-3 pr-1.5 font-display text-[13px] italic capitalize text-washi transition hover:border-hanko/70 hover:bg-hanko/20"
+          className="mizuhiki-chip"
         >
-          {name}
-          <span
-            aria-hidden="true"
-            className="grid h-4 w-4 place-items-center rounded-full bg-hanko/30 text-washi transition group-hover:bg-hanko group-hover:rotate-90"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-2.5 w-2.5"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </span>
+          <MizuhikiKnot />
+          <span className="capitalize">{name}</span>
+          <MizuhikiFray />
         </button>
       ))}
       {activeTags.size > 1 && (
@@ -396,5 +381,54 @@ export function ActiveChips({ activeTags, onToggle, onClear }) {
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * 結 · Mizuhiki knot — the ornamental crossing-cord SVG that
+ * sits at the leading edge of each tag chip. Two curved paths
+ * forming an X with a small filled circle at the crossing
+ * point — the simplest reading of "this is a tied cord". Stroke
+ * inherits the chip's `--chip-accent` so the knot tracks the
+ * tag's colour story.
+ */
+function MizuhikiKnot() {
+  return (
+    <span className="mizuhiki-knot" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path
+          d="M 3 5 Q 7 5 12 12 T 21 5"
+          stroke="currentColor"
+          strokeWidth="1.6"
+        />
+        <path
+          d="M 3 19 Q 7 19 12 12 T 21 19"
+          stroke="currentColor"
+          strokeWidth="1.6"
+        />
+        <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      </svg>
+    </span>
+  );
+}
+
+/**
+ * 房 · Mizuhiki fray — three short strokes fanning out from
+ * the trailing edge of the chip, mimicking the unbound cord
+ * ends that hang off a knotted bundle. Doubles as the remove
+ * affordance — the chip click removes the tag, but the fray
+ * is what the user's eye lands on for "this is the dismiss
+ * end". Rotates 15° on chip hover (see styles/index.css) to
+ * cue interactivity.
+ */
+function MizuhikiFray() {
+  return (
+    <span className="mizuhiki-fray" aria-hidden="true">
+      <svg viewBox="0 0 16 24">
+        <path d="M 1 12 L 14 4" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M 1 12 L 14 12" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M 1 12 L 14 20" stroke="currentColor" strokeWidth="1.4" />
+      </svg>
+    </span>
   );
 }

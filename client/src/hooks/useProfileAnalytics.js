@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useDeferredValue, useMemo } from "react";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 
@@ -56,9 +56,23 @@ export function useProfileAnalytics() {
 
   const loading = libLoading || volLoading;
 
+  // 後 · Defer the heavy aggregation. The `useMemo` below walks
+  // the entire `volumes` array (potentially 2500+ items for a
+  // 500-series library) and builds a dozen Maps + Sets per
+  // dimension. On a mid-range phone that's ~150–250 ms of CPU.
+  // Wrapping the inputs in `useDeferredValue` tells React: "if
+  // a higher-priority update is pending (e.g. user typing into
+  // a filter, navigating away), keep the previous analytics on
+  // screen and re-run this in the background slice." The user
+  // sees zero perceptible latency on interactive paths; the
+  // ProfilePage just gets a slightly-stale bundle for one or
+  // two frames after a Dexie mutation.
+  const deferredLibrary = useDeferredValue(library);
+  const deferredVolumes = useDeferredValue(volumes);
+
   const bundle = useMemo(() => {
-    const lib = library ?? [];
-    const vols = volumes ?? [];
+    const lib = deferredLibrary ?? [];
+    const vols = deferredVolumes ?? [];
     const owned = vols.filter((v) => v.owned);
 
     // ─── index helpers ────────────────────────────────────────────
@@ -352,7 +366,7 @@ export function useProfileAnalytics() {
       middleGaps: middleGaps.slice(0, 8),
       stale: stale.slice(0, 6),
     };
-  }, [library, volumes]);
+  }, [deferredLibrary, deferredVolumes]);
 
   return { ...bundle, loading };
 }

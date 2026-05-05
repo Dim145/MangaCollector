@@ -120,6 +120,39 @@
     </script>
 
     <!--
+      時 Time-of-day bootstrap — sets `data-tod` on <html> before
+      first paint so the additive haze tint (defined in index.css
+      via `:root[data-tod="…"]`) lands on frame 0. The drift is
+      subtle, so a delayed apply wouldn't be visually disastrous,
+      but matching the season + theme bootstraps' hot-path style
+      keeps the chrome consistent across all four atmospheric
+      attributes.
+
+      Mirrors `useTimeOfDay.js`'s bracket boundaries — keep them
+      in sync. Six brackets covering night/dawn/morning/noon/
+      afternoon/dusk based on continental sunrise-sunset windows.
+    -->
+    <script>
+      (function () {
+        try {
+          var d = new Date();
+          var h = d.getHours() + d.getMinutes() / 60;
+          var tod;
+          if (h < 4.5) tod = "night";
+          else if (h < 7.5) tod = "dawn";
+          else if (h < 11) tod = "morning";
+          else if (h < 14) tod = "noon";
+          else if (h < 17.5) tod = "afternoon";
+          else if (h < 20) tod = "dusk";
+          else tod = "night";
+          document.documentElement.setAttribute("data-tod", tod);
+        } catch (_) {
+          /* no-op — base palette stays in charge */
+        }
+      })();
+    </script>
+
+    <!--
       朱 Accent bootstrap — runs synchronously here (NOT inside the
       deferred `main.jsx` module) so the `data-accent` attribute is on
       <html> before any stylesheet layout paints. Without this, the

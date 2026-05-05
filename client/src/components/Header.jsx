@@ -5,104 +5,127 @@ import InstallPrompt from "./InstallPrompt";
 import { useAuth } from "@/hooks/useAuth.js";
 import { useT } from "@/i18n/index.jsx";
 
-const NAV_ITEMS_BASE = [
-  {
-    to: "/dashboard",
-    key: "library",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-5 w-5"
-      >
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
-      </svg>
-    ),
-  },
-  {
-    to: "/addmanga",
-    key: "add",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-5 w-5"
-      >
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 8v8M8 12h8" />
-      </svg>
-    ),
-    featured: true,
-  },
-  {
-    to: "/profile",
-    key: "stats",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-5 w-5"
-      >
-        <path d="M3 3v18h18" />
-        <path d="M7 14l4-4 4 4 5-5" />
-      </svg>
-    ),
-  },
-  {
-    to: "/calendrier",
-    key: "calendar",
-    // Calendar icon — a stacked-block almanac, kept linear so it
-    // visually rhymes with the seal/stats glyphs around it. The
-    // 来 watermark on the page itself carries the kanji weight; the
-    // nav icon stays neutral.
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-5 w-5"
-      >
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <line x1="3" y1="10" x2="21" y2="10" />
-        <line x1="8" y1="3" x2="8" y2="7" />
-        <line x1="16" y1="3" x2="16" y2="7" />
-      </svg>
-    ),
-  },
-  {
-    to: "/settings",
-    key: "settings",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-5 w-5"
-      >
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-      </svg>
-    ),
-  },
+// 図 · SVG icons reused across both nav surfaces. Lifted out of
+// the array literal so the top + bottom variants below can pick
+// the same glyph without duplicating markup.
+const ICON_LIBRARY = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-5 w-5"
+  >
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+  </svg>
+);
+const ICON_ADD = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-5 w-5"
+  >
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 8v8M8 12h8" />
+  </svg>
+);
+const ICON_PROFILE = (
+  // 個 · Person silhouette — head + shoulders. Used on the desktop
+  // top nav now that /profile is the identity page.
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-5 w-5"
+  >
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c0-4.418 3.582-8 8-8s8 3.582 8 8" />
+  </svg>
+);
+const ICON_STATS = (
+  // 帳 · Line-chart silhouette — used on the mobile bottom nav for
+  // the deep-dive analytics destination.
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-5 w-5"
+  >
+    <path d="M3 3v18h18" />
+    <path d="M7 14l4-4 4 4 5-5" />
+  </svg>
+);
+const ICON_CALENDAR = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-5 w-5"
+  >
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+    <line x1="8" y1="3" x2="8" y2="7" />
+    <line x1="16" y1="3" x2="16" y2="7" />
+  </svg>
+);
+const ICON_SETTINGS = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-5 w-5"
+  >
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+
+// Two parallel arrays — the desktop top nav surfaces /profile (the
+// identity page) while the mobile bottom nav surfaces /stats (the
+// deep-dive ledger). The two destinations are siblings of each
+// other; we route differently per surface because:
+//   - On desktop, the avatar in the top-right already gives a
+//     cluster of profile-related actions, BUT having /profile as
+//     a labelled top-nav entry promotes it visibly to a peer of
+//     Library / Calendar / Settings, which matches its weight as
+//     a primary destination.
+//   - On mobile, the bottom nav is the only persistent surface;
+//     /profile is one tap away via the same avatar (which also
+//     appears in the top header on mobile), so the slot is freed
+//     for /stats — the chart icon there earns its keep by giving
+//     mobile users a one-tap path into the analytics ledger.
+const TOP_NAV_ITEMS_BASE = [
+  { to: "/dashboard", key: "library", icon: ICON_LIBRARY },
+  { to: "/addmanga", key: "add", icon: ICON_ADD, featured: true },
+  { to: "/profile", key: "profile", icon: ICON_PROFILE },
+  { to: "/calendrier", key: "calendar", icon: ICON_CALENDAR },
+  { to: "/settings", key: "settings", icon: ICON_SETTINGS },
+];
+const BOTTOM_NAV_ITEMS_BASE = [
+  { to: "/dashboard", key: "library", icon: ICON_LIBRARY },
+  { to: "/addmanga", key: "add", icon: ICON_ADD, featured: true },
+  { to: "/stats", key: "stats", icon: ICON_STATS },
+  { to: "/calendrier", key: "calendar", icon: ICON_CALENDAR },
+  { to: "/settings", key: "settings", icon: ICON_SETTINGS },
 ];
 
 export default function Header() {
@@ -116,7 +139,11 @@ export default function Header() {
   // every navigation — an unnecessary round-trip for a value that
   // can't change between navigations.
   const { isAuthenticated } = useAuth();
-  const NAV_ITEMS = NAV_ITEMS_BASE.map((item) => ({
+  const TOP_NAV_ITEMS = TOP_NAV_ITEMS_BASE.map((item) => ({
+    ...item,
+    label: t(`nav.${item.key}`),
+  }));
+  const BOTTOM_NAV_ITEMS = BOTTOM_NAV_ITEMS_BASE.map((item) => ({
     ...item,
     label: t(`nav.${item.key}`),
   }));
@@ -164,7 +191,12 @@ export default function Header() {
             aria-label="MangaCollector home"
           >
             <div className="relative">
-              <span className="hanko-seal grid h-9 w-9 place-items-center rounded-md text-[10px] font-bold animate-stamp">
+              {/* 金 · The brand mark gets a `gold-shimmer-strong`
+                  sweep on top of the hanko fill — a slow gilded
+                  highlight catching the eye every 5 s. The class
+                  is decorative-only; reduced-motion users see a
+                  static stamp. */}
+              <span className="hanko-seal gold-shimmer gold-shimmer-strong grid h-9 w-9 place-items-center rounded-md text-[10px] font-bold animate-stamp">
                 MC
               </span>
             </div>
@@ -184,7 +216,7 @@ export default function Header() {
               className="hidden md:flex items-center gap-1 rounded-full border border-border bg-ink-1/50 p-1 backdrop-blur"
               aria-label="Main"
             >
-              {NAV_ITEMS.map((item) => (
+              {TOP_NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -233,7 +265,7 @@ export default function Header() {
               paddingBottom: `calc(0.375rem + env(safe-area-inset-bottom))`,
             }}
           >
-            {NAV_ITEMS.map((item) => (
+            {BOTTOM_NAV_ITEMS.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

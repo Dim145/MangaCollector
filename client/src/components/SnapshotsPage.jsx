@@ -230,7 +230,7 @@ function Hero({ count, online = true, onCapture, t }) {
 
 function PlatesGrid({ snapshots, onView, t, lang }) {
   return (
-    <ul className="grid gap-6 sm:grid-cols-2 sm:gap-7 lg:grid-cols-3 lg:gap-8">
+    <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-7 lg:grid-cols-3 lg:gap-8">
       {snapshots.map((s, i) => (
         <li
           key={s.id}
@@ -780,7 +780,7 @@ function LoadingPanel({ t }) {
   return (
     <ul
       aria-label={t("common.loading")}
-      className="grid gap-6 sm:grid-cols-2 sm:gap-7 lg:grid-cols-3 lg:gap-8"
+      className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-7 lg:grid-cols-3 lg:gap-8"
     >
       {Array.from({ length: 6 }).map((_, i) => (
         <li

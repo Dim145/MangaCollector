@@ -33,6 +33,47 @@ pub struct FollowedUser {
     pub followed_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// 重 · A series the requesting user owns AND at least one followed
+/// user also owns — used to pick out the "most-shared" series in
+/// the social graph. `friend_count` is the number of distinct
+/// followed users who own it.
+#[derive(Debug, Clone, Serialize)]
+pub struct SharedSeries {
+    pub mal_id: i32,
+    pub name: String,
+    pub image_url: Option<String>,
+    pub friend_count: i64,
+}
+
+/// 推 · A series several followed users have BUT the requesting
+/// user doesn't — surfaced as a "what your friends love that you
+/// haven't discovered" recommendation. Picked from the long tail
+/// where `friend_count` is largest.
+#[derive(Debug, Clone, Serialize)]
+pub struct LatentRecommendation {
+    pub mal_id: i32,
+    pub name: String,
+    pub image_url: Option<String>,
+    pub friend_count: i64,
+}
+
+/// Aggregate response of `GET /api/user/follows/overlap`. Both
+/// rails share the underlying join — pulling them in a single
+/// payload keeps the SPA from making two near-identical fetches
+/// when the StatsPage's Tomo section mounts.
+#[derive(Debug, Clone, Serialize)]
+pub struct OverlapResponse {
+    /// Sorted by `friend_count` desc, capped server-side. Top
+    /// entry powers the "série la plus partagée" hero card.
+    pub shared: Vec<SharedSeries>,
+    /// Sorted by `friend_count` desc, capped server-side. Top
+    /// few entries power the "recommandations latentes" rail.
+    pub latent: Vec<LatentRecommendation>,
+    /// Total number of followed users that contributed to the
+    /// counts. UI uses it to render "5 amis sur 12 ont ce tome".
+    pub friend_total: i64,
+}
+
 /// Aggregate activity feed entry — one event from a followed user.
 /// Mirrors the activity_log shape but adds the actor's display info
 /// so the SPA can render "X added Naruto" without re-resolving.

@@ -83,6 +83,15 @@ const SECTIONS = [
       { char: "統計", romaji: "tōkei" },
       { char: "設定", romaji: "settei" },
       { char: "読破", romaji: "dokuha" },
+      // 帳 sub-feuillets — navigational kanji introduced by the
+      // StatsPage's seven sections. Each one heads a folio in the
+      // master ledger, and is reachable from the kanji rail on
+      // the left of the page.
+      { char: "人", romaji: "hito" },
+      { char: "版", romaji: "han" },
+      { char: "銭", romaji: "sen" },
+      { char: "暦", romaji: "koyomi" },
+      { char: "友", romaji: "tomo" },
     ],
   },
   {
@@ -98,6 +107,14 @@ const SECTIONS = [
       // 本棚 (bookshelf, the dashboard surface) which sits in places.
       // Anchors the 3D shelf view + the snapshot watermark.
       { char: "棚", romaji: "tana" },
+      // 帳 = the master ledger book. Identity of the StatsPage,
+      // borne as a giant hero watermark and as a small badge on
+      // the bridge CTA from /profile.
+      { char: "帳", romaji: "chō" },
+      // 籠 = basket — the "panier moyen" sparkline card on the
+      // 銭 Trésor folio. Evokes the basket you fill at the
+      // bookseller.
+      { char: "籠", romaji: "kago" },
     ],
   },
   {
@@ -124,6 +141,10 @@ const SECTIONS = [
       { char: "目次", romaji: "mokuji" },
       { char: "章", romaji: "shō" },
       { char: "字典", romaji: "jiten" },
+      // 索引 names the kanji nav rail of the StatsPage — sibling
+      // navigational metaphor to 目次 (settings rail). Pure index
+      // mark, never a content page.
+      { char: "索引", romaji: "sakuin" },
       // The four chapter glyphs of the Settings tome, in their reading
       // order on the page (一 → 四). Their literal meanings are
       // intentionally close to their thematic role — chosen so a user

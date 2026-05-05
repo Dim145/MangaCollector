@@ -1,4 +1,13 @@
-import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  lazy,
+  Suspense,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { consumeTourStep, peekTourStep, TOUR_STEPS } from "@/lib/tour.js";
 import CoverImage from "./ui/CoverImage.jsx";
@@ -6,20 +15,7 @@ import DefaultBackground from "./DefaultBackground";
 import Skeleton from "./ui/Skeleton.jsx";
 import ActivityFeed from "./ActivityFeed.jsx";
 import MalRecommendations from "./MalRecommendations.jsx";
-import InsightCards from "./analytics/InsightCards.jsx";
-import ActionableLists from "./analytics/ActionableLists.jsx";
 
-// 金 · Recharts is heavy (380 KB / 110 KB gzipped). Every component
-// in this app that touches it lives behind a `lazy()` boundary so
-// /profile lands instantly with stat cards + the closest-to-completion
-// list, then streams the chart bundle alongside the first chart's
-// own skeleton. The Suspense fallback below mirrors each card's
-// idle-loading visuals so the layout doesn't jank when the chunk
-// finishes downloading.
-const MostValuedChart = lazy(() => import("./analytics/MostValuedChart.jsx"));
-const SpendingChart = lazy(() => import("./analytics/SpendingChart.jsx"));
-const ReadingChart = lazy(() => import("./analytics/ReadingChart.jsx"));
-const CompositionPies = lazy(() => import("./analytics/CompositionPies.jsx"));
 // Modal — only needed on click, deferred so it doesn't bloat the profile chunk.
 const AvatarPicker = lazy(() => import("./AvatarPicker.jsx"));
 // 棚 · Snapshot modal — same lazy treatment as AvatarPicker. The
@@ -32,9 +28,14 @@ import { useLibrary } from "@/hooks/useLibrary.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
-import { useProfileAnalytics } from "@/hooks/useProfileAnalytics.js";
 import { formatCurrency } from "@/utils/price.js";
+import { useOwnPublicSlug } from "@/hooks/usePublicProfile.js";
 import { useT } from "@/i18n/index.jsx";
+import {
+  pickBracket,
+  useDailyByline,
+  useDailyInsight,
+} from "@/lib/dailyTexts.js";
 
 export default function ProfilePage({ googleUser }) {
   const { currency: currencySetting, adult_content_level } =
@@ -129,10 +130,11 @@ export default function ProfilePage({ googleUser }) {
 
   const loading = loadingLib || loadingVol;
 
-  // One-shot analytics bundle — everything derives from library + volumes
-  // already in memory, so no extra network round-trip. Components below
-  // receive their own slice via props.
-  const analytics = useProfileAnalytics();
+  // 個 · Identity meta — public slug lets the hero render `@slug`
+  // under the display name, mirroring how friends see this user.
+  // The deep-dive numbers + chart wall used to live here too;
+  // they've moved to /stats so the page stays a true profile.
+  const { data: slugData } = useOwnPublicSlug();
 
   const {
     totalSeries,
@@ -140,38 +142,34 @@ export default function ProfilePage({ googleUser }) {
     totalVolumesOwned,
     totalCost,
     completionRate,
-    seriesByCost,
+    memberSinceDays,
   } = useMemo(() => {
     const totalSeries = library.length;
     const totalVolumes = volumes.length;
-    const titleMap = {};
-    for (const series of library) titleMap[series.mal_id] = series.name;
 
     let owned = 0;
     let cost = 0;
-    const costMap = {};
+    let firstAddedTs = Infinity;
+    for (const series of library) {
+      const ts = series.created_on
+        ? new Date(series.created_on).getTime()
+        : NaN;
+      if (Number.isFinite(ts) && ts < firstAddedTs) firstAddedTs = ts;
+    }
 
     for (const vol of volumes) {
       if (vol.owned) {
         owned += 1;
         cost += Number(vol.price) || 0;
-        const title = titleMap[vol.mal_id] || "Unknown";
-        if (!costMap[title]) costMap[title] = 0;
-        costMap[title] += Number(vol.price) || 0;
       }
     }
 
     const completion =
       totalVolumes > 0 ? Number(((owned / totalVolumes) * 100).toFixed(1)) : 0;
 
-    const sorted = Object.entries(costMap)
-      .map(([title, c]) => ({
-        title: title.split(" ").slice(0, 2).join(" ").slice(0, 12),
-        fullTitle: title,
-        totalCost: Number(c.toFixed(2)),
-      }))
-      .sort((a, b) => b.totalCost - a.totalCost)
-      .slice(0, 5);
+    const memberSinceDays = Number.isFinite(firstAddedTs)
+      ? Math.max(0, Math.floor((Date.now() - firstAddedTs) / (1000 * 60 * 60 * 24)))
+      : null;
 
     return {
       totalSeries,
@@ -179,7 +177,7 @@ export default function ProfilePage({ googleUser }) {
       totalVolumesOwned: owned,
       totalCost: cost,
       completionRate: completion,
-      seriesByCost: sorted,
+      memberSinceDays,
     };
   }, [library, volumes]);
 
@@ -211,19 +209,102 @@ export default function ProfilePage({ googleUser }) {
   const userName = googleUser?.name ?? t("profile.reader");
   const initial = userName?.[0]?.toUpperCase() ?? "U";
   const avatarUrl = !avatarFailed ? (settings?.avatarUrl ?? null) : null;
+  const publicSlug = (slugData?.public_slug ?? slugData?.slug ?? "").trim();
+  // 日替り · Daily-rotating prose for the byline + insight banner.
+  // The byline pool is uniform across users; the insight pool is
+  // bracketed by completion ratio so the prose always matches the
+  // shape of the user's archive ("you're at the start" vs "the
+  // archive is complete"). Both rotate every UTC midnight via a
+  // deterministic seed — see `lib/dailyTexts.js`.
+  const dailyByline = useDailyByline();
+  const insightBracket = pickBracket({ totalVolumesOwned, completionRate });
+  const dailyInsight = useDailyInsight(insightBracket);
+  // 暦 · Member-since formatting. Cap at "X years" past 365 d, drop
+  // to "Y months" past 30 d, "N days" otherwise. Localised via the
+  // existing i18n keys.
+  const memberSinceLabel = useMemo(() => {
+    if (memberSinceDays == null) return null;
+    if (memberSinceDays >= 365) {
+      const years = Math.floor(memberSinceDays / 365);
+      return t("profile.memberYears", { n: years });
+    }
+    if (memberSinceDays >= 30) {
+      const months = Math.floor(memberSinceDays / 30);
+      return t("profile.memberMonths", { n: months });
+    }
+    return t("profile.memberDays", { n: memberSinceDays });
+  }, [memberSinceDays, t]);
+
+  // 祝 · Anniversary detection — fires the celebratory ribbon
+  // when the user is within 7 days AFTER an exact-year boundary
+  // (so a 367-day member catches the 1-year ribbon for a week,
+  // a 1099-day member catches the 3-year ribbon, etc.). The
+  // post-boundary window keeps the anniversary feeling like
+  // "you just hit it" rather than "it's coming"; predicting the
+  // upcoming anniversary would need a server-side timestamp
+  // anchor that the current memberSinceDays count doesn't
+  // expose. `null` means no ribbon — the common case.
+  const anniversaryYears = useMemo(() => {
+    if (memberSinceDays == null || memberSinceDays < 365) return null;
+    const wholeYears = Math.floor(memberSinceDays / 365);
+    const daysIntoCurrentYear = memberSinceDays - wholeYears * 365;
+    if (daysIntoCurrentYear > 7) return null;
+    return wholeYears;
+  }, [memberSinceDays]);
 
   return (
     <DefaultBackground>
       <div className="mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-        <header className="mb-10 animate-fade-up">
-          <div className="flex items-baseline gap-3">
-            <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
-              {t("profile.profile")}
+        {/* 名刺 · Calling-card hero — the page's identity panel.
+            Replaces the previous mixed identity-+-stat hero now
+            that /stats owns the deep-dive numbers. Avatar in a
+            hanko-bordered medallion, name in big italic display,
+            slug + tenure stamped underneath like the "what to
+            call them by" line on a meishi. */}
+        <header className="relative mb-10 animate-fade-up overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-ink-1/70 via-ink-1/55 to-hanko/[0.08] px-5 py-6 backdrop-blur-sm md:px-8 md:py-8">
+          {/* 個 · Massive watermark — same vocabulary as the StatsHero
+              but using the "individual / person" kanji to mark this
+              page as the personal one. Pointer-events disabled so
+              cards above it stay clickable. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-4 -top-4 select-none font-jp text-[clamp(7rem,17vw,13rem)] font-bold leading-none text-hanko/[0.07] md:-right-6"
+            style={{ transform: "rotate(-6deg)" }}
+          >
+            個
+          </span>
+
+          <div className="relative flex items-baseline gap-3">
+            <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+              {t("profile.profile")} · 名刺
             </span>
-            <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
+            <span className="h-px flex-1 bg-gradient-to-r from-hanko/30 via-border to-transparent" />
           </div>
 
-          <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-center">
+          {/* 祝 · Anniversary pennant — only renders during the
+              7-day window after each yearly archive milestone.
+              Pinned to the top edge of the hero, slight tilt so
+              it reads as set down with intent rather than nailed
+              square. The pennant points right toward the avatar
+              cluster, drawing the eye into the hero content. */}
+          {anniversaryYears != null && (
+            <span
+              className="anniversary-pennant"
+              role="status"
+              aria-label={t("profile.anniversaryAria", {
+                n: anniversaryYears,
+              })}
+            >
+              <span aria-hidden="true" className="font-jp text-[14px] font-bold leading-none">
+                祝
+              </span>
+              <span className="anniversary-pennant-label">
+                {t("profile.anniversaryYears", { n: anniversaryYears })}
+              </span>
+            </span>
+          )}
+
+          <div className="relative mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
             {/* Avatar — click to open picker. Wrapped in a relative
                 container so the welcome-tour spotlight (caption + ring)
                 can be positioned absolutely against the same anchor. */}
@@ -300,157 +381,113 @@ export default function ProfilePage({ googleUser }) {
             </div>
 
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">
+              <h1
+                data-ink-trail="true"
+                className="font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl"
+              >
                 {t("profile.helloName")}{" "}
                 <span className="text-hanko-gradient font-semibold not-italic">
                   {userName}
                 </span>
               </h1>
-              <p className="mt-2 text-sm text-washi-muted">
-                {t("profile.byline")}
+              {/* Identity meta-line — slug if set + tenure. Both
+                  pieces sit on the same row so the visual
+                  vocabulary reads like a printed meishi: "@handle
+                  · membre depuis 2 ans". Either piece can be
+                  absent without breaking the layout (the · is
+                  conditionally rendered). */}
+              {(publicSlug || memberSinceLabel) && (
+                <p className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-muted">
+                  {publicSlug ? (
+                    <Link
+                      to={`/u/${publicSlug}`}
+                      className="text-hanko-bright transition hover:text-hanko"
+                    >
+                      @{publicSlug}
+                    </Link>
+                  ) : null}
+                  {publicSlug && memberSinceLabel ? (
+                    <span aria-hidden="true" className="text-washi-dim">
+                      ·
+                    </span>
+                  ) : null}
+                  {memberSinceLabel ? (
+                    <span>
+                      <span
+                        aria-hidden="true"
+                        className="font-jp text-[12px] font-bold not-italic text-gold"
+                      >
+                        始
+                      </span>{" "}
+                      {memberSinceLabel}
+                    </span>
+                  ) : null}
+                </p>
+              )}
+              <p className="mt-2 text-sm italic text-washi-muted">
+                {dailyByline}
               </p>
-              {/* 収 · Year-in-review entry point — sits below the byline
-                  as a discreet outline chip. Visible year-round (the
-                  poster gracefully degrades to its empty-state surface
-                  when there's not enough story for the current year),
-                  with the harvest kanji acting as the conceptual
-                  signpost. */}
+              {/* 五 · Five identity-portal chips — ONE accent each,
+                  picked semantically rather than for visual variety
+                  alone. Walking the row left-to-right reads as a
+                  little colour grammar:
+                    収 gold     — annual harvest, gilt-edged ledger
+                    棚 hanko    — the seal you press to share
+                    山 sakura   — the gentle pile of unread tomes
+                    印 ai       — indigo archive of past snapshots
+                    友 moegi    — friendship, growth, social
+                  The shared `ProfileChip` (defined at the bottom
+                  of this file) owns the markup; the per-chip line
+                  here is just data + handler wiring. */}
               <div className="mt-3 flex flex-wrap gap-2">
-                <Link
+                <ProfileChip
                   to="/year-in-review"
-                  className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-gold transition hover:border-gold/70 hover:bg-gold/10 hover:text-gold-muted"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="font-jp text-sm font-bold leading-none not-italic"
-                  >
-                    収
-                  </span>
-                  {t("profile.yearReviewCta", { year: new Date().getFullYear() })}
-                  <span aria-hidden="true">→</span>
-                </Link>
-                {/* 棚 · Shelf snapshot — opens a modal that renders the
-                    library as a 4:5 PNG ready to share on social. The
-                    button keeps the same outline-chip vocabulary as the
-                    Year-in-Review entry point so they read as a peer
-                    pair of "stats / sharing" hooks rather than competing
-                    primary CTAs. Disabled until the library has data —
-                    a snapshot of an empty shelf reads as broken.
-
-                    `tour-pulse` (defined in styles/index.css alongside the
-                    avatar spotlight) adds the hanko ring pulse when the
-                    welcome tour just landed here — same animation
-                    language as the avatar so the two follow targets
-                    feel like siblings. */}
-                <div className="relative">
-                  <button
-                    ref={snapshotRef}
-                    type="button"
-                    onClick={() => {
-                      setSnapshotSpotlight(false);
-                      setSnapshotOpen(true);
-                    }}
-                    disabled={loading || (library?.length ?? 0) === 0}
-                    className={`inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-hanko/5 disabled:hover:border-hanko/40 ${
-                      snapshotSpotlight ? "tour-pulse ring-hanko" : ""
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="font-jp text-sm font-bold leading-none not-italic"
-                    >
-                      棚
-                    </span>
-                    {t("profile.snapshotCta")}
-                    <span aria-hidden="true">→</span>
-                  </button>
-                  {snapshotSpotlight && (
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-hanko/50 bg-ink-1/95 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-hanko-bright shadow-[0_4px_14px_var(--hanko-glow)] animate-fade-up"
-                    >
-                      {t("tour.fSnapshotCta")}
-                    </span>
-                  )}
-                </div>
-                {/* 山積 · Backlog audit — peer chip alongside Year-in-
-                    Review and Shelf-snapshot. Pile lives conceptually
-                    next to the analytics here rather than as a
-                    standalone menu entry; surfacing it as a third chip
-                    keeps the trio of "look back / share / what's still
-                    pending" together. Hanko outline (vs gold/sakura)
-                    so the eye distinguishes the three at a glance. */}
-                <Link
+                  accent="gold"
+                  kanji="収"
+                  label={t("profile.yearReviewCta", {
+                    year: new Date().getFullYear(),
+                  })}
+                />
+                <ProfileChip
+                  ref={snapshotRef}
+                  accent="hanko"
+                  kanji="棚"
+                  label={t("profile.snapshotCta")}
+                  spotlight={snapshotSpotlight}
+                  spotlightHint={t("tour.fSnapshotCta")}
+                  disabled={loading || (library?.length ?? 0) === 0}
+                  onClick={() => {
+                    setSnapshotSpotlight(false);
+                    setSnapshotOpen(true);
+                  }}
+                />
+                <ProfileChip
                   to="/backlog"
-                  className="inline-flex items-center gap-2 rounded-full border border-hanko/40 bg-hanko/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="font-jp text-sm font-bold leading-none not-italic"
-                  >
-                    山
-                  </span>
-                  {t("profile.backlogCta")}
-                  <span aria-hidden="true">→</span>
-                </Link>
-                {/* 印影 · Snapshot history — chip mirroring the backlog
-                    style. Sits next to it so the trio "year-in-review /
-                    backlog / snapshots" reads as a coherent analytics
-                    cluster. Gold rather than hanko because the snapshots
-                    feature is presentational (archives) not actionable. */}
-                <Link
+                  accent="sakura"
+                  kanji="山"
+                  label={t("profile.backlogCta")}
+                />
+                <ProfileChip
                   to="/snapshots"
-                  className="inline-flex items-center gap-2 rounded-full border border-gold/45 bg-gold/8 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-gold transition hover:border-gold hover:bg-gold/15"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="font-jp text-sm font-bold leading-none not-italic"
-                  >
-                    印
-                  </span>
-                  {t("profile.snapshotsCta")}
-                  <span aria-hidden="true">→</span>
-                </Link>
-                {/* 友 · Friends correspondence — moegi (jade green)
-                    chip to differentiate from the analytics cluster:
-                    this is a social surface, not a data view. The
-                    feature is entirely network-bound (cross-user
-                    activity feed + follow list), so the chip
-                    becomes a non-interactive disabled-styled span
-                    when the server is unreachable. Tooltip + kanji
-                    swap (友 → 圏) signal the offline state in the
-                    same vocabulary used by the calendar / author
-                    refresh buttons. */}
+                  accent="ai"
+                  kanji="印"
+                  label={t("profile.snapshotsCta")}
+                />
                 {online ? (
-                  <Link
+                  <ProfileChip
                     to="/friends"
-                    className="inline-flex items-center gap-2 rounded-full border border-moegi/45 bg-moegi/8 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-moegi transition hover:border-moegi hover:bg-moegi/15"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="font-jp text-sm font-bold leading-none not-italic"
-                    >
-                      友
-                    </span>
-                    {t("profile.friendsCta")}
-                    <span aria-hidden="true">→</span>
-                  </Link>
+                    accent="moegi"
+                    kanji="友"
+                    label={t("profile.friendsCta")}
+                  />
                 ) : (
-                  <span
-                    role="link"
-                    aria-disabled="true"
+                  <ProfileChip
+                    accent="moegi"
+                    kanji="圏"
+                    label={t("profile.friendsCta")}
+                    disabled
                     title={t("profile.friendsOfflineHint")}
-                    aria-label={t("profile.friendsOfflineHint")}
-                    className="inline-flex cursor-not-allowed items-center gap-2 rounded-full border border-moegi/30 bg-moegi/5 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-moegi-muted/60 opacity-60"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="font-jp text-sm font-bold leading-none not-italic"
-                    >
-                      圏
-                    </span>
-                    {t("profile.friendsCta")}
-                  </span>
+                  />
                 )}
               </div>
             </div>
@@ -530,15 +567,46 @@ export default function ProfilePage({ googleUser }) {
           />
         </section>
 
+        {/* 帳 · Bridge to the deep-dive ledger. Sits between the
+            hero stats and the chart wall — the user already has
+            the at-a-glance numbers above; this CTA tells them
+            where to go for the rest. */}
+        <Link
+          to="/stats"
+          className="group relative mb-10 flex items-center gap-4 overflow-hidden rounded-2xl border border-border/70 bg-ink-1/55 px-5 py-4 backdrop-blur-sm transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:border-hanko/55 hover:shadow-[0_22px_36px_-22px_rgba(176,30,42,0.4)] md:px-6"
+        >
+          <span
+            aria-hidden="true"
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-hanko/55 bg-hanko/15 font-jp text-2xl font-bold leading-none text-hanko shadow-inner md:h-14 md:w-14"
+            style={{ transform: "rotate(-4deg)" }}
+          >
+            帳
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-hanko">
+              {t("stats.profileCtaHint")}
+            </p>
+            <p className="mt-1 font-display text-lg italic text-washi md:text-xl">
+              {t("stats.profileCta")}
+            </p>
+          </div>
+          <span
+            aria-hidden="true"
+            className="font-mono text-[14px] text-washi-muted transition-transform group-hover:translate-x-0.5 group-hover:text-hanko"
+          >
+            →
+          </span>
+        </Link>
+
         <section
-          className="mb-8 grid gap-6 animate-fade-up md:grid-cols-2"
+          className="mb-8 animate-fade-up"
           style={{ animationDelay: "200ms" }}
         >
-          {/* "Closest to completion" — replaces the previous global donut.
-              Five rows × (cover + title + bar + remaining), each one a
-              tappable shortcut to that series' edit page. Density-first:
-              the donut showed a single percentage already in the stat strip
-              above; this card shows five concrete next targets. */}
+          {/* 完 · Closest to completion — five tappable rows
+              shortcutting straight to each series' detail page.
+              Used to share the row with `<MostValuedChart>`; the
+              chart moved to /stats and this widget gets the full
+              column to itself. */}
           <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
             <div className="flex items-baseline justify-between gap-2">
               <div>
@@ -556,9 +624,16 @@ export default function ProfilePage({ googleUser }) {
               )}
             </div>
 
-            <div className="mt-4 h-64">
+            {/* No fixed height — the widget used to share a row
+                with `<MostValuedChart>` and the `h-64` cap was
+                tuned to match that chart's intrinsic height. With
+                the chart now living on /stats, the cap was just
+                clipping the 5th row. Letting the flex column flow
+                naturally fits all five entries plus the empty
+                state without a scrollbar. */}
+            <div className="mt-4">
               {loading ? (
-                <ul className="flex h-full flex-col gap-3">
+                <ul className="flex flex-col gap-3">
                   {[...Array(5)].map((_, i) => (
                     <li
                       key={i}
@@ -573,7 +648,9 @@ export default function ProfilePage({ googleUser }) {
                   ))}
                 </ul>
               ) : inProgress.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                // py-12 gives the empty state breathing room now
+                // that the parent no longer enforces h-64.
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
                   <span
                     className="font-display text-4xl italic text-hanko/30"
                     aria-hidden="true"
@@ -585,7 +662,7 @@ export default function ProfilePage({ googleUser }) {
                   </p>
                 </div>
               ) : (
-                <ul className="flex h-full flex-col gap-2">
+                <ul className="flex flex-col gap-2">
                   {inProgress.map((row, i) => {
                     const pct = Math.round(row.progress * 100);
                     return (
@@ -657,17 +734,15 @@ export default function ProfilePage({ googleUser }) {
             </div>
           </div>
 
-          <Suspense fallback={<ChartSkeletonCard kind="bars" />}>
-            <MostValuedChart
-              data={seriesByCost}
-              loading={loading}
-              currencySetting={currencySetting}
-            />
-          </Suspense>
         </section>
 
+        {/* 報 · One-line ceremonial line that frames the user's
+            current standing — sibling of the rotating poster
+            messages on the homepage hero. Empty / mid / late-game
+            phrasing keeps the page from feeling silent the day
+            you join, and warm the day you finish your hundredth. */}
         <section
-          className="animate-fade-up"
+          className="mb-8 animate-fade-up"
           style={{ animationDelay: "350ms" }}
         >
           <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-hanko/10 via-ink-1/50 to-gold/5 p-6 backdrop-blur md:p-8">
@@ -680,87 +755,25 @@ export default function ProfilePage({ googleUser }) {
               {t("profile.insightLabel")}
             </p>
             <h3 className="mt-2 max-w-xl font-display text-xl font-semibold italic text-washi md:text-2xl">
-              {totalVolumesOwned === 0
-                ? t("profile.insightEmpty")
-                : completionRate === 100
-                  ? t("profile.insightComplete")
-                  : completionRate > 75
-                    ? t("profile.insightAlmost")
-                    : completionRate > 50
-                      ? t("profile.insightHalfway")
-                      : t("profile.insightBeginning")}
+              {dailyInsight}
             </h3>
           </div>
         </section>
 
-        {/* ─── Analytics deep-dive ─────────────────────────────── */}
+        {/* 連 · Recent activity — the personal correspondence
+            stream. Capped at 20 to keep the page profile-shaped
+            (the dedicated /year-in-review opens for a longer
+            retrospective). */}
         <section
-          className="mt-8 animate-fade-up"
+          className="mb-8 animate-fade-up"
           style={{ animationDelay: "400ms" }}
-        >
-          <Suspense fallback={<ChartSkeletonCard kind="bars" />}>
-            <SpendingChart data={analytics.monthly.spending} loading={loading} />
-          </Suspense>
-        </section>
-
-        {/* 読破 · Reading cadence — sibling of SpendingChart, moegi-tinted,
-            rolled-up quick-stats + monthly bar chart of read_at timestamps. */}
-        <section
-          className="mt-6 animate-fade-up"
-          style={{ animationDelay: "430ms" }}
-        >
-          <Suspense fallback={<ChartSkeletonCard kind="bars" />}>
-            <ReadingChart reading={analytics.reading} loading={loading} />
-          </Suspense>
-        </section>
-
-        <section
-          className="mt-6 animate-fade-up"
-          style={{ animationDelay: "470ms" }}
-        >
-          <Suspense fallback={<ChartSkeletonCard kind="pie" />}>
-            <CompositionPies
-              stores={analytics.composition.stores}
-              genres={analytics.composition.genres}
-              loading={loading}
-            />
-          </Suspense>
-        </section>
-
-        <section
-          className="mt-6 animate-fade-up"
-          style={{ animationDelay: "500ms" }}
-        >
-          <InsightCards
-            collector={analytics.collector}
-            coffret={analytics.coffret}
-            milestones={analytics.milestones}
-            loading={loading}
-          />
-        </section>
-
-        <section
-          className="mt-6 animate-fade-up"
-          style={{ animationDelay: "550ms" }}
-        >
-          <ActionableLists
-            middleGaps={analytics.middleGaps}
-            stale={analytics.stale}
-            loading={loading}
-            library={library}
-          />
-        </section>
-
-        <section
-          className="mt-8 animate-fade-up"
-          style={{ animationDelay: "600ms" }}
         >
           <ActivityFeed limit={20} />
         </section>
 
         <section
-          className="mt-8 animate-fade-up"
-          style={{ animationDelay: "650ms" }}
+          className="animate-fade-up"
+          style={{ animationDelay: "450ms" }}
         >
           <MalRecommendations />
         </section>
@@ -768,6 +781,159 @@ export default function ProfilePage({ googleUser }) {
     </DefaultBackground>
   );
 }
+
+/**
+ * 札 · ProfileChip — the meishi-row identity portals.
+ *
+ * One pill, five accents — colour grammar tied to the chip's
+ * conceptual domain rather than picked at random. The accent
+ * threads through three CSS custom properties so a single
+ * Tailwind className can express border / fill / glyph colour
+ * without duplicating utility chains per accent.
+ *
+ * Props:
+ *   - accent       "gold" | "hanko" | "sakura" | "ai" | "moegi"
+ *   - kanji        single-char glyph rendered as the accent prefix
+ *   - label        body text (uppercase mono)
+ *   - to           if set → renders as <Link>, otherwise <button>
+ *   - onClick      handler when not a Link
+ *   - disabled     dims the pill + blocks pointer events
+ *   - title        forwarded to the DOM element (useful for
+ *                  the offline-state tooltip on the friends chip)
+ *   - spotlight    true while the welcome tour highlights the
+ *                  chip — adds the same hanko-pulse used on the
+ *                  avatar so the two follow targets feel like
+ *                  siblings
+ *   - spotlightHint label drawn above the chip during spotlight
+ *
+ * Forwarded ref: lands on the rendered `<a>` / `<button>` so
+ * the tour effect can `scrollIntoView` the chip when its step
+ * fires before the chip has mounted.
+ */
+const PROFILE_CHIP_ACCENTS = {
+  gold: { bg: "var(--gold)", glow: "rgba(212,175,55,0.45)" },
+  hanko: { bg: "var(--hanko)", glow: "rgba(176,30,42,0.45)" },
+  sakura: { bg: "var(--sakura)", glow: "rgba(220,160,170,0.45)" },
+  ai: { bg: "var(--ai)", glow: "rgba(60,90,180,0.45)" },
+  moegi: { bg: "var(--moegi)", glow: "rgba(120,180,90,0.45)" },
+};
+
+const ProfileChip = forwardRef(function ProfileChip(
+  {
+    accent = "hanko",
+    kanji,
+    label,
+    to,
+    onClick,
+    disabled = false,
+    title,
+    spotlight = false,
+    spotlightHint,
+  },
+  ref,
+) {
+  const { bg, glow } = PROFILE_CHIP_ACCENTS[accent] ?? PROFILE_CHIP_ACCENTS.hanko;
+  const styleVars = {
+    "--chip-accent": bg,
+    "--chip-glow": glow,
+  };
+
+  // The class chain reads "border 40 % opacity + bg 6 % + text
+  // accent" at rest, then "border 80 % + bg 12 % + lift 0.5 px
+  // + accent-tinted shadow" on hover — same vocabulary across
+  // all five accents thanks to `--chip-accent`.
+  const baseClass =
+    "inline-flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--chip-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1";
+  const idleClass =
+    "border-[color:var(--chip-accent)]/40 bg-[color:var(--chip-accent)]/[0.06] text-[color:var(--chip-accent)] hover:-translate-y-0.5 hover:border-[color:var(--chip-accent)]/80 hover:bg-[color:var(--chip-accent)]/[0.12] hover:shadow-[0_8px_22px_-10px_var(--chip-glow)]";
+  const disabledClass =
+    "border-[color:var(--chip-accent)]/25 bg-[color:var(--chip-accent)]/[0.04] text-[color:var(--chip-accent)]/60 opacity-60 cursor-not-allowed";
+  const className = `${baseClass} ${disabled ? disabledClass : idleClass} ${
+    spotlight ? "tour-pulse ring-[color:var(--chip-accent)]" : ""
+  }`;
+
+  const inner = (
+    <>
+      <span
+        aria-hidden="true"
+        className="font-jp text-sm font-bold leading-none not-italic"
+      >
+        {kanji}
+      </span>
+      {label}
+      <span
+        aria-hidden="true"
+        className="-mr-0.5 transition-transform group-hover:translate-x-0.5"
+      >
+        →
+      </span>
+    </>
+  );
+
+  // Wrapper element: <Link> for routed chips, <button> for
+  // imperative ones (snapshot modal trigger), <span> for the
+  // offline-disabled friends placeholder.
+  let chip;
+  if (disabled && !to) {
+    chip = (
+      <span
+        ref={ref}
+        role="link"
+        aria-disabled="true"
+        title={title}
+        aria-label={title}
+        className={className}
+        style={styleVars}
+      >
+        {inner}
+      </span>
+    );
+  } else if (to) {
+    chip = (
+      <Link
+        ref={ref}
+        to={to}
+        className={className}
+        style={styleVars}
+        title={title}
+      >
+        {inner}
+      </Link>
+    );
+  } else {
+    chip = (
+      <button
+        ref={ref}
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={className}
+        style={styleVars}
+        title={title}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  // Spotlight requires a positioning anchor; wrap conditionally
+  // so non-spotlight chips don't pay the extra wrapper.
+  if (!spotlight) return chip;
+  return (
+    <span className="relative">
+      {chip}
+      {spotlightHint ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[color:var(--chip-accent)]/55 bg-ink-1/95 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-[color:var(--chip-accent)] shadow-[0_4px_14px_var(--chip-glow)] animate-fade-up"
+          style={styleVars}
+        >
+          {spotlightHint}
+        </span>
+      ) : null}
+    </span>
+  );
+});
 
 function HeroStat({ label, value, sub, hint, accent, loading }) {
   const accentClass =
@@ -803,31 +969,3 @@ function HeroStat({ label, value, sub, hint, accent, loading }) {
   );
 }
 
-/**
- * 金 · Suspense fallback for the lazy-loaded chart cards.
- *
- * Mirrors the inner skeleton each chart shows during its own
- * `loading` branch, so the layout stays put when the recharts
- * chunk arrives — no jank, no card flicker. `kind` switches
- * between bar-chart and pie-chart skeletons; both occupy the same
- * 16rem card height the live components do.
- */
-function ChartSkeletonCard({ kind }) {
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur">
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-5 w-40" />
-      </div>
-      <div className="mt-4 h-64">
-        {kind === "pie" ? (
-          <div className="flex h-full items-center justify-center">
-            <Skeleton.Circle size={180} thickness={28} />
-          </div>
-        ) : (
-          <Skeleton.Bars count={6} maxHeight={230} />
-        )}
-      </div>
-    </div>
-  );
-}

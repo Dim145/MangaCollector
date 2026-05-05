@@ -15,7 +15,7 @@ export default function ActionableLists({ middleGaps, stale, loading, library })
   const t = useT();
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <GapsPanel middleGaps={middleGaps} loading={loading} t={t} library={library} />
       <StalePanel stale={stale} loading={loading} t={t} library={library} />
     </div>

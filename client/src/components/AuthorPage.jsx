@@ -1,5 +1,5 @@
 import { useContext, useMemo, useRef, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import {
@@ -356,7 +356,7 @@ function Hero({
         )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[auto_1fr] md:items-start md:gap-10">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[auto_minmax(0,1fr)] md:items-start md:gap-10">
         {/* LEFT — portrait. Renders a placeholder seal when no photo
             is available (custom author override or MAL row without
             an image_url). The frame is a hanko-stamped circle to
@@ -378,7 +378,10 @@ function Hero({
 
         {/* RIGHT — name + brushstroke + bio + stats triad */}
         <div className="min-w-0">
-          <h1 className="font-display text-5xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl lg:text-7xl">
+          <h1
+            data-ink-trail="true"
+            className="font-display text-5xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl lg:text-7xl"
+          >
             <span className="text-hanko-gradient font-semibold not-italic">
               {heroName}
             </span>

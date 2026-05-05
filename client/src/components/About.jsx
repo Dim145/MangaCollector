@@ -106,7 +106,10 @@ export default function About({ googleUser } = {}) {
               {t("about.version")}
             </span>
 
-            <h1 className="mt-6 font-display text-5xl font-light leading-[0.95] tracking-tight text-washi md:text-7xl lg:text-8xl animate-fade-up">
+            <h1
+              data-ink-trail="true"
+              className="mt-6 font-display text-5xl font-light leading-[0.95] tracking-tight text-washi md:text-7xl lg:text-8xl animate-fade-up"
+            >
               {t("about.heroStart")}{" "}
               <em className="italic font-semibold text-hanko-gradient not-italic md:italic">
                 {t("about.heroAccent")}
@@ -214,7 +217,7 @@ export default function About({ googleUser } = {}) {
       {/* ─────────── Philosophy / Stats ─────────── */}
       <section className="relative px-4 py-16 sm:px-6 md:py-24">
         <div className="mx-auto max-w-6xl">
-          <div className="grid gap-8 md:grid-cols-2 md:gap-16">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-16">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
                 {t("about.philosophy")}
@@ -249,7 +252,7 @@ export default function About({ googleUser } = {}) {
             </h2>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <FeatureCard
               number="01"
               title={t("about.f1Title")}
@@ -298,7 +301,7 @@ export default function About({ googleUser } = {}) {
             </h2>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Testimonial
               quote={t("about.t1Quote")}
               name={t("about.t1Name")}
