@@ -1033,6 +1033,10 @@ export default {
     shelf3dBody:
       "Les cartes du tableau de bord adoptent une légère perspective avec des ombres de tranche, posées sur une ligne de bois — comme une vraie étagère parcourue à l'œil. Désactivé en mode sélection multiple.",
     shelf3dToggleAria: "Activer la vue étagère 3D",
+    flourishesTitle: "Touches visuelles",
+    flourishesBody: "Petits effets décoratifs activables à la carte — chacun ajoute un détail au reste de l'interface sans toucher au thème ou à l'accent.",
+    feedbackTitle: "Retours sensoriels",
+    feedbackBody: "Sons d'interface et vibrations — deux canaux de confirmation indépendants, chacun gardé par les permissions de l'OS.",
     inkTrailTitle: "Traînée d'encre",
     inkTrailBody:
       "Le curseur dépose une traînée pinceau hanko sous les grands titres — un clin d'œil sumi-e quand vous survolez un titre de page. Désactivé par défaut, sans effet sur écran tactile ni en mode mouvement réduit.",
@@ -1221,7 +1225,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.11.0 · Archivez votre collection",
+    version: "v2.12.0 · Archivez votre collection",
     heroStart: "Chaque",
     heroAccent: "tome",
     heroEnd1: ",",

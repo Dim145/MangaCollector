@@ -1013,6 +1013,10 @@ export default {
     shelf3dBody:
       "Dashboard cards take on a light perspective tilt with edge shadows, resting on a wood-grain line — like browsing an actual bookshelf. Disabled in multi-select mode.",
     shelf3dToggleAria: "Toggle 3D shelf view",
+    flourishesTitle: "Visual flourishes",
+    flourishesBody: "Optional decorative effects — each adds a detail to the rest of the interface without touching the theme or the accent.",
+    feedbackTitle: "Sensory feedback",
+    feedbackBody: "Interface sounds and haptic vibrations — two independent confirmation channels, each gated by the OS permissions.",
     inkTrailTitle: "Ink trail",
     inkTrailBody:
       "The cursor deposits a hanko brush stroke under large headings — a sumi-e flourish as you hover a page title. Off by default, ignored on touch screens and when reduced motion is requested.",
@@ -1198,7 +1202,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.11.0 · Archive your collection",
+    version: "v2.12.0 · Archive your collection",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",

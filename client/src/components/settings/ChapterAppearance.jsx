@@ -1,7 +1,14 @@
 import SeasonSection from "@/components/SeasonSection.jsx";
 import AtmosphereSection from "@/components/AtmosphereSection.jsx";
 import { ACCENTS } from "@/lib/accent.js";
-import { Card, CardHeader, Chapter, RadioCard, SubBlock } from "./_shared.jsx";
+import {
+  Card,
+  CardHeader,
+  Chapter,
+  MultiToggleCard,
+  RadioCard,
+  SubBlock,
+} from "./_shared.jsx";
 
 export default function ChapterAppearance({
   chapter,
@@ -23,13 +30,19 @@ export default function ChapterAppearance({
 }) {
   // ─── Ch. 1 · Apparence ─────────────────────────────────
   // Three sub-blocks ordered by sensory channel:
-  //   視 Visuel    — what the eye sees first (theme, accent, 3D)
-  //   雰 Ambiance  — environmental layers (season, particles)
-  //   響 Retours   — what your senses feel back (sound + haptic)
-  // Sound + Haptics used to live in the visual chapter as a
-  // flat afterthought; grouping them as 響 Retours surfaces
-  // their shared semantics and gets them out of the way of
-  // actual visual settings.
+  //   視 Visuel    — what the eye sees first
+  //                  · Theme + Accent (palette base)
+  //                  · 趣 Touches: Shelf 3D + Ink trail
+  //                                fused into a single
+  //                                MultiToggleCard since
+  //                                both are decorative
+  //                                visual flourishes.
+  //   雰 Ambiance  — environmental layers (season particles,
+  //                  atmosphere overlay)
+  //   響 Retours   — feedback channels: Sound + Haptics
+  //                  fused into one MultiToggleCard since
+  //                  both are simple sensory toggles with
+  //                  per-toggle gating disclosures.
   return (
     <Chapter
       id="appearance"
@@ -50,15 +63,34 @@ export default function ChapterAppearance({
           onChange={onAccentChange}
           t={t}
         />
-        <Shelf3DSection
-          enabled={shelf3d}
-          onToggle={onShelf3dChange}
-          t={t}
-        />
-        <InkTrailSection
-          enabled={inkTrail}
-          onToggle={onInkTrailChange}
-          t={t}
+        {/* 趣 · Decorative toggles — fused into a single card so
+            the user sees "the visual flourishes" as one cluster
+            instead of two near-identical near-empty cards. */}
+        <MultiToggleCard
+          title={t("settings.flourishesTitle")}
+          body={t("settings.flourishesBody")}
+          kanji="趣"
+          accent="hanko"
+          toggles={[
+            {
+              id: "shelf3d",
+              kanji: "棚",
+              title: t("settings.shelf3dTitle"),
+              body: t("settings.shelf3dBody"),
+              enabled: shelf3d,
+              onToggle: onShelf3dChange,
+              ariaLabel: t("settings.shelf3dToggleAria"),
+            },
+            {
+              id: "inkTrail",
+              kanji: "筆",
+              title: t("settings.inkTrailTitle"),
+              body: t("settings.inkTrailBody"),
+              enabled: inkTrail,
+              onToggle: onInkTrailChange,
+              ariaLabel: t("settings.inkTrailToggleAria"),
+            },
+          ]}
         />
       </SubBlock>
 
@@ -68,15 +100,46 @@ export default function ChapterAppearance({
       </SubBlock>
 
       <SubBlock block={subBlocks.feedback} t={t}>
-        <SoundSection
-          enabled={soundEnabled}
-          onToggle={onSoundChange}
-          t={t}
-        />
-        <HapticsSection
-          enabled={hapticsOn}
-          onToggle={onHapticsToggle}
-          t={t}
+        {/* 響 · Sensory feedback — fused into a single card.
+            Sound carries gold accent (it's the "celebratory"
+            channel), haptics carries hanko (kinaesthetic
+            confirmation). The per-toggle gating disclosures
+            below each row preserve the OS-level caveat
+            messages the standalone cards used to surface. */}
+        <MultiToggleCard
+          title={t("settings.feedbackTitle")}
+          body={t("settings.feedbackBody")}
+          kanji="響"
+          accent="hanko"
+          toggles={[
+            {
+              id: "sound",
+              kanji: "音",
+              title: t("settings.soundTitle"),
+              body: t("settings.soundBody"),
+              enabled: soundEnabled,
+              onToggle: onSoundChange,
+              accent: "gold",
+              ariaLabel: t("settings.soundToggleAria"),
+              gating: {
+                label: t("settings.soundGatingLabel"),
+                detail: t("settings.soundGatingDetail"),
+              },
+            },
+            {
+              id: "haptics",
+              kanji: "振",
+              title: t("settings.hapticsTitle"),
+              body: t("settings.hapticsBody"),
+              enabled: hapticsOn,
+              onToggle: onHapticsToggle,
+              ariaLabel: t("settings.hapticsToggleAria"),
+              gating: {
+                label: t("settings.hapticsGatingLabel"),
+                detail: t("settings.hapticsGatingDetail"),
+              },
+            },
+          ]}
         />
       </SubBlock>
     </Chapter>
@@ -212,225 +275,6 @@ function AccentSection({ value, onChange, t }) {
           );
         })}
       </div>
-    </section>
-  );
-}
-
-function Shelf3DSection({ enabled, onToggle, t }) {
-  return (
-    <section
-      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
-      style={{ animationDelay: "210ms" }}
-    >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <span
-            aria-hidden="true"
-            className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-hanko/20 font-jp text-[10px] font-bold text-hanko-bright"
-          >
-            棚
-          </span>
-          <div className="min-w-0">
-            <h2 className="font-display text-lg font-semibold text-washi">
-              {t("settings.shelf3dTitle")}
-            </h2>
-            <p className="mt-1 text-xs text-washi-muted">
-              {t("settings.shelf3dBody")}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label={t("settings.shelf3dToggleAria")}
-          onClick={() => onToggle(!enabled)}
-          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${
-            enabled
-              ? "border-hanko bg-hanko/80"
-              : "border-border bg-ink-2"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
-              enabled
-                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
-                : "left-0.5 bg-washi-dim"
-            }`}
-          />
-        </button>
-      </div>
-    </section>
-  );
-}
-
-/**
- * 筆 · Ink-trail toggle.
- *
- * Off by default. The brush-trail cursor is decorative,
- * fine-pointer-only, and only fires over headings explicitly
- * marked with `data-ink-trail`. Same toggle anatomy as the
- * 3D shelf section above so the visual sub-block keeps a
- * single rhythm: kanji chip + title + body + switch.
- */
-function InkTrailSection({ enabled, onToggle, t }) {
-  return (
-    <section
-      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
-      style={{ animationDelay: "240ms" }}
-    >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <span
-            aria-hidden="true"
-            className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-hanko/20 font-jp text-[10px] font-bold text-hanko-bright"
-          >
-            筆
-          </span>
-          <div className="min-w-0">
-            <h2 className="font-display text-lg font-semibold text-washi">
-              {t("settings.inkTrailTitle")}
-            </h2>
-            <p className="mt-1 text-xs text-washi-muted">
-              {t("settings.inkTrailBody")}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label={t("settings.inkTrailToggleAria")}
-          onClick={() => onToggle(!enabled)}
-          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${
-            enabled
-              ? "border-hanko bg-hanko/80"
-              : "border-border bg-ink-2"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
-              enabled
-                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
-                : "left-0.5 bg-washi-dim"
-            }`}
-          />
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function SoundSection({ enabled, onToggle, t }) {
-  return (
-    <section
-      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
-      style={{ animationDelay: "360ms" }}
-    >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <span
-            aria-hidden="true"
-            className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-gold/20 font-jp text-[10px] font-bold text-gold"
-          >
-            音
-          </span>
-          <div className="min-w-0">
-            <h2 className="font-display text-lg font-semibold text-washi">
-              {t("settings.soundTitle")}
-            </h2>
-            <p className="mt-1 text-xs text-washi-muted">
-              {t("settings.soundBody")}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label={t("settings.soundToggleAria")}
-          onClick={() => onToggle(!enabled)}
-          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${
-            enabled
-              ? "border-gold bg-gold/80"
-              : "border-border bg-ink-2"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
-              enabled
-                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
-                : "left-0.5 bg-washi-dim"
-            }`}
-          />
-        </button>
-      </div>
-
-      <p className="mt-2 rounded-lg border border-border bg-ink-0/40 px-3 py-2 text-[11px] leading-relaxed text-washi-muted">
-        <span className="font-mono uppercase tracking-[0.2em] text-washi-dim">
-          {t("settings.soundGatingLabel")}
-        </span>{" "}
-        {t("settings.soundGatingDetail")}
-      </p>
-    </section>
-  );
-}
-
-function HapticsSection({ enabled, onToggle, t }) {
-  return (
-    <section
-      className="rounded-2xl border border-border bg-ink-1/50 p-6 backdrop-blur animate-fade-up"
-      style={{ animationDelay: "300ms" }}
-    >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <span
-            aria-hidden="true"
-            className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-hanko/20 font-jp text-[10px] font-bold text-hanko-bright"
-          >
-            振
-          </span>
-          <div className="min-w-0">
-            <h2 className="font-display text-lg font-semibold text-washi">
-              {t("settings.hapticsTitle")}
-            </h2>
-            <p className="mt-1 text-xs text-washi-muted">
-              {t("settings.hapticsBody")}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label={t("settings.hapticsToggleAria")}
-          onClick={() => onToggle(!enabled)}
-          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${
-            enabled
-              ? "border-hanko bg-hanko/80"
-              : "border-border bg-ink-2"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
-              enabled
-                ? "left-[calc(100%-1.375rem)] bg-ink-0 shadow-md"
-                : "left-0.5 bg-washi-dim"
-            }`}
-          />
-        </button>
-      </div>
-
-      <p className="mt-2 rounded-lg border border-border bg-ink-0/40 px-3 py-2 text-[11px] leading-relaxed text-washi-muted">
-        <span className="font-mono uppercase tracking-[0.2em] text-washi-dim">
-          {t("settings.hapticsGatingLabel")}
-        </span>{" "}
-        {t("settings.hapticsGatingDetail")}
-      </p>
     </section>
   );
 }

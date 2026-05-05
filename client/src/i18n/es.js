@@ -1019,6 +1019,10 @@ export default {
     shelf3dBody:
       "Las tarjetas del panel adoptan una ligera inclinación con sombras laterales, apoyadas en una línea de madera — como recorrer una estantería de verdad. Desactivado en modo selección múltiple.",
     shelf3dToggleAria: "Activar la vista estantería 3D",
+    flourishesTitle: "Toques visuales",
+    flourishesBody: "Pequeños efectos decorativos opcionales — cada uno añade un detalle al resto de la interfaz sin tocar el tema ni el acento.",
+    feedbackTitle: "Retornos sensoriales",
+    feedbackBody: "Sonidos de interfaz y vibraciones hápticas — dos canales de confirmación independientes, cada uno gobernado por los permisos del SO.",
     inkTrailTitle: "Estela de tinta",
     inkTrailBody:
       "El cursor deja un trazo de pincel hanko bajo los títulos grandes — un guiño sumi-e al pasar sobre un título de página. Desactivado por defecto; ignorado en pantallas táctiles y con movimiento reducido.",
@@ -1205,7 +1209,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.11.0 · Archiva tu colección",
+    version: "v2.12.0 · Archiva tu colección",
     heroStart: "Cada",
     heroAccent: "tomo",
     heroEnd1: ",",
