@@ -22,6 +22,21 @@ pub struct UnifiedSearchResult {
     pub content_rating: Option<String>,
 }
 
+/// Outcome of a `merged_search` call. Carries the (possibly empty) result
+/// list plus a `degraded` flag set when BOTH upstream providers failed.
+///
+/// 状 · Why a flag rather than a `Result`: when only one provider fails we
+/// can still merge the surviving side and return a useful list — the
+/// scan flow shouldn't error out just because MangaDex is having a bad
+/// day while MAL is fine. The flag distinguishes "honest empty result"
+/// (both providers succeeded, neither knew the title) from "we couldn't
+/// reach either side, treat as transient" so the client can route the
+/// latter into its error UI instead of silently showing "not found".
+pub struct MergedSearchOutcome {
+    pub results: Vec<UnifiedSearchResult>,
+    pub degraded: bool,
+}
+
 /// Parallel search on both APIs + merge. Merge rule (as specified by the
 /// product): when the same series is returned by BOTH sources, keep MAL's
 /// data for *everything* except the cover image, which MangaDex always wins.
@@ -35,16 +50,22 @@ pub async fn merged_search(
     client: &reqwest::Client,
     cache: Option<&CacheStore>,
     query: &str,
-) -> Vec<UnifiedSearchResult> {
+) -> MergedSearchOutcome {
     let trimmed = query.trim();
     if trimmed.is_empty() {
-        return Vec::new();
+        return MergedSearchOutcome {
+            results: Vec::new(),
+            degraded: false,
+        };
     }
 
     let (mal_res, md_res) = tokio::join!(
         mal_api::search_by_title(client, cache, trimmed),
         mangadex_api::search_by_title(client, cache, trimmed),
     );
+
+    let mal_failed = mal_res.is_err();
+    let md_failed = md_res.is_err();
 
     let mal_list = mal_res.unwrap_or_else(|e| {
         tracing::warn!(error = %e, "merged_search: MAL lookup failed");
@@ -55,7 +76,13 @@ pub async fn merged_search(
         Vec::new()
     });
 
-    merge(mal_list, md_list)
+    MergedSearchOutcome {
+        results: merge(mal_list, md_list),
+        // Only flag degraded when BOTH providers failed — a one-sided
+        // failure is masked by the surviving provider and shouldn't trip
+        // the client's transient-error UI.
+        degraded: mal_failed && md_failed,
+    }
 }
 
 /// Pure merge logic — split out to stay testable without network.

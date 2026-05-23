@@ -403,19 +403,28 @@ export default function AddPage() {
       book = await lookupISBN(isbn);
     } catch (err) {
       if (err?.code === "RATE_LIMITED") {
-        // Scanner closes; dedicated modal explains + points to Settings
+        // Scanner closes; dedicated modal explains + points to Settings.
+        // The body copy is the i18n'd `scan.rateLimitGeneric` (already
+        // translated in fr / en / es) — previously this branch read
+        // `err.message` from the JS Error thrown by `throttle()` /
+        // `lookupISBN`, which was a hard-coded English string and showed
+        // up untranslated inside the otherwise-localized "Google Books —
+        // limite atteinte" modal. The Error's own message stays English
+        // because it doubles as a devtools / stacktrace diagnostic, but
+        // the UI no longer leaks it.
         await holdLoadingView();
-        setRateLimited({
-          message:
-            err.message ??
-            "Google Books rate-limit reached. Set an API key to continue.",
-        });
+        setRateLimited({ message: t("scan.rateLimitGeneric") });
         setScannerOpen(false);
         return;
       }
-      // Any other 5xx / network hiccup → transient, auto-resume
+      // Any other 5xx / network hiccup → transient, auto-resume.
+      // The localized fallback is preferred over `err.message` because the
+      // latter is typically a raw fetch/axios string ("Network Error",
+      // "Failed to fetch", "Google Books error: 503") which most users
+      // can't act on — the i18n'd string at least tells them clearly
+      // what failed and that we're retrying.
       await holdLoadingView();
-      setScanTransientError(err?.message ?? "Lookup failed — will retry.");
+      setScanTransientError(t("scan.transientLookupFailed"));
       setScanPhase("transient");
       return;
     }
@@ -436,11 +445,20 @@ export default function AddPage() {
     try {
       candidates = await searchExternal(book.title);
     } catch (err) {
-      // External lookup hiccup = transient, will retry the whole scan
+      // External lookup hiccup = transient, will retry the whole scan.
+      // With the recent `searchExternal` change that stops swallowing axios
+      // errors, this branch is now reachable for real network failures
+      // (offline, server unreachable, 502 from our handler when MAL +
+      // MangaDex are both down). Before that change the user silently
+      // fell into the not-found modal even when both upstreams were
+      // dead — which matched the "scanner reopens with no message"
+      // bug report. The i18n'd message keeps the wording user-actionable
+      // regardless of the underlying axios stringification; the raw
+      // error is sent to `console.error` so it's still recoverable from
+      // devtools when diagnosing future incidents.
+      console.error("[scan] external search failed:", err);
       await holdLoadingView();
-      setScanTransientError(
-        err?.message ?? "External lookup failed — will retry.",
-      );
+      setScanTransientError(t("scan.transientExternalFailed"));
       setScanPhase("transient");
       return;
     }
@@ -494,7 +512,7 @@ export default function AddPage() {
     setScanCandidateIdx(0);
     setScanPhase("positive");
     setScanStatus("");
-  }, []);
+  }, [t]);
 
   const commitCurrentScan = async ({ missingVolumes = [] } = {}) => {
     if (!scanResult) return;
@@ -543,7 +561,8 @@ export default function AddPage() {
       }
       resumeScanning();
     } catch (err) {
-      setScanTransientError(err?.message ?? "Failed to add — will retry.");
+      console.error("[scan] commit failed:", err);
+      setScanTransientError(t("scan.transientCommitFailed"));
       setScanPhase("transient");
     } finally {
       setCommitting(false);
