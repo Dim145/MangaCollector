@@ -403,13 +403,17 @@ export default function AddPage() {
       book = await lookupISBN(isbn);
     } catch (err) {
       if (err?.code === "RATE_LIMITED") {
-        // Scanner closes; dedicated modal explains + points to Settings
+        // Scanner closes; dedicated modal explains + points to Settings.
+        // The body copy is the i18n'd `scan.rateLimitGeneric` (already
+        // translated in fr / en / es) — previously this branch read
+        // `err.message` from the JS Error thrown by `throttle()` /
+        // `lookupISBN`, which was a hard-coded English string and showed
+        // up untranslated inside the otherwise-localized "Google Books —
+        // limite atteinte" modal. The Error's own message stays English
+        // because it doubles as a devtools / stacktrace diagnostic, but
+        // the UI no longer leaks it.
         await holdLoadingView();
-        setRateLimited({
-          message:
-            err.message ??
-            "Google Books rate-limit reached. Set an API key to continue.",
-        });
+        setRateLimited({ message: t("scan.rateLimitGeneric") });
         setScannerOpen(false);
         return;
       }
