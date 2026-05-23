@@ -33,12 +33,11 @@ pub enum AppError {
     Internal(String),
 
     /// 配 · Upstream provider unreachable / failed (MAL, MangaDex, Google
-    /// Books proxy, etc.). Maps to 502 Bad Gateway so the client can
-    /// distinguish "we couldn't reach the data source" from a real "no
-    /// result" (200 with empty list) or our own bug (500). The scan flow
-    /// routes 502 through its `transient` UI rather than the "not-found"
-    /// modal, so the user sees a clear retry banner instead of being
-    /// silently told "this book isn't in our index".
+    /// Books proxy, etc.). Maps to 502 Bad Gateway. The inner `String` is
+    /// **log-only** — the public response body is a fixed literal in
+    /// `into_response` to avoid leaking upstream URLs, reqwest error
+    /// chains, or other internal detail to clients. Pass whatever debug
+    /// context is useful for `tracing::warn!`; it won't reach the wire.
     #[error("Upstream unavailable: {0}")]
     UpstreamUnavailable(String),
 }
@@ -114,13 +113,15 @@ impl IntoResponse for AppError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 json!({ "success": false, "error": GENERIC_5XX }),
             ),
-            // 502: the client (scan flow specifically) keys off this
-            // status to route into the transient/retry branch. The body
-            // is non-secret — it says "external service unreachable" but
-            // not which one or why — so the message can pass through.
-            AppError::UpstreamUnavailable(msg) => (
+            // 502: the client keys off this status to route into the
+            // transient/retry branch. The public body is a FIXED literal
+            // — the variant's inner `String` is for logs only. Mirroring
+            // the `GENERIC_5XX` policy: any caller (now or future) could
+            // put a reqwest error chain, upstream URL, or other internal
+            // detail into the String, and we don't want that to leak.
+            AppError::UpstreamUnavailable(_) => (
                 StatusCode::BAD_GATEWAY,
-                json!({ "success": false, "error": msg }),
+                json!({ "success": false, "error": "Upstream service unavailable" }),
             ),
         };
         (status, Json(body)).into_response()
