@@ -371,16 +371,26 @@ export function detectCoffret(book) {
  *
  * Server applies the merge rule: MAL data wins for metadata, MangaDex wins
  * for the cover. See `server/src/services/external.rs`.
+ *
+ * 失 · Error handling: real network / server failures are RETHROWN so the
+ * scan flow can route them through the `transient` phase (which surfaces a
+ * visible error in `ScanLoadingView`). The previous implementation swallowed
+ * every axios error and returned `[]`, which made a 5xx / offline / CORS
+ * issue indistinguishable from a legitimate "no MAL match" — the user just
+ * saw the "not-found" modal with no hint that the lookup had failed, and
+ * sometimes the modal closed itself (focus trap on backdrop) before they
+ * registered it. Letting real errors propagate routes them into the
+ * transient branch which has a `!` icon + i18n'd "Une erreur est survenue"
+ * banner + auto-retry countdown, so a network blip is visibly distinct
+ * from a missing entry.
+ *
+ * The empty-title guard stays an early `[]` return because that's not an
+ * error, just a no-op input.
  */
 export async function searchExternal(title) {
   if (!title?.trim()) return [];
-  try {
-    const { data } = await axios.get("/api/external/search", {
-      params: { q: title },
-    });
-    return data?.results ?? [];
-  } catch (err) {
-    console.error("external search failed", err);
-    return [];
-  }
+  const { data } = await axios.get("/api/external/search", {
+    params: { q: title },
+  });
+  return data?.results ?? [];
 }

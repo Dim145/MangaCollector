@@ -609,6 +609,12 @@ export default {
     queryingSources: "Interrogation Google Books · MyAnimeList",
     retryingAuto: "Nouvelle tentative automatique…",
     somethingWrong: "Une erreur est survenue",
+    transientLookupFailed:
+      "Échec de la recherche Google Books — nouvelle tentative dans quelques secondes.",
+    transientExternalFailed:
+      "Échec de la recherche MAL / MangaDex — nouvelle tentative dans quelques secondes.",
+    transientCommitFailed:
+      "Impossible d'ajouter ce tome — nouvelle tentative dans quelques secondes.",
     noMatchTitle: "Aucun résultat",
     noMatchBodyWithTitle:
       "L'ISBN {isbn} correspond à « {title} », mais aucune série équivalente sur MyAnimeList.",

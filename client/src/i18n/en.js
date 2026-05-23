@@ -593,6 +593,12 @@ export default {
     queryingSources: "Querying Google Books · MyAnimeList",
     retryingAuto: "Retrying automatically…",
     somethingWrong: "Something went wrong",
+    transientLookupFailed:
+      "Google Books lookup failed — retrying in a few seconds.",
+    transientExternalFailed:
+      "MAL / MangaDex lookup failed — retrying in a few seconds.",
+    transientCommitFailed:
+      "Couldn't add this volume — retrying in a few seconds.",
     noMatchTitle: "No match found",
     noMatchBodyWithTitle:
       'ISBN {isbn} resolved to "{title}", but no matching series on MyAnimeList.',
