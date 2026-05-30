@@ -936,21 +936,34 @@ function clearOpRetries(sig) {
   opRetryCounts.delete(sig);
 }
 
+// 鍵 · Idempotency-Key for an outbox op's PRIMARY mutating request.
+// `${sig}:${op.ts}` is stable across retries of the SAME enqueue (the
+// op's `ts` is fixed once written) yet unique per new intent (a coalesced
+// re-edit mints a fresh `ts`). Sent as a request header so a future
+// server-side dedup layer can recognise a replayed write — and as a
+// trace id in server logs today. No server behaviour depends on it yet;
+// this is the forward-compatible client half. Secondary idempotent
+// sub-requests (the poster PATCH that can ride along a library write)
+// intentionally omit it so they don't collide with the primary key.
+function idemConfig(sig, op) {
+  return { headers: { "Idempotency-Key": `${sig}:${op.ts}` } };
+}
+
 async function flushLibrary() {
   const ops = await db.outboxLibrary.orderBy("ts").toArray();
   for (const op of ops) {
     const sig = `library:${op.mal_id}`;
     try {
       if (op.op === "delete") {
-        await axios.delete(`/api/user/library/${op.mal_id}`);
+        await axios.delete(`/api/user/library/${op.mal_id}`, idemConfig(sig, op));
       } else if (op.op === "upsert") {
-        await axios.post(`/api/user/library`, op.payload);
+        await axios.post(`/api/user/library`, op.payload, idemConfig(sig, op));
         // Server auto-creates N volume rows on insert — pull them into Dexie
         // so the MangaPage grid paints them without a manual refresh.
         await refetchVolumes(op.mal_id).catch(() => {});
       } else if (op.op === "owned") {
         const n = op.payload.volumes_owned;
-        await axios.patch(`/api/user/library/${op.mal_id}/${n}`);
+        await axios.patch(`/api/user/library/${op.mal_id}/${n}`, undefined, idemConfig(sig, op));
         // Poster changes can ride along — the owned PATCH doesn't accept a
         // cover URL so we fire a dedicated /poster PATCH afterwards.
         if (op.payload?.image_url_jpg) {
@@ -980,7 +993,7 @@ async function flushLibrary() {
         // branch indicates a stale Dexie payload — harmless to send.
         if ("genres" in (op.payload ?? {})) meta.genres = op.payload.genres;
         if (Object.keys(meta).length > 0) {
-          await axios.patch(`/api/user/library/${op.mal_id}`, meta);
+          await axios.patch(`/api/user/library/${op.mal_id}`, meta, idemConfig(sig, op));
           // A volumes change rebuilds rows in user_volumes server-side;
           // refetch so the new rows surface in Dexie. Skip when only
           // metadata changed — no volume table mutation involved.
@@ -1043,7 +1056,7 @@ async function flushVolumes() {
         ...("loan" in (op.payload ?? {})
           ? { loan: op.payload.loan }
           : {}),
-      });
+      }, idemConfig(sig, op));
       await db.outboxVolumes.delete(op.id);
       clearOpRetries(sig);
       notifyPendingChanged();
@@ -1069,7 +1082,7 @@ async function flushSettings() {
   for (const op of ops) {
     const sig = `settings:${op.key}`;
     try {
-      const res = await axios.post(`/api/user/settings`, op.payload);
+      const res = await axios.post(`/api/user/settings`, op.payload, idemConfig(sig, op));
       await db.outboxSettings.delete(op.key);
       await cacheSettings(res.data);
       clearOpRetries(sig);
@@ -1111,6 +1124,7 @@ async function flushAuthors() {
         const { data } = await axios.patch(
           `/api/authors/${op.mal_id}`,
           op.payload ?? {},
+          idemConfig(sig, op),
         );
         await db.outboxAuthors.delete(op.mal_id);
         // Server echoes the updated AuthorDetail — reconcile cache.
@@ -1119,7 +1133,7 @@ async function flushAuthors() {
         }
         queryClient.setQueryData(["author", op.mal_id], data);
       } else if (op.op === "delete") {
-        await axios.delete(`/api/authors/${op.mal_id}`);
+        await axios.delete(`/api/authors/${op.mal_id}`, idemConfig(sig, op));
         await db.outboxAuthors.delete(op.mal_id);
         await db.authors.delete(op.mal_id);
         queryClient.removeQueries({ queryKey: ["author", op.mal_id] });
@@ -1189,6 +1203,7 @@ async function flushBulkMark() {
       await axios.post(
         `/api/user/library/${op.mal_id}/volumes/bulk-mark`,
         body,
+        idemConfig(sig, op),
       );
       await db.outboxBulkMark.delete(op.mal_id);
       await refetchVolumes(op.mal_id).catch(() => {});
@@ -1245,6 +1260,7 @@ async function flushCoffrets() {
         const { data } = await axios.post(
           `/api/user/library/${op.mal_id}/coffrets`,
           op.payload ?? {},
+          idemConfig(sig, op),
         );
         await db.outboxCoffrets.delete(op.id);
         const tempId = op.id;
@@ -1279,13 +1295,14 @@ async function flushCoffrets() {
         const { data } = await axios.patch(
           `/api/user/coffrets/${op.id}`,
           op.payload ?? {},
+          idemConfig(sig, op),
         );
         await db.outboxCoffrets.delete(op.id);
         if (data && data.id != null) {
           await db.coffrets.put(data);
         }
       } else if (op.op === "delete") {
-        await axios.delete(`/api/user/coffrets/${op.id}`);
+        await axios.delete(`/api/user/coffrets/${op.id}`, idemConfig(sig, op));
         await db.outboxCoffrets.delete(op.id);
         // The Dexie coffret row + volume bindings were already
         // cleared in `enqueueCoffretDelete`; nothing to do here.

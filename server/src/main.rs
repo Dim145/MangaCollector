@@ -301,6 +301,11 @@ async fn main() -> anyhow::Result<()> {
             axum::http::header::ORIGIN,
             axum::http::header::COOKIE,
             axum::http::header::HeaderName::from_static("x-requested-with"),
+            // 鍵 · Offline-sync outbox stamps each replayed write with an
+            // `Idempotency-Key`. Must be allow-listed here or the browser
+            // preflight rejects every mutating sync request in a
+            // cross-origin deployment (frontend + API on different hosts).
+            axum::http::header::HeaderName::from_static("idempotency-key"),
         ]);
 
     // Router
