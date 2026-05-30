@@ -1,7 +1,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
+use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
 };
 
 use crate::db::Db;
@@ -799,8 +800,34 @@ pub async fn add_volume_tx(
         store: Set(Some(String::new())),
         ..Default::default()
     };
-    model.insert(conn).await.map_err(AppError::from)?;
-    Ok(())
+    // Idempotent insert. A replayed outbox op (the offline client
+    // re-sends a library-add / volume-count change after a transient
+    // failure) or a race with the nightly upcoming-sweep must NOT raise
+    // a 23505 on the partial unique index
+    // `(user_id, mal_id, vol_num) WHERE mal_id IS NOT NULL`. ON CONFLICT
+    // DO NOTHING turns a duplicate into a clean no-op. `target_and_where`
+    // restates the partial index's predicate, which Postgres requires to
+    // match a partial unique index. On a conflict Postgres returns no row
+    // from the `DO NOTHING ... RETURNING`, which sea-orm surfaces as
+    // `RecordNotInserted` — that's the success case here (the row the
+    // caller wanted already exists), so we swallow it.
+    match VolumeEntity::insert(model)
+        .on_conflict(
+            OnConflict::columns([
+                volume::Column::UserId,
+                volume::Column::MalId,
+                volume::Column::VolNum,
+            ])
+            .target_and_where(Expr::col(volume::Column::MalId).is_not_null())
+            .do_nothing()
+            .to_owned(),
+        )
+        .exec(conn)
+        .await
+    {
+        Ok(_) | Err(DbErr::RecordNotInserted) => Ok(()),
+        Err(e) => Err(AppError::from(e)),
+    }
 }
 
 pub async fn delete_all_for_user_by_mal_id_tx(

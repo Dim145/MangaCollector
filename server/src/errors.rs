@@ -128,14 +128,46 @@ impl IntoResponse for AppError {
     }
 }
 
+// 衝突 · Postgres constraint violations are mapped to 409 Conflict, NOT
+// 500. This is load-bearing for the offline-sync client: its outbox
+// classifies 5xx as retriable (replay) and 4xx as terminal (drop +
+// reconcile). A unique-violation (23505) or FK-violation (23503) means
+// the write already landed, conflicts with existing state, or references
+// a now-missing row — none of which a blind replay can fix. Returning
+// 500 made the client retry the same doomed op in a storm (and, for a
+// non-idempotent write that had partially committed, re-apply it). 409
+// makes the client drop the op on the FIRST failure and pull server
+// truth back. Any other DB error stays a 500 (genuine server fault).
 impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
+        if let sqlx::Error::Database(db_err) = &e {
+            match db_err.code().as_deref() {
+                Some("23505") => {
+                    return AppError::Conflict("Resource already exists".into());
+                }
+                Some("23503") => {
+                    return AppError::Conflict(
+                        "Referenced record is missing".into(),
+                    );
+                }
+                _ => {}
+            }
+        }
         AppError::Database(e.to_string())
     }
 }
 
 impl From<sea_orm::DbErr> for AppError {
     fn from(e: sea_orm::DbErr) -> Self {
-        AppError::Database(e.to_string())
+        use sea_orm::SqlErr;
+        match e.sql_err() {
+            Some(SqlErr::UniqueConstraintViolation(_)) => {
+                AppError::Conflict("Resource already exists".into())
+            }
+            Some(SqlErr::ForeignKeyConstraintViolation(_)) => {
+                AppError::Conflict("Referenced record is missing".into())
+            }
+            _ => AppError::Database(e.to_string()),
+        }
     }
 }

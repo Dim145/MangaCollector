@@ -434,15 +434,24 @@ pub async fn reconcile_user(
                         .to_owned(),
                     )
                     .exec(db)
-                    .await
-                    .map_err(AppError::from)?;
-                if res.last_insert_id != 0 {
-                    report.added.push(UpcomingChange {
+                    .await;
+                // On Postgres a `DO NOTHING` conflict yields no RETURNING
+                // row, which sea-orm reports as `RecordNotInserted` (NOT
+                // `Ok` with last_insert_id == 0). The previous
+                // `?` + `else { skipped }` therefore mis-handled a
+                // concurrent-insert race: the `else` was unreachable and
+                // the race aborted the whole reconcile with a 500.
+                match res {
+                    // Ok ⇒ a row was actually inserted (added). A
+                    // DO NOTHING conflict never reaches Ok on Postgres.
+                    Ok(_) => report.added.push(UpcomingChange {
                         vol_num: incoming.vol_num,
                         release_date: incoming.release_date,
-                    });
-                } else {
-                    report.skipped += 1;
+                    }),
+                    Err(sea_orm::DbErr::RecordNotInserted) => {
+                        report.skipped += 1
+                    }
+                    Err(e) => return Err(AppError::from(e)),
                 }
             }
             Some(row) => {
