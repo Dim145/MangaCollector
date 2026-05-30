@@ -929,8 +929,15 @@ function startOfDay(d) {
 // of UTC — landing it in the wrong calendar cell and skewing the
 // "days until" countdown. Manga releases are date-only in intent, so we
 // read the Y-M-D and build a local date, keeping every consumer (cell,
-// countdown, month bucket) on the intended day. Falls back to the raw
-// parse for any unexpected (non-ISO-date-prefixed) value.
+// countdown, month bucket) on the intended day.
+//
+// Contract for bad input: a null/empty/non-ISO value yields an
+// `Invalid Date` (NaN time) — deliberately, NOT the 1970 epoch a bare
+// `new Date(null)` would give, which would render as a real (wrong)
+// day. Every caller here only ever passes a row's real `release_date`,
+// so the Invalid-Date branch is defensive; if it ever fires, an
+// "Invalid Date" label is a louder, more honest failure than a silent
+// Jan 1 1970 cell.
 function parseReleaseDate(value) {
   if (!value) return new Date(NaN);
   const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);

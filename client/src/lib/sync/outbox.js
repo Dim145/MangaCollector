@@ -887,13 +887,22 @@ function isUnretriable(err) {
 // otherwise wedge that entity's queue indefinitely, and — before the
 // orchestrator was isolated — froze EVERY entity's sync behind it.
 //
-// We count an op's retriable failures in memory (keyed by its unique
-// `ts`) and, once it blows the budget, treat it like an unretriable
-// error: the flush's existing drop branch fires (op removed + a
-// `syncError` surfaced) so the queue drains past it. In-memory by
-// design — a page reload grants a fresh budget, which is exactly the
-// "let it try again after the user reloads" behaviour we want; we are
-// not trying to permanently blacklist an op across sessions.
+// We count an op's retriable failures in memory and, once it blows the
+// budget, treat it like an unretriable error: the flush's existing drop
+// branch fires (op removed + a `syncError` surfaced) so the queue drains
+// past it. In-memory by design — a page reload grants a fresh budget,
+// which is exactly the "let it try again after the user reloads"
+// behaviour we want; we are not trying to permanently blacklist an op
+// across sessions.
+//
+// The signature is the op's STABLE primary key (mal_id / id / settings
+// key), NOT its `ts`. Keying by `ts` would mint a fresh budget every
+// time the user re-edits the same resource, so a persistently-failing
+// op the user keeps touching could retry forever. Keying by the stable
+// id means "writes to resource X keep failing" drains after the budget
+// regardless of edits — and `clearOpRetries` on success resets the
+// count so the next genuine op for that id starts clean (also keeps the
+// map from accumulating entries for resources that recovered).
 const MAX_OP_RETRIES = 6;
 const opRetryCounts = new Map();
 
@@ -910,9 +919,16 @@ function shouldDeadLetter(sig, err) {
   return false;
 }
 
+/** Reset an op's retry budget once it flushes successfully, so a later
+ *  op for the same resource starts fresh and the map doesn't leak. */
+function clearOpRetries(sig) {
+  opRetryCounts.delete(sig);
+}
+
 async function flushLibrary() {
   const ops = await db.outboxLibrary.orderBy("ts").toArray();
   for (const op of ops) {
+    const sig = `library:${op.mal_id}`;
     try {
       if (op.op === "delete") {
         await axios.delete(`/api/user/library/${op.mal_id}`);
@@ -968,9 +984,10 @@ async function flushLibrary() {
         }
       }
       await db.outboxLibrary.delete(op.mal_id);
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (shouldDeadLetter(`library:${op.ts}`, err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxLibrary.delete(op.mal_id);
         await refetchLibrary().catch(() => {});
         emitSyncError({
@@ -990,6 +1007,7 @@ async function flushLibrary() {
 async function flushVolumes() {
   const ops = await db.outboxVolumes.orderBy("ts").toArray();
   for (const op of ops) {
+    const sig = `volume:${op.id}`;
     try {
       await axios.patch(`/api/user/volume`, {
         id: op.id,
@@ -1016,9 +1034,10 @@ async function flushVolumes() {
           : {}),
       });
       await db.outboxVolumes.delete(op.id);
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (shouldDeadLetter(`volume:${op.ts}`, err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxVolumes.delete(op.id);
         if (op.mal_id) await refetchVolumes(op.mal_id).catch(() => {});
         emitSyncError({
@@ -1037,13 +1056,15 @@ async function flushVolumes() {
 async function flushSettings() {
   const ops = await db.outboxSettings.toArray();
   for (const op of ops) {
+    const sig = `settings:${op.key}`;
     try {
       const res = await axios.post(`/api/user/settings`, op.payload);
       await db.outboxSettings.delete(op.key);
       await cacheSettings(res.data);
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (shouldDeadLetter(`settings:${op.ts}`, err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxSettings.delete(op.key);
         await refetchSettings().catch(() => {});
         emitSyncError({
@@ -1073,6 +1094,7 @@ async function flushAuthors() {
   const ops = await db.outboxAuthors.orderBy("ts").toArray();
   let touchedDelete = false;
   for (const op of ops) {
+    const sig = `author:${op.mal_id}`;
     try {
       if (op.op === "patch") {
         const { data } = await axios.patch(
@@ -1095,9 +1117,10 @@ async function flushAuthors() {
         // Unknown op shape — drop to avoid blocking the queue.
         await db.outboxAuthors.delete(op.mal_id);
       }
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (shouldDeadLetter(`author:${op.ts}`, err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxAuthors.delete(op.mal_id);
         emitSyncError({
           op: "author",
@@ -1141,6 +1164,7 @@ async function flushBulkMark() {
   // path can't reproduce exactly.
   const ops = await db.outboxBulkMark.orderBy("ts").toArray();
   for (const op of ops) {
+    const sig = `bulkmark:${op.mal_id}`;
     try {
       const body = {};
       if (typeof op.owned === "boolean") body.owned = op.owned;
@@ -1158,9 +1182,10 @@ async function flushBulkMark() {
       await db.outboxBulkMark.delete(op.mal_id);
       await refetchVolumes(op.mal_id).catch(() => {});
       await refetchLibrary().catch(() => {});
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (shouldDeadLetter(`bulkmark:${op.ts}`, err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxBulkMark.delete(op.mal_id);
         // Server rejected the cascade — pull the authoritative
         // state so the optimistic local diff snaps back.
@@ -1203,6 +1228,7 @@ async function flushCoffrets() {
   const ops = await db.outboxCoffrets.orderBy("ts").toArray();
   let touchedDeleteOrCreate = false;
   for (const op of ops) {
+    const sig = `coffret:${op.id}`;
     try {
       if (op.op === "create") {
         const { data } = await axios.post(
@@ -1257,9 +1283,10 @@ async function flushCoffrets() {
         // Unknown op shape — drop to avoid blocking the queue.
         await db.outboxCoffrets.delete(op.id);
       }
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (shouldDeadLetter(`coffret:${op.ts}`, err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxCoffrets.delete(op.id);
         emitSyncError({
           op: "coffret",
