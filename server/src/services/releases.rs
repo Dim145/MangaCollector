@@ -387,7 +387,16 @@ pub async fn reconcile_user(
                     read_at: Set(None),
                     release_date: Set(Some(incoming.release_date)),
                     release_isbn: Set(incoming.release_isbn.clone()),
-                    release_url: Set(incoming.release_url.clone()),
+                    // Upstream-supplied (MangaUpdates / release-proxy =
+                    // third-party submitted links). Drop any non-http(s)
+                    // scheme so a `javascript:` / `data:` URL can't reach
+                    // the `<a href>` the client renders. The user-facing
+                    // add/edit paths already gate this via
+                    // `normalize_release_url`; the sweep is the other
+                    // write path and was previously unguarded.
+                    release_url: Set(crate::services::volume::sanitize_release_url(
+                        incoming.release_url.as_deref(),
+                    )),
                     origin: Set(incoming.origin.to_string()),
                     announced_at: Set(Some(now)),
                     ..Default::default()

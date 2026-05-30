@@ -10,8 +10,6 @@ use crate::models::library::{self, Entity as LibraryEntity, LibraryEntry};
 use crate::models::user::{User, derive_hanko};
 use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
 
-use crate::services::genres::is_adult;
-
 async fn load_entries(db: &Db, user_id: i32) -> Result<Vec<LibraryEntry>, AppError> {
     let rows = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
@@ -74,17 +72,18 @@ pub async fn compare_users(
     let mine = load_entries(db, me.id).await?;
     let theirs_raw = load_entries(db, other.id).await?;
 
-    // Filter the OTHER user's library for adult content — but only if
-    // they haven't opted-in to public adult exposure. My own library
-    // is always shown in full (even if I've opted-out publicly).
-    let theirs: Vec<LibraryEntry> = if other.public_show_adult {
-        theirs_raw
-    } else {
-        theirs_raw
-            .into_iter()
-            .filter(|e| !is_adult(&e.genres))
-            .collect()
-    };
+    // Filter the OTHER user's library through the SAME visibility
+    // predicate the public profile uses — adult opt-out AND the
+    // Birthday-mode wishlist horizon. Previously this applied only the
+    // adult gate, so the compare view leaked wishlist (0-owned) entries
+    // that `build_public_profile` hides. My own library is always shown
+    // in full (even if I've opted-out publicly), hence the gate is
+    // one-sided.
+    let now = chrono::Utc::now();
+    let theirs: Vec<LibraryEntry> = theirs_raw
+        .into_iter()
+        .filter(|e| crate::services::users::entry_publicly_visible(other, e, now))
+        .collect();
 
     // Build lookup by mal_id. Entries without a mal_id (custom series)
     // can never match across users by definition, so they always fall

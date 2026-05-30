@@ -582,6 +582,11 @@ pub async fn resolve_author_from_text(
         return Ok(None);
     }
     let name: String = trimmed.chars().take(AUTHOR_NAME_MAX_LEN).collect();
+    // Escape LIKE wildcards so a name containing `%`/`_` (e.g. an author
+    // literally named "%") matches itself rather than every row. With no
+    // surrounding `%…%`, an escaped `ILIKE` reduces to exact
+    // case-insensitive equality — the intended dedup/resolve behaviour.
+    let name_like = crate::services::library::escape_like(&name);
 
     // Shared MAL author with same name (case-insensitive). `ilike`
     // without wildcards reduces to exact case-insensitive equality —
@@ -589,7 +594,7 @@ pub async fn resolve_author_from_text(
     // `idx_authors_name_ci` index if one is present.
     let shared_match = AuthorEntity::find()
         .filter(author::Column::UserId.is_null())
-        .filter(Expr::col(author::Column::Name).ilike(name.clone()))
+        .filter(Expr::col(author::Column::Name).ilike(name_like.clone()))
         .select_only()
         .column(author::Column::Id)
         .into_tuple::<i32>()
@@ -602,7 +607,7 @@ pub async fn resolve_author_from_text(
 
     let user_match = AuthorEntity::find()
         .filter(author::Column::UserId.eq(user_id))
-        .filter(Expr::col(author::Column::Name).ilike(name.clone()))
+        .filter(Expr::col(author::Column::Name).ilike(name_like.clone()))
         .select_only()
         .column(author::Column::Id)
         .into_tuple::<i32>()

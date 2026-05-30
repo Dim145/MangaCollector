@@ -183,16 +183,44 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
     out
 }
 
-/// CSV-escape a single field: wrap in double quotes if it contains
-/// comma, quote, or newline; double any embedded quotes.
+/// CSV-escape a single field: neutralise spreadsheet formula injection,
+/// then wrap in double quotes if it contains comma, quote, CR or LF;
+/// double any embedded quotes.
+///
+/// 防 · Formula-injection guard (CSV/CWE-1236): Excel / Sheets / Calc
+/// evaluate a cell that begins with `=`, `+`, `@`, or a leading TAB/CR
+/// as a formula, and `-` too unless it's a plain negative number. Series
+/// names, store, and notes are fully user-controlled, so a value like
+/// `=HYPERLINK(...)` or `=cmd|'/c calc'!A1` would execute when the
+/// exported CSV is opened. We prefix such fields with a single quote so
+/// the spreadsheet renders them literally. `-` followed by a digit/`.`
+/// is left intact so legitimate negative numbers survive.
 fn csv_escape(s: &str) -> String {
-    let needs_quote =
-        s.contains(',') || s.contains('"') || s.contains('\n');
+    let guarded = if starts_like_formula(s) {
+        format!("'{s}")
+    } else {
+        s.to_string()
+    };
+    let needs_quote = guarded.contains(',')
+        || guarded.contains('"')
+        || guarded.contains('\n')
+        || guarded.contains('\r');
     if !needs_quote {
-        return s.to_string();
+        return guarded;
     }
-    let escaped = s.replace('"', "\"\"");
+    let escaped = guarded.replace('"', "\"\"");
     format!("\"{}\"", escaped)
+}
+
+/// True when `s` would be interpreted as a formula by a spreadsheet.
+fn starts_like_formula(s: &str) -> bool {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some('=') | Some('+') | Some('@') | Some('\t') | Some('\r') => true,
+        // `-5` / `-3.2` are legit negative numbers; `-=…` / `-cmd` aren't.
+        Some('-') => !matches!(chars.next(), Some(c) if c.is_ascii_digit() || c == '.'),
+        _ => false,
+    }
 }
 
 /// Apply an import bundle in **merge** mode. Series whose mal_id is
@@ -354,7 +382,18 @@ pub async fn apply_import_merge(
             } else {
                 Some(genres_str)
             }),
-            mangadex_id: Set(series.mangadex_id.clone()),
+            // Gate the bundle-supplied mangadex_id behind the same
+            // canonical-UUID check the live add-paths enforce. Other
+            // code relies on "mangadex_id is always a UUID" (it flows
+            // into MangaDex cover/metadata fetches); an import bundle
+            // is fully attacker-authored, so a malformed value would
+            // break that invariant. Drop it (keep the series, lose the
+            // cross-link) rather than failing the whole import.
+            mangadex_id: Set(series
+                .mangadex_id
+                .as_deref()
+                .filter(|id| crate::util::uuid::is_canonical_uuid(id))
+                .map(str::to_string)),
             created_on: Set(now),
             modified_on: Set(now),
             ..Default::default()

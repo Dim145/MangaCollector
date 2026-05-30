@@ -592,7 +592,7 @@ fn normalize_release_url(raw: Option<&str>) -> Result<Option<String>, AppError> 
     match raw.map(str::trim) {
         None | Some("") => Ok(None),
         Some(s) => {
-            if !(s.starts_with("http://") || s.starts_with("https://")) {
+            if !is_http_url(s) {
                 return Err(AppError::BadRequest(
                     "release_url must start with http:// or https://".into(),
                 ));
@@ -600,6 +600,25 @@ fn normalize_release_url(raw: Option<&str>) -> Result<Option<String>, AppError> 
             Ok(Some(s.to_string()))
         }
     }
+}
+
+/// Non-erroring counterpart to `normalize_release_url`, for batch
+/// contexts (the nightly upcoming-volume sweep) where an upstream-
+/// supplied URL — MangaUpdates / the release-proxy serve third-party
+/// submitted links — must be dropped silently rather than failing the
+/// whole job. Anything that isn't `http(s)://` becomes `None` so a
+/// `javascript:` / `data:` payload can never reach the `<a href>` the
+/// client renders for a release row.
+pub(crate) fn sanitize_release_url(raw: Option<&str>) -> Option<String> {
+    match raw.map(str::trim) {
+        Some(s) if is_http_url(s) => Some(s.to_string()),
+        _ => None,
+    }
+}
+
+#[inline]
+fn is_http_url(s: &str) -> bool {
+    s.starts_with("http://") || s.starts_with("https://")
 }
 
 pub async fn add_upcoming_manually(

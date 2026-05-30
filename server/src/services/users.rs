@@ -2,7 +2,7 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use std::sync::Arc;
 
-use crate::db::{Db, DbPool};
+use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity::Entity as ActivityEntity;
 use crate::models::author::{self as author_mod, Entity as AuthorEntity};
@@ -185,6 +185,33 @@ pub async fn set_public_slug(
 /// canonical implementation lives in `services::genres`.
 pub(crate) fn entry_is_adult(genres: &[String]) -> bool {
     crate::services::genres::is_adult(genres)
+}
+
+/// 公開 · Single source of truth for "may another user see THIS entry on
+/// `owner`'s public surface?". Combines the two gates the public profile
+/// enforces:
+///   1. adult opt-out — hidden unless the owner set `public_show_adult`
+///   2. Birthday-mode wishlist horizon — wishlist rows (0 owned) are
+///      hidden unless `wishlist_public_until` is still in the future
+///
+/// `build_public_profile` (the canonical reference), `compare_users`,
+/// and `copy_series_from_other_user` MUST all gate through this. They
+/// previously drifted: compare leaked wishlist entries and the copy
+/// path ignored both gates, letting a caller confirm/clone a series the
+/// owner had deliberately hidden. Routing every cross-user read through
+/// one predicate is what keeps them from drifting again.
+pub(crate) fn entry_publicly_visible(
+    owner: &User,
+    entry: &LibraryEntry,
+    now: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    let adult_ok = owner.public_show_adult || !entry_is_adult(&entry.genres);
+    let wishlist_open = owner
+        .wishlist_public_until
+        .map(|t| t > now)
+        .unwrap_or(false);
+    let wishlist_ok = wishlist_open || entry.volumes_owned > 0;
+    adult_ok && wishlist_ok
 }
 
 
@@ -625,7 +652,6 @@ pub async fn find_or_create(
 ///      bit of orphaned storage).
 pub async fn delete_account(
     db: &Db,
-    pool: &DbPool,
     storage: Arc<dyn StorageBackend>,
     user_id: i32,
 ) -> Result<(), AppError> {
@@ -730,10 +756,14 @@ pub async fn delete_account(
         }
     }
     for sid in &session_ids {
-        if let Err(e) = sqlx::query("DELETE FROM tower_sessions WHERE id = $1")
-            .bind(sid)
-            .execute(pool)
-            .await
+        // 始末 · Use the shared helper, which targets the real
+        // `"tower_sessions"."session"` table. The previous raw
+        // `DELETE FROM tower_sessions` hit the legacy `public`
+        // table dropped in migration 20260426160000 — every call
+        // errored, the error was swallowed, and the raw session
+        // blobs survived account deletion (silent GDPR-erasure gap).
+        if let Err(e) =
+            crate::services::sessions_cleanup::delete_tower_session(db, sid).await
         {
             tracing::warn!(user_id, error = %e, "delete_account: tower_sessions row removal failed");
         }

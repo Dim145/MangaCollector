@@ -135,8 +135,13 @@ pub async fn generate_ics(db: &Db, user: &User) -> Result<String, AppError> {
 
         if let Some(url) = entry.release_url.as_deref() {
             // RFC 5545 URL property — Apple/Google surface this as
-            // a clickable link in the event detail view.
-            write_folded(&mut buf, "URL", url);
+            // a clickable link in the event detail view. This line
+            // bypasses `escape_text` (a URL must not be `\,`/`\;`
+            // escaped), so strip CR/LF here directly to prevent a
+            // folded-property injection from an upstream-supplied URL.
+            let safe_url: String =
+                url.chars().filter(|c| *c != '\r' && *c != '\n').collect();
+            write_folded(&mut buf, "URL", &safe_url);
         }
 
         // Transparent so subscribers can stack other events on the
@@ -203,6 +208,10 @@ fn escape_text(s: &str) -> String {
         .replace(';', "\\;")
         .replace(',', "\\,")
         .replace('\n', "\\n")
+        // Strip stray CR so an upstream-supplied value (release_url /
+        // ISBN / origin come from third-party feeds) can't fold-inject
+        // a new ICS property via a bare `\r` the LF escape above misses.
+        .replace('\r', "")
 }
 
 /// Append `NAME:VALUE\r\n` with RFC 5545 line folding — wraps the

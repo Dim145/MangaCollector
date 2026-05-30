@@ -101,6 +101,14 @@ async fn main() -> anyhow::Result<()> {
     let http_client = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(5))
         .timeout(std::time::Duration::from_secs(30))
+        // Cap redirects (default is up to 10). Every outbound host is a
+        // fixed literal today, so user input never controls a request
+        // target — but if one of those trusted upstreams ever issues an
+        // open redirect, an unbounded follow could chain into an
+        // internal host (SSRF). Two hops covers legitimate CDN/host
+        // moves without giving a redirect chain room to pivot. The OIDC
+        // client sets `Policy::none()` separately (auth.rs).
+        .redirect(reqwest::redirect::Policy::limited(2))
         .build()
         .expect("reqwest client builder should not fail with defaults");
 

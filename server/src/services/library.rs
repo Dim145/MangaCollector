@@ -585,9 +585,10 @@ pub async fn copy_series_from_other_user(
     cache: Option<&CacheStore>,
     activity_buffer: &crate::services::activity_coalescer::ActivityCoalescer,
     me_user_id: i32,
-    other_user_id: i32,
+    other: &crate::models::user::User,
     source_mal_id: i32,
 ) -> Result<LibraryEntry, AppError> {
+    let other_user_id = other.id;
     // Fetch source row from the other user's library.
     let source = LibraryEntity::find()
         .filter(library::Column::UserId.eq(other_user_id))
@@ -597,6 +598,19 @@ pub async fn copy_series_from_other_user(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound("Source series not found".into()))?;
     let source_entry = LibraryEntry::from(source.clone());
+
+    // 公開 · Gate the copy through the SAME visibility predicate the
+    // public profile + compare view use. Without it a caller could copy
+    // (and thereby confirm the existence of) a series the owner hid — an
+    // adult series with `public_show_adult=false`, or a wishlist entry
+    // outside the Birthday-mode horizon. mal_ids are global/guessable,
+    // so the copy POST was an ownership oracle for exactly the data the
+    // opt-outs protect. Return the same NotFound the missing-row path
+    // uses so the two are indistinguishable to the caller.
+    let now = chrono::Utc::now();
+    if !crate::services::users::entry_publicly_visible(other, &source_entry, now) {
+        return Err(AppError::NotFound("Source series not found".into()));
+    }
 
     // Figure out the mal_id I'll use locally. MAL series keep their
     // positive id; everything else mints a fresh negative id so the
@@ -1027,6 +1041,19 @@ pub async fn change_poster(
     Ok(())
 }
 
+/// Escape SQL `LIKE`/`ILIKE` wildcards (`\`, `%`, `_`) so a value is
+/// matched literally. Relies on Postgres' default `\` escape char.
+/// Wrap the result in your own `%…%` for a contains-match, or use it
+/// bare for a wildcard-free (literal) `ILIKE` equality.
+pub(crate) fn escape_like(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| match c {
+            '\\' | '%' | '_' => vec!['\\', c],
+            other => vec![other],
+        })
+        .collect()
+}
+
 pub async fn search(
     db: &Db,
     user_id: i32,
@@ -1041,15 +1068,7 @@ pub async fn search(
     //
     // Standard pattern: escape `\`, `%`, `_` with a preceding `\`, and
     // rely on Postgres' LIKE default escape char (also `\`).
-    let escaped: String = query
-        .to_lowercase()
-        .chars()
-        .flat_map(|c| match c {
-            '\\' | '%' | '_' => vec!['\\', c],
-            other => vec![other],
-        })
-        .collect();
-    let pattern = format!("%{}%", escaped);
+    let pattern = format!("%{}%", escape_like(&query.to_lowercase()));
     let rows = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(Expr::col(library::Column::Name).ilike(pattern))
