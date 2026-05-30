@@ -579,37 +579,18 @@ export async function readStreak() {
 export async function clearAllUserData() {
   // 1) Dexie
   try {
-    await db.transaction(
-      "rw",
-      [
-        db.library,
-        db.volumes,
-        db.settings,
-        db.outboxLibrary,
-        db.outboxVolumes,
-        db.outboxSettings,
-        db.outboxBulkMark,
-        db.activity,
-        db.malRecommendations,
-        db.mangaCharacters,
-        db.seals,
-        db.streak,
-      ],
-      async () => {
-        await db.library.clear();
-        await db.volumes.clear();
-        await db.settings.clear();
-        await db.outboxLibrary.clear();
-        await db.outboxVolumes.clear();
-        await db.outboxSettings.clear();
-        await db.outboxBulkMark.clear();
-        await db.activity.clear();
-        await db.malRecommendations.clear();
-        await db.mangaCharacters.clear();
-        await db.seals.clear();
-        await db.streak.clear();
-      },
-    );
+    // Clear EVERY table via `db.tables` rather than a hand-maintained
+    // list. The previous explicit list had silently fallen behind the
+    // schema — `authors`, `coffrets`, `snapshots`, `friendsList`,
+    // `calendarUpcoming`, `volumeCoverMaps`, `isbnCache`, and the
+    // `outboxAuthors`/`outboxCoffrets` queues were all left resident on
+    // logout. That leaked the previous user's data to the next visitor
+    // on a shared browser AND let their queued author/coffret mutations
+    // flush under the next user's session. Looping over `db.tables`
+    // wipes all 21 tables and can't drift when new ones are added.
+    await db.transaction("rw", db.tables, async () => {
+      await Promise.all(db.tables.map((table) => table.clear()));
+    });
   } catch (err) {
     console.warn("[db] clearAllUserData (Dexie) failed:", err?.message);
   }

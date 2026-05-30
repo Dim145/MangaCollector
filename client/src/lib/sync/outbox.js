@@ -878,6 +878,38 @@ function isUnretriable(err) {
   return status >= 400 && status < 500;
 }
 
+// 毒 · Poison-message dead-letter guard.
+//
+// A retriable error (5xx / network) normally re-throws to stop the
+// entity's flush chain and retry on the next pass — correct for a
+// transient blip. But an op that fails retriably *forever* (a payload
+// the server stably 500s on, a permanently-unreachable route) would
+// otherwise wedge that entity's queue indefinitely, and — before the
+// orchestrator was isolated — froze EVERY entity's sync behind it.
+//
+// We count an op's retriable failures in memory (keyed by its unique
+// `ts`) and, once it blows the budget, treat it like an unretriable
+// error: the flush's existing drop branch fires (op removed + a
+// `syncError` surfaced) so the queue drains past it. In-memory by
+// design — a page reload grants a fresh budget, which is exactly the
+// "let it try again after the user reloads" behaviour we want; we are
+// not trying to permanently blacklist an op across sessions.
+const MAX_OP_RETRIES = 6;
+const opRetryCounts = new Map();
+
+/** True when `err` is unretriable OR `sig` has exhausted its retry
+ *  budget. Increments the budget as a side effect on a retriable err. */
+function shouldDeadLetter(sig, err) {
+  if (isUnretriable(err)) return true;
+  const n = (opRetryCounts.get(sig) ?? 0) + 1;
+  if (n >= MAX_OP_RETRIES) {
+    opRetryCounts.delete(sig);
+    return true;
+  }
+  opRetryCounts.set(sig, n);
+  return false;
+}
+
 async function flushLibrary() {
   const ops = await db.outboxLibrary.orderBy("ts").toArray();
   for (const op of ops) {
@@ -938,7 +970,7 @@ async function flushLibrary() {
       await db.outboxLibrary.delete(op.mal_id);
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(`library:${op.ts}`, err)) {
         await db.outboxLibrary.delete(op.mal_id);
         await refetchLibrary().catch(() => {});
         emitSyncError({
@@ -986,7 +1018,7 @@ async function flushVolumes() {
       await db.outboxVolumes.delete(op.id);
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(`volume:${op.ts}`, err)) {
         await db.outboxVolumes.delete(op.id);
         if (op.mal_id) await refetchVolumes(op.mal_id).catch(() => {});
         emitSyncError({
@@ -1011,7 +1043,7 @@ async function flushSettings() {
       await cacheSettings(res.data);
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(`settings:${op.ts}`, err)) {
         await db.outboxSettings.delete(op.key);
         await refetchSettings().catch(() => {});
         emitSyncError({
@@ -1065,7 +1097,7 @@ async function flushAuthors() {
       }
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(`author:${op.ts}`, err)) {
         await db.outboxAuthors.delete(op.mal_id);
         emitSyncError({
           op: "author",
@@ -1128,7 +1160,7 @@ async function flushBulkMark() {
       await refetchLibrary().catch(() => {});
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(`bulkmark:${op.ts}`, err)) {
         await db.outboxBulkMark.delete(op.mal_id);
         // Server rejected the cascade — pull the authoritative
         // state so the optimistic local diff snaps back.
@@ -1227,7 +1259,7 @@ async function flushCoffrets() {
       }
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(`coffret:${op.ts}`, err)) {
         await db.outboxCoffrets.delete(op.id);
         emitSyncError({
           op: "coffret",
@@ -1304,28 +1336,41 @@ export async function syncOutbox({ force = false } = {}) {
 
   syncing = true;
   try {
-    await flushLibrary();
-    await flushVolumes();
-    await flushSettings();
-    await flushBulkMark();
-    // 作家 · Authors flush AFTER library — a deleted author needs
-    // the library refetch to reconcile unlinked rows, and that
-    // refetch is what we trigger anyway right below. Order also
-    // means a library PATCH carrying free-text author + a
-    // subsequent direct author edit on the same person both land
-    // in the right order: library PATCH creates the author via
-    // `resolve_author_from_text`, then the author PATCH updates it.
-    await flushAuthors();
-    // 盒 · Coffrets flush AFTER volumes so an offline-created
-    // coffret's bound-volumes are already on the server before
-    // the coffret POST runs. Without this ordering, the server-
-    // side bulk update of those volumes (owned + price split)
-    // would race a still-pending volume edit and the latter
-    // would land second, overwriting the coffret-applied state
-    // for that volume. Sequencing matches the user's intent:
-    // "I edited a tome, then grouped it into a coffret" → the
-    // coffret operation is the authoritative final state.
-    await flushCoffrets();
+    // Each flush is ISOLATED: a retriable failure in one entity's queue
+    // (a transient 5xx on a library op, say) must not abort the others.
+    // Previously these were a straight `await flushX()` chain inside one
+    // try/catch, so the first throw skipped every later flush — one
+    // stuck op froze ALL sync (library + volumes + settings + …). They
+    // still run in dependency order so a *successful* pass applies in
+    // the right sequence:
+    //   • authors AFTER library — a library PATCH with free-text author
+    //     creates the author via `resolve_author_from_text`; the direct
+    //     author PATCH then updates it. Library delete also drives the
+    //     unlink refetch below.
+    //   • coffrets AFTER volumes — an offline-created coffret's bound
+    //     volumes must reach the server before the coffret POST, else
+    //     the server-side bulk volume update races a still-pending
+    //     volume edit and loses.
+    let hadRetriable = false;
+    for (const flush of [
+      flushLibrary,
+      flushVolumes,
+      flushSettings,
+      flushBulkMark,
+      flushAuthors,
+      flushCoffrets,
+    ]) {
+      try {
+        await flush();
+      } catch (err) {
+        hadRetriable = true;
+        console.warn(
+          "[sync] retriable error, will retry later:",
+          err?.message,
+        );
+      }
+    }
+    if (hadRetriable) probeServer().catch(() => {});
     // Only pull fresh server state when we actually pushed something —
     // otherwise the read hooks already have what they need.
     await Promise.all([
@@ -1333,8 +1378,10 @@ export async function syncOutbox({ force = false } = {}) {
       refetchSettings().catch(() => {}),
     ]);
   } catch (err) {
-    probeServer().catch(() => {});
-    console.warn("[sync] retriable error, will retry later:", err?.message);
+    // The flush loop swallows flush errors, so reaching here means
+    // something outside the flushes threw — don't let it escape as an
+    // unhandled rejection.
+    console.warn("[sync] unexpected error:", err?.message);
   } finally {
     syncing = false;
     if (syncQueued) {
@@ -1377,16 +1424,32 @@ export async function forceResyncFromServer() {
       db.outboxVolumes,
       db.outboxSettings,
       db.outboxBulkMark,
+      db.outboxAuthors,
+      db.outboxCoffrets,
+      db.authors,
+      db.coffrets,
       db.streak,
     ],
     async () => {
+      // Discard ALL pending outbox ops — the whole point of "Restore
+      // from server" is to abandon local changes. The author + coffret
+      // queues were previously left untouched, so after a restore they
+      // would silently re-flush against the just-restored server,
+      // re-applying changes the user explicitly gave up.
       await db.outboxLibrary.clear();
       await db.outboxVolumes.clear();
       await db.outboxSettings.clear();
       await db.outboxBulkMark.clear();
+      await db.outboxAuthors.clear();
+      await db.outboxCoffrets.clear();
       await db.library.clear();
       await db.volumes.clear();
       await db.settings.clear();
+      // Drop the author + coffret caches too — they may hold the
+      // optimistic edits the discarded ops wrote. They re-populate
+      // from the server on the next AuthorPage / MangaPage visit.
+      await db.authors.clear();
+      await db.coffrets.clear();
       // 連 · Wipe the cached streak too — a "force resync" implies
       // the local mirror is suspect. The server-derived chip will
       // re-populate from `useStreak` on the next mount.

@@ -7,14 +7,18 @@ export function formatCurrency(amount, formatObject) {
   // which can multiply the visible value by 100 with EUR settings.
   const safeAmount = Number(amount) || 0;
 
+  // `??` (not `||`) so legitimately-falsy config survives: a
+  // zero-decimal currency (JPY/KRW → `precision: 0`) and a no-separator
+  // or empty-symbol locale would otherwise be clobbered by the default.
+  // `safeAmount` above stays `||` on purpose — `NaN ?? 0` keeps NaN.
   const tmp = currency(safeAmount, {
-    code: formatObject?.code || "USD",
-    symbol: formatObject?.symbol || "$",
-    separator: formatObject?.separator || ",",
-    decimal: formatObject?.decimal || ".",
-    precision: formatObject?.precision || 2,
-    pattern: formatObject?.format || "!#",
-    negativePattern: formatObject?.negativePattern || "-!#",
+    code: formatObject?.code ?? "USD",
+    symbol: formatObject?.symbol ?? "$",
+    separator: formatObject?.separator ?? ",",
+    decimal: formatObject?.decimal ?? ".",
+    precision: formatObject?.precision ?? 2,
+    pattern: formatObject?.format ?? "!#",
+    negativePattern: formatObject?.negativePattern ?? "-!#",
   });
 
   return tmp.s?.format(tmp, tmp.s);
