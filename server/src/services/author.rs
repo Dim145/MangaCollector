@@ -572,8 +572,25 @@ pub async fn find_or_create_shared_author_id(
 ///
 /// Empty / whitespace-only input → `Ok(None)` (clear the FK). Length
 /// is clamped at `AUTHOR_NAME_MAX_LEN` characters before any lookup.
+/// Standalone wrapper: opens a transaction so the mint's MIN-probe +
+/// INSERT are atomic for callers not already inside one (the MAL-refresh
+/// path). `apply_library_patch` calls the `_tx` variant directly so the
+/// resolution shares its enclosing transaction.
 pub async fn resolve_author_from_text(
     db: &Db,
+    user_id: i32,
+    raw: &str,
+) -> Result<Option<i32>, AppError> {
+    let txn = db.begin().await.map_err(AppError::from)?;
+    let resolved = resolve_author_from_text_tx(&txn, user_id, raw).await?;
+    txn.commit().await.map_err(AppError::from)?;
+    Ok(resolved)
+}
+
+/// Tx-variant: every lookup + the mint run on the caller-supplied
+/// connection, so the caller's transaction governs atomicity.
+pub async fn resolve_author_from_text_tx(
+    conn: &impl sea_orm::ConnectionTrait,
     user_id: i32,
     raw: &str,
 ) -> Result<Option<i32>, AppError> {
@@ -598,7 +615,7 @@ pub async fn resolve_author_from_text(
         .select_only()
         .column(author::Column::Id)
         .into_tuple::<i32>()
-        .one(db)
+        .one(conn)
         .await
         .map_err(AppError::from)?;
     if let Some(id) = shared_match {
@@ -611,18 +628,19 @@ pub async fn resolve_author_from_text(
         .select_only()
         .column(author::Column::Id)
         .into_tuple::<i32>()
-        .one(db)
+        .one(conn)
         .await
         .map_err(AppError::from)?;
     if let Some(id) = user_match {
         return Ok(Some(id));
     }
 
-    // No match — mint a custom row. Tx-scoped so the MIN(mal_id)
-    // probe and the INSERT see the same snapshot; a concurrent
-    // resolver for the same user picks up our newly-inserted minimum.
-    let txn = db.begin().await.map_err(AppError::from)?;
-    let next_id = mint_next_custom_author_id(&txn, user_id).await?;
+    // No match — mint a custom row on the caller's connection. The
+    // MIN(mal_id) probe and the INSERT must see the same snapshot so a
+    // concurrent resolver for the same user picks up our newly-inserted
+    // minimum; the caller's transaction (the standalone wrapper, or
+    // `apply_library_patch`'s) provides that isolation.
+    let next_id = mint_next_custom_author_id(conn, user_id).await?;
     let now = Utc::now();
     let model = ActiveModel {
         user_id: Set(Some(user_id)),
@@ -638,8 +656,7 @@ pub async fn resolve_author_from_text(
         fetched_at: Set(now),
         ..Default::default()
     };
-    let inserted = model.insert(&txn).await.map_err(AppError::from)?;
-    txn.commit().await.map_err(AppError::from)?;
+    let inserted = model.insert(conn).await.map_err(AppError::from)?;
     Ok(Some(inserted.id))
 }
 

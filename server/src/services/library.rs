@@ -775,7 +775,7 @@ pub async fn delete_manga(
 }
 
 pub async fn get_total_volumes(
-    db: &Db,
+    db: &impl sea_orm::ConnectionTrait,
     mal_id: i32,
     user_id: i32,
 ) -> Result<Option<i32>, AppError> {
@@ -805,13 +805,22 @@ pub async fn apply_library_patch(
     user_id: i32,
     body: UpdateLibraryRequest,
 ) -> Result<(), AppError> {
+    // 一 · One transaction for the WHOLE patch — the volume rebuild, the
+    // metadata update, AND the free-text author resolution (which can
+    // mint a new author row). Previously these were three independent
+    // commits: if the volume rebuild committed and a later step then
+    // errored, the client got a 500 while the volume change had already
+    // persisted — and on replay re-applied it (the "edit applied 2-3×"
+    // bug). Now any failure rolls the whole edit back: all-or-nothing.
+    let txn = db.begin().await.map_err(AppError::from)?;
+
     if let Some(new_volumes) = body.volumes {
-        update_manga_volumes(db, mal_id, user_id, new_volumes).await?;
+        update_manga_volumes_tx(&txn, mal_id, user_id, new_volumes).await?;
     }
 
     // publisher / edition / genres / review are independent of the volumes
     // path. Skip the round-trip when none of them are present (the common
-    // case for a pure volumes PATCH).
+    // case for a pure volumes PATCH) — but still commit the volume change.
     if body.publisher.is_none()
         && body.edition.is_none()
         && body.genres.is_none()
@@ -819,19 +828,22 @@ pub async fn apply_library_patch(
         && body.review_public.is_none()
         && body.author.is_none()
     {
+        txn.commit().await.map_err(AppError::from)?;
         return Ok(());
     }
 
     let row = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(library::Column::MalId.eq(mal_id))
-        .one(db)
+        .one(&txn)
         .await
         .map_err(AppError::from)?;
 
     let Some(existing) = row else {
         // No row to update — silently OK (matches the volumes path's
-        // behaviour). The client may have just deleted the series.
+        // behaviour). The client may have just deleted the series. Commit
+        // so any volume change above still lands.
+        txn.commit().await.map_err(AppError::from)?;
         return Ok(());
     };
 
@@ -899,14 +911,17 @@ pub async fn apply_library_patch(
     // sticks across syncs.
     if let Some(raw_author) = body.author {
         let resolved_id = match raw_author {
-            Some(text) => author::resolve_author_from_text(db, user_id, &text).await?,
+            Some(text) => {
+                author::resolve_author_from_text_tx(&txn, user_id, &text).await?
+            }
             None => None,
         };
         active.author_id = Set(resolved_id);
     }
 
     active.modified_on = Set(Utc::now());
-    active.update(db).await.map_err(AppError::from)?;
+    active.update(&txn).await.map_err(AppError::from)?;
+    txn.commit().await.map_err(AppError::from)?;
     Ok(())
 }
 
@@ -916,31 +931,45 @@ pub async fn update_manga_volumes(
     user_id: i32,
     new_volumes: i32,
 ) -> Result<(), AppError> {
+    // Standalone wrapper: own transaction for callers not already inside
+    // one (e.g. the MAL-refresh path). `apply_library_patch` calls the
+    // `_tx` variant directly so the volume rebuild + metadata update +
+    // author resolution all share ONE transaction.
+    let txn = db.begin().await.map_err(AppError::from)?;
+    update_manga_volumes_tx(&txn, mal_id, user_id, new_volumes).await?;
+    txn.commit().await.map_err(AppError::from)?;
+    Ok(())
+}
+
+pub async fn update_manga_volumes_tx(
+    conn: &impl sea_orm::ConnectionTrait,
+    mal_id: i32,
+    user_id: i32,
+    new_volumes: i32,
+) -> Result<(), AppError> {
     // Clamp at the entry point — a PATCH with `volumes: 2_000_000_000`
     // would otherwise fire 2 billion per-volume INSERTs (one row per
     // tick of the loop below) in one request and exhaust disk/memory.
     let new_volumes = clamp_volumes(new_volumes);
-    let old_total = get_total_volumes(db, mal_id, user_id).await?.unwrap_or(0);
+    let old_total = get_total_volumes(conn, mal_id, user_id).await?.unwrap_or(0);
 
     if old_total == new_volumes {
         return Ok(());
     }
 
-    // 一括 · Wrap every per-volume INSERT/DELETE plus the library row
-    // update in a single transaction. A failure mid-loop (DB blip, row
-    // lock contention) used to leave the library row's `volumes` count
-    // out of sync with the actual `user_volumes` rows; the dashboard
-    // would render N volumes while the MangaPage shelf only had N-K
-    // entries. Atomic now: either every change lands or none.
-    let txn = db.begin().await.map_err(AppError::from)?;
-
+    // Every per-volume INSERT/DELETE plus the library row update runs on
+    // the caller's connection. The standalone wrapper above provides a
+    // transaction so a failure mid-loop never leaves the library row's
+    // `volumes` count out of sync with the actual `user_volumes` rows
+    // (dashboard rendering N while the shelf has N-K). Atomic: every
+    // change lands or none.
     if old_total > new_volumes {
         for vol_num in (new_volumes + 1)..=old_total {
-            volume::remove_volume_by_num_tx(&txn, user_id, mal_id, vol_num).await?;
+            volume::remove_volume_by_num_tx(conn, user_id, mal_id, vol_num).await?;
         }
     } else {
         for vol_num in (old_total + 1)..=new_volumes {
-            volume::add_volume_tx(&txn, user_id, mal_id, vol_num).await?;
+            volume::add_volume_tx(conn, user_id, mal_id, vol_num).await?;
         }
     }
 
@@ -948,7 +977,7 @@ pub async fn update_manga_volumes(
     let row = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(library::Column::MalId.eq(mal_id))
-        .one(&txn)
+        .one(conn)
         .await
         .map_err(AppError::from)?;
 
@@ -956,10 +985,9 @@ pub async fn update_manga_volumes(
         let mut active: ActiveModel = existing.into();
         active.volumes = Set(new_volumes);
         active.modified_on = Set(now);
-        active.update(&txn).await.map_err(AppError::from)?;
+        active.update(conn).await.map_err(AppError::from)?;
     }
 
-    txn.commit().await.map_err(AppError::from)?;
     Ok(())
 }
 
