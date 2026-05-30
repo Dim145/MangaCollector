@@ -1,6 +1,6 @@
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set,
     TransactionTrait,
 };
 use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
@@ -123,24 +123,40 @@ async fn enrich_one_with_author(
 /// impossible) case of 2.1 billion custom entries for one user. On
 /// overflow we return an explicit Internal error rather than
 /// wrapping around into the positive range.
-pub async fn mint_next_custom_mal_id(
+/// Draw the next negative custom id from a Postgres sequence.
+///
+/// `nextval` is non-transactional and concurrency-safe: two callers (even
+/// in different in-flight transactions) always get distinct values. This
+/// replaced a `MIN(mal_id) - 1` probe-then-insert that raced — two
+/// simultaneous mints computed the same id and the loser hit a 23505
+/// (now a 409 that drops the edit). A value wasted on a rolled-back
+/// transaction is a harmless gap. `seq` is a fixed `&'static str` literal
+/// at both call sites (never user input), so the `format!` is
+/// injection-safe.
+pub(crate) async fn next_custom_id(
     conn: &impl ConnectionTrait,
-    user_id: i32,
+    seq: &str,
 ) -> Result<i32, AppError> {
-    let min_existing: Option<i32> = LibraryEntity::find()
-        .select_only()
-        .column_as(Expr::col(library::Column::MalId).min(), "min")
-        .filter(library::Column::UserId.eq(user_id))
-        .filter(library::Column::MalId.lt(0))
-        .into_tuple::<Option<i32>>()
-        .one(conn)
+    let stmt = sea_orm::Statement::from_string(
+        sea_orm::DatabaseBackend::Postgres,
+        format!("SELECT nextval('{seq}')::bigint AS id"),
+    );
+    let row = conn
+        .query_one(stmt)
         .await
         .map_err(AppError::from)?
-        .flatten();
-    let base = min_existing.unwrap_or(0);
-    base.checked_sub(1).ok_or_else(|| {
-        AppError::Internal("Custom mal_id namespace exhausted for user".into())
-    })
+        .ok_or_else(|| AppError::Internal("sequence returned no row".into()))?;
+    let next: i64 = row
+        .try_get("", "id")
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(next as i32)
+}
+
+pub async fn mint_next_custom_mal_id(
+    conn: &impl ConnectionTrait,
+    _user_id: i32,
+) -> Result<i32, AppError> {
+    next_custom_id(conn, "custom_library_id_seq").await
 }
 
 /// Ask MangaDex for a better (uncensored, often higher-res) cover when the
@@ -585,9 +601,10 @@ pub async fn copy_series_from_other_user(
     cache: Option<&CacheStore>,
     activity_buffer: &crate::services::activity_coalescer::ActivityCoalescer,
     me_user_id: i32,
-    other_user_id: i32,
+    other: &crate::models::user::User,
     source_mal_id: i32,
 ) -> Result<LibraryEntry, AppError> {
+    let other_user_id = other.id;
     // Fetch source row from the other user's library.
     let source = LibraryEntity::find()
         .filter(library::Column::UserId.eq(other_user_id))
@@ -597,6 +614,19 @@ pub async fn copy_series_from_other_user(
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound("Source series not found".into()))?;
     let source_entry = LibraryEntry::from(source.clone());
+
+    // 公開 · Gate the copy through the SAME visibility predicate the
+    // public profile + compare view use. Without it a caller could copy
+    // (and thereby confirm the existence of) a series the owner hid — an
+    // adult series with `public_show_adult=false`, or a wishlist entry
+    // outside the Birthday-mode horizon. mal_ids are global/guessable,
+    // so the copy POST was an ownership oracle for exactly the data the
+    // opt-outs protect. Return the same NotFound the missing-row path
+    // uses so the two are indistinguishable to the caller.
+    let now = chrono::Utc::now();
+    if !crate::services::users::entry_publicly_visible(other, &source_entry, now) {
+        return Err(AppError::NotFound("Source series not found".into()));
+    }
 
     // Figure out the mal_id I'll use locally. MAL series keep their
     // positive id; everything else mints a fresh negative id so the
@@ -761,7 +791,7 @@ pub async fn delete_manga(
 }
 
 pub async fn get_total_volumes(
-    db: &Db,
+    db: &impl sea_orm::ConnectionTrait,
     mal_id: i32,
     user_id: i32,
 ) -> Result<Option<i32>, AppError> {
@@ -791,13 +821,22 @@ pub async fn apply_library_patch(
     user_id: i32,
     body: UpdateLibraryRequest,
 ) -> Result<(), AppError> {
+    // 一 · One transaction for the WHOLE patch — the volume rebuild, the
+    // metadata update, AND the free-text author resolution (which can
+    // mint a new author row). Previously these were three independent
+    // commits: if the volume rebuild committed and a later step then
+    // errored, the client got a 500 while the volume change had already
+    // persisted — and on replay re-applied it (the "edit applied 2-3×"
+    // bug). Now any failure rolls the whole edit back: all-or-nothing.
+    let txn = db.begin().await.map_err(AppError::from)?;
+
     if let Some(new_volumes) = body.volumes {
-        update_manga_volumes(db, mal_id, user_id, new_volumes).await?;
+        update_manga_volumes_tx(&txn, mal_id, user_id, new_volumes).await?;
     }
 
     // publisher / edition / genres / review are independent of the volumes
     // path. Skip the round-trip when none of them are present (the common
-    // case for a pure volumes PATCH).
+    // case for a pure volumes PATCH) — but still commit the volume change.
     if body.publisher.is_none()
         && body.edition.is_none()
         && body.genres.is_none()
@@ -805,19 +844,22 @@ pub async fn apply_library_patch(
         && body.review_public.is_none()
         && body.author.is_none()
     {
+        txn.commit().await.map_err(AppError::from)?;
         return Ok(());
     }
 
     let row = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(library::Column::MalId.eq(mal_id))
-        .one(db)
+        .one(&txn)
         .await
         .map_err(AppError::from)?;
 
     let Some(existing) = row else {
         // No row to update — silently OK (matches the volumes path's
-        // behaviour). The client may have just deleted the series.
+        // behaviour). The client may have just deleted the series. Commit
+        // so any volume change above still lands.
+        txn.commit().await.map_err(AppError::from)?;
         return Ok(());
     };
 
@@ -885,14 +927,17 @@ pub async fn apply_library_patch(
     // sticks across syncs.
     if let Some(raw_author) = body.author {
         let resolved_id = match raw_author {
-            Some(text) => author::resolve_author_from_text(db, user_id, &text).await?,
+            Some(text) => {
+                author::resolve_author_from_text_tx(&txn, user_id, &text).await?
+            }
             None => None,
         };
         active.author_id = Set(resolved_id);
     }
 
     active.modified_on = Set(Utc::now());
-    active.update(db).await.map_err(AppError::from)?;
+    active.update(&txn).await.map_err(AppError::from)?;
+    txn.commit().await.map_err(AppError::from)?;
     Ok(())
 }
 
@@ -902,31 +947,45 @@ pub async fn update_manga_volumes(
     user_id: i32,
     new_volumes: i32,
 ) -> Result<(), AppError> {
+    // Standalone wrapper: own transaction for callers not already inside
+    // one (e.g. the MAL-refresh path). `apply_library_patch` calls the
+    // `_tx` variant directly so the volume rebuild + metadata update +
+    // author resolution all share ONE transaction.
+    let txn = db.begin().await.map_err(AppError::from)?;
+    update_manga_volumes_tx(&txn, mal_id, user_id, new_volumes).await?;
+    txn.commit().await.map_err(AppError::from)?;
+    Ok(())
+}
+
+pub async fn update_manga_volumes_tx(
+    conn: &impl sea_orm::ConnectionTrait,
+    mal_id: i32,
+    user_id: i32,
+    new_volumes: i32,
+) -> Result<(), AppError> {
     // Clamp at the entry point — a PATCH with `volumes: 2_000_000_000`
     // would otherwise fire 2 billion per-volume INSERTs (one row per
     // tick of the loop below) in one request and exhaust disk/memory.
     let new_volumes = clamp_volumes(new_volumes);
-    let old_total = get_total_volumes(db, mal_id, user_id).await?.unwrap_or(0);
+    let old_total = get_total_volumes(conn, mal_id, user_id).await?.unwrap_or(0);
 
     if old_total == new_volumes {
         return Ok(());
     }
 
-    // 一括 · Wrap every per-volume INSERT/DELETE plus the library row
-    // update in a single transaction. A failure mid-loop (DB blip, row
-    // lock contention) used to leave the library row's `volumes` count
-    // out of sync with the actual `user_volumes` rows; the dashboard
-    // would render N volumes while the MangaPage shelf only had N-K
-    // entries. Atomic now: either every change lands or none.
-    let txn = db.begin().await.map_err(AppError::from)?;
-
+    // Every per-volume INSERT/DELETE plus the library row update runs on
+    // the caller's connection. The standalone wrapper above provides a
+    // transaction so a failure mid-loop never leaves the library row's
+    // `volumes` count out of sync with the actual `user_volumes` rows
+    // (dashboard rendering N while the shelf has N-K). Atomic: every
+    // change lands or none.
     if old_total > new_volumes {
         for vol_num in (new_volumes + 1)..=old_total {
-            volume::remove_volume_by_num_tx(&txn, user_id, mal_id, vol_num).await?;
+            volume::remove_volume_by_num_tx(conn, user_id, mal_id, vol_num).await?;
         }
     } else {
         for vol_num in (old_total + 1)..=new_volumes {
-            volume::add_volume_tx(&txn, user_id, mal_id, vol_num).await?;
+            volume::add_volume_tx(conn, user_id, mal_id, vol_num).await?;
         }
     }
 
@@ -934,7 +993,7 @@ pub async fn update_manga_volumes(
     let row = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(library::Column::MalId.eq(mal_id))
-        .one(&txn)
+        .one(conn)
         .await
         .map_err(AppError::from)?;
 
@@ -942,10 +1001,9 @@ pub async fn update_manga_volumes(
         let mut active: ActiveModel = existing.into();
         active.volumes = Set(new_volumes);
         active.modified_on = Set(now);
-        active.update(&txn).await.map_err(AppError::from)?;
+        active.update(conn).await.map_err(AppError::from)?;
     }
 
-    txn.commit().await.map_err(AppError::from)?;
     Ok(())
 }
 
@@ -1027,6 +1085,19 @@ pub async fn change_poster(
     Ok(())
 }
 
+/// Escape SQL `LIKE`/`ILIKE` wildcards (`\`, `%`, `_`) so a value is
+/// matched literally. Relies on Postgres' default `\` escape char.
+/// Wrap the result in your own `%…%` for a contains-match, or use it
+/// bare for a wildcard-free (literal) `ILIKE` equality.
+pub(crate) fn escape_like(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| match c {
+            '\\' | '%' | '_' => vec!['\\', c],
+            other => vec![other],
+        })
+        .collect()
+}
+
 pub async fn search(
     db: &Db,
     user_id: i32,
@@ -1041,15 +1112,7 @@ pub async fn search(
     //
     // Standard pattern: escape `\`, `%`, `_` with a preceding `\`, and
     // rely on Postgres' LIKE default escape char (also `\`).
-    let escaped: String = query
-        .to_lowercase()
-        .chars()
-        .flat_map(|c| match c {
-            '\\' | '%' | '_' => vec!['\\', c],
-            other => vec![other],
-        })
-        .collect();
-    let pattern = format!("%{}%", escaped);
+    let pattern = format!("%{}%", escape_like(&query.to_lowercase()));
     let rows = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user_id))
         .filter(Expr::col(library::Column::Name).ilike(pattern))

@@ -361,6 +361,14 @@ async fn fetch_mangadex_search(
         .context("Failed to reach MangaDex API")?;
 
     let status = response.status();
+    if status.is_server_error() || status.as_u16() == 429 {
+        // Same rationale as mal_api.rs::search_by_title — bail on real
+        // upstream trouble so merged_search can flag `degraded` and the
+        // client routes into transient/retry UI instead of "no results".
+        let body = response.text().await.unwrap_or_default();
+        tracing::warn!(%status, body, "mangadex: 5xx/429 on search");
+        anyhow::bail!("MangaDex search non-success status: {status}");
+    }
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
         tracing::warn!(%status, body, "mangadex: non-2xx response on search");

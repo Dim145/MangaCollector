@@ -387,7 +387,16 @@ pub async fn reconcile_user(
                     read_at: Set(None),
                     release_date: Set(Some(incoming.release_date)),
                     release_isbn: Set(incoming.release_isbn.clone()),
-                    release_url: Set(incoming.release_url.clone()),
+                    // Upstream-supplied (MangaUpdates / release-proxy =
+                    // third-party submitted links). Drop any non-http(s)
+                    // scheme so a `javascript:` / `data:` URL can't reach
+                    // the `<a href>` the client renders. The user-facing
+                    // add/edit paths already gate this via
+                    // `normalize_release_url`; the sweep is the other
+                    // write path and was previously unguarded.
+                    release_url: Set(crate::services::volume::sanitize_release_url(
+                        incoming.release_url.as_deref(),
+                    )),
                     origin: Set(incoming.origin.to_string()),
                     announced_at: Set(Some(now)),
                     ..Default::default()
@@ -425,15 +434,24 @@ pub async fn reconcile_user(
                         .to_owned(),
                     )
                     .exec(db)
-                    .await
-                    .map_err(AppError::from)?;
-                if res.last_insert_id != 0 {
-                    report.added.push(UpcomingChange {
+                    .await;
+                // On Postgres a `DO NOTHING` conflict yields no RETURNING
+                // row, which sea-orm reports as `RecordNotInserted` (NOT
+                // `Ok` with last_insert_id == 0). The previous
+                // `?` + `else { skipped }` therefore mis-handled a
+                // concurrent-insert race: the `else` was unreachable and
+                // the race aborted the whole reconcile with a 500.
+                match res {
+                    // Ok ⇒ a row was actually inserted (added). A
+                    // DO NOTHING conflict never reaches Ok on Postgres.
+                    Ok(_) => report.added.push(UpcomingChange {
                         vol_num: incoming.vol_num,
                         release_date: incoming.release_date,
-                    });
-                } else {
-                    report.skipped += 1;
+                    }),
+                    Err(sea_orm::DbErr::RecordNotInserted) => {
+                        report.skipped += 1
+                    }
+                    Err(e) => return Err(AppError::from(e)),
                 }
             }
             Some(row) => {

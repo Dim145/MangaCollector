@@ -78,9 +78,6 @@ pub async fn merged_search(
 
     MergedSearchOutcome {
         results: merge(mal_list, md_list),
-        // Only flag degraded when BOTH providers failed — a one-sided
-        // failure is masked by the surviving provider and shouldn't trip
-        // the client's transient-error UI.
         degraded: mal_failed && md_failed,
     }
 }

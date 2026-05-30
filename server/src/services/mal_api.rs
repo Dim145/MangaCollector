@@ -242,7 +242,16 @@ pub async fn search_by_title(
         .await
         .context("Failed to reach MAL API")?;
 
-    if !response.status().is_success() {
+    let status = response.status();
+    if status.is_server_error() || status.as_u16() == 429 {
+        // Real upstream trouble (5xx, rate-limit) — surface as Err so the
+        // caller (merged_search) can flag the outcome as `degraded` and
+        // route the client into its transient/retry UI instead of the
+        // misleading "no results" path. Other non-2xx (rare 4xx) stay an
+        // empty list — semantically the query just didn't match.
+        anyhow::bail!("MAL search non-success status: {status}");
+    }
+    if !status.is_success() {
         return Ok(Vec::new());
     }
 

@@ -74,6 +74,17 @@ export default function VolumeDetailDrawer({
   // useId() avoids the `drawer-price-undefined` collision custom volumes hit.
   const fieldId = useId();
 
+  // Defence-in-depth against a `javascript:`/`data:` URL reaching the
+  // pre-order `<a href>`. The server now scheme-validates release_url on
+  // every write path (the manual add/edit handlers + the nightly sweep),
+  // but a value persisted before that fix — or any future write path
+  // that forgets — must not render as an executable link. React does not
+  // sanitise hrefs, so we gate it here too: only http(s) survives.
+  const safeReleaseUrl =
+    typeof releaseUrl === "string" && /^https?:\/\//i.test(releaseUrl.trim())
+      ? releaseUrl.trim()
+      : null;
+
   // Decouple DOM lifecycle from `open` so the exit animation plays before unmount.
   const [mounted, setMounted] = useState(open);
   const [leaving, setLeaving] = useState(false);
@@ -322,14 +333,14 @@ export default function VolumeDetailDrawer({
                   </dd>
                 </div>
               )}
-              {releaseUrl && (
+              {safeReleaseUrl && (
                 <div className="flex items-baseline gap-3">
                   <dt className="w-24 flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
                     {t("volume.upcomingPreorder")}
                   </dt>
                   <dd className="flex-1">
                     <a
-                      href={releaseUrl}
+                      href={safeReleaseUrl}
                       target="_blank"
                       rel="noreferrer noopener nofollow"
                       className="inline-flex items-center gap-1.5 rounded-full border border-moegi/50 bg-moegi/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-moegi transition hover:border-moegi hover:bg-moegi/20"

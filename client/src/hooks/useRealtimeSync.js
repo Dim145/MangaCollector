@@ -79,6 +79,30 @@ export function useRealtimeSync({ enabled = true } = {}) {
       return `${scheme}//${host}/api/ws`;
     };
 
+    // 集 · Coalesce query invalidations over a short window. The broker
+    // has no per-connection origin tag, so it bounces a client's OWN
+    // mutations back to it alongside other devices' changes. Invalidating
+    // immediately on each echo means a rapid burst (e.g. toggling a
+    // volume read/unread) fires interleaved refetches that can briefly
+    // overwrite a still-pending optimistic write — a visible flicker.
+    // Batching the keys and flushing ~300 ms after the burst starts
+    // collapses the storm into one refetch, by which point the server
+    // reflects the settled state. A complete fix (never refetching our
+    // OWN echo) needs the server to stamp events with an origin id.
+    const coalescedKeys = new Set();
+    let invalidateTimer = null;
+    const scheduleInvalidate = () => {
+      if (invalidateTimer) return;
+      invalidateTimer = setTimeout(() => {
+        invalidateTimer = null;
+        const keys = [...coalescedKeys].map((s) => JSON.parse(s));
+        coalescedKeys.clear();
+        for (const key of keys) {
+          qc.invalidateQueries({ queryKey: key });
+        }
+      }, 300);
+    };
+
     const connect = () => {
       if (stoppedRef.current) return;
       // Clean up any stale socket before opening a fresh one.
@@ -130,15 +154,26 @@ export function useRealtimeSync({ enabled = true } = {}) {
             user_id: typeof raw.user_id === "number" ? raw.user_id : null,
             payload: raw.payload,
           });
+          // Stringify the key so the Set dedupes structurally-equal keys
+          // across a burst; scheduleInvalidate flushes them as one batch.
           for (const key of keys) {
-            qc.invalidateQueries({ queryKey: key });
+            coalescedKeys.add(JSON.stringify(key));
           }
+          scheduleInvalidate();
         } catch {
           /* malformed message — ignore */
         }
       });
 
       ws.addEventListener("close", (evt) => {
+        // Identity guard: a stale socket's `close` can arrive AFTER a
+        // newer socket has already been opened (e.g. a fast hide/show
+        // cycle drives a visibility-triggered reconnect before the old
+        // socket's async close fires). Without this, the late close
+        // would `schedule()` a second reconnect on top of the live
+        // socket — a duplicate-connection storm. Only the current
+        // socket's close is allowed to drive the reconnect.
+        if (socketRef.current !== ws) return;
         socketRef.current = null;
         // Codes that should NOT trigger a reconnect:
         //   1000 — normal close (intentional, e.g. unmount)
@@ -199,6 +234,10 @@ export function useRealtimeSync({ enabled = true } = {}) {
     return () => {
       stoppedRef.current = true;
       document.removeEventListener("visibilitychange", onVisibility);
+      if (invalidateTimer) {
+        clearTimeout(invalidateTimer);
+        invalidateTimer = null;
+      }
       if (retry.timer) {
         clearTimeout(retry.timer);
         retry.timer = null;

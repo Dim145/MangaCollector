@@ -101,6 +101,14 @@ async fn main() -> anyhow::Result<()> {
     let http_client = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(5))
         .timeout(std::time::Duration::from_secs(30))
+        // Cap redirects (default is up to 10). Every outbound host is a
+        // fixed literal today, so user input never controls a request
+        // target — but if one of those trusted upstreams ever issues an
+        // open redirect, an unbounded follow could chain into an
+        // internal host (SSRF). Two hops covers legitimate CDN/host
+        // moves without giving a redirect chain room to pivot. The OIDC
+        // client sets `Policy::none()` separately (auth.rs).
+        .redirect(reqwest::redirect::Policy::limited(2))
         .build()
         .expect("reqwest client builder should not fail with defaults");
 
@@ -293,6 +301,11 @@ async fn main() -> anyhow::Result<()> {
             axum::http::header::ORIGIN,
             axum::http::header::COOKIE,
             axum::http::header::HeaderName::from_static("x-requested-with"),
+            // 鍵 · Offline-sync outbox stamps each replayed write with an
+            // `Idempotency-Key`. Must be allow-listed here or the browser
+            // preflight rejects every mutating sync request in a
+            // cross-origin deployment (frontend + API on different hosts).
+            axum::http::header::HeaderName::from_static("idempotency-key"),
         ]);
 
     // Router

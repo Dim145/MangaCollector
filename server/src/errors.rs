@@ -33,12 +33,11 @@ pub enum AppError {
     Internal(String),
 
     /// 配 · Upstream provider unreachable / failed (MAL, MangaDex, Google
-    /// Books proxy, etc.). Maps to 502 Bad Gateway so the client can
-    /// distinguish "we couldn't reach the data source" from a real "no
-    /// result" (200 with empty list) or our own bug (500). The scan flow
-    /// routes 502 through its `transient` UI rather than the "not-found"
-    /// modal, so the user sees a clear retry banner instead of being
-    /// silently told "this book isn't in our index".
+    /// Books proxy, etc.). Maps to 502 Bad Gateway. The inner `String` is
+    /// **log-only** — the public response body is a fixed literal in
+    /// `into_response` to avoid leaking upstream URLs, reqwest error
+    /// chains, or other internal detail to clients. Pass whatever debug
+    /// context is useful for `tracing::warn!`; it won't reach the wire.
     #[error("Upstream unavailable: {0}")]
     UpstreamUnavailable(String),
 }
@@ -114,27 +113,61 @@ impl IntoResponse for AppError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 json!({ "success": false, "error": GENERIC_5XX }),
             ),
-            // 502: the client (scan flow specifically) keys off this
-            // status to route into the transient/retry branch. The body
-            // is non-secret — it says "external service unreachable" but
-            // not which one or why — so the message can pass through.
-            AppError::UpstreamUnavailable(msg) => (
+            // 502: the client keys off this status to route into the
+            // transient/retry branch. The public body is a FIXED literal
+            // — the variant's inner `String` is for logs only. Mirroring
+            // the `GENERIC_5XX` policy: any caller (now or future) could
+            // put a reqwest error chain, upstream URL, or other internal
+            // detail into the String, and we don't want that to leak.
+            AppError::UpstreamUnavailable(_) => (
                 StatusCode::BAD_GATEWAY,
-                json!({ "success": false, "error": msg }),
+                json!({ "success": false, "error": "Upstream service unavailable" }),
             ),
         };
         (status, Json(body)).into_response()
     }
 }
 
+// 衝突 · Postgres constraint violations are mapped to 409 Conflict, NOT
+// 500. This is load-bearing for the offline-sync client: its outbox
+// classifies 5xx as retriable (replay) and 4xx as terminal (drop +
+// reconcile). A unique-violation (23505) or FK-violation (23503) means
+// the write already landed, conflicts with existing state, or references
+// a now-missing row — none of which a blind replay can fix. Returning
+// 500 made the client retry the same doomed op in a storm (and, for a
+// non-idempotent write that had partially committed, re-apply it). 409
+// makes the client drop the op on the FIRST failure and pull server
+// truth back. Any other DB error stays a 500 (genuine server fault).
 impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
+        if let sqlx::Error::Database(db_err) = &e {
+            match db_err.code().as_deref() {
+                Some("23505") => {
+                    return AppError::Conflict("Resource already exists".into());
+                }
+                Some("23503") => {
+                    return AppError::Conflict(
+                        "Referenced record is missing".into(),
+                    );
+                }
+                _ => {}
+            }
+        }
         AppError::Database(e.to_string())
     }
 }
 
 impl From<sea_orm::DbErr> for AppError {
     fn from(e: sea_orm::DbErr) -> Self {
-        AppError::Database(e.to_string())
+        use sea_orm::SqlErr;
+        match e.sql_err() {
+            Some(SqlErr::UniqueConstraintViolation(_)) => {
+                AppError::Conflict("Resource already exists".into())
+            }
+            Some(SqlErr::ForeignKeyConstraintViolation(_)) => {
+                AppError::Conflict("Referenced record is missing".into())
+            }
+            _ => AppError::Database(e.to_string()),
+        }
     }
 }

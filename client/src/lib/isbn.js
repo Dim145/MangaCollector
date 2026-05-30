@@ -20,6 +20,12 @@ const GOOGLE_BOOKS = "https://www.googleapis.com/books/v1/volumes";
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days for positive hits
 const NO_MATCH_TTL_MS = 10 * 60 * 1000; // 10 min for "no match"
 const MIN_GAP_MS = 600;
+// Hard ceiling on a single scan lookup. Neither the Google Books `fetch`
+// nor the axios instance sets a timeout, so a black-holed request (proxy
+// stall, captive portal) would otherwise hang the scanner in its
+// "looking-up" phase forever. Bounding it here turns a hang into a
+// rejection the scan flow routes to its transient/retry UI.
+const SCAN_LOOKUP_TIMEOUT_MS = 12_000;
 
 const API_KEY_STORAGE = "mc:google-books-key";
 
@@ -213,10 +219,22 @@ export async function lookupISBN(rawIsbn) {
   // bounce us through. The cover-image elements separately set
   // `referrerPolicy="no-referrer"` on `<img>`; this aligns the JS
   // fetch with the same policy.
-  const res = await fetch(`${GOOGLE_BOOKS}?${params.toString()}`, {
-    headers: { Accept: "application/json" },
-    referrerPolicy: "no-referrer",
-  });
+  // Bound the request — `fetch` has no built-in timeout, so abort it
+  // after SCAN_LOOKUP_TIMEOUT_MS to avoid hanging the scanner forever on
+  // a stalled connection. The AbortError surfaces as a thrown error the
+  // caller routes to the transient/retry phase.
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), SCAN_LOOKUP_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`${GOOGLE_BOOKS}?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+      referrerPolicy: "no-referrer",
+      signal: ac.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (res.status === 429) {
     triggerCooldown();
@@ -372,25 +390,16 @@ export function detectCoffret(book) {
  * Server applies the merge rule: MAL data wins for metadata, MangaDex wins
  * for the cover. See `server/src/services/external.rs`.
  *
- * 失 · Error handling: real network / server failures are RETHROWN so the
- * scan flow can route them through the `transient` phase (which surfaces a
- * visible error in `ScanLoadingView`). The previous implementation swallowed
- * every axios error and returned `[]`, which made a 5xx / offline / CORS
- * issue indistinguishable from a legitimate "no MAL match" — the user just
- * saw the "not-found" modal with no hint that the lookup had failed, and
- * sometimes the modal closed itself (focus trap on backdrop) before they
- * registered it. Letting real errors propagate routes them into the
- * transient branch which has a `!` icon + i18n'd "Une erreur est survenue"
- * banner + auto-retry countdown, so a network blip is visibly distinct
- * from a missing entry.
- *
- * The empty-title guard stays an early `[]` return because that's not an
- * error, just a no-op input.
+ * 失 · Real network / server failures (incl. 502 when both upstreams are
+ * down) are RETHROWN so the scan flow can route them through the
+ * `transient` retry UI. An empty result `[]` therefore unambiguously
+ * means "the search ran, nothing matched".
  */
 export async function searchExternal(title) {
   if (!title?.trim()) return [];
   const { data } = await axios.get("/api/external/search", {
     params: { q: title },
+    timeout: SCAN_LOOKUP_TIMEOUT_MS,
   });
   return data?.results ?? [];
 }

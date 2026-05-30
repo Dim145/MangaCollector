@@ -1215,7 +1215,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.12.1 · Archiva tu colección",
+    version: "v2.13.0 · Archiva tu colección",
     heroStart: "Cada",
     heroAccent: "tomo",
     heroEnd1: ",",
@@ -1280,6 +1280,9 @@ export default {
     changesQueuedMany: "{n} cambios en cola",
     willRetry: "se reintentará cuando vuelva",
     willSync: "los cambios se sincronizarán al reconectar",
+    retryNow: "Reintentar",
+    retryNowAria: "Reintentar la sincronización ahora",
+    retrying: "Sincronizando…",
     syncing: "Sincronizando",
     syncingChanges: "Sincronizando {n} cambio",
     syncingChangesPlural: "Sincronizando {n} cambios",

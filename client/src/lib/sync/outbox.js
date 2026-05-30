@@ -28,6 +28,17 @@ import { emitSyncError, notifyPendingChanged } from "./events.js";
 let syncing = false;
 let syncQueued = false;
 
+// 退 · Retry backoff. After a pass that had retriable failures we
+// schedule ONE timed retry that grows 1s→2s→…→60s, and treat external
+// triggers (window focus, online, the 60s interval, a re-enqueue) as
+// no-ops until it fires. Without this, a stably-failing op was hammered
+// by every trigger at once — the "infinite, very rapid" retry the user
+// hit. Reset to 0 on the first clean pass. `force` bypasses (explicit
+// user action). Uses Date.now() — ordinary client code, not a workflow.
+let retryBackoffMs = 0;
+let nextRetryAt = 0;
+let backoffTimer = null;
+
 /** Count all pending ops across outbox tables. */
 export async function pendingCount() {
   const [lib, vol, set, bulk, authors, coffrets] = await Promise.all([
@@ -878,20 +889,81 @@ function isUnretriable(err) {
   return status >= 400 && status < 500;
 }
 
+// 毒 · Poison-message dead-letter guard.
+//
+// A retriable error (5xx / network) normally re-throws to stop the
+// entity's flush chain and retry on the next pass — correct for a
+// transient blip. But an op that fails retriably *forever* (a payload
+// the server stably 500s on, a permanently-unreachable route) would
+// otherwise wedge that entity's queue indefinitely, and — before the
+// orchestrator was isolated — froze EVERY entity's sync behind it.
+//
+// We count an op's retriable failures in memory and, once it blows the
+// budget, treat it like an unretriable error: the flush's existing drop
+// branch fires (op removed + a `syncError` surfaced) so the queue drains
+// past it. In-memory by design — a page reload grants a fresh budget,
+// which is exactly the "let it try again after the user reloads"
+// behaviour we want; we are not trying to permanently blacklist an op
+// across sessions.
+//
+// The signature is the op's STABLE primary key (mal_id / id / settings
+// key), NOT its `ts`. Keying by `ts` would mint a fresh budget every
+// time the user re-edits the same resource, so a persistently-failing
+// op the user keeps touching could retry forever. Keying by the stable
+// id means "writes to resource X keep failing" drains after the budget
+// regardless of edits — and `clearOpRetries` on success resets the
+// count so the next genuine op for that id starts clean (also keeps the
+// map from accumulating entries for resources that recovered).
+const MAX_OP_RETRIES = 6;
+const opRetryCounts = new Map();
+
+/** True when `err` is unretriable OR `sig` has exhausted its retry
+ *  budget. Increments the budget as a side effect on a retriable err. */
+function shouldDeadLetter(sig, err) {
+  if (isUnretriable(err)) return true;
+  const n = (opRetryCounts.get(sig) ?? 0) + 1;
+  if (n >= MAX_OP_RETRIES) {
+    opRetryCounts.delete(sig);
+    return true;
+  }
+  opRetryCounts.set(sig, n);
+  return false;
+}
+
+/** Reset an op's retry budget once it flushes successfully, so a later
+ *  op for the same resource starts fresh and the map doesn't leak. */
+function clearOpRetries(sig) {
+  opRetryCounts.delete(sig);
+}
+
+// 鍵 · Idempotency-Key for an outbox op's PRIMARY mutating request.
+// `${sig}:${op.ts}` is stable across retries of the SAME enqueue (the
+// op's `ts` is fixed once written) yet unique per new intent (a coalesced
+// re-edit mints a fresh `ts`). Sent as a request header so a future
+// server-side dedup layer can recognise a replayed write — and as a
+// trace id in server logs today. No server behaviour depends on it yet;
+// this is the forward-compatible client half. Secondary idempotent
+// sub-requests (the poster PATCH that can ride along a library write)
+// intentionally omit it so they don't collide with the primary key.
+function idemConfig(sig, op) {
+  return { headers: { "Idempotency-Key": `${sig}:${op.ts}` } };
+}
+
 async function flushLibrary() {
   const ops = await db.outboxLibrary.orderBy("ts").toArray();
   for (const op of ops) {
+    const sig = `library:${op.mal_id}`;
     try {
       if (op.op === "delete") {
-        await axios.delete(`/api/user/library/${op.mal_id}`);
+        await axios.delete(`/api/user/library/${op.mal_id}`, idemConfig(sig, op));
       } else if (op.op === "upsert") {
-        await axios.post(`/api/user/library`, op.payload);
+        await axios.post(`/api/user/library`, op.payload, idemConfig(sig, op));
         // Server auto-creates N volume rows on insert — pull them into Dexie
         // so the MangaPage grid paints them without a manual refresh.
         await refetchVolumes(op.mal_id).catch(() => {});
       } else if (op.op === "owned") {
         const n = op.payload.volumes_owned;
-        await axios.patch(`/api/user/library/${op.mal_id}/${n}`);
+        await axios.patch(`/api/user/library/${op.mal_id}/${n}`, undefined, idemConfig(sig, op));
         // Poster changes can ride along — the owned PATCH doesn't accept a
         // cover URL so we fire a dedicated /poster PATCH afterwards.
         if (op.payload?.image_url_jpg) {
@@ -921,7 +993,7 @@ async function flushLibrary() {
         // branch indicates a stale Dexie payload — harmless to send.
         if ("genres" in (op.payload ?? {})) meta.genres = op.payload.genres;
         if (Object.keys(meta).length > 0) {
-          await axios.patch(`/api/user/library/${op.mal_id}`, meta);
+          await axios.patch(`/api/user/library/${op.mal_id}`, meta, idemConfig(sig, op));
           // A volumes change rebuilds rows in user_volumes server-side;
           // refetch so the new rows surface in Dexie. Skip when only
           // metadata changed — no volume table mutation involved.
@@ -936,9 +1008,10 @@ async function flushLibrary() {
         }
       }
       await db.outboxLibrary.delete(op.mal_id);
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxLibrary.delete(op.mal_id);
         await refetchLibrary().catch(() => {});
         emitSyncError({
@@ -958,6 +1031,7 @@ async function flushLibrary() {
 async function flushVolumes() {
   const ops = await db.outboxVolumes.orderBy("ts").toArray();
   for (const op of ops) {
+    const sig = `volume:${op.id}`;
     try {
       await axios.patch(`/api/user/volume`, {
         id: op.id,
@@ -982,11 +1056,12 @@ async function flushVolumes() {
         ...("loan" in (op.payload ?? {})
           ? { loan: op.payload.loan }
           : {}),
-      });
+      }, idemConfig(sig, op));
       await db.outboxVolumes.delete(op.id);
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxVolumes.delete(op.id);
         if (op.mal_id) await refetchVolumes(op.mal_id).catch(() => {});
         emitSyncError({
@@ -1005,13 +1080,15 @@ async function flushVolumes() {
 async function flushSettings() {
   const ops = await db.outboxSettings.toArray();
   for (const op of ops) {
+    const sig = `settings:${op.key}`;
     try {
-      const res = await axios.post(`/api/user/settings`, op.payload);
+      const res = await axios.post(`/api/user/settings`, op.payload, idemConfig(sig, op));
       await db.outboxSettings.delete(op.key);
       await cacheSettings(res.data);
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxSettings.delete(op.key);
         await refetchSettings().catch(() => {});
         emitSyncError({
@@ -1041,11 +1118,13 @@ async function flushAuthors() {
   const ops = await db.outboxAuthors.orderBy("ts").toArray();
   let touchedDelete = false;
   for (const op of ops) {
+    const sig = `author:${op.mal_id}`;
     try {
       if (op.op === "patch") {
         const { data } = await axios.patch(
           `/api/authors/${op.mal_id}`,
           op.payload ?? {},
+          idemConfig(sig, op),
         );
         await db.outboxAuthors.delete(op.mal_id);
         // Server echoes the updated AuthorDetail — reconcile cache.
@@ -1054,7 +1133,7 @@ async function flushAuthors() {
         }
         queryClient.setQueryData(["author", op.mal_id], data);
       } else if (op.op === "delete") {
-        await axios.delete(`/api/authors/${op.mal_id}`);
+        await axios.delete(`/api/authors/${op.mal_id}`, idemConfig(sig, op));
         await db.outboxAuthors.delete(op.mal_id);
         await db.authors.delete(op.mal_id);
         queryClient.removeQueries({ queryKey: ["author", op.mal_id] });
@@ -1063,9 +1142,10 @@ async function flushAuthors() {
         // Unknown op shape — drop to avoid blocking the queue.
         await db.outboxAuthors.delete(op.mal_id);
       }
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxAuthors.delete(op.mal_id);
         emitSyncError({
           op: "author",
@@ -1109,6 +1189,7 @@ async function flushBulkMark() {
   // path can't reproduce exactly.
   const ops = await db.outboxBulkMark.orderBy("ts").toArray();
   for (const op of ops) {
+    const sig = `bulkmark:${op.mal_id}`;
     try {
       const body = {};
       if (typeof op.owned === "boolean") body.owned = op.owned;
@@ -1122,13 +1203,15 @@ async function flushBulkMark() {
       await axios.post(
         `/api/user/library/${op.mal_id}/volumes/bulk-mark`,
         body,
+        idemConfig(sig, op),
       );
       await db.outboxBulkMark.delete(op.mal_id);
       await refetchVolumes(op.mal_id).catch(() => {});
       await refetchLibrary().catch(() => {});
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxBulkMark.delete(op.mal_id);
         // Server rejected the cascade — pull the authoritative
         // state so the optimistic local diff snaps back.
@@ -1171,11 +1254,13 @@ async function flushCoffrets() {
   const ops = await db.outboxCoffrets.orderBy("ts").toArray();
   let touchedDeleteOrCreate = false;
   for (const op of ops) {
+    const sig = `coffret:${op.id}`;
     try {
       if (op.op === "create") {
         const { data } = await axios.post(
           `/api/user/library/${op.mal_id}/coffrets`,
           op.payload ?? {},
+          idemConfig(sig, op),
         );
         await db.outboxCoffrets.delete(op.id);
         const tempId = op.id;
@@ -1210,13 +1295,14 @@ async function flushCoffrets() {
         const { data } = await axios.patch(
           `/api/user/coffrets/${op.id}`,
           op.payload ?? {},
+          idemConfig(sig, op),
         );
         await db.outboxCoffrets.delete(op.id);
         if (data && data.id != null) {
           await db.coffrets.put(data);
         }
       } else if (op.op === "delete") {
-        await axios.delete(`/api/user/coffrets/${op.id}`);
+        await axios.delete(`/api/user/coffrets/${op.id}`, idemConfig(sig, op));
         await db.outboxCoffrets.delete(op.id);
         // The Dexie coffret row + volume bindings were already
         // cleared in `enqueueCoffretDelete`; nothing to do here.
@@ -1225,9 +1311,10 @@ async function flushCoffrets() {
         // Unknown op shape — drop to avoid blocking the queue.
         await db.outboxCoffrets.delete(op.id);
       }
+      clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
-      if (isUnretriable(err)) {
+      if (shouldDeadLetter(sig, err)) {
         await db.outboxCoffrets.delete(op.id);
         emitSyncError({
           op: "coffret",
@@ -1295,6 +1382,11 @@ export async function syncOutbox({ force = false } = {}) {
     syncQueued = true;
     return;
   }
+  // Respect the retry backoff window. After a failed pass we schedule a
+  // single timed retry (see `finally`); until it fires, every other
+  // trigger is a no-op so a stably-failing op can't be hammered. `force`
+  // (explicit user action) bypasses.
+  if (!force && nextRetryAt > Date.now()) return;
 
   // Fast path: if the outbox is empty, skip everything — nothing to flush,
   // no need to re-fetch (React Query already refreshes independently on
@@ -1303,29 +1395,42 @@ export async function syncOutbox({ force = false } = {}) {
   if (pending === 0 && !force) return;
 
   syncing = true;
+  let hadRetriable = false;
   try {
-    await flushLibrary();
-    await flushVolumes();
-    await flushSettings();
-    await flushBulkMark();
-    // 作家 · Authors flush AFTER library — a deleted author needs
-    // the library refetch to reconcile unlinked rows, and that
-    // refetch is what we trigger anyway right below. Order also
-    // means a library PATCH carrying free-text author + a
-    // subsequent direct author edit on the same person both land
-    // in the right order: library PATCH creates the author via
-    // `resolve_author_from_text`, then the author PATCH updates it.
-    await flushAuthors();
-    // 盒 · Coffrets flush AFTER volumes so an offline-created
-    // coffret's bound-volumes are already on the server before
-    // the coffret POST runs. Without this ordering, the server-
-    // side bulk update of those volumes (owned + price split)
-    // would race a still-pending volume edit and the latter
-    // would land second, overwriting the coffret-applied state
-    // for that volume. Sequencing matches the user's intent:
-    // "I edited a tome, then grouped it into a coffret" → the
-    // coffret operation is the authoritative final state.
-    await flushCoffrets();
+    // Each flush is ISOLATED: a retriable failure in one entity's queue
+    // (a transient 5xx on a library op, say) must not abort the others.
+    // Previously these were a straight `await flushX()` chain inside one
+    // try/catch, so the first throw skipped every later flush — one
+    // stuck op froze ALL sync (library + volumes + settings + …). They
+    // still run in dependency order so a *successful* pass applies in
+    // the right sequence:
+    //   • authors AFTER library — a library PATCH with free-text author
+    //     creates the author via `resolve_author_from_text`; the direct
+    //     author PATCH then updates it. Library delete also drives the
+    //     unlink refetch below.
+    //   • coffrets AFTER volumes — an offline-created coffret's bound
+    //     volumes must reach the server before the coffret POST, else
+    //     the server-side bulk volume update races a still-pending
+    //     volume edit and loses.
+    for (const flush of [
+      flushLibrary,
+      flushVolumes,
+      flushSettings,
+      flushBulkMark,
+      flushAuthors,
+      flushCoffrets,
+    ]) {
+      try {
+        await flush();
+      } catch (err) {
+        hadRetriable = true;
+        console.warn(
+          "[sync] retriable error, will retry later:",
+          err?.message,
+        );
+      }
+    }
+    if (hadRetriable) probeServer().catch(() => {});
     // Only pull fresh server state when we actually pushed something —
     // otherwise the read hooks already have what they need.
     await Promise.all([
@@ -1333,13 +1438,37 @@ export async function syncOutbox({ force = false } = {}) {
       refetchSettings().catch(() => {}),
     ]);
   } catch (err) {
-    probeServer().catch(() => {});
-    console.warn("[sync] retriable error, will retry later:", err?.message);
+    // The flush loop swallows flush errors, so reaching here means
+    // something outside the flushes threw — don't let it escape as an
+    // unhandled rejection.
+    console.warn("[sync] unexpected error:", err?.message);
   } finally {
     syncing = false;
-    if (syncQueued) {
+    if (hadRetriable) {
+      // Grow the backoff and schedule the SOLE next retry. Any pending
+      // re-entry request is folded into this timer rather than firing a
+      // separate immediate 1s requeue — that's what stops the storm.
+      retryBackoffMs = Math.min(retryBackoffMs ? retryBackoffMs * 2 : 1000, 60_000);
+      nextRetryAt = Date.now() + retryBackoffMs;
       syncQueued = false;
-      setTimeout(syncOutbox, 1000);
+      if (backoffTimer) clearTimeout(backoffTimer);
+      backoffTimer = setTimeout(() => {
+        backoffTimer = null;
+        nextRetryAt = 0;
+        syncOutbox();
+      }, retryBackoffMs);
+    } else {
+      // Clean pass — drop any backoff and service a queued re-entry soon.
+      retryBackoffMs = 0;
+      nextRetryAt = 0;
+      if (backoffTimer) {
+        clearTimeout(backoffTimer);
+        backoffTimer = null;
+      }
+      if (syncQueued) {
+        syncQueued = false;
+        setTimeout(syncOutbox, 1000);
+      }
     }
   }
 }
@@ -1377,16 +1506,32 @@ export async function forceResyncFromServer() {
       db.outboxVolumes,
       db.outboxSettings,
       db.outboxBulkMark,
+      db.outboxAuthors,
+      db.outboxCoffrets,
+      db.authors,
+      db.coffrets,
       db.streak,
     ],
     async () => {
+      // Discard ALL pending outbox ops — the whole point of "Restore
+      // from server" is to abandon local changes. The author + coffret
+      // queues were previously left untouched, so after a restore they
+      // would silently re-flush against the just-restored server,
+      // re-applying changes the user explicitly gave up.
       await db.outboxLibrary.clear();
       await db.outboxVolumes.clear();
       await db.outboxSettings.clear();
       await db.outboxBulkMark.clear();
+      await db.outboxAuthors.clear();
+      await db.outboxCoffrets.clear();
       await db.library.clear();
       await db.volumes.clear();
       await db.settings.clear();
+      // Drop the author + coffret caches too — they may hold the
+      // optimistic edits the discarded ops wrote. They re-populate
+      // from the server on the next AuthorPage / MangaPage visit.
+      await db.authors.clear();
+      await db.coffrets.clear();
       // 連 · Wipe the cached streak too — a "force resync" implies
       // the local mirror is suspect. The server-derived chip will
       // re-populate from `useStreak` on the next mount.

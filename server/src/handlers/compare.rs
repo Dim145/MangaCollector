@@ -100,7 +100,7 @@ pub async fn copy_entry(
         state.cache.as_deref(),
         &state.activity,
         me.id,
-        other.id,
+        &other,
         mal_id,
     )
     .await?;

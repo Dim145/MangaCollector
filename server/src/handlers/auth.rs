@@ -255,7 +255,7 @@ pub async fn delete_account(
     session: Session,
     AuthenticatedUser(user): AuthenticatedUser,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    users::delete_account(&state.db, &state.pool, state.storage.clone(), user.id).await?;
+    users::delete_account(&state.db, state.storage.clone(), user.id).await?;
     // Destroy the session after the DB wipe so we know the cleanup
     // succeeded before logging the user out. If session.delete() fails
     // after a successful wipe, the user is already deleted — the stale

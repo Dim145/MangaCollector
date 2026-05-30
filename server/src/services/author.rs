@@ -283,23 +283,15 @@ fn sanitize_name(raw: &str) -> Result<String, AppError> {
 /// custom library entries — `MIN(mal_id) - 1` per user, falling back
 /// to `-1` when the user has no custom authors yet.
 async fn mint_next_custom_author_id(
-    db: &impl sea_orm::ConnectionTrait,
-    user_id: i32,
+    conn: &impl sea_orm::ConnectionTrait,
+    _user_id: i32,
 ) -> Result<i32, AppError> {
-    let min_existing: Option<i32> = AuthorEntity::find()
-        .select_only()
-        .column_as(Expr::col(author::Column::MalId).min(), "min")
-        .filter(author::Column::UserId.eq(user_id))
-        .filter(author::Column::MalId.lt(0))
-        .into_tuple::<Option<i32>>()
-        .one(db)
-        .await
-        .map_err(AppError::from)?
-        .flatten();
-    let base = min_existing.unwrap_or(0);
-    base.checked_sub(1).ok_or_else(|| {
-        AppError::Internal("Custom author mal_id namespace exhausted for user".into())
-    })
+    // Race-free allocation via a global Postgres sequence (see
+    // `library::next_custom_id`). Replaced a per-user `MIN(mal_id) - 1`
+    // probe that collided under concurrent mints. `_user_id` is no longer
+    // needed (the sequence is global + concurrency-safe) but kept in the
+    // signature so call sites are unchanged.
+    crate::services::library::next_custom_id(conn, "custom_author_id_seq").await
 }
 
 pub async fn create_custom_author(
@@ -572,8 +564,25 @@ pub async fn find_or_create_shared_author_id(
 ///
 /// Empty / whitespace-only input → `Ok(None)` (clear the FK). Length
 /// is clamped at `AUTHOR_NAME_MAX_LEN` characters before any lookup.
+/// Standalone wrapper: opens a transaction so the mint's MIN-probe +
+/// INSERT are atomic for callers not already inside one (the MAL-refresh
+/// path). `apply_library_patch` calls the `_tx` variant directly so the
+/// resolution shares its enclosing transaction.
 pub async fn resolve_author_from_text(
     db: &Db,
+    user_id: i32,
+    raw: &str,
+) -> Result<Option<i32>, AppError> {
+    let txn = db.begin().await.map_err(AppError::from)?;
+    let resolved = resolve_author_from_text_tx(&txn, user_id, raw).await?;
+    txn.commit().await.map_err(AppError::from)?;
+    Ok(resolved)
+}
+
+/// Tx-variant: every lookup + the mint run on the caller-supplied
+/// connection, so the caller's transaction governs atomicity.
+pub async fn resolve_author_from_text_tx(
+    conn: &impl sea_orm::ConnectionTrait,
     user_id: i32,
     raw: &str,
 ) -> Result<Option<i32>, AppError> {
@@ -582,6 +591,11 @@ pub async fn resolve_author_from_text(
         return Ok(None);
     }
     let name: String = trimmed.chars().take(AUTHOR_NAME_MAX_LEN).collect();
+    // Escape LIKE wildcards so a name containing `%`/`_` (e.g. an author
+    // literally named "%") matches itself rather than every row. With no
+    // surrounding `%…%`, an escaped `ILIKE` reduces to exact
+    // case-insensitive equality — the intended dedup/resolve behaviour.
+    let name_like = crate::services::library::escape_like(&name);
 
     // Shared MAL author with same name (case-insensitive). `ilike`
     // without wildcards reduces to exact case-insensitive equality —
@@ -589,11 +603,11 @@ pub async fn resolve_author_from_text(
     // `idx_authors_name_ci` index if one is present.
     let shared_match = AuthorEntity::find()
         .filter(author::Column::UserId.is_null())
-        .filter(Expr::col(author::Column::Name).ilike(name.clone()))
+        .filter(Expr::col(author::Column::Name).ilike(name_like.clone()))
         .select_only()
         .column(author::Column::Id)
         .into_tuple::<i32>()
-        .one(db)
+        .one(conn)
         .await
         .map_err(AppError::from)?;
     if let Some(id) = shared_match {
@@ -602,22 +616,23 @@ pub async fn resolve_author_from_text(
 
     let user_match = AuthorEntity::find()
         .filter(author::Column::UserId.eq(user_id))
-        .filter(Expr::col(author::Column::Name).ilike(name.clone()))
+        .filter(Expr::col(author::Column::Name).ilike(name_like.clone()))
         .select_only()
         .column(author::Column::Id)
         .into_tuple::<i32>()
-        .one(db)
+        .one(conn)
         .await
         .map_err(AppError::from)?;
     if let Some(id) = user_match {
         return Ok(Some(id));
     }
 
-    // No match — mint a custom row. Tx-scoped so the MIN(mal_id)
-    // probe and the INSERT see the same snapshot; a concurrent
-    // resolver for the same user picks up our newly-inserted minimum.
-    let txn = db.begin().await.map_err(AppError::from)?;
-    let next_id = mint_next_custom_author_id(&txn, user_id).await?;
+    // No match — mint a custom row on the caller's connection. The
+    // MIN(mal_id) probe and the INSERT must see the same snapshot so a
+    // concurrent resolver for the same user picks up our newly-inserted
+    // minimum; the caller's transaction (the standalone wrapper, or
+    // `apply_library_patch`'s) provides that isolation.
+    let next_id = mint_next_custom_author_id(conn, user_id).await?;
     let now = Utc::now();
     let model = ActiveModel {
         user_id: Set(Some(user_id)),
@@ -633,8 +648,7 @@ pub async fn resolve_author_from_text(
         fetched_at: Set(now),
         ..Default::default()
     };
-    let inserted = model.insert(&txn).await.map_err(AppError::from)?;
-    txn.commit().await.map_err(AppError::from)?;
+    let inserted = model.insert(conn).await.map_err(AppError::from)?;
     Ok(Some(inserted.id))
 }
 

@@ -103,7 +103,7 @@ export default function CalendarPage() {
   const totalCount = filteredReleases.length;
   const nextRelease = filteredReleases[0] ?? null;
   const daysToNext = nextRelease
-    ? Math.max(0, daysBetween(today, new Date(nextRelease.release_date)))
+    ? Math.max(0, daysBetween(today, parseReleaseDate(nextRelease.release_date)))
     : null;
 
   // ── Render ──────────────────────────────────────────────────────
@@ -517,7 +517,7 @@ function MonthBlock({ label, kanji, releases, today, navigate, t, delayMs }) {
 
 function ReleaseCard({ release, today, navigate, t, tilt = 0 }) {
   const releaseDate = useMemo(
-    () => new Date(release.release_date),
+    () => parseReleaseDate(release.release_date),
     [release.release_date],
   );
   const days = daysBetween(today, releaseDate);
@@ -922,6 +922,29 @@ function startOfDay(d) {
   return x;
 }
 
+// Parse a server `release_date` into a timezone-stable LOCAL calendar
+// day. The server stores it as a UTC timestamp (frequently midnight
+// UTC), so a plain `new Date(iso)` renders in the viewer's local zone
+// and shifts a `T00:00:00Z` release to the previous day for anyone west
+// of UTC — landing it in the wrong calendar cell and skewing the
+// "days until" countdown. Manga releases are date-only in intent, so we
+// read the Y-M-D and build a local date, keeping every consumer (cell,
+// countdown, month bucket) on the intended day.
+//
+// Contract for bad input: a null/empty/non-ISO value yields an
+// `Invalid Date` (NaN time) — deliberately, NOT the 1970 epoch a bare
+// `new Date(null)` would give, which would render as a real (wrong)
+// day. Every caller here only ever passes a row's real `release_date`,
+// so the Invalid-Date branch is defensive; if it ever fires, an
+// "Invalid Date" label is a louder, more honest failure than a silent
+// Jan 1 1970 cell.
+function parseReleaseDate(value) {
+  if (!value) return new Date(NaN);
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(value);
+}
+
 function addMonths(d, n) {
   const x = new Date(d);
   x.setMonth(x.getMonth() + n);
@@ -949,7 +972,7 @@ function sameDay(a, b) {
 
 function formatLocaleLong(iso) {
   try {
-    return new Date(iso).toLocaleDateString(undefined, {
+    return parseReleaseDate(iso).toLocaleDateString(undefined, {
       year: "numeric",
       month: "long",
       day: "numeric",
@@ -982,7 +1005,7 @@ const MONTH_KANJI = [
 function groupByMonth(releases) {
   const buckets = new Map();
   for (const r of releases) {
-    const date = new Date(r.release_date);
+    const date = parseReleaseDate(r.release_date);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
     if (!buckets.has(key)) {
       buckets.set(key, {
@@ -1021,7 +1044,7 @@ function buildMonthGrid(label, releases) {
   // first release's date. Releases are already grouped by month so
   // the first one's month is canonical.
   if (!releases.length) return [];
-  const ref = new Date(releases[0].release_date);
+  const ref = parseReleaseDate(releases[0].release_date);
   const month = ref.getMonth();
   const firstOfMonth = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -1033,7 +1056,7 @@ function buildMonthGrid(label, releases) {
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month, day);
     const dayReleases = releases.filter((r) => {
-      const d = new Date(r.release_date);
+      const d = parseReleaseDate(r.release_date);
       return (
         d.getFullYear() === date.getFullYear() &&
         d.getMonth() === date.getMonth() &&

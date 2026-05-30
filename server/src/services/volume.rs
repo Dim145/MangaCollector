@@ -1,7 +1,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
+use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
 };
 
 use crate::db::Db;
@@ -592,7 +593,7 @@ fn normalize_release_url(raw: Option<&str>) -> Result<Option<String>, AppError> 
     match raw.map(str::trim) {
         None | Some("") => Ok(None),
         Some(s) => {
-            if !(s.starts_with("http://") || s.starts_with("https://")) {
+            if !is_http_url(s) {
                 return Err(AppError::BadRequest(
                     "release_url must start with http:// or https://".into(),
                 ));
@@ -600,6 +601,25 @@ fn normalize_release_url(raw: Option<&str>) -> Result<Option<String>, AppError> 
             Ok(Some(s.to_string()))
         }
     }
+}
+
+/// Non-erroring counterpart to `normalize_release_url`, for batch
+/// contexts (the nightly upcoming-volume sweep) where an upstream-
+/// supplied URL — MangaUpdates / the release-proxy serve third-party
+/// submitted links — must be dropped silently rather than failing the
+/// whole job. Anything that isn't `http(s)://` becomes `None` so a
+/// `javascript:` / `data:` payload can never reach the `<a href>` the
+/// client renders for a release row.
+pub(crate) fn sanitize_release_url(raw: Option<&str>) -> Option<String> {
+    match raw.map(str::trim) {
+        Some(s) if is_http_url(s) => Some(s.to_string()),
+        _ => None,
+    }
+}
+
+#[inline]
+fn is_http_url(s: &str) -> bool {
+    s.starts_with("http://") || s.starts_with("https://")
 }
 
 pub async fn add_upcoming_manually(
@@ -780,8 +800,34 @@ pub async fn add_volume_tx(
         store: Set(Some(String::new())),
         ..Default::default()
     };
-    model.insert(conn).await.map_err(AppError::from)?;
-    Ok(())
+    // Idempotent insert. A replayed outbox op (the offline client
+    // re-sends a library-add / volume-count change after a transient
+    // failure) or a race with the nightly upcoming-sweep must NOT raise
+    // a 23505 on the partial unique index
+    // `(user_id, mal_id, vol_num) WHERE mal_id IS NOT NULL`. ON CONFLICT
+    // DO NOTHING turns a duplicate into a clean no-op. `target_and_where`
+    // restates the partial index's predicate, which Postgres requires to
+    // match a partial unique index. On a conflict Postgres returns no row
+    // from the `DO NOTHING ... RETURNING`, which sea-orm surfaces as
+    // `RecordNotInserted` — that's the success case here (the row the
+    // caller wanted already exists), so we swallow it.
+    match VolumeEntity::insert(model)
+        .on_conflict(
+            OnConflict::columns([
+                volume::Column::UserId,
+                volume::Column::MalId,
+                volume::Column::VolNum,
+            ])
+            .target_and_where(Expr::col(volume::Column::MalId).is_not_null())
+            .do_nothing()
+            .to_owned(),
+        )
+        .exec(conn)
+        .await
+    {
+        Ok(_) | Err(DbErr::RecordNotInserted) => Ok(()),
+        Err(e) => Err(AppError::from(e)),
+    }
 }
 
 pub async fn delete_all_for_user_by_mal_id_tx(
