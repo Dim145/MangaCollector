@@ -28,6 +28,17 @@ import { emitSyncError, notifyPendingChanged } from "./events.js";
 let syncing = false;
 let syncQueued = false;
 
+// 退 · Retry backoff. After a pass that had retriable failures we
+// schedule ONE timed retry that grows 1s→2s→…→60s, and treat external
+// triggers (window focus, online, the 60s interval, a re-enqueue) as
+// no-ops until it fires. Without this, a stably-failing op was hammered
+// by every trigger at once — the "infinite, very rapid" retry the user
+// hit. Reset to 0 on the first clean pass. `force` bypasses (explicit
+// user action). Uses Date.now() — ordinary client code, not a workflow.
+let retryBackoffMs = 0;
+let nextRetryAt = 0;
+let backoffTimer = null;
+
 /** Count all pending ops across outbox tables. */
 export async function pendingCount() {
   const [lib, vol, set, bulk, authors, coffrets] = await Promise.all([
@@ -1354,6 +1365,11 @@ export async function syncOutbox({ force = false } = {}) {
     syncQueued = true;
     return;
   }
+  // Respect the retry backoff window. After a failed pass we schedule a
+  // single timed retry (see `finally`); until it fires, every other
+  // trigger is a no-op so a stably-failing op can't be hammered. `force`
+  // (explicit user action) bypasses.
+  if (!force && nextRetryAt > Date.now()) return;
 
   // Fast path: if the outbox is empty, skip everything — nothing to flush,
   // no need to re-fetch (React Query already refreshes independently on
@@ -1362,6 +1378,7 @@ export async function syncOutbox({ force = false } = {}) {
   if (pending === 0 && !force) return;
 
   syncing = true;
+  let hadRetriable = false;
   try {
     // Each flush is ISOLATED: a retriable failure in one entity's queue
     // (a transient 5xx on a library op, say) must not abort the others.
@@ -1378,7 +1395,6 @@ export async function syncOutbox({ force = false } = {}) {
     //     volumes must reach the server before the coffret POST, else
     //     the server-side bulk volume update races a still-pending
     //     volume edit and loses.
-    let hadRetriable = false;
     for (const flush of [
       flushLibrary,
       flushVolumes,
@@ -1411,9 +1427,31 @@ export async function syncOutbox({ force = false } = {}) {
     console.warn("[sync] unexpected error:", err?.message);
   } finally {
     syncing = false;
-    if (syncQueued) {
+    if (hadRetriable) {
+      // Grow the backoff and schedule the SOLE next retry. Any pending
+      // re-entry request is folded into this timer rather than firing a
+      // separate immediate 1s requeue — that's what stops the storm.
+      retryBackoffMs = Math.min(retryBackoffMs ? retryBackoffMs * 2 : 1000, 60_000);
+      nextRetryAt = Date.now() + retryBackoffMs;
       syncQueued = false;
-      setTimeout(syncOutbox, 1000);
+      if (backoffTimer) clearTimeout(backoffTimer);
+      backoffTimer = setTimeout(() => {
+        backoffTimer = null;
+        nextRetryAt = 0;
+        syncOutbox();
+      }, retryBackoffMs);
+    } else {
+      // Clean pass — drop any backoff and service a queued re-entry soon.
+      retryBackoffMs = 0;
+      nextRetryAt = 0;
+      if (backoffTimer) {
+        clearTimeout(backoffTimer);
+        backoffTimer = null;
+      }
+      if (syncQueued) {
+        syncQueued = false;
+        setTimeout(syncOutbox, 1000);
+      }
     }
   }
 }
