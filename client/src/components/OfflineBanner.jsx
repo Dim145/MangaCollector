@@ -4,6 +4,7 @@ import {
   getServerReachable,
   onConnectivityChange,
 } from "@/lib/connectivity.js";
+import { syncOutbox } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -52,6 +53,23 @@ export default function OfflineBanner() {
   const pending = usePendingCount();
   const online = browserOnline && serverReachable;
   const t = useT();
+
+  // P6 · Manual force-retry. With the exponential backoff (P4), a stuck
+  // sync waits up to 60s between auto-retries. This lets a user who knows
+  // connectivity is back force an immediate flush — `force: true` bypasses
+  // both the online-check and the backoff window. It's the non-destructive
+  // alternative to Settings → "Restore from server" (which discards local
+  // changes). A short local cooldown stops button-mashing from re-creating
+  // a request burst.
+  const [retrying, setRetrying] = useState(false);
+  const retryCooldownRef = useRef(null);
+  useEffect(() => () => clearTimeout(retryCooldownRef.current), []);
+  const onRetry = () => {
+    if (retrying) return;
+    setRetrying(true);
+    syncOutbox({ force: true });
+    retryCooldownRef.current = setTimeout(() => setRetrying(false), 2500);
+  };
 
   // Whether the banner SHOULD be shown given current state. The actual
   // visibility flag below debounces transitions into the "show" state.
@@ -189,6 +207,39 @@ export default function OfflineBanner() {
             )}
           </p>
         </div>
+        {/* 再 · Force-retry. Only when there's a network to try on
+            (browserOnline) AND something queued — pointless when the
+            browser itself is offline. Non-destructive: unlike
+            Settings → Restore, it keeps local changes and just re-flushes. */}
+        {browserOnline && pending > 0 && (
+          <button
+            type="button"
+            onClick={onRetry}
+            disabled={retrying}
+            aria-label={t("offline.retryNowAria")}
+            className="group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-washi/25 bg-washi/[0.06] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-washi transition hover:border-hanko/50 hover:bg-hanko/10 hover:text-hanko-bright active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`h-3 w-3 ${
+                retrying
+                  ? "animate-spin"
+                  : "transition-transform duration-300 group-hover:rotate-180"
+              }`}
+            >
+              <path d="M21 2v6h-6" />
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+              <path d="M3 22v-6h6" />
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            </svg>
+            {retrying ? t("offline.retrying") : t("offline.retryNow")}
+          </button>
+        )}
       </div>
     </div>
   );
