@@ -1,6 +1,6 @@
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set,
     TransactionTrait,
 };
 use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
@@ -123,24 +123,40 @@ async fn enrich_one_with_author(
 /// impossible) case of 2.1 billion custom entries for one user. On
 /// overflow we return an explicit Internal error rather than
 /// wrapping around into the positive range.
-pub async fn mint_next_custom_mal_id(
+/// Draw the next negative custom id from a Postgres sequence.
+///
+/// `nextval` is non-transactional and concurrency-safe: two callers (even
+/// in different in-flight transactions) always get distinct values. This
+/// replaced a `MIN(mal_id) - 1` probe-then-insert that raced — two
+/// simultaneous mints computed the same id and the loser hit a 23505
+/// (now a 409 that drops the edit). A value wasted on a rolled-back
+/// transaction is a harmless gap. `seq` is a fixed `&'static str` literal
+/// at both call sites (never user input), so the `format!` is
+/// injection-safe.
+pub(crate) async fn next_custom_id(
     conn: &impl ConnectionTrait,
-    user_id: i32,
+    seq: &str,
 ) -> Result<i32, AppError> {
-    let min_existing: Option<i32> = LibraryEntity::find()
-        .select_only()
-        .column_as(Expr::col(library::Column::MalId).min(), "min")
-        .filter(library::Column::UserId.eq(user_id))
-        .filter(library::Column::MalId.lt(0))
-        .into_tuple::<Option<i32>>()
-        .one(conn)
+    let stmt = sea_orm::Statement::from_string(
+        sea_orm::DatabaseBackend::Postgres,
+        format!("SELECT nextval('{seq}')::bigint AS id"),
+    );
+    let row = conn
+        .query_one(stmt)
         .await
         .map_err(AppError::from)?
-        .flatten();
-    let base = min_existing.unwrap_or(0);
-    base.checked_sub(1).ok_or_else(|| {
-        AppError::Internal("Custom mal_id namespace exhausted for user".into())
-    })
+        .ok_or_else(|| AppError::Internal("sequence returned no row".into()))?;
+    let next: i64 = row
+        .try_get("", "id")
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(next as i32)
+}
+
+pub async fn mint_next_custom_mal_id(
+    conn: &impl ConnectionTrait,
+    _user_id: i32,
+) -> Result<i32, AppError> {
+    next_custom_id(conn, "custom_library_id_seq").await
 }
 
 /// Ask MangaDex for a better (uncensored, often higher-res) cover when the

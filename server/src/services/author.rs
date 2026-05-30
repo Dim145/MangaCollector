@@ -283,23 +283,15 @@ fn sanitize_name(raw: &str) -> Result<String, AppError> {
 /// custom library entries — `MIN(mal_id) - 1` per user, falling back
 /// to `-1` when the user has no custom authors yet.
 async fn mint_next_custom_author_id(
-    db: &impl sea_orm::ConnectionTrait,
-    user_id: i32,
+    conn: &impl sea_orm::ConnectionTrait,
+    _user_id: i32,
 ) -> Result<i32, AppError> {
-    let min_existing: Option<i32> = AuthorEntity::find()
-        .select_only()
-        .column_as(Expr::col(author::Column::MalId).min(), "min")
-        .filter(author::Column::UserId.eq(user_id))
-        .filter(author::Column::MalId.lt(0))
-        .into_tuple::<Option<i32>>()
-        .one(db)
-        .await
-        .map_err(AppError::from)?
-        .flatten();
-    let base = min_existing.unwrap_or(0);
-    base.checked_sub(1).ok_or_else(|| {
-        AppError::Internal("Custom author mal_id namespace exhausted for user".into())
-    })
+    // Race-free allocation via a global Postgres sequence (see
+    // `library::next_custom_id`). Replaced a per-user `MIN(mal_id) - 1`
+    // probe that collided under concurrent mints. `_user_id` is no longer
+    // needed (the sequence is global + concurrency-safe) but kept in the
+    // signature so call sites are unchanged.
+    crate::services::library::next_custom_id(conn, "custom_author_id_seq").await
 }
 
 pub async fn create_custom_author(
