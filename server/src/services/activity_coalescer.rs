@@ -189,12 +189,14 @@ impl ActivityCoalescer {
             if let Some(entry) = to_flush {
                 activity::record_at(
                     &db,
-                    key_for_task.user_id,
-                    &entry.event_type,
-                    key_for_task.mal_id,
-                    key_for_task.vol_num,
-                    entry.name,
-                    entry.count_value,
+                    activity::NewEvent {
+                        user_id: key_for_task.user_id,
+                        event_type: &entry.event_type,
+                        mal_id: key_for_task.mal_id,
+                        vol_num: key_for_task.vol_num,
+                        name: entry.name,
+                        count_value: entry.count_value,
+                    },
                     entry.created_on,
                 )
                 .await;

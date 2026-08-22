@@ -541,29 +541,6 @@ pub async fn bulk_mark_for_series(
     Ok(())
 }
 
-/// 来 · Manually create an upcoming-volume row.
-///
-/// Mirrors the API-cascade insert path in `services::releases::reconcile_user`,
-/// but with two key differences:
-///   1. `origin = "manual"` — the nightly sweep is forbidden from
-///      touching this row even if the auto-cascade later finds a
-///      conflicting date for the same vol_num.
-///   2. The caller chose every value (date, ISBN, URL) — we validate
-///      shape but never override the user's intent.
-///
-/// The function refuses to create a row if:
-///   * `release_date` is in the past (or now) — a tome already out
-///     should not be marked "upcoming".
-///   * `release_isbn` is non-empty but not 10/13 ASCII digits (allowing
-///     a trailing `X` for the legacy ISBN-10 check digit).
-///   * `release_url` is non-empty and lacks an `http://` / `https://`
-///     scheme.
-///   * The series is not in the user's library — same authz gate as
-///     `reconcile_user`.
-///   * A row already exists at `(user_id, mal_id, vol_num)`. The DB
-///     would catch this via the partial unique index, but we surface
-///     it as a 409 instead of a 500 so the SPA can inline a clear
-///     "tome déjà existant" hint.
 /// 国際標準図書番号 · Strip cosmetic separators (dashes, spaces) from
 /// an ISBN candidate and verify the remaining digit count is 10 or
 /// 13. Returns `Ok(None)` when the input is empty/whitespace-only.
@@ -622,6 +599,29 @@ fn is_http_url(s: &str) -> bool {
     s.starts_with("http://") || s.starts_with("https://")
 }
 
+/// 来 · Manually create an upcoming-volume row.
+///
+/// Mirrors the API-cascade insert path in `services::releases::reconcile_user`,
+/// but with two key differences:
+///   1. `origin = "manual"` — the nightly sweep is forbidden from
+///      touching this row even if the auto-cascade later finds a
+///      conflicting date for the same vol_num.
+///   2. The caller chose every value (date, ISBN, URL) — we validate
+///      shape but never override the user's intent.
+///
+/// The function refuses to create a row if:
+///   * `release_date` is in the past (or now) — a tome already out
+///     should not be marked "upcoming".
+///   * `release_isbn` is non-empty but not 10/13 ASCII digits (allowing
+///     a trailing `X` for the legacy ISBN-10 check digit).
+///   * `release_url` is non-empty and lacks an `http://` / `https://`
+///     scheme.
+///   * The series is not in the user's library — same authz gate as
+///     `reconcile_user`.
+///   * A row already exists at `(user_id, mal_id, vol_num)`. The DB
+///     would catch this via the partial unique index, but we surface
+///     it as a 409 instead of a 500 so the SPA can inline a clear
+///     "tome déjà existant" hint.
 pub async fn add_upcoming_manually(
     db: &Db,
     user_id: i32,

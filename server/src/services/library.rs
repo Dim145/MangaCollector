@@ -594,6 +594,12 @@ async fn copy_poster_blob(
 ///   • Custom w/ manual upload    → mint new negative mal_id, copy
 ///                                  blob, stored URL becomes the
 ///                                  `/api/user/storage/poster/{new}` form
+// 8 args, but 5 are ambient service handles (db, storage, http_client, cache,
+// activity_buffer) rather than data — only the last 3 are real parameters.
+// Collapsing the handles means threading a context/deps struct through this
+// whole layer, which is an architecture change, not a lint cleanup. Exempted
+// deliberately so the rest of the crate can stay clippy-clean.
+#[allow(clippy::too_many_arguments)]
 pub async fn copy_series_from_other_user(
     db: &Db,
     storage: &std::sync::Arc<dyn crate::storage::StorageBackend>,

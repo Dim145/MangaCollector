@@ -30,15 +30,32 @@ pub async fn record(
 ) {
     record_at(
         conn,
-        user_id,
-        event_type,
-        mal_id,
-        vol_num,
-        name,
-        count_value,
+        NewEvent {
+            user_id,
+            event_type,
+            mal_id,
+            vol_num,
+            name,
+            count_value,
+        },
         Utc::now(),
     )
     .await;
+}
+
+/// Column payload for one activity-log row.
+///
+/// Grouped into a struct rather than passed as loose parameters because
+/// `mal_id`, `vol_num` and `count_value` are all `Option<i32>` — three
+/// mutually-assignable arguments that a positional call site can silently
+/// transpose with no type error. Named fields make that impossible.
+pub struct NewEvent<'a> {
+    pub user_id: i32,
+    pub event_type: &'a str,
+    pub mal_id: Option<i32>,
+    pub vol_num: Option<i32>,
+    pub name: Option<String>,
+    pub count_value: Option<i32>,
 }
 
 /// Like `record` but uses the supplied `created_on` instead of
@@ -47,21 +64,17 @@ pub async fn record(
 /// click — keeps streak/heatmap math accurate.
 pub async fn record_at(
     conn: &impl ConnectionTrait,
-    user_id: i32,
-    event_type: &str,
-    mal_id: Option<i32>,
-    vol_num: Option<i32>,
-    name: Option<String>,
-    count_value: Option<i32>,
+    event: NewEvent<'_>,
     created_on: chrono::DateTime<chrono::Utc>,
 ) {
+    let (user_id, event_type) = (event.user_id, event.event_type);
     let model = ActiveModel {
         user_id: Set(user_id),
         event_type: Set(event_type.to_string()),
-        mal_id: Set(mal_id),
-        vol_num: Set(vol_num),
-        name: Set(name),
-        count_value: Set(count_value),
+        mal_id: Set(event.mal_id),
+        vol_num: Set(event.vol_num),
+        name: Set(event.name),
+        count_value: Set(event.count_value),
         created_on: Set(created_on),
         ..Default::default()
     };

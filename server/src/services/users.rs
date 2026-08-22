@@ -637,11 +637,11 @@ pub async fn find_or_create(
 ///   2. DB transaction — explicit deletes for child tables (kept for
 ///      defense-in-depth even though every FK declares ON DELETE
 ///      CASCADE) plus the tables/blobs that need explicit handling:
-///        • `user_session_meta` cascades, so it goes in the txn.
-///        • `tower_sessions` does NOT cascade (the FK from
-///          user_session_meta to tower_sessions was dropped in
-///          migration 20260426150000) — wiped via raw sqlx after the
-///          transaction commits.
+///      • `user_session_meta` cascades, so it goes in the txn.
+///      • `tower_sessions` does NOT cascade (the FK from
+///      user_session_meta to tower_sessions was dropped in
+///      migration 20260426150000) — wiped via raw sqlx after the
+///      transaction commits.
 ///      The user row goes last; cascades fire and clean any tables we
 ///      didn't list (user_seals, user_snapshots, user_follows,
 ///      `authors WHERE user_id = X`).
