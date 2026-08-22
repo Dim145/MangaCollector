@@ -143,3 +143,10 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 tmp
+
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
+
+# Local session/scratch state (claude-code `remember` skill)
+.remember/
