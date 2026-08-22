@@ -25,7 +25,8 @@ LABEL org.opencontainers.image.title="MangaCollector Frontend" \
       security.tmpfs="/tmp,/var/cache/nginx" \
       security.caps.drop="ALL" \
       security.caps.required="CHOWN,SETUID,SETGID,NET_BIND_SERVICE" \
-      security.no-new-privileges="required"
+      security.no-new-privileges="required" \
+      security.user="root master, nginx workers — master must stay root to bind :80 (see NET_BIND_SERVICE above)"
 
 # `gettext` ships `envsubst`, used by docker-entrypoint.sh to template
 # the runtime config (Umami) into index.html + nginx.conf at startup.
@@ -38,6 +39,13 @@ COPY nginx.conf /etc/nginx/nginx.conf
 COPY docker-entrypoint.sh /mc-entrypoint.sh
 RUN chmod +x /mc-entrypoint.sh
 
+# No USER directive, deliberately. nginx's master process must start as root to
+# bind privileged port 80 (hence NET_BIND_SERVICE / SETUID / SETGID in the caps
+# contract above); it then drops its worker processes to the unprivileged
+# `nginx` user itself. Adding `USER nginx` here would break the bind. Static
+# scanners flag this as "image user should not be root" — that finding is
+# understood and accepted for this image, not an oversight.
+#
 # Override the upstream nginx ENTRYPOINT (which iterates
 # `/docker-entrypoint.d/*` and execs `nginx -g 'daemon off;'` with the
 # default config path). Ours mirrors the templated config to /tmp and

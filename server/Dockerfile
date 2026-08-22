@@ -69,7 +69,8 @@ LABEL org.opencontainers.image.title="MangaCollector Backend" \
       security.tmpfs="/tmp" \
       security.caps.drop="ALL" \
       security.no-new-privileges="required" \
-      security.writable-volumes="/data (optional, for LocalStorage backend)"
+      security.writable-volumes="/data (optional, for LocalStorage backend)" \
+      security.user="65532:65532 (nonroot, numeric — scratch has no /etc/passwd)"
 
 # Binary was copied out of the (volatile) cache-mounted /build/target by the
 # builder stage — we COPY from the image-layer path, not /build/target/*.
@@ -86,5 +87,15 @@ EXPOSE 3000
 # curl/wget in the scratch image.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["/manga-collector-server", "--health"]
+
+# Drop to nonroot. Numeric uid:gid is mandatory here — `scratch` ships no
+# /etc/passwd, so a named user would fail to resolve. 65532 is the conventional
+# "nonroot" id (distroless), and is the id the README documents.
+#
+# Operator note: /data (LocalStorage backend) must be writable by 65532. On a
+# bind mount that means `chown -R 65532:65532` on the host directory; a named
+# Docker volume inherits the right ownership on first use. The S3 backend needs
+# no writable volume at all. /tmp is a tmpfs (mode 1777) and stays writable.
+USER 65532:65532
 
 ENTRYPOINT ["/manga-collector-server"]

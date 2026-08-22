@@ -85,7 +85,7 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 - **Active sessions modal** — list every device currently signed in, revoke individual sessions; rotates the session id on login as a session-fixation defence
 
 ### Security & ops
-- Hardened containers: read-only rootfs, dropped Linux capabilities, `no-new-privileges`, non-root user (uid 65532), no package manager left in the runtime image
+- Hardened containers: read-only rootfs, dropped Linux capabilities, `no-new-privileges`, no package manager left in the runtime image. The backend runs as **non-root (uid 65532)**; the frontend's nginx master stays root only to bind :80 and drops its workers to the unprivileged `nginx` user
 - OCI metadata labels documenting the security contract
 - Static binary (musl) with **Rustls (aws-lc-rs)** end-to-end — zero OpenSSL on the wire, ~15 MB lighter image, and a whole class of `RUSTSEC-*-openssl-*` advisories simply can't apply
 - Runs from `scratch` (no shell, no libc, no package manager)
@@ -246,7 +246,7 @@ The image story is the same in dev and prod — **multi-stage Docker builds + re
 ### Backend
 - Built on `rust:alpine` with **Rustls (aws-lc-rs)** TLS — the whole `openssl` / `openssl-sys` chain is gone, both at build time and at runtime — and the resulting static musl binary is copied into `FROM scratch`
 - ~22 MB final image (≈15 MB lighter than the OpenSSL-linked build), no shell, no package manager
-- Runs as non-root, with `cap_drop: ALL` and `read_only: true` in Compose / k8s
+- Runs as non-root (`USER 65532:65532` — numeric, since `scratch` has no `/etc/passwd`), with `cap_drop: ALL` and `read_only: true` in Compose / k8s. If you use the LocalStorage backend, the `/data` volume must be writable by uid 65532
 - HEALTHCHECK: the binary itself accepts a `--health` subcommand that loops back to `/api/health` and exits 0/1
 - OCI labels (`security.readonly-rootfs`, `security.tmpfs`, `security.caps.drop`, …) document the runtime contract
 
