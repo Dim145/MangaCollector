@@ -9,13 +9,14 @@ overrides:
   magic-string: ^0.30.21
   source-map: ^0.7.6
   glob: ^13.0.6
-  fast-uri: ^3.1.4
+  fast-uri: ^3.1.5
   '@babel/plugin-transform-modules-systemjs': ^7.29.4
   form-data: ^4.0.6
   brace-expansion@>=5.0.0 <5.0.7: ^5.0.7
   brace-expansion@>=2.0.0 <2.1.2: ^2.1.2
   '@babel/core': ^7.29.6
   postcss: ^8.5.25
+  nanoid: ^3.3.18
 
 importers:
 
@@ -61,8 +62,8 @@ importers:
         specifier: ^19.2.5
         version: 19.2.5(react@19.2.5)
       react-router-dom:
-        specifier: ^7.15.1
-        version: 7.18.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+        specifier: ^7.18.2
+        version: 7.18.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       recharts:
         specifier: ^3.8.1
         version: 3.8.1(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react-is@19.2.5)(react@19.2.5)(redux@5.0.1)
@@ -1480,8 +1481,8 @@ packages:
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
 
-  fast-uri@3.1.4:
-    resolution: {integrity: sha512-8JnbkQ4juDyvYs4mgFGQqg4yCYtFDtUtmp2QIQq11ZZe5CFQ5wcqm1rqDgAh/QdMySuBnPzMUiJUNZG5N/AiQw==}
+  fast-uri@3.1.5:
+    resolution: {integrity: sha512-gHwA1O9LDIcKunMKhObS/HimwtehO1nPUECKAu5TpKgaO19fcWEl4bliWe1jWxVFvIXztJjjQ4L8XQ1EU9f7Jw==}
 
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
@@ -1943,8 +1944,8 @@ packages:
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
-  nanoid@3.3.16:
-    resolution: {integrity: sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==}
+  nanoid@3.3.18:
+    resolution: {integrity: sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
@@ -2066,15 +2067,15 @@ packages:
       redux:
         optional: true
 
-  react-router-dom@7.18.0:
-    resolution: {integrity: sha512-Fi0yY6kgtKae/Th2xibdWK0KSdYZ4B53Gyf6wRtomOKWgpNm7H7+DyfDhncdz9FKbpS+1jmDhg3F4WoGJ+yFOA==}
+  react-router-dom@7.18.2:
+    resolution: {integrity: sha512-AIKJ/jgGlFb3EbfCXk5Gzshiwt+l3mqbCrNjmEWMMjqQxNJ3svBa6bgzFyCC2Sw3RA0VWF1kg3uQf2OFhxb8hw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
 
-  react-router@7.18.0:
-    resolution: {integrity: sha512-pTTGt8J+ji1NOmYnjzT+bAJy/1zD+Jp4ziO6cL7T3ZLvXKtusO7BpFqlRXitqpcPVqllsIXFHRMt+2/k3Xn6HQ==}
+  react-router@7.18.2:
+    resolution: {integrity: sha512-aUVMjFm3GAPTTZL7oYr5E7ETiqfQCHRLH+B+5afnICvf0r7kkK4eR6SMuwbSTJw/7t+12khT/Kahij49fqOCIg==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
@@ -3623,7 +3624,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.4
+      fast-uri: 3.1.5
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -4050,7 +4051,7 @@ snapshots:
 
   fast-levenshtein@2.0.6: {}
 
-  fast-uri@3.1.4: {}
+  fast-uri@3.1.5: {}
 
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
@@ -4463,7 +4464,7 @@ snapshots:
 
   ms@2.1.3: {}
 
-  nanoid@3.3.16: {}
+  nanoid@3.3.18: {}
 
   natural-compare@1.4.0: {}
 
@@ -4526,7 +4527,7 @@ snapshots:
 
   postcss@8.5.25:
     dependencies:
-      nanoid: 3.3.16
+      nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
@@ -4562,13 +4563,13 @@ snapshots:
       '@types/react': 19.2.14
       redux: 5.0.1
 
-  react-router-dom@7.18.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
+  react-router-dom@7.18.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
     dependencies:
       react: 19.2.5
       react-dom: 19.2.5(react@19.2.5)
-      react-router: 7.18.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      react-router: 7.18.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
 
-  react-router@7.18.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
+  react-router@7.18.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
     dependencies:
       cookie: 1.1.1
       react: 19.2.5
