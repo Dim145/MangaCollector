@@ -150,3 +150,6 @@ tmp
 
 # Local session/scratch state (claude-code `remember` skill)
 .remember/
+
+# graphify knowledge graph — generated artifacts (~6 MB, rebuild with `graphify update .`)
+graphify-out/
