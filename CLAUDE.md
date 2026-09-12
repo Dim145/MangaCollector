@@ -115,15 +115,31 @@ docker compose build
 - **Server:** `cargo test` — 34 tests across 8 `#[cfg(test)]` modules
   (`storage.rs`, `util/{url,uuid,image}.rs`,
   `services/{genres,proxy_client,google_books_api,activity_coalescer}.rs`).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 262 tests across 8 suites
-  covering the logic layer: `utils/{date,price,volume,library,libraryStats}.js`
-  and `lib/{isbn,season,queryState}.js`. `pnpm run test:coverage` writes an
-  HTML/lcov report to `client/coverage/`; its scope is `src/utils/**` +
-  `src/lib/**`, so untested modules there show as 0% on purpose.
-  Config lives in `client/vitest.config.js` (separate from `vite.config.js`
-  so the PWA plugin stays out of the test run); `src/test/setup.js` pins
-  `TZ=UTC` and clears web storage between cases.
-  The 112 components under `src/components/` have no tests yet.
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 705 tests across 24 suites
+  covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
+  report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
+  (~41% statements), and untested modules there show as 0% on purpose so
+  the remaining gaps stay visible.
+  - `utils/`: `date`, `price`, `volume`, `library`, `libraryStats`,
+    `user`, `auth` (~76% overall).
+  - `lib/`: `isbn`, `season`, `queryState`, `share`, `pasteDetect`,
+    `coverPalette`, `sealsCatalog`, `accent`, `theme`, `tour`,
+    `deepLinks`, `scrollLock`, `haptics`, `connectivity`, `dailyTexts`.
+  - `lib/sync/`: `events`, and `outbox` — the offline queue runs against
+    a real in-memory IndexedDB (`fake-indexeddb`), so coalescing and the
+    delete cascade are exercised rather than mocked.
+  - Three suites assert **cross-language parity** by parsing the Rust
+    source: the seal catalogue against `services/seals.rs::CATALOG`, the
+    accent list against `services/settings.rs::VALID_ACCENT_COLORS`, and
+    the accent list against the `[data-accent]` blocks in the stylesheet.
+    They self-skip when the file is absent, so a client-only checkout
+    still runs green.
+  - Config: `client/vitest.config.js` (separate from `vite.config.js` so
+    the PWA plugin stays out of the test run); `src/test/setup.js` pins
+    `TZ=UTC` and clears web storage between cases.
+  - Not covered yet: the 112 components under `src/components/`, the 50
+    hooks, and the canvas/Web-Audio modules (`shelfSnapshot`, `sounds`,
+    `barcode`).
 
 ## Code Style
 
