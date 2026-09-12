@@ -112,10 +112,11 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 34 tests across 8 `#[cfg(test)]` modules
-  (`storage.rs`, `util/{url,uuid,image}.rs`,
-  `services/{genres,proxy_client,google_books_api,activity_coalescer}.rs`).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 705 tests across 24 suites
+- **Server:** `cargo test` — 44 tests across 11 `#[cfg(test)]` modules
+  (`storage.rs`, `errors.rs`, `util/{url,uuid,image}.rs`,
+  `services/{genres,proxy_client,google_books_api,activity_coalescer,realtime}.rs`,
+  `handlers/realtime.rs`).
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 806 tests across 28 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -127,7 +128,10 @@ docker compose build
     `deepLinks`, `scrollLock`, `haptics`, `connectivity`, `dailyTexts`.
   - `lib/sync/`: `events`, and `outbox` — the offline queue runs against
     a real in-memory IndexedDB (`fake-indexeddb`), so coalescing and the
-    delete cascade are exercised rather than mocked.
+    delete cascade are exercised rather than mocked. `lib/db.test.js`
+    covers the outbox-aware cache writers the same way; `clientId` and
+    `realtimePlan` (the websocket decision table) are pure and tested.
+  - `components/ui/CoverImage.test.jsx` is the first component test.
   - Three suites assert **cross-language parity** by parsing the Rust
     source: the seal catalogue against `services/seals.rs::CATALOG`, the
     accent list against `services/settings.rs::VALID_ACCENT_COLORS`, and
@@ -137,9 +141,10 @@ docker compose build
   - Config: `client/vitest.config.js` (separate from `vite.config.js` so
     the PWA plugin stays out of the test run); `src/test/setup.js` pins
     `TZ=UTC` and clears web storage between cases.
-  - Not covered yet: the 112 components under `src/components/`, the 50
-    hooks, and the canvas/Web-Audio modules (`shelfSnapshot`, `sounds`,
-    `barcode`).
+  - Not covered yet: the other 111 components, the 50 hooks, and the
+    canvas/Web-Audio modules (`shelfSnapshot`, `sounds`, `barcode`).
+- **Formatting caveat:** the Rust tree is not clean under `rustfmt` 1.9 — a
+  blind `cargo fmt` reflows ~54 files. Format only the hunks you touch.
 
 ## Code Style
 
