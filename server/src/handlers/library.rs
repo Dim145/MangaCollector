@@ -6,6 +6,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::auth::AuthenticatedUser;
+use crate::handlers::realtime::ClientId;
 use crate::errors::AppError;
 use crate::models::library::{
     AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, LibraryEntry,
@@ -54,6 +55,7 @@ pub async fn get_user_manga(
 pub async fn update_from_mal(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Path(mal_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let (new_genres, new_name) = library::update_infos_from_mal(
@@ -64,7 +66,10 @@ pub async fn update_from_mal(
         mal_id,
     )
     .await?;
-    state.broker.publish(user.id, SyncKind::Library).await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Library, Some(mal_id), client_id.clone())
+        .await;
 
     Ok(Json(json!({
         "success": true,
@@ -78,6 +83,7 @@ pub async fn update_from_mal(
 pub async fn add_to_library(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Json(body): Json<AddLibraryRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if body.mal_id.unwrap_or(0) <= 0 {
@@ -92,8 +98,14 @@ pub async fn add_to_library(
         body,
     )
     .await?;
-    state.broker.publish(user.id, SyncKind::Library).await;
-    state.broker.publish(user.id, SyncKind::Volumes).await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Library, None, client_id.clone())
+        .await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Volumes, None, client_id.clone())
+        .await;
     Ok(Json(json!({
         "success": true,
         "message": "Added manga to library successfully"
@@ -109,6 +121,7 @@ pub async fn add_to_library(
 pub async fn add_from_mangadex(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Json(body): Json<AddFromMangadexRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let trimmed_id = body.mangadex_id.trim();
@@ -132,8 +145,14 @@ pub async fn add_from_mangadex(
         body,
     )
     .await?;
-    state.broker.publish(user.id, SyncKind::Library).await;
-    state.broker.publish(user.id, SyncKind::Volumes).await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Library, None, client_id.clone())
+        .await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Volumes, None, client_id.clone())
+        .await;
     Ok(Json(json!({
         "success": true,
         "message": "Added MangaDex entry to library successfully",
@@ -145,6 +164,7 @@ pub async fn add_from_mangadex(
 pub async fn refresh_from_mangadex(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Path(mal_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let (new_genres, new_name, new_image_url_jpg) = library::refresh_from_mangadex(
@@ -155,7 +175,10 @@ pub async fn refresh_from_mangadex(
         mal_id,
     )
     .await?;
-    state.broker.publish(user.id, SyncKind::Library).await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Library, Some(mal_id), client_id.clone())
+        .await;
 
     Ok(Json(json!({
         "success": true,
@@ -240,6 +263,7 @@ pub struct SetPosterRequest {
 pub async fn set_poster(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Path(mal_id): Path<i32>,
     Json(body): Json<SetPosterRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -250,7 +274,10 @@ pub async fn set_poster(
     }
 
     library::change_poster(&state.db, user.id, mal_id, Some(body.url.clone())).await?;
-    state.broker.publish(user.id, SyncKind::Library).await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Library, Some(mal_id), client_id.clone())
+        .await;
 
     Ok(Json(json!({
         "success": true,
@@ -262,6 +289,7 @@ pub async fn set_poster(
 pub async fn add_custom_entry(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Json(body): Json<AddCustomRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let entry = library::add_custom_entry(
@@ -273,8 +301,14 @@ pub async fn add_custom_entry(
         body,
     )
     .await?;
-    state.broker.publish(user.id, SyncKind::Library).await;
-    state.broker.publish(user.id, SyncKind::Volumes).await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Library, None, client_id.clone())
+        .await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Volumes, None, client_id.clone())
+        .await;
     Ok(Json(json!({
         "success": true,
         "message": "Added custom entry to library successfully",
@@ -291,6 +325,7 @@ pub async fn add_custom_entry(
 pub async fn update_manga(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Path(mal_id): Path<i32>,
     Json(body): Json<UpdateLibraryRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -306,9 +341,15 @@ pub async fn update_manga(
         && body.edition.is_none();
     library::apply_library_patch(&state.db, mal_id, user.id, body).await?;
     if !is_noop {
-        state.broker.publish(user.id, SyncKind::Library).await;
+        state
+            .broker
+            .publish_scoped(user.id, SyncKind::Library, Some(mal_id), client_id.clone())
+            .await;
         if touches_volumes {
-            state.broker.publish(user.id, SyncKind::Volumes).await;
+            state
+                .broker
+                .publish_scoped(user.id, SyncKind::Volumes, Some(mal_id), client_id.clone())
+                .await;
         }
     }
     Ok(Json(json!({
@@ -321,11 +362,18 @@ pub async fn update_manga(
 pub async fn update_manga_owned(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Path((mal_id, owned)): Path<(i32, i32)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     library::update_volumes_owned(&state.db, user.id, mal_id, owned).await?;
-    state.broker.publish(user.id, SyncKind::Library).await;
-    state.broker.publish(user.id, SyncKind::Volumes).await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Library, Some(mal_id), client_id.clone())
+        .await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Volumes, Some(mal_id), client_id.clone())
+        .await;
     Ok(Json(json!({ "success": true })))
 }
 
@@ -333,12 +381,22 @@ pub async fn update_manga_owned(
 pub async fn delete_manga(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Path(mal_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     library::delete_manga(&state.db, &state.activity, mal_id, user.id).await?;
-    state.broker.publish(user.id, SyncKind::Library).await;
-    state.broker.publish(user.id, SyncKind::Volumes).await;
-    state.broker.publish(user.id, SyncKind::Coffrets).await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Library, Some(mal_id), client_id.clone())
+        .await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Volumes, Some(mal_id), client_id.clone())
+        .await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Coffrets, Some(mal_id), client_id.clone())
+        .await;
     Ok(Json(json!({
         "success": true,
         "message": "Removed manga from library successfully"
@@ -361,6 +419,7 @@ pub async fn delete_manga(
 pub async fn refresh_upcoming(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     Path(mal_id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Resolve the series name. The API cascade keys on free-text
@@ -408,7 +467,10 @@ pub async fn refresh_upcoming(
     // unaffected (the series row itself isn't touched), only the
     // child volume rows.
     if !report.added.is_empty() || !report.updated.is_empty() {
-        state.broker.publish(user.id, SyncKind::Volumes).await;
+        state
+            .broker
+            .publish_scoped(user.id, SyncKind::Volumes, Some(mal_id), client_id.clone())
+            .await;
     }
 
     Ok(Json(json!({

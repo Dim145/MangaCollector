@@ -307,6 +307,9 @@ async fn main() -> anyhow::Result<()> {
             // preflight rejects every mutating sync request in a
             // cross-origin deployment (frontend + API on different hosts).
             axum::http::header::HeaderName::from_static("idempotency-key"),
+            // 源 · Per-tab client id the SPA stamps on every request so the
+            // realtime broker can skip echoing a change back to its author.
+            axum::http::header::HeaderName::from_static("x-client-id"),
         ]);
 
     // Router

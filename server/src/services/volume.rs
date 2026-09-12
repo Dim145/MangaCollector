@@ -155,7 +155,7 @@ pub async fn update_by_id(
     read: Option<bool>,
     // `None` leaves the note column untouched.
     notes: Option<String>,
-) -> Result<(), AppError> {
+) -> Result<Option<i32>, AppError> {
     // Idempotent on two axes — a row that no longer exists (offline
     // outbox replay after deletion) and a row that exists under
     // another user (IDOR attempt or stale client state). Both paths
@@ -170,6 +170,9 @@ pub async fn update_by_id(
         .one(db)
         .await
         .map_err(AppError::from)?;
+    // Captured before `existing` is destructured further down; handed
+    // back so the handler can scope its realtime event to the series.
+    let series_id = existing.as_ref().and_then(|r| r.mal_id);
 
     let is_upcoming = existing
         .as_ref()
@@ -270,7 +273,7 @@ pub async fn update_by_id(
                 .await;
         }
 
-    Ok(())
+    Ok(series_id)
 }
 
 /// 預け · Apply a loan-state mutation to a single volume.

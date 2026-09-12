@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { emitSyncEvent } from "@/lib/sync/events.js";
+import { getClientId } from "@/lib/clientId.js";
+import { KIND_TO_KEYS, planRealtimeAction } from "@/lib/realtimePlan.js";
+import { refetchLibraryEntry, refetchVolumes } from "@/lib/sync/outbox.js";
 
 /**
  * 同期 · Realtime invalidation receiver.
@@ -27,27 +30,6 @@ import { emitSyncEvent } from "@/lib/sync/events.js";
  */
 
 /** Map a server `kind` to the TanStack Query keys it invalidates. */
-const KIND_TO_KEYS = {
-  library: [["library"]],
-  volumes: [["volumes-all"], ["volumes"]],
-  coffrets: [["coffrets"], ["volumes-all"]], // coffret touches volumes too
-  settings: [["settings"], ["user-profile"]],
-  seals: [["seals"]],
-  activity: [["activity"]],
-  // 作家 · Author CRUD — invalidate every per-author detail
-  // query (AuthorPage reads `["author", malId]` keyed on each
-  // visited author). React Query treats `["author"]` as a
-  // prefix and matches every nested key.
-  authors: [["author"]],
-  // 印影 · Snapshot CRUD.
-  snapshots: [["snapshots"]],
-  // 友 · Follow graph mutation. Three keyed surfaces:
-  //   ["friends", "list"]      — the correspondents list
-  //   ["friends", "feed", N]   — the activity feed (per limit)
-  //   ["friends", "check", s]  — the per-slug FollowCTA state
-  // Prefix-invalidating with `["friends"]` covers all three.
-  friends: [["friends"]],
-};
 
 export function useRealtimeSync({ enabled = true } = {}) {
   const qc = useQueryClient();
@@ -76,7 +58,10 @@ export function useRealtimeSync({ enabled = true } = {}) {
     const wsUrl = () => {
       const { protocol, host } = window.location;
       const scheme = protocol === "https:" ? "wss:" : "ws:";
-      return `${scheme}//${host}/api/ws`;
+      // 源 · The upgrade request can't carry custom headers from the
+      // browser API, so the client id rides in the query string; the
+      // server uses it to skip echoing this tab's own changes back.
+      return `${scheme}//${host}/api/ws?client_id=${encodeURIComponent(getClientId())}`;
     };
 
     // 集 · Coalesce query invalidations over a short window. The broker
@@ -87,8 +72,12 @@ export function useRealtimeSync({ enabled = true } = {}) {
     // overwrite a still-pending optimistic write — a visible flicker.
     // Batching the keys and flushing ~300 ms after the burst starts
     // collapses the storm into one refetch, by which point the server
-    // reflects the settled state. A complete fix (never refetching our
-    // OWN echo) needs the server to stamp events with an origin id.
+    // reflects the settled state. The server now also stamps events
+    // with the originating client id and skips this tab's own echo at
+    // the socket, so the storm is mostly other devices' — and, when it
+    // scopes an event to a series, we refresh just those rows below
+    // instead of invalidating collection-wide keys at all.
+    const myClientId = getClientId();
     const coalescedKeys = new Set();
     let invalidateTimer = null;
     const scheduleInvalidate = () => {
@@ -101,6 +90,29 @@ export function useRealtimeSync({ enabled = true } = {}) {
           qc.invalidateQueries({ queryKey: key });
         }
       }, 300);
+    };
+
+    // 範 · Scoped events: one in-flight refresh per `kind:mal_id`. The
+    // rows land in Dexie and every live query re-renders from there,
+    // so no React Query key needs invalidating for these.
+    const inFlight = new Map();
+    const refreshScoped = (kind, mal_id) => {
+      const token = `${kind}:${mal_id}`;
+      if (inFlight.has(token)) return;
+      const run = kind === "library" ? refetchLibraryEntry : refetchVolumes;
+      inFlight.set(
+        token,
+        run(mal_id)
+          .catch(() => {
+            // Fall back to the broad invalidation this kind always had;
+            // a transient failure must not leave the row stale forever.
+            for (const key of KIND_TO_KEYS[kind]) {
+              coalescedKeys.add(JSON.stringify(key));
+            }
+            scheduleInvalidate();
+          })
+          .finally(() => inFlight.delete(token)),
+      );
     };
 
     const connect = () => {
@@ -138,25 +150,19 @@ export function useRealtimeSync({ enabled = true } = {}) {
           // would treat as authoritative. Validate the payload shape
           // before we either re-broadcast or invalidate query caches.
           if (!raw || typeof raw !== "object") return;
-          const kind = raw.kind;
-          if (typeof kind !== "string") return;
-          const keys = KIND_TO_KEYS[kind];
-          if (!keys) return; // unknown kind → drop, never re-broadcast
-          // Re-broadcast every received event for downstream
-          // subscribers (toasters, badges, custom side effects).
-          // Done BEFORE the React Query invalidation so listeners
-          // that want to react to "what just changed" don't lose
-          // events whose only side effect is in their handler.
-          // Pass a freshly-built object instead of `raw` so a hostile
-          // payload can't smuggle extra fields into subscribers.
+          const plan = planRealtimeAction(raw, myClientId);
+          if (plan.type === "ignore") return; // malformed, unknown kind, or our own echo
           emitSyncEvent({
-            kind,
+            kind: raw.kind,
             user_id: typeof raw.user_id === "number" ? raw.user_id : null,
+            mal_id: Number.isInteger(raw.mal_id) ? raw.mal_id : null,
             payload: raw.payload,
           });
-          // Stringify the key so the Set dedupes structurally-equal keys
-          // across a burst; scheduleInvalidate flushes them as one batch.
-          for (const key of keys) {
+          if (plan.type === "refresh") {
+            refreshScoped(plan.kind, plan.mal_id);
+            return;
+          }
+          for (const key of plan.keys) {
             coalescedKeys.add(JSON.stringify(key));
           }
           scheduleInvalidate();
@@ -180,8 +186,7 @@ export function useRealtimeSync({ enabled = true } = {}) {
         //   1008 — policy violation (auth / origin)
         //   1011 — server error (the upstream is unhealthy; let it
         //          recover and the next visibility change reconnects)
-        if (evt.code === 1000 || evt.code === 1008 || evt.code === 1011)
-          return;
+        if (evt.code === 1000 || evt.code === 1008 || evt.code === 1011) return;
         if (stoppedRef.current) return;
         schedule();
       });

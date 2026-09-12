@@ -461,7 +461,10 @@ const isGuardedVolume = (row, g) =>
 async function guardedVolumeRows(g, mal_id) {
   const byId = g.ids.size ? await db.volumes.bulkGet([...g.ids]) : [];
   const bySeries = g.series.size
-    ? await db.volumes.where("mal_id").anyOf([...g.series]).toArray()
+    ? await db.volumes
+        .where("mal_id")
+        .anyOf([...g.series])
+        .toArray()
     : [];
   const seen = new Set();
   const rows = [];
@@ -492,6 +495,57 @@ export async function cacheLibrary(library) {
       );
       if (fromServer.length) await db.library.bulkPut(fromServer);
       if (preserved.length) await db.library.bulkPut(preserved);
+    },
+  );
+}
+
+/**
+ * 範 · Refresh ONE library row from the server — the scoped-realtime
+ * path (`SyncEvent.mal_id`). Same outbox rule as `cacheLibrary`: a
+ * pending non-delete op means the local row is the user's intent and
+ * the snapshot is skipped; a pending delete means the row stays gone.
+ */
+export async function cacheLibraryEntry(entry) {
+  if (!entry || entry.mal_id == null) return;
+  await db.transaction(
+    "rw",
+    db.library,
+    db.outboxLibrary,
+    db.outboxBulkMark,
+    async () => {
+      const { keep, dropped } = await libraryGuards();
+      if (keep.has(entry.mal_id) || dropped.has(entry.mal_id)) return;
+      await db.library.put(entry);
+    },
+  );
+}
+
+/**
+ * 範 · The server says a series is gone (scoped `library` event whose
+ * GET came back 404). Drop the local row and its cached volumes —
+ * unless the outbox still owns them: a pending upsert means the user
+ * (re-)added it offline and the flush will bring it back.
+ */
+export async function dropCachedLibraryEntry(mal_id) {
+  if (mal_id == null) return;
+  await db.transaction(
+    "rw",
+    db.library,
+    db.volumes,
+    db.outboxLibrary,
+    db.outboxBulkMark,
+    db.outboxVolumes,
+    async () => {
+      const { keep } = await libraryGuards();
+      if (keep.has(mal_id)) return;
+      const g = await volumeGuards();
+      if (g.series.has(mal_id)) return;
+      await db.library.delete(mal_id);
+      // Keep any single volume that still has its own pending op; the
+      // flush will surface the server's verdict (404) for those later.
+      const rows = await db.volumes.where("mal_id").equals(mal_id).toArray();
+      const doomed = rows.filter((r) => !g.ids.has(r.id)).map((r) => r.id);
+      if (doomed.length) await db.volumes.bulkDelete(doomed);
     },
   );
 }

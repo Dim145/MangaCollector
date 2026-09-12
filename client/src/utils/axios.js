@@ -1,5 +1,6 @@
 import axios from "axios";
 import { clearCachedUser } from "./auth.js";
+import { getClientId } from "@/lib/clientId.js";
 
 const location = typeof window !== "undefined" ? window.location : undefined;
 
@@ -94,6 +95,14 @@ function isAuthRelevant401(error) {
   if (url.includes("/api/health")) return false;
   return true;
 }
+
+// 源 · Stamp every request with this tab's client id so the realtime
+// broker can attribute the resulting SyncEvent to us and not echo it
+// back to our own socket (see lib/clientId.js).
+http.interceptors.request.use((config) => {
+  config.headers["X-Client-Id"] = getClientId();
+  return config;
+});
 
 http.interceptors.response.use(
   (res) => res,

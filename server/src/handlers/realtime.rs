@@ -39,14 +39,66 @@ const PONG_TIMEOUT: Duration = Duration::from_secs(60);
 pub async fn ws_handler(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
     let broker = state.broker.clone();
     let user_id = user.id;
-    Ok(ws.on_upgrade(move |socket| handle_socket(socket, broker, user_id)))
+    Ok(ws.on_upgrade(move |socket| {
+        handle_socket(socket, broker, user_id, client_id)
+    }))
 }
 
-async fn handle_socket(socket: WebSocket, broker: SyncBroker, user_id: i32) {
+/// 源 · The SPA's per-tab client id, read from `X-Client-Id` (HTTP) or
+/// `?client_id=` (the websocket upgrade, where custom headers aren't
+/// available from the browser API). Optional everywhere: a missing or
+/// malformed value simply means "unknown origin" and the old
+/// broadcast-to-everyone behaviour. Validated to a short opaque token
+/// so it can never carry anything worth logging or reflecting.
+pub struct ClientId(pub Option<String>);
+
+impl ClientId {
+    const MAX_LEN: usize = 64;
+
+    fn sanitize(raw: &str) -> Option<String> {
+        let ok = (8..=Self::MAX_LEN).contains(&raw.len())
+            && raw
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+        ok.then(|| raw.to_string())
+    }
+}
+
+impl<S: Send + Sync> axum::extract::FromRequestParts<S> for ClientId {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let from_header = parts
+            .headers
+            .get("x-client-id")
+            .and_then(|v| v.to_str().ok())
+            .and_then(Self::sanitize);
+        let from_query = || {
+            parts.uri.query().and_then(|q| {
+                q.split('&')
+                    .filter_map(|kv| kv.split_once('='))
+                    .find(|(k, _)| *k == "client_id")
+                    .and_then(|(_, v)| Self::sanitize(v))
+            })
+        };
+        Ok(ClientId(from_header.or_else(from_query)))
+    }
+}
+
+async fn handle_socket(
+    socket: WebSocket,
+    broker: SyncBroker,
+    user_id: i32,
+    client_id: Option<String>,
+) {
     use futures::{SinkExt, StreamExt};
     let (sender, mut receiver) = socket.split();
     let sender = Arc::new(Mutex::new(sender));
@@ -69,6 +121,16 @@ async fn handle_socket(socket: WebSocket, broker: SyncBroker, user_id: i32) {
                     break;
                 }
                 if event.user_id != user_id {
+                    continue;
+                }
+                // 源 · Don't echo a change back to the socket whose own
+                // request caused it. That client already holds the
+                // optimistic state (and, on the outbox flush path, runs
+                // its own post-flush refetch); the echo only triggered a
+                // redundant full refetch — and, before the cache writers
+                // learned to respect pending outbox rows, it was one of
+                // the two triggers that visibly reverted offline edits.
+                if client_id.is_some() && event.origin == client_id {
                     continue;
                 }
                 let payload = match serde_json::to_string(&event) {
@@ -138,4 +200,34 @@ async fn handle_socket(socket: WebSocket, broker: SyncBroker, user_id: i32) {
         _ = ping_task => {}
     }
     stop.store(true, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod client_id_tests {
+    use super::ClientId;
+
+    #[test]
+    fn accepts_the_shapes_the_spa_generates() {
+        // crypto.randomUUID() and the 24-char base36 fallback.
+        assert!(ClientId::sanitize("3dd0b814-23f4-4342-b13f-d5f0dd7d4ca6").is_some());
+        assert!(ClientId::sanitize("k2j9x0q1mzp4r7t8v5w6y3ab").is_some());
+        assert!(ClientId::sanitize("a_b-C_d-1234").is_some());
+    }
+
+    #[test]
+    fn rejects_too_short_too_long_and_foreign_characters() {
+        assert!(ClientId::sanitize("short").is_none());
+        assert!(ClientId::sanitize(&"x".repeat(65)).is_none());
+        assert!(ClientId::sanitize("has space here").is_none());
+        assert!(ClientId::sanitize("<script>alert1").is_none());
+        assert!(ClientId::sanitize("émoji-ünïcode-12").is_none());
+        assert!(ClientId::sanitize("").is_none());
+    }
+
+    #[test]
+    fn boundaries_are_inclusive() {
+        assert!(ClientId::sanitize(&"a".repeat(8)).is_some());
+        assert!(ClientId::sanitize(&"a".repeat(64)).is_some());
+        assert!(ClientId::sanitize(&"a".repeat(7)).is_none());
+    }
 }

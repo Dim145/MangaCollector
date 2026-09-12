@@ -4,7 +4,11 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/queryClient.js", () => ({
-  queryClient: { invalidateQueries: vi.fn(), setQueryData: vi.fn(), removeQueries: vi.fn() },
+  queryClient: {
+    invalidateQueries: vi.fn(),
+    setQueryData: vi.fn(),
+    removeQueries: vi.fn(),
+  },
 }));
 
 const {
@@ -12,9 +16,11 @@ const {
   cacheAuthor,
   cacheCoffretsForManga,
   cacheLibrary,
+  cacheLibraryEntry,
   cacheSettings,
   cacheVolumesForManga,
   db,
+  dropCachedLibraryEntry,
 } = await import("./db.js");
 
 /*
@@ -31,8 +37,20 @@ const {
  * its siblings directly against the writers.
  */
 
-const series = (mal_id, over = {}) => ({ mal_id, name: `Series ${mal_id}`, volumes: 10, volumes_owned: 0, ...over });
-const volume = (id, mal_id, over = {}) => ({ id, mal_id, vol_num: id, owned: false, ...over });
+const series = (mal_id, over = {}) => ({
+  mal_id,
+  name: `Series ${mal_id}`,
+  volumes: 10,
+  volumes_owned: 0,
+  ...over,
+});
+const volume = (id, mal_id, over = {}) => ({
+  id,
+  mal_id,
+  vol_num: id,
+  owned: false,
+  ...over,
+});
 const rows = (table) => table.toArray();
 const byKey = (list, key) => Object.fromEntries(list.map((r) => [r[key], r]));
 
@@ -53,14 +71,24 @@ describe("cacheLibrary", () => {
     // The documented report: publisher edited offline, then a refetch
     // lands before the PATCH does. Server still says "Kana".
     await db.library.put(series(1, { publisher: "Glénat" }));
-    await db.outboxLibrary.put({ mal_id: 1, op: "patch", payload: { publisher: "Glénat" }, ts: 1 });
+    await db.outboxLibrary.put({
+      mal_id: 1,
+      op: "patch",
+      payload: { publisher: "Glénat" },
+      ts: 1,
+    });
     await cacheLibrary([series(1, { publisher: "Kana" })]);
     expect((await db.library.get(1)).publisher).toBe("Glénat");
   });
 
   it("keeps a series added offline that the server does not know yet", async () => {
     await db.library.put(series(-1, { name: "Doujin" }));
-    await db.outboxLibrary.put({ mal_id: -1, op: "upsert", payload: series(-1), ts: 1 });
+    await db.outboxLibrary.put({
+      mal_id: -1,
+      op: "upsert",
+      payload: series(-1),
+      ts: 1,
+    });
     await cacheLibrary([series(1)]);
     const local = byKey(await rows(db.library), "mal_id");
     expect(local[-1]?.name).toBe("Doujin");
@@ -85,9 +113,15 @@ describe("cacheLibrary", () => {
   });
 
   it("still takes server truth for every row without a pending op", async () => {
-    await db.library.bulkPut([series(1, { name: "Local 1" }), series(2, { name: "Local 2" })]);
+    await db.library.bulkPut([
+      series(1, { name: "Local 1" }),
+      series(2, { name: "Local 2" }),
+    ]);
     await db.outboxLibrary.put({ mal_id: 1, op: "patch", payload: {}, ts: 1 });
-    await cacheLibrary([series(1, { name: "Server 1" }), series(2, { name: "Server 2" })]);
+    await cacheLibrary([
+      series(1, { name: "Server 1" }),
+      series(2, { name: "Server 2" }),
+    ]);
     const local = byKey(await rows(db.library), "mal_id");
     expect(local[1].name).toBe("Local 1");
     expect(local[2].name).toBe("Server 2");
@@ -107,11 +141,121 @@ describe("cacheLibrary", () => {
     expect((await rows(db.library)).every(Boolean)).toBe(true);
   });
 
-  it.each([[null], [undefined], [[]]])("tolerates the empty snapshot %p", async (snapshot) => {
-    await db.library.put(series(1));
+  it.each([[null], [undefined], [[]]])(
+    "tolerates the empty snapshot %p",
+    async (snapshot) => {
+      await db.library.put(series(1));
+      await db.outboxLibrary.put({
+        mal_id: 1,
+        op: "patch",
+        payload: {},
+        ts: 1,
+      });
+      await cacheLibrary(snapshot);
+      expect(await db.library.get(1)).toBeTruthy();
+    },
+  );
+});
+
+describe("cacheLibraryEntry (scoped realtime refresh)", () => {
+  it("writes a fresh row", async () => {
+    await cacheLibraryEntry(series(1, { name: "Fresh" }));
+    expect((await db.library.get(1)).name).toBe("Fresh");
+  });
+
+  it("overwrites an existing row that has no pending op", async () => {
+    await db.library.put(series(1, { name: "Old" }));
+    await cacheLibraryEntry(series(1, { name: "New" }));
+    expect((await db.library.get(1)).name).toBe("New");
+  });
+
+  it("keeps a row with a pending edit", async () => {
+    await db.library.put(series(1, { publisher: "Glénat" }));
     await db.outboxLibrary.put({ mal_id: 1, op: "patch", payload: {}, ts: 1 });
-    await cacheLibrary(snapshot);
+    await cacheLibraryEntry(series(1, { publisher: "Kana" }));
+    expect((await db.library.get(1)).publisher).toBe("Glénat");
+  });
+
+  it("does not resurrect a row with a pending delete", async () => {
+    await db.outboxLibrary.put({ mal_id: 1, op: "delete", ts: 1 });
+    await cacheLibraryEntry(series(1));
+    expect(await db.library.get(1)).toBeUndefined();
+  });
+
+  it("keeps a row under a pending bulk-mark", async () => {
+    await db.library.put(series(1, { volumes_owned: 10 }));
+    await db.outboxBulkMark.put({ mal_id: 1, owned: true, ts: 1 });
+    await cacheLibraryEntry(series(1, { volumes_owned: 3 }));
+    expect((await db.library.get(1)).volumes_owned).toBe(10);
+  });
+
+  it("never touches other rows", async () => {
+    await db.library.put(series(2, { name: "Other" }));
+    await cacheLibraryEntry(series(1));
+    expect((await db.library.get(2)).name).toBe("Other");
+  });
+
+  it.each([[null], [{}], [{ name: "x" }]])(
+    "ignores the malformed entry %p",
+    async (e) => {
+      await expect(cacheLibraryEntry(e)).resolves.toBeUndefined();
+      expect(await db.library.count()).toBe(0);
+    },
+  );
+});
+
+describe("dropCachedLibraryEntry (scoped realtime 404)", () => {
+  it("removes the row and its cached volumes", async () => {
+    await db.library.put(series(1));
+    await db.volumes.bulkPut([volume(1, 1), volume(2, 1), volume(9, 7)]);
+    await dropCachedLibraryEntry(1);
+    expect(await db.library.get(1)).toBeUndefined();
+    expect(await db.volumes.where("mal_id").equals(1).count()).toBe(0);
+    expect(await db.volumes.get(9)).toBeTruthy();
+  });
+
+  it("keeps a series the outbox is about to (re-)create", async () => {
+    await db.library.put(series(-1));
+    await db.outboxLibrary.put({
+      mal_id: -1,
+      op: "upsert",
+      payload: {},
+      ts: 1,
+    });
+    await dropCachedLibraryEntry(-1);
+    expect(await db.library.get(-1)).toBeTruthy();
+  });
+
+  it("keeps a series under a pending bulk-mark", async () => {
+    await db.library.put(series(1));
+    await db.volumes.put(volume(1, 1));
+    await db.outboxBulkMark.put({ mal_id: 1, owned: true, ts: 1 });
+    await dropCachedLibraryEntry(1);
     expect(await db.library.get(1)).toBeTruthy();
+    expect(await db.volumes.get(1)).toBeTruthy();
+  });
+
+  it("drops the row but spares a volume with its own pending op", async () => {
+    await db.library.put(series(1));
+    await db.volumes.bulkPut([volume(1, 1), volume(2, 1)]);
+    await db.outboxVolumes.put({
+      id: 2,
+      mal_id: 1,
+      op: "update",
+      payload: {},
+      ts: 1,
+    });
+    await dropCachedLibraryEntry(1);
+    expect(await db.library.get(1)).toBeUndefined();
+    expect(await db.volumes.get(1)).toBeUndefined();
+    expect(await db.volumes.get(2)).toBeTruthy();
+  });
+
+  it("is a no-op for an unknown or null id", async () => {
+    await db.library.put(series(1));
+    await dropCachedLibraryEntry(999);
+    await dropCachedLibraryEntry(null);
+    expect(await db.library.count()).toBe(1);
   });
 });
 
@@ -127,15 +271,29 @@ describe("cacheAllVolumes", () => {
   it("keeps a volume with a pending update — the documented report", async () => {
     // "toggle owned" offline, then a refetch beats the PATCH.
     await db.volumes.put(volume(1, 2, { owned: true }));
-    await db.outboxVolumes.put({ id: 1, mal_id: 2, op: "update", payload: { owned: true }, ts: 1 });
+    await db.outboxVolumes.put({
+      id: 1,
+      mal_id: 2,
+      op: "update",
+      payload: { owned: true },
+      ts: 1,
+    });
     await cacheAllVolumes([volume(1, 2, { owned: false })]);
     expect((await db.volumes.get(1)).owned).toBe(true);
   });
 
   it("keeps every volume of a series with a pending bulk-mark", async () => {
-    await db.volumes.bulkPut([volume(1, 2, { owned: true }), volume(2, 2, { owned: true }), volume(3, 5, { owned: false })]);
+    await db.volumes.bulkPut([
+      volume(1, 2, { owned: true }),
+      volume(2, 2, { owned: true }),
+      volume(3, 5, { owned: false }),
+    ]);
     await db.outboxBulkMark.put({ mal_id: 2, owned: true, ts: 1 });
-    await cacheAllVolumes([volume(1, 2, { owned: false }), volume(2, 2, { owned: false }), volume(3, 5, { owned: true })]);
+    await cacheAllVolumes([
+      volume(1, 2, { owned: false }),
+      volume(2, 2, { owned: false }),
+      volume(3, 5, { owned: true }),
+    ]);
     const local = byKey(await rows(db.volumes), "id");
     expect(local[1].owned).toBe(true);
     expect(local[2].owned).toBe(true);
@@ -144,14 +302,26 @@ describe("cacheAllVolumes", () => {
 
   it("keeps a guarded volume the snapshot omits", async () => {
     await db.volumes.put(volume(1, 2, { owned: true }));
-    await db.outboxVolumes.put({ id: 1, mal_id: 2, op: "update", payload: {}, ts: 1 });
+    await db.outboxVolumes.put({
+      id: 1,
+      mal_id: 2,
+      op: "update",
+      payload: {},
+      ts: 1,
+    });
     await cacheAllVolumes([volume(2, 2)]);
     expect(await db.volumes.get(1)).toBeTruthy();
   });
 
   it("does not duplicate a volume covered by both an id op and a bulk-mark", async () => {
     await db.volumes.put(volume(1, 2, { owned: true }));
-    await db.outboxVolumes.put({ id: 1, mal_id: 2, op: "update", payload: {}, ts: 1 });
+    await db.outboxVolumes.put({
+      id: 1,
+      mal_id: 2,
+      op: "update",
+      payload: {},
+      ts: 1,
+    });
     await db.outboxBulkMark.put({ mal_id: 2, owned: true, ts: 1 });
     await cacheAllVolumes([volume(1, 2, { owned: false })]);
     expect(await db.volumes.count()).toBe(1);
@@ -162,7 +332,10 @@ describe("cacheAllVolumes", () => {
 describe("cacheVolumesForManga", () => {
   it("replaces one series when the outbox is empty", async () => {
     await db.volumes.bulkPut([volume(1, 2), volume(9, 7)]);
-    await cacheVolumesForManga(2, [volume(1, 2, { owned: true }), volume(2, 2)]);
+    await cacheVolumesForManga(2, [
+      volume(1, 2, { owned: true }),
+      volume(2, 2),
+    ]);
     const local = byKey(await rows(db.volumes), "id");
     expect(local[1].owned).toBe(true);
     expect(local[2]).toBeTruthy();
@@ -171,15 +344,27 @@ describe("cacheVolumesForManga", () => {
 
   it("keeps a pending volume of the targeted series", async () => {
     await db.volumes.put(volume(1, 2, { owned: true }));
-    await db.outboxVolumes.put({ id: 1, mal_id: 2, op: "update", payload: {}, ts: 1 });
+    await db.outboxVolumes.put({
+      id: 1,
+      mal_id: 2,
+      op: "update",
+      payload: {},
+      ts: 1,
+    });
     await cacheVolumesForManga(2, [volume(1, 2, { owned: false })]);
     expect((await db.volumes.get(1)).owned).toBe(true);
   });
 
   it("keeps the whole series under a pending bulk-mark", async () => {
-    await db.volumes.bulkPut([volume(1, 2, { read_at: "x" }), volume(2, 2, { read_at: "x" })]);
+    await db.volumes.bulkPut([
+      volume(1, 2, { read_at: "x" }),
+      volume(2, 2, { read_at: "x" }),
+    ]);
     await db.outboxBulkMark.put({ mal_id: 2, read: true, ts: 1 });
-    await cacheVolumesForManga(2, [volume(1, 2, { read_at: null }), volume(2, 2, { read_at: null })]);
+    await cacheVolumesForManga(2, [
+      volume(1, 2, { read_at: null }),
+      volume(2, 2, { read_at: null }),
+    ]);
     const local = byKey(await rows(db.volumes), "id");
     expect(local[1].read_at).toBe("x");
     expect(local[2].read_at).toBe("x");
@@ -187,7 +372,13 @@ describe("cacheVolumesForManga", () => {
 
   it("never touches another series' rows, guarded or not", async () => {
     await db.volumes.bulkPut([volume(9, 7, { owned: true })]);
-    await db.outboxVolumes.put({ id: 9, mal_id: 7, op: "update", payload: {}, ts: 1 });
+    await db.outboxVolumes.put({
+      id: 9,
+      mal_id: 7,
+      op: "update",
+      payload: {},
+      ts: 1,
+    });
     await cacheVolumesForManga(2, [volume(1, 2)]);
     expect((await db.volumes.get(9)).owned).toBe(true);
     expect(await db.volumes.count()).toBe(2);
@@ -202,7 +393,11 @@ describe("cacheSettings", () => {
 
   it("keeps the local choice while a settings op is pending", async () => {
     await db.settings.put({ key: "user", theme: "dark" });
-    await db.outboxSettings.put({ key: "user", payload: { theme: "dark" }, ts: 1 });
+    await db.outboxSettings.put({
+      key: "user",
+      payload: { theme: "dark" },
+      ts: 1,
+    });
     await cacheSettings({ theme: "light" });
     expect((await db.settings.get("user")).theme).toBe("dark");
   });
@@ -234,18 +429,27 @@ describe("cacheAuthor", () => {
     expect(await db.authors.get(4)).toBeUndefined();
   });
 
-  it.each([[null], [{}], [{ name: "x" }]])("ignores the malformed detail %p", async (d) => {
-    await expect(cacheAuthor(d)).resolves.toBeUndefined();
-    expect(await db.authors.count()).toBe(0);
-  });
+  it.each([[null], [{}], [{ name: "x" }]])(
+    "ignores the malformed detail %p",
+    async (d) => {
+      await expect(cacheAuthor(d)).resolves.toBeUndefined();
+      expect(await db.authors.count()).toBe(0);
+    },
+  );
 });
 
 describe("cacheCoffretsForManga", () => {
   const coffret = (id, over = {}) => ({ id, name: `Box ${id}`, ...over });
 
   it("replaces one series' coffrets when the outbox is empty", async () => {
-    await db.coffrets.bulkPut([{ ...coffret(1), mal_id: 2 }, { ...coffret(9), mal_id: 7 }]);
-    await cacheCoffretsForManga(2, [coffret(1, { name: "Renamed" }), coffret(2)]);
+    await db.coffrets.bulkPut([
+      { ...coffret(1), mal_id: 2 },
+      { ...coffret(9), mal_id: 7 },
+    ]);
+    await cacheCoffretsForManga(2, [
+      coffret(1, { name: "Renamed" }),
+      coffret(2),
+    ]);
     const local = byKey(await rows(db.coffrets), "id");
     expect(local[1].name).toBe("Renamed");
     expect(local[2].mal_id).toBe(2);
@@ -253,8 +457,17 @@ describe("cacheCoffretsForManga", () => {
   });
 
   it("keeps a coffret created offline under its temporary id", async () => {
-    await db.coffrets.put({ ...coffret(-100, { name: "Offline box" }), mal_id: 2 });
-    await db.outboxCoffrets.put({ id: -100, mal_id: 2, op: "create", payload: {}, ts: 1 });
+    await db.coffrets.put({
+      ...coffret(-100, { name: "Offline box" }),
+      mal_id: 2,
+    });
+    await db.outboxCoffrets.put({
+      id: -100,
+      mal_id: 2,
+      op: "create",
+      payload: {},
+      ts: 1,
+    });
     await cacheCoffretsForManga(2, [coffret(1)]);
     const local = byKey(await rows(db.coffrets), "id");
     expect(local[-100]?.name).toBe("Offline box");
@@ -263,7 +476,13 @@ describe("cacheCoffretsForManga", () => {
 
   it("keeps a pending update over the snapshot", async () => {
     await db.coffrets.put({ ...coffret(1, { name: "Local" }), mal_id: 2 });
-    await db.outboxCoffrets.put({ id: 1, mal_id: 2, op: "update", payload: {}, ts: 1 });
+    await db.outboxCoffrets.put({
+      id: 1,
+      mal_id: 2,
+      op: "update",
+      payload: {},
+      ts: 1,
+    });
     await cacheCoffretsForManga(2, [coffret(1, { name: "Server" })]);
     expect((await db.coffrets.get(1)).name).toBe("Local");
   });
@@ -277,7 +496,9 @@ describe("cacheCoffretsForManga", () => {
   });
 
   it("ignores a null mal_id", async () => {
-    await expect(cacheCoffretsForManga(null, [coffret(1)])).resolves.toBeUndefined();
+    await expect(
+      cacheCoffretsForManga(null, [coffret(1)]),
+    ).resolves.toBeUndefined();
     expect(await db.coffrets.count()).toBe(0);
   });
 });
@@ -286,7 +507,13 @@ describe("end-to-end: the race the module header describes", () => {
   it("an offline edit survives a focus refetch, then a self-echo refetch, then the post-flush refetch", async () => {
     // Offline: user marks volume 1 owned. Optimistic row + outbox op.
     await db.volumes.put(volume(1, 2, { owned: true }));
-    await db.outboxVolumes.put({ id: 1, mal_id: 2, op: "update", payload: { owned: true }, ts: 1 });
+    await db.outboxVolumes.put({
+      id: 1,
+      mal_id: 2,
+      op: "update",
+      payload: { owned: true },
+      ts: 1,
+    });
 
     // Back online. Focus refetch races the flush and wins — server
     // still says unowned.

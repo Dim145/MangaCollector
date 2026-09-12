@@ -2,9 +2,11 @@ import axios from "@/utils/axios.js";
 import {
   cacheCoffretsForManga,
   cacheLibrary,
+  cacheLibraryEntry,
   cacheSettings,
   cacheVolumesForManga,
   db,
+  dropCachedLibraryEntry,
 } from "../db.js";
 import { isFullyOnline, probeServer } from "../connectivity.js";
 import { queryClient } from "../queryClient.js";
@@ -283,7 +285,12 @@ export async function enqueueLibraryPoster(mal_id, url) {
     // owned / patch / none — all routed through a patch-style op so the
     // flush handler can fire the /poster PATCH alongside any existing
     // volume / owned changes queued for the same mal_id.
-    const next = current ?? { mal_id, op: "patch", payload: {}, ts: Date.now() };
+    const next = current ?? {
+      mal_id,
+      op: "patch",
+      payload: {},
+      ts: Date.now(),
+    };
     await db.outboxLibrary.put({
       ...next,
       op: next.op === "owned" ? "owned" : "patch",
@@ -357,11 +364,7 @@ export async function enqueueVolumeUpdate(volume) {
     // Loan stamp-on-first-lend: if local has a borrower set but no
     // loan_started_at yet, mint one now. Mirrors the server's
     // `existing.loan_started_at.is_none()` branch in `set_loan`.
-    if (
-      loan !== undefined &&
-      loan !== null &&
-      !existing.loan_started_at
-    ) {
+    if (loan !== undefined && loan !== null && !existing.loan_started_at) {
       local.loan_started_at = new Date().toISOString();
     }
     await db.volumes.put({ ...existing, ...local });
@@ -384,8 +387,7 @@ export async function enqueueVolumeUpdate(volume) {
     const prev = pending?.payload ?? {};
     const mergedPayload = {
       owned: local.owned !== undefined ? local.owned : prev.owned,
-      price:
-        local.price !== undefined ? Number(local.price) || 0 : prev.price,
+      price: local.price !== undefined ? Number(local.price) || 0 : prev.price,
       store: local.store !== undefined ? (local.store ?? "") : prev.store,
       collector:
         local.collector !== undefined
@@ -399,7 +401,11 @@ export async function enqueueVolumeUpdate(volume) {
       // 預け · `loan` is optional like read/notes. Pass-through;
       // `null` (return) is meaningfully different from `undefined`
       // (don't touch), so use the `in` check rather than truthiness.
-      ...(loan !== undefined ? { loan } : "loan" in prev ? { loan: prev.loan } : {}),
+      ...(loan !== undefined
+        ? { loan }
+        : "loan" in prev
+          ? { loan: prev.loan }
+          : {}),
     };
 
     await db.outboxVolumes.put({
@@ -495,8 +501,7 @@ export async function enqueueAuthorUpdate({ mal_id, name, about }) {
     // implicitly cancels the delete (the user clicked "edit"
     // BEFORE the delete had a chance to flush — they changed
     // their mind). Replace with a fresh patch op.
-    const prevPayload =
-      pending?.op === "patch" ? (pending.payload ?? {}) : {};
+    const prevPayload = pending?.op === "patch" ? (pending.payload ?? {}) : {};
     const mergedPayload = {
       ...prevPayload,
       ...(name !== undefined ? { name: next.name } : {}),
@@ -955,7 +960,10 @@ async function flushLibrary() {
     const sig = `library:${op.mal_id}`;
     try {
       if (op.op === "delete") {
-        await axios.delete(`/api/user/library/${op.mal_id}`, idemConfig(sig, op));
+        await axios.delete(
+          `/api/user/library/${op.mal_id}`,
+          idemConfig(sig, op),
+        );
       } else if (op.op === "upsert") {
         await axios.post(`/api/user/library`, op.payload, idemConfig(sig, op));
         // Server auto-creates N volume rows on insert — pull them into Dexie
@@ -963,7 +971,11 @@ async function flushLibrary() {
         await refetchVolumes(op.mal_id).catch(() => {});
       } else if (op.op === "owned") {
         const n = op.payload.volumes_owned;
-        await axios.patch(`/api/user/library/${op.mal_id}/${n}`, undefined, idemConfig(sig, op));
+        await axios.patch(
+          `/api/user/library/${op.mal_id}/${n}`,
+          undefined,
+          idemConfig(sig, op),
+        );
         // Poster changes can ride along — the owned PATCH doesn't accept a
         // cover URL so we fire a dedicated /poster PATCH afterwards.
         if (op.payload?.image_url_jpg) {
@@ -979,7 +991,8 @@ async function flushLibrary() {
         // so a multi-field edit only burns one round trip.
         const meta = {};
         if (op.payload?.volumes != null) meta.volumes = op.payload.volumes;
-        if ("publisher" in (op.payload ?? {})) meta.publisher = op.payload.publisher;
+        if ("publisher" in (op.payload ?? {}))
+          meta.publisher = op.payload.publisher;
         if ("edition" in (op.payload ?? {})) meta.edition = op.payload.edition;
         if ("review" in (op.payload ?? {})) meta.review = op.payload.review;
         if ("review_public" in (op.payload ?? {})) {
@@ -993,7 +1006,11 @@ async function flushLibrary() {
         // branch indicates a stale Dexie payload — harmless to send.
         if ("genres" in (op.payload ?? {})) meta.genres = op.payload.genres;
         if (Object.keys(meta).length > 0) {
-          await axios.patch(`/api/user/library/${op.mal_id}`, meta, idemConfig(sig, op));
+          await axios.patch(
+            `/api/user/library/${op.mal_id}`,
+            meta,
+            idemConfig(sig, op),
+          );
           // A volumes change rebuilds rows in user_volumes server-side;
           // refetch so the new rows surface in Dexie. Skip when only
           // metadata changed — no volume table mutation involved.
@@ -1033,30 +1050,32 @@ async function flushVolumes() {
   for (const op of ops) {
     const sig = `volume:${op.id}`;
     try {
-      await axios.patch(`/api/user/volume`, {
-        id: op.id,
-        owned: op.payload.owned,
-        price: op.payload.price,
-        store: op.payload.store,
-        collector: Boolean(op.payload.collector),
-        // `read` and `notes` are only sent when explicitly set; an
-        // unrelated outbox replay (e.g. a price edit) leaves them
-        // untouched server-side.
-        ...(op.payload.read !== undefined
-          ? { read: Boolean(op.payload.read) }
-          : {}),
-        ...(op.payload.notes !== undefined
-          ? { notes: String(op.payload.notes ?? "") }
-          : {}),
-        // 預け · Loan mutation. Three-state in the payload mirrors
-        // the server's `Option<Option<LoanPatch>>`:
-        //   - omitted → leave loan triplet alone
-        //   - null → return the volume (clear loan)
-        //   - { to, due_at } → mark as lent
-        ...("loan" in (op.payload ?? {})
-          ? { loan: op.payload.loan }
-          : {}),
-      }, idemConfig(sig, op));
+      await axios.patch(
+        `/api/user/volume`,
+        {
+          id: op.id,
+          owned: op.payload.owned,
+          price: op.payload.price,
+          store: op.payload.store,
+          collector: Boolean(op.payload.collector),
+          // `read` and `notes` are only sent when explicitly set; an
+          // unrelated outbox replay (e.g. a price edit) leaves them
+          // untouched server-side.
+          ...(op.payload.read !== undefined
+            ? { read: Boolean(op.payload.read) }
+            : {}),
+          ...(op.payload.notes !== undefined
+            ? { notes: String(op.payload.notes ?? "") }
+            : {}),
+          // 預け · Loan mutation. Three-state in the payload mirrors
+          // the server's `Option<Option<LoanPatch>>`:
+          //   - omitted → leave loan triplet alone
+          //   - null → return the volume (clear loan)
+          //   - { to, due_at } → mark as lent
+          ...("loan" in (op.payload ?? {}) ? { loan: op.payload.loan } : {}),
+        },
+        idemConfig(sig, op),
+      );
       await db.outboxVolumes.delete(op.id);
       clearOpRetries(sig);
       notifyPendingChanged();
@@ -1082,7 +1101,11 @@ async function flushSettings() {
   for (const op of ops) {
     const sig = `settings:${op.key}`;
     try {
-      const res = await axios.post(`/api/user/settings`, op.payload, idemConfig(sig, op));
+      const res = await axios.post(
+        `/api/user/settings`,
+        op.payload,
+        idemConfig(sig, op),
+      );
       await db.outboxSettings.delete(op.key);
       await cacheSettings(res.data);
       clearOpRetries(sig);
@@ -1150,8 +1173,7 @@ async function flushAuthors() {
         emitSyncError({
           op: "author",
           mal_id: op.mal_id,
-          message:
-            err?.response?.data?.error ?? err.message ?? "Sync failed",
+          message: err?.response?.data?.error ?? err.message ?? "Sync failed",
         });
         // Pull the canonical row back so the SPA reconciles to
         // server truth (and the optimistic edit visually unwinds).
@@ -1268,23 +1290,18 @@ async function flushCoffrets() {
         if (realId != null && realId !== tempId) {
           // Re-key locally: drop the temp row, insert the real
           // one, swap `coffret_id` on every bound volume.
-          await db.transaction(
-            "rw",
-            db.coffrets,
-            db.volumes,
-            async () => {
-              await db.coffrets.delete(tempId);
-              await db.coffrets.put(data);
-              const bound = await db.volumes
-                .where("mal_id")
-                .equals(op.mal_id)
-                .filter((v) => v.coffret_id === tempId)
-                .toArray();
-              for (const v of bound) {
-                await db.volumes.put({ ...v, coffret_id: realId });
-              }
-            },
-          );
+          await db.transaction("rw", db.coffrets, db.volumes, async () => {
+            await db.coffrets.delete(tempId);
+            await db.coffrets.put(data);
+            const bound = await db.volumes
+              .where("mal_id")
+              .equals(op.mal_id)
+              .filter((v) => v.coffret_id === tempId)
+              .toArray();
+            for (const v of bound) {
+              await db.volumes.put({ ...v, coffret_id: realId });
+            }
+          });
         } else if (data) {
           // Temp id matched real id (extremely unlikely), or no
           // real id returned — still mirror the server row.
@@ -1320,8 +1337,7 @@ async function flushCoffrets() {
           op: "coffret",
           coffret_id: op.id,
           mal_id: op.mal_id,
-          message:
-            err?.response?.data?.error ?? err.message ?? "Sync failed",
+          message: err?.response?.data?.error ?? err.message ?? "Sync failed",
         });
         // Reconcile to server truth — the optimistic state just
         // unwinds visually. Best-effort: a Jikan/db blip skipping
@@ -1362,7 +1378,27 @@ async function refetchLibrary() {
   return data;
 }
 
-async function refetchVolumes(mal_id) {
+/**
+ * 範 · Refresh ONE library row from the server. Used by the scoped
+ * realtime path (`SyncEvent.mal_id`): a 40-row GET instead of the
+ * whole collection. A 404 means the series is gone on the server —
+ * mirror that locally (guards permitting) instead of leaving a ghost.
+ */
+export async function refetchLibraryEntry(mal_id) {
+  try {
+    const { data } = await axios.get(`/api/user/library/${mal_id}`);
+    await cacheLibraryEntry(data);
+    return data;
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      await dropCachedLibraryEntry(mal_id);
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function refetchVolumes(mal_id) {
   const { data } = await axios.get(`/api/user/volume/${mal_id}`);
   await cacheVolumesForManga(mal_id, data);
   queryClient.invalidateQueries({ queryKey: ["volumes", mal_id] });
@@ -1424,10 +1460,7 @@ export async function syncOutbox({ force = false } = {}) {
         await flush();
       } catch (err) {
         hadRetriable = true;
-        console.warn(
-          "[sync] retriable error, will retry later:",
-          err?.message,
-        );
+        console.warn("[sync] retriable error, will retry later:", err?.message);
       }
     }
     if (hadRetriable) probeServer().catch(() => {});
@@ -1448,7 +1481,10 @@ export async function syncOutbox({ force = false } = {}) {
       // Grow the backoff and schedule the SOLE next retry. Any pending
       // re-entry request is folded into this timer rather than firing a
       // separate immediate 1s requeue — that's what stops the storm.
-      retryBackoffMs = Math.min(retryBackoffMs ? retryBackoffMs * 2 : 1000, 60_000);
+      retryBackoffMs = Math.min(
+        retryBackoffMs ? retryBackoffMs * 2 : 1000,
+        60_000,
+      );
       nextRetryAt = Date.now() + retryBackoffMs;
       syncQueued = false;
       if (backoffTimer) clearTimeout(backoffTimer);
