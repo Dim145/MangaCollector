@@ -5,7 +5,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import { defineConfig, globalIgnores } from "eslint/config";
 
 export default defineConfig([
-  globalIgnores(["dist"]),
+  globalIgnores(["dist", "coverage"]),
   {
     files: ["**/*.{js,jsx}"],
     extends: [
@@ -49,6 +49,15 @@ export default defineConfig([
       // Mixing hooks/constants with components breaks Fast Refresh but isn't
       // a correctness issue — warn instead of erroring the build.
       "react-refresh/only-export-components": "warn",
+    },
+  },
+  {
+    // Vitest suites and their setup run under Node, not just the browser:
+    // `setup.js` pins `process.env.TZ`, and the runner injects the test
+    // globals. Both are invisible to the browser-only globals above.
+    files: ["src/**/*.{test,spec}.{js,jsx}", "src/test/**/*.{js,jsx}"],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.vitest },
     },
   },
 ]);

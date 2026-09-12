@@ -115,7 +115,15 @@ docker compose build
 - **Server:** `cargo test` — 34 tests across 8 `#[cfg(test)]` modules
   (`storage.rs`, `util/{url,uuid,image}.rs`,
   `services/{genres,proxy_client,google_books_api,activity_coalescer}.rs`).
-- **Client:** no test framework configured.
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 262 tests across 8 suites
+  covering the logic layer: `utils/{date,price,volume,library,libraryStats}.js`
+  and `lib/{isbn,season,queryState}.js`. `pnpm run test:coverage` writes an
+  HTML/lcov report to `client/coverage/`; its scope is `src/utils/**` +
+  `src/lib/**`, so untested modules there show as 0% on purpose.
+  Config lives in `client/vitest.config.js` (separate from `vite.config.js`
+  so the PWA plugin stays out of the test run); `src/test/setup.js` pins
+  `TZ=UTC` and clears web storage between cases.
+  The 112 components under `src/components/` have no tests yet.
 
 ## Code Style
 
