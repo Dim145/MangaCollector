@@ -209,6 +209,8 @@ pub async fn fetch_mal_by_username(
                 review: None,
                 review_public: false,
                 author: None,
+                created_on: None,
+                modified_on: None,
                 volumes_detail: Vec::new(),
                 coffrets: Vec::new(),
             });
@@ -417,6 +419,8 @@ pub async fn fetch_anilist_by_username(
                 review: None,
                 review_public: false,
                 author: None,
+                created_on: None,
+                modified_on: None,
                 volumes_detail: Vec::new(),
                 coffrets: Vec::new(),
             });
@@ -540,6 +544,8 @@ pub async fn fetch_mangadex_by_input(
                     review: None,
                     review_public: false,
                     author: None,
+                    created_on: None,
+                    modified_on: None,
                     volumes_detail: Vec::new(),
                     coffrets: Vec::new(),
                 });
@@ -711,6 +717,8 @@ pub fn parse_yamtrack_csv(csv_text: &str) -> Result<ExportBundle, AppError> {
             review: None,
             review_public: false,
             author: None,
+            created_on: None,
+            modified_on: None,
             volumes_detail: Vec::new(),
             coffrets: Vec::new(),
         });

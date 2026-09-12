@@ -108,6 +108,8 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
                 loaned_to: v.loaned_to,
                 loan_started_at: v.loan_started_at,
                 loan_due_at: v.loan_due_at,
+                created_on: Some(v.created_on),
+                modified_on: Some(v.modified_on),
             })
             .collect();
         vols.sort_by_key(|v| v.vol_num);
@@ -122,6 +124,8 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
                 vol_end: c.vol_end,
                 price: c.price,
                 store: c.store,
+                created_on: Some(c.created_on),
+                modified_on: Some(c.modified_on),
             })
             .collect();
 
@@ -145,6 +149,8 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
             edition: row.edition,
             review: row.review,
             review_public: row.review_public,
+            created_on: Some(row.created_on),
+            modified_on: Some(row.modified_on),
             author: row
                 .author_id
                 .and_then(|id| author_names.get(&id))
@@ -484,8 +490,10 @@ pub async fn apply_import_merge(
                 .as_deref()
                 .filter(|id| crate::util::uuid::is_canonical_uuid(id))
                 .map(str::to_string)),
-            created_on: Set(now),
-            modified_on: Set(now),
+            // Bundle timestamps win: a restore must not turn every
+            // series into "added today". v1 bundles have none → now.
+            created_on: Set(series.created_on.unwrap_or(now)),
+            modified_on: Set(series.modified_on.unwrap_or(now)),
             ..Default::default()
         };
         lib_active.insert(&txn).await.map_err(AppError::from)?;
@@ -546,8 +554,8 @@ pub async fn apply_import_merge(
                     loaned_to: Set(v.loaned_to.clone()),
                     loan_started_at: Set(v.loan_started_at),
                     loan_due_at: Set(v.loan_due_at),
-                    created_on: Set(now),
-                    modified_on: Set(now),
+                    created_on: Set(v.created_on.unwrap_or(now)),
+                    modified_on: Set(v.modified_on.unwrap_or(now)),
                     ..Default::default()
                 })
                 .collect()
@@ -592,8 +600,8 @@ pub async fn apply_import_merge(
                 vol_end: Set(c.vol_end),
                 price: Set(c.price),
                 store: Set(c.store.clone()),
-                created_on: Set(now),
-                modified_on: Set(now),
+                created_on: Set(c.created_on.unwrap_or(now)),
+                modified_on: Set(c.modified_on.unwrap_or(now)),
                 ..Default::default()
             }
             .insert(&txn)

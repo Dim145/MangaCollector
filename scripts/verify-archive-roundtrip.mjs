@@ -98,11 +98,11 @@ async function enrich(c) {
 
 /* ─── 4. normalised views ──────────────────────────────────────────── */
 const SERIES_FIELDS = ["name", "volumes", "volumes_owned", "image_url_jpg", "genres", "mangadex_id",
-  "publisher", "edition", "review", "review_public", "author_name"];
+  "publisher", "edition", "review", "review_public", "author_name", "created_on", "modified_on"];
 const VOLUME_FIELDS = ["vol_num", "owned", "price", "store", "collector", "read_at", "notes",
   "release_date", "release_isbn", "release_url", "origin", "announced_at",
-  "loaned_to", "loan_started_at", "loan_due_at", "in_coffret"];
-const COFFRET_FIELDS = ["name", "vol_start", "vol_end", "price", "store", "collector"];
+  "loaned_to", "loan_started_at", "loan_due_at", "in_coffret", "created_on", "modified_on"];
+const COFFRET_FIELDS = ["name", "vol_start", "vol_end", "price", "store", "collector", "created_on", "modified_on"];
 
 async function snapshot(c) {
   const lib = await c.json("GET", "/api/user/library");

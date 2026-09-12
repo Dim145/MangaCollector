@@ -75,6 +75,12 @@ pub struct ExportSeries {
     /// the importer resolves it the way the edit form does.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
+    /// Row timestamps. Carried so a restore keeps "date added" and the
+    /// recency lenses honest; a bundle without them (v1) gets "now".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_on: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified_on: Option<chrono::DateTime<chrono::Utc>>,
     pub volumes_detail: Vec<ExportVolume>,
     pub coffrets: Vec<ExportCoffret>,
 }
@@ -119,6 +125,11 @@ pub struct ExportVolume {
     pub loan_started_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loan_due_at: Option<chrono::DateTime<chrono::Utc>>,
+    // ── v2 · row timestamps ──
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_on: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified_on: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -130,6 +141,11 @@ pub struct ExportCoffret {
     pub price: Option<Decimal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub store: Option<String>,
+    // ── v2 · row timestamps ──
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_on: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified_on: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Shape returned by POST /api/user/import when `dryRun=true`, and also
