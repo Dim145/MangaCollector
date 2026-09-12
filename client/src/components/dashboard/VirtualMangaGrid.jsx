@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useWindowGridVirtualizer } from "@/hooks/useWindowGridVirtualizer.js";
 import Manga from "../Manga";
 
 /**
@@ -25,6 +24,10 @@ import Manga from "../Manga";
  *     library's `useVirtualizer` doesn't introspect CSS — so we drop
  *     the responsive utility classes here and use inline
  *     `gridTemplateColumns: repeat(${lanes}, ...)`.
+ *
+ * Lane / scroll-margin bookkeeping lives in `useWindowGridVirtualizer`,
+ * shared with the volumes grid on MangaPage, so the two windowed grids
+ * can't drift apart.
  */
 export const VIRTUALIZE_THRESHOLD = 100;
 const LANE_BREAKPOINTS = [
@@ -36,13 +39,6 @@ const LANE_BREAKPOINTS = [
   { min: 640, lanes: 3 },
   { min: 0, lanes: 2 },
 ];
-
-function laneCountForWidth(width) {
-  for (const bp of LANE_BREAKPOINTS) {
-    if (width >= bp.min) return bp.lanes;
-  }
-  return 2;
-}
 
 export default function VirtualMangaGrid({
   filtered,
@@ -56,53 +52,17 @@ export default function VirtualMangaGrid({
   onEnterSelection,
   shelf3d,
 }) {
-  const parentRef = useRef(null);
-  // Initial offset of the grid relative to the document — passed to
-  // the virtualizer as `scrollMargin` so virtual rows are positioned
-  // in document coordinates, not relative to the parent.
-  const [scrollMargin, setScrollMargin] = useState(0);
-  const [lanes, setLanes] = useState(() =>
-    typeof window !== "undefined" ? laneCountForWidth(window.innerWidth) : 4,
-  );
-
-  // Resize listener. Throttled via rAF so a fast window-drag doesn't
-  // recompute lanes on every pixel — once per frame is plenty.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    let rafHandle = null;
-    const recompute = () => {
-      rafHandle = null;
-      setLanes(laneCountForWidth(window.innerWidth));
-      if (parentRef.current) {
-        const rect = parentRef.current.getBoundingClientRect();
-        setScrollMargin(rect.top + window.scrollY);
-      }
-    };
-    const onResize = () => {
-      if (rafHandle != null) return;
-      rafHandle = requestAnimationFrame(recompute);
-    };
-    // Initial measure (after first paint so layout has settled).
-    rafHandle = requestAnimationFrame(recompute);
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      if (rafHandle != null) cancelAnimationFrame(rafHandle);
-    };
-  }, []);
-
-  const rowCount = Math.ceil(filtered.length / lanes);
-
-  const virtualizer = useWindowVirtualizer({
-    count: rowCount,
-    estimateSize: () => 270,
-    // 8 rows * up to 6 cols = 48 cards buffer above/below the
-    // viewport. Comfortably covers the "Cmd+K → navigate" race
-    // condition where View Transitions need the source card to
-    // still be rendered when the route change fires.
-    overscan: 8,
-    scrollMargin,
-  });
+  const { parentRef, lanes, scrollMargin, virtualizer } =
+    useWindowGridVirtualizer({
+      itemCount: filtered.length,
+      laneBreakpoints: LANE_BREAKPOINTS,
+      estimateSize: 270,
+      // 8 rows * up to 6 cols = 48 cards buffer above/below the
+      // viewport. Comfortably covers the "Cmd+K → navigate" race
+      // condition where View Transitions need the source card to
+      // still be rendered when the route change fires.
+      overscan: 8,
+    });
 
   return (
     <div

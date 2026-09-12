@@ -50,6 +50,10 @@ function VolumeImpl({
   blurImage = false,
   onPreviewShow,
   onPreviewRelease,
+  // 留 · Optional. A virtualized parent pins the row of a tile that
+  // reports itself busy so an in-progress edit or an open loan modal
+  // never unmounts when the user scrolls away and back.
+  onBusyChange,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [ownedStatus, setOwnedStatus] = useState(owned);
@@ -100,6 +104,15 @@ function VolumeImpl({
   // need a boolean toggle here. Closing the modal also closes the
   // parent drawer so the user comes back to a clean MangaPage.
   const [loanModalOpen, setLoanModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!onBusyChange) return undefined;
+    const busy = isEditing || loanModalOpen;
+    onBusyChange(id, busy);
+    // Unmounting while busy must release the pin too, or a row could
+    // stay pinned forever after a route change.
+    return () => onBusyChange(id, false);
+  }, [onBusyChange, id, isEditing, loanModalOpen]);
 
   // Preview disabled when blurImage is on so the filter can't be peeked around.
   // 滑 · Swipe-to-toggle is gated on the same conditions as the click toggle
@@ -244,8 +257,8 @@ function VolumeImpl({
   const releaseDateObj = releaseDate ? new Date(releaseDate) : null;
   const isUpcoming = Boolean(
     releaseDateObj &&
-      !Number.isNaN(releaseDateObj.getTime()) &&
-      releaseDateObj.getTime() > Date.now(),
+    !Number.isNaN(releaseDateObj.getTime()) &&
+    releaseDateObj.getTime() > Date.now(),
   );
   const daysUntilRelease = isUpcoming
     ? Math.max(
@@ -412,7 +425,8 @@ function VolumeImpl({
               locked || isUpcoming ? "cursor-default" : "hover:-translate-y-0.5"
             } ${isEditing ? "opacity-60" : ""}`}
           >
-            <img referrerPolicy="no-referrer"
+            <img
+              referrerPolicy="no-referrer"
               src={coverUrl}
               alt=""
               loading="lazy"
@@ -520,11 +534,7 @@ function VolumeImpl({
                 badge so the volume number stays readable on top
                 of the stamp's outer ring. */}
             {ownedStatus && !isUpcoming && (
-              <LoanStamp
-                loanedTo={loanedTo}
-                loanDueAt={loanDueAt}
-                size="lg"
-              />
+              <LoanStamp loanedTo={loanedTo} loanDueAt={loanDueAt} size="lg" />
             )}
 
             <span
@@ -752,7 +762,9 @@ function VolumeImpl({
         {!isEditing && !isUpcoming && (
           <button
             onClick={toggleRead}
-            aria-label={readStatus ? t("volume.markUnread") : t("volume.markRead")}
+            aria-label={
+              readStatus ? t("volume.markUnread") : t("volume.markRead")
+            }
             aria-pressed={readStatus}
             title={
               readStatus
@@ -888,7 +900,7 @@ function VolumeImpl({
       />
 
       {!isEditing &&
-        (ownedStatus && purchaseLocation || (note && note.trim())) && (
+        ((ownedStatus && purchaseLocation) || (note && note.trim())) && (
           <div className="flex items-center gap-1.5 border-t border-border/50 px-4 py-2 text-[11px] text-washi-muted">
             {ownedStatus && purchaseLocation && (
               <>
@@ -908,10 +920,7 @@ function VolumeImpl({
             )}
 
             {note && note.trim() && (
-              <Tooltip
-                text={t("volume.noteIndicatorTooltip")}
-                placement="top"
-              >
+              <Tooltip text={t("volume.noteIndicatorTooltip")} placement="top">
                 <button
                   type="button"
                   onClick={() => setIsEditing(true)}
@@ -945,5 +954,8 @@ export default memo(VolumeImpl);
 /** Title-case helper for i18n key composition. `active` → `Active`. */
 function capitalize(s) {
   if (!s || typeof s !== "string") return "";
-  return s.charAt(0).toUpperCase() + s.slice(1).replace(/_(\w)/g, (_, c) => c.toUpperCase());
+  return (
+    s.charAt(0).toUpperCase() +
+    s.slice(1).replace(/_(\w)/g, (_, c) => c.toUpperCase())
+  );
 }

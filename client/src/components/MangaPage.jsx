@@ -1,4 +1,12 @@
-import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
@@ -6,13 +14,14 @@ import Volume from "./Volume";
 import VolumeShelfTile from "./VolumeShelfTile.jsx";
 import VolumesViewToggle from "./VolumesViewToggle.jsx";
 import CoffretGroup from "./CoffretGroup";
+import VirtualVolumeGrid from "@/components/VirtualVolumeGrid.jsx";
 // Heavy overlay modals that only mount on user action — lazy so a
 // reader who's just consulting a series doesn't pay for the coffret
 // builder or the cover picker bundle. Combined ~900 lines of code.
 const AddCoffretModal = lazy(() => import("./AddCoffretModal"));
 const CoverPickerModal = lazy(() => import("./CoverPickerModal.jsx"));
-const AddUpcomingVolumeModal = lazy(() =>
-  import("./AddUpcomingVolumeModal.jsx"),
+const AddUpcomingVolumeModal = lazy(
+  () => import("./AddUpcomingVolumeModal.jsx"),
 );
 import Skeleton from "./ui/Skeleton.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
@@ -178,8 +187,9 @@ export default function MangaPage({ manga, adult_content_level }) {
   // backed library so edits (and background syncs) are reflected here.
   const { data: library } = useLibrary();
   const liveLibraryRow = library?.find((m) => m.mal_id === manga.mal_id);
-  const liveVolumeCount = liveLibraryRow?.volumes ?? (manga.volumes ?? 0);
-  const liveMangadexId = liveLibraryRow?.mangadex_id ?? manga.mangadex_id ?? null;
+  const liveVolumeCount = liveLibraryRow?.volumes ?? manga.volumes ?? 0;
+  const liveMangadexId =
+    liveLibraryRow?.mangadex_id ?? manga.mangadex_id ?? null;
   // 自由 · Genres are editable only when the row has no upstream link
   // to MAL or MangaDex. The same gate is enforced on the server in
   // `apply_library_patch`; the UI mirrors it so non-custom rows show
@@ -371,7 +381,8 @@ export default function MangaPage({ manga, adult_content_level }) {
       // The visibility flag rides separately so the user can flip the
       // toggle without retyping the review text.
       if (nextReview !== prevReview) metaPatch.review = nextReview;
-      if (reviewPublic !== prevReviewPublic) metaPatch.review_public = reviewPublic;
+      if (reviewPublic !== prevReviewPublic)
+        metaPatch.review_public = reviewPublic;
 
       // 自由 · Genres diff — only relevant for custom rows (the editor
       // is gated on the same condition; on a non-custom row `genres`
@@ -390,7 +401,10 @@ export default function MangaPage({ manga, adult_content_level }) {
       }
 
       if (Object.keys(metaPatch).length > 0) {
-        await updateMangaMeta.mutateAsync({ mal_id: manga.mal_id, ...metaPatch });
+        await updateMangaMeta.mutateAsync({
+          mal_id: manga.mal_id,
+          ...metaPatch,
+        });
       }
 
       // Poster upload is online-only (file payloads can't be queued)
@@ -616,7 +630,8 @@ export default function MangaPage({ manga, adult_content_level }) {
               className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
               aria-hidden="true"
             >
-              <img referrerPolicy="no-referrer"
+              <img
+                referrerPolicy="no-referrer"
                 src={displayPoster}
                 alt=""
                 className="h-full w-full scale-150 object-cover opacity-30 blur-3xl"
@@ -634,7 +649,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                 // Back), the browser captures both snapshots and
                 // morphs the card → hero (and back). No-op without
                 // View Transitions support.
-                style={{ viewTransitionName: coverTransitionName(manga.mal_id) }}
+                style={{
+                  viewTransitionName: coverTransitionName(manga.mal_id),
+                }}
                 className={`relative aspect-[2/3] overflow-hidden rounded-2xl border border-border shadow-2xl glow-red transition-colors ${
                   allCollector
                     ? "hover:border-gold/60"
@@ -644,7 +661,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                 }`}
               >
                 {displayPoster ? (
-                  <img referrerPolicy="no-referrer"
+                  <img
+                    referrerPolicy="no-referrer"
                     src={displayPoster}
                     alt={name}
                     onClick={() => {
@@ -834,7 +852,6 @@ export default function MangaPage({ manga, adult_content_level }) {
                 )
               )}
 
-
               {/* 出版社 · Publisher / edition strip.
                   Read mode: a single quiet line "Glénat · Édition deluxe"
                   in mono micro — only rendered when at least one field is
@@ -847,7 +864,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                   without any custom popup component. */}
               {!isEditing && (publisher || edition) && (
                 <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
-                  <span aria-hidden="true" className="font-jp text-xs text-hanko/70">
+                  <span
+                    aria-hidden="true"
+                    className="font-jp text-xs text-hanko/70"
+                  >
                     出版
                   </span>
                   {publisher && (
@@ -926,7 +946,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                       onChange={setEdition}
                       listId="mc-edition-list"
                       maxLength={60}
-                      options={EDITION_PRESETS.map((key) => t(`manga.editionPreset_${key}`))}
+                      options={EDITION_PRESETS.map((key) =>
+                        t(`manga.editionPreset_${key}`),
+                      )}
                     />
                   </div>
                   {/* 作家 · Author override with datalist autocomplete.
@@ -1122,7 +1144,6 @@ export default function MangaPage({ manga, adult_content_level }) {
                           </svg>
                         </button>
                       )}
-
                     </div>
                     <button
                       onClick={() => setConfirmDelete(true)}
@@ -1403,15 +1424,11 @@ export default function MangaPage({ manga, adult_content_level }) {
                     )}
                   </CoffretGroup>
                 ) : (
-                  <div
+                  <VirtualVolumeGrid
                     key={`g-${idx}`}
-                    className={
-                      isShelfMode
-                        ? "grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6"
-                        : "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
-                    }
-                  >
-                    {seg.vols.map((vol) =>
+                    vols={seg.vols}
+                    shelf={isShelfMode}
+                    renderTile={(vol, onBusyChange) =>
                       isShelfMode ? (
                         <VolumeShelfTile
                           key={vol.id}
@@ -1454,10 +1471,11 @@ export default function MangaPage({ manga, adult_content_level }) {
                           blurImage={isBlurred}
                           onPreviewShow={previewCtl.show}
                           onPreviewRelease={previewCtl.release}
+                          onBusyChange={onBusyChange}
                         />
-                      ),
-                    )}
-                  </div>
+                      )
+                    }
+                  />
                 ),
               )}
             </div>
@@ -1507,7 +1525,8 @@ export default function MangaPage({ manga, adult_content_level }) {
       )}
 
       <Modal popupOpen={posterPopUp} handleClose={() => setPosterPopUp(false)}>
-        <img referrerPolicy="no-referrer"
+        <img
+          referrerPolicy="no-referrer"
           src={poster}
           alt={name}
           className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
@@ -1523,19 +1542,19 @@ export default function MangaPage({ manga, adult_content_level }) {
             onClose={() => setCoverPickerOpen(false)}
             mal_id={manga.mal_id}
             currentUrl={poster}
-        onConfirm={async (url) => {
-          // Offline-safe: enqueue via Dexie + outbox instead of a direct
-          // axios call. Local state (Dexie → useLiveQuery → liveLibraryRow)
-          // updates immediately, and the PATCH fires whenever the server is
-          // reachable. A queryClient invalidation is no longer needed —
-          // useLiveQuery on Dexie is the canonical source for the UI.
-          await setPosterMutation.mutateAsync({
-            mal_id: manga.mal_id,
-            url,
-          });
-          setPoster(url);
-          setCoverPickerOpen(false);
-        }}
+            onConfirm={async (url) => {
+              // Offline-safe: enqueue via Dexie + outbox instead of a direct
+              // axios call. Local state (Dexie → useLiveQuery → liveLibraryRow)
+              // updates immediately, and the PATCH fires whenever the server is
+              // reachable. A queryClient invalidation is no longer needed —
+              // useLiveQuery on Dexie is the canonical source for the UI.
+              await setPosterMutation.mutateAsync({
+                mal_id: manga.mal_id,
+                url,
+              });
+              setPoster(url);
+              setCoverPickerOpen(false);
+            }}
           />
         </Suspense>
       )}
@@ -1590,7 +1609,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                   <path d="M21 22v-6h-6" />
                   <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7" />
                 </svg>
-                <span className="flex-1 truncate">{t("manga.syncFromMal")}</span>
+                <span className="flex-1 truncate">
+                  {t("manga.syncFromMal")}
+                </span>
               </button>
             )}
             {liveMangadexId && (
@@ -1720,12 +1741,10 @@ export default function MangaPage({ manga, adult_content_level }) {
 
       {/* Full-screen zoom modal triggered by tapping the preview on
           mobile. Reuses the standard Modal shell for consistency. */}
-      <Modal
-        popupOpen={previewCtl.zoomOpen}
-        handleClose={previewCtl.hide}
-      >
+      <Modal popupOpen={previewCtl.zoomOpen} handleClose={previewCtl.hide}>
         {previewCtl.url && (
-          <img referrerPolicy="no-referrer"
+          <img
+            referrerPolicy="no-referrer"
             src={previewCtl.url}
             alt=""
             className={`max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl ${
