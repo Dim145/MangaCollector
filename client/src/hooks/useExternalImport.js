@@ -23,6 +23,16 @@ export function useExternalImport() {
       return data;
     },
   });
+  // The official MAL export file — XML text, unpacked client-side.
+  const malXml = useMutation({
+    mutationFn: async (xml) => {
+      const { data } = await axios.post(
+        "/api/user/import/external/mal-xml",
+        { xml },
+      );
+      return data;
+    },
+  });
   const anilist = useMutation({
     mutationFn: async (username) => {
       const { data } = await axios.post(
@@ -64,22 +74,26 @@ export function useExternalImport() {
 
   return {
     fetchMal: mal.mutateAsync,
+    fetchMalXml: malXml.mutateAsync,
     fetchAniList: anilist.mutateAsync,
     fetchMangaDex: mangadex.mutateAsync,
     fetchYamtrack: yamtrack.mutateAsync,
     commit: commit.mutateAsync,
     isFetchingMal: mal.isPending,
+    isFetchingMalXml: malXml.isPending,
     isFetchingAniList: anilist.isPending,
     isFetchingMangaDex: mangadex.isPending,
     isFetchingYamtrack: yamtrack.isPending,
     isCommitting: commit.isPending,
     malError: mal.error,
+    malXmlError: malXml.error,
     anilistError: anilist.error,
     mangadexError: mangadex.error,
     yamtrackError: yamtrack.error,
     commitError: commit.error,
     reset: () => {
       mal.reset();
+      malXml.reset();
       anilist.reset();
       mangadex.reset();
       yamtrack.reset();

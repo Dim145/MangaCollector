@@ -35,6 +35,13 @@ pub struct ExternalCsvRequest {
     pub csv: String,
 }
 
+/// MyAnimeList XML export — the client unpacks the `.xml.gz` in the
+/// browser and posts the XML text, same shape as the CSV upload.
+#[derive(Debug, Deserialize)]
+pub struct ExternalXmlRequest {
+    pub xml: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct ExternalImportResponse {
     pub bundle: ExportBundle,
@@ -67,6 +74,19 @@ pub async fn import_mal(
     let bundle =
         external_import::fetch_mal_by_username(&state.http_client, &body.username)
             .await?;
+    let out = finalise_preview(&state, &user, bundle).await?;
+    Ok(Json(out))
+}
+
+/// POST /api/user/import/external/mal-xml — the official MyAnimeList
+/// export file. Parsed server-side, no network calls, so it is fast,
+/// needs no username and cannot be rate-limited by Jikan.
+pub async fn import_mal_xml(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    Json(body): Json<ExternalXmlRequest>,
+) -> Result<Json<ExternalImportResponse>, AppError> {
+    let bundle = external_import::parse_mal_xml(&body.xml)?;
     let out = finalise_preview(&state, &user, bundle).await?;
     Ok(Json(out))
 }

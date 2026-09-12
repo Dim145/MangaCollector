@@ -257,6 +257,7 @@ fn user_router() -> Router<AppState> {
         // 外部輸入 · External import — fetch a library from another
         // service and return a bundle + dry-run preview in one call.
         .route("/import/external/mal", post(external_import::import_mal))
+        .route("/import/external/mal-xml", post(external_import::import_mal_xml))
         .route("/import/external/anilist", post(external_import::import_anilist))
         .route("/import/external/mangadex", post(external_import::import_mangadex))
         .route("/import/external/yamtrack", post(external_import::import_yamtrack))

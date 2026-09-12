@@ -89,6 +89,23 @@ throwaway `restore-check-*` user (the mock accepts any username).
 `scripts/lib/stack-client.mjs` is the headless login + cookie-jar
 helper both scripts share; reuse it for further stack checks.
 
+## Verify the MyAnimeList XML import
+
+```bash
+node scripts/verify-mal-xml-import.mjs
+```
+
+Posts the XML MyAnimeList exports (Profile → Export → Manga list) to
+`POST /api/user/import/external/mal-xml` as a throwaway `xml-check-*`
+user and checks the mapping through the API: retail (bought) volumes
+win over read volumes, an unknown total still tracks the owned run,
+"Completed" owns the whole run, "Plan to Read" is a wishlist entry,
+CDATA / entity titles and comments come through, id-less entries are
+skipped and junk input is a 400. Then commits the previewed bundle and
+reads the library and volume rows back. The browser side (unpacking
+the `.xml.gz` with `DecompressionStream`) is covered by
+`client/src/lib/importFile.test.js`.
+
 ## Reset
 
 ```bash

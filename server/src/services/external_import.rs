@@ -179,7 +179,11 @@ pub async fn fetch_mal_by_username(
                 (Some(r), None) => r.max(0),
                 (None, _) => 0,
             };
-            let total = total.unwrap_or(0);
+            // Track at least what the user owns: the importer creates one
+            // row per tracked volume and clamps `volumes_owned` to that
+            // count, so an unknown total (0) would have thrown the read
+            // count away again on insert.
+            let total = total.unwrap_or(0).max(owned);
             let mut genres = Vec::new();
             if let Some(gs) = entry.manga.genres {
                 for g in gs {
@@ -726,6 +730,202 @@ pub fn parse_yamtrack_csv(csv_text: &str) -> Result<ExportBundle, AppError> {
     Ok(wrap_bundle("Yamtrack", series))
 }
 
+/* ══════════════════════════════════════════════════════════════════
+ *  MyAnimeList — the official XML export (Profile → Export → Manga).
+ *
+ *  The file MAL hands out is `mangalist_<ts>_-_<uid>.xml.gz`; the
+ *  client unpacks it in the browser and posts the XML text. Unlike
+ *  the Jikan route this needs no username, hits no rate limit, and
+ *  carries a field the by-username API does not: `my_retail_volumes`,
+ *  the count a collector marked as bought.
+ *
+ *    manga_mangadb_id  → mal_id (entries without one are skipped)
+ *    manga_title       → name
+ *    manga_volumes     → volumes (0 = MAL doesn't know)
+ *    my_retail_volumes → volumes_owned when > 0, else my_read_volumes
+ *                        (the rule the by-username import applies);
+ *                        "Completed" with a known total = the whole run
+ *    my_comments       → review (private)
+ *    everything else   — informational, not mapped
+ * ══════════════════════════════════════════════════════════════════ */
+
+#[derive(Debug, Default)]
+struct MalXmlEntry {
+    mal_id: Option<i32>,
+    title: String,
+    volumes: Option<i32>,
+    read_volumes: Option<i32>,
+    retail_volumes: Option<i32>,
+    status: String,
+    comments: String,
+}
+
+/// Cap on the private review carried over from `my_comments`.
+const MAL_XML_COMMENT_MAX_CHARS: usize = 4000;
+
+impl MalXmlEntry {
+    fn set(&mut self, field: &str, value: &str) {
+        match field {
+            "manga_mangadb_id" => {
+                self.mal_id = value.parse::<i32>().ok().filter(|v| *v > 0);
+            }
+            "manga_title" => self.title = value.to_string(),
+            "manga_volumes" => self.volumes = value.parse().ok(),
+            "my_read_volumes" => self.read_volumes = value.parse().ok(),
+            "my_retail_volumes" => self.retail_volumes = value.parse().ok(),
+            "my_status" => self.status = value.to_string(),
+            "my_comments" => self.comments = value.to_string(),
+            _ => {}
+        }
+    }
+
+    fn into_series(self) -> Option<ExportSeries> {
+        let mal_id = self.mal_id?;
+        let title = self.title.trim().to_string();
+        if title.is_empty() {
+            return None;
+        }
+        let total = self.volumes.filter(|v| *v > 0);
+        let retail = self.retail_volumes.filter(|v| *v > 0);
+        let read = self.read_volumes.filter(|v| *v > 0);
+        let mut owned = retail.or(read).unwrap_or(0);
+        if owned == 0 && self.status.eq_ignore_ascii_case("Completed") {
+            owned = total.unwrap_or(0);
+        }
+        if let Some(t) = total {
+            owned = owned.min(t);
+        }
+        let comments = self.comments.trim();
+        let review = (!comments.is_empty()).then(|| {
+            comments
+                .chars()
+                .take(MAL_XML_COMMENT_MAX_CHARS)
+                .collect::<String>()
+        });
+        Some(ExportSeries {
+            mal_id: Some(mal_id),
+            mangadex_id: None,
+            name: title,
+            // Track at least the owned run when MAL has no total (see
+            // the same rule on the by-username path).
+            volumes: total.unwrap_or(0).max(owned),
+            volumes_owned: owned,
+            image_url_jpg: None,
+            genres: Vec::new(),
+            publisher: None,
+            edition: None,
+            review,
+            review_public: false,
+            author: None,
+            created_on: None,
+            modified_on: None,
+            volumes_detail: Vec::new(),
+            coffrets: Vec::new(),
+        })
+    }
+}
+
+/// Parse a MyAnimeList XML export into a bundle. Pure — no network.
+pub fn parse_mal_xml(xml: &str) -> Result<ExportBundle, AppError> {
+    use quick_xml::events::Event;
+
+    let mut reader = quick_xml::Reader::from_str(xml);
+    let mut series: Vec<ExportSeries> = Vec::new();
+    let mut current: Option<MalXmlEntry> = None;
+    let mut field: Option<String> = None;
+    let mut text = String::new();
+    let mut saw_root = false;
+
+    loop {
+        match reader.read_event() {
+            Err(e) => {
+                return Err(AppError::BadRequest(format!(
+                    "This file is not valid XML: {e}"
+                )));
+            }
+            Ok(Event::Eof) => break,
+            Ok(Event::Start(e)) => {
+                // quick-xml ≥ 0.42 hands names and text out as `str`.
+                let name = e.name().as_ref().to_string();
+                if name == "myanimelist" {
+                    saw_root = true;
+                } else if name == "manga" {
+                    current = Some(MalXmlEntry::default());
+                } else if current.is_some() {
+                    field = Some(name);
+                    text.clear();
+                }
+            }
+            Ok(Event::Text(t)) => {
+                if field.is_some() {
+                    let raw: &str = &t;
+                    match quick_xml::escape::unescape(raw) {
+                        Ok(s) => text.push_str(&s),
+                        Err(_) => text.push_str(raw),
+                    }
+                }
+            }
+            Ok(Event::CData(c)) => {
+                if field.is_some() {
+                    text.push_str(&c);
+                }
+            }
+            // `&amp;` and friends are their own event, not part of the
+            // text: resolve the five predefined entities and numeric
+            // character references, drop anything else.
+            Ok(Event::GeneralRef(r)) => {
+                if field.is_some() {
+                    let name: &str = &r;
+                    match name {
+                        "amp" => text.push('&'),
+                        "lt" => text.push('<'),
+                        "gt" => text.push('>'),
+                        "quot" => text.push('"'),
+                        "apos" => text.push('\''),
+                        _ => {
+                            if let Ok(Some(ch)) = r.resolve_char_ref() {
+                                text.push(ch);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(Event::End(e)) => {
+                let name = e.name();
+                let name: &str = name.as_ref();
+                if name == "manga" {
+                    let Some(entry) = current.take() else {
+                        continue;
+                    };
+                    if let Some(s) = entry.into_series() {
+                        series.push(s);
+                        if series.len() >= MAX_ENTRIES {
+                            break;
+                        }
+                    }
+                } else if let (Some(f), Some(entry)) = (field.take(), current.as_mut()) {
+                    entry.set(&f, text.trim());
+                    text.clear();
+                }
+            }
+            Ok(_) => {}
+        }
+    }
+    if !saw_root {
+        return Err(AppError::BadRequest(
+            "This file is not a MyAnimeList export (no <myanimelist> root).".into(),
+        ));
+    }
+    // quick-xml reports EOF inside an element as a plain end of input;
+    // a half-written entry means a truncated download, not a short list.
+    if current.is_some() || field.is_some() {
+        return Err(AppError::BadRequest(
+            "This MyAnimeList export is truncated — download it again.".into(),
+        ));
+    }
+    Ok(wrap_bundle("MyAnimeList export", series))
+}
+
 /* ══════════════════════════════════════════════════════════════════ */
 
 fn wrap_bundle(source: &str, library: Vec<ExportSeries>) -> ExportBundle {
@@ -736,5 +936,156 @@ fn wrap_bundle(source: &str, library: Vec<ExportSeries>) -> ExportBundle {
         user: ExportUser { name: None },
         settings: None,
         library,
+    }
+}
+
+#[cfg(test)]
+mod mal_xml_tests {
+    use super::*;
+
+    const SAMPLE: &str = r#"<?xml version="1.0" encoding="UTF-8" ?>
+<myanimelist>
+  <myinfo>
+    <user_id>1</user_id>
+    <user_name>collector</user_name>
+    <user_total_manga>7</user_total_manga>
+  </myinfo>
+  <manga>
+    <manga_mangadb_id>13</manga_mangadb_id>
+    <manga_title><![CDATA[One Piece]]></manga_title>
+    <manga_volumes>0</manga_volumes>
+    <my_read_volumes>10</my_read_volumes>
+    <my_retail_volumes>12</my_retail_volumes>
+    <my_status>Reading</my_status>
+    <my_comments><![CDATA[Relu trois fois.]]></my_comments>
+  </manga>
+  <manga>
+    <manga_mangadb_id>2</manga_mangadb_id>
+    <manga_title><![CDATA[Berserk]]></manga_title>
+    <manga_volumes>41</manga_volumes>
+    <my_read_volumes>5</my_read_volumes>
+    <my_retail_volumes>0</my_retail_volumes>
+    <my_status>Reading</my_status>
+    <my_comments><![CDATA[]]></my_comments>
+  </manga>
+  <manga>
+    <manga_mangadb_id>21</manga_mangadb_id>
+    <manga_title><![CDATA[Death Note]]></manga_title>
+    <manga_volumes>12</manga_volumes>
+    <my_read_volumes>0</my_read_volumes>
+    <my_retail_volumes>0</my_retail_volumes>
+    <my_status>Completed</my_status>
+  </manga>
+  <manga>
+    <manga_mangadb_id>1</manga_mangadb_id>
+    <manga_title><![CDATA[Monster]]></manga_title>
+    <manga_volumes>18</manga_volumes>
+    <my_read_volumes>30</my_read_volumes>
+    <my_retail_volumes>0</my_retail_volumes>
+    <my_status>Reading</my_status>
+  </manga>
+  <manga>
+    <manga_mangadb_id>656</manga_mangadb_id>
+    <manga_title><![CDATA[Vagabond]]></manga_title>
+    <manga_volumes>37</manga_volumes>
+    <my_read_volumes>0</my_read_volumes>
+    <my_retail_volumes>0</my_retail_volumes>
+    <my_status>Plan to Read</my_status>
+  </manga>
+  <manga>
+    <manga_mangadb_id>0</manga_mangadb_id>
+    <manga_title><![CDATA[Ghost entry]]></manga_title>
+    <manga_volumes>3</manga_volumes>
+  </manga>
+  <manga>
+    <manga_mangadb_id>33327</manga_mangadb_id>
+    <manga_title>Tokyo Ghoul &amp; friends</manga_title>
+    <manga_volumes>14</manga_volumes>
+    <my_read_volumes>14</my_read_volumes>
+    <my_status>Completed</my_status>
+  </manga>
+</myanimelist>"#;
+
+    fn by_id(bundle: &ExportBundle, id: i32) -> &ExportSeries {
+        bundle
+            .library
+            .iter()
+            .find(|s| s.mal_id == Some(id))
+            .unwrap_or_else(|| panic!("mal_id {id} missing"))
+    }
+
+    #[test]
+    fn maps_every_entry_with_a_mal_id() {
+        let b = parse_mal_xml(SAMPLE).unwrap();
+        assert_eq!(b.library.len(), 6, "the id-0 ghost entry is skipped");
+        assert!(b.source.contains("MyAnimeList export"));
+        assert_eq!(b.version, EXPORT_VERSION);
+    }
+
+    #[test]
+    fn retail_volumes_win_and_an_unknown_total_tracks_the_owned_run() {
+        let b = parse_mal_xml(SAMPLE).unwrap();
+        let op = by_id(&b, 13);
+        assert_eq!(op.name, "One Piece");
+        assert_eq!(op.volumes_owned, 12);
+        assert_eq!(op.volumes, 12);
+        assert_eq!(op.review.as_deref(), Some("Relu trois fois."));
+        assert!(!op.review_public);
+    }
+
+    #[test]
+    fn read_volumes_are_the_fallback_and_empty_comments_are_no_review() {
+        let b = parse_mal_xml(SAMPLE).unwrap();
+        let berserk = by_id(&b, 2);
+        assert_eq!((berserk.volumes, berserk.volumes_owned), (41, 5));
+        assert_eq!(berserk.review, None);
+    }
+
+    #[test]
+    fn completed_with_a_known_total_owns_the_whole_run() {
+        let b = parse_mal_xml(SAMPLE).unwrap();
+        assert_eq!(by_id(&b, 21).volumes_owned, 12);
+    }
+
+    #[test]
+    fn owned_is_capped_to_the_published_total() {
+        let b = parse_mal_xml(SAMPLE).unwrap();
+        assert_eq!(by_id(&b, 1).volumes_owned, 18);
+    }
+
+    #[test]
+    fn plan_to_read_lands_as_a_wishlist_entry() {
+        let b = parse_mal_xml(SAMPLE).unwrap();
+        let v = by_id(&b, 656);
+        assert_eq!((v.volumes, v.volumes_owned), (37, 0));
+    }
+
+    #[test]
+    fn plain_text_titles_are_unescaped() {
+        let b = parse_mal_xml(SAMPLE).unwrap();
+        assert_eq!(by_id(&b, 33327).name, "Tokyo Ghoul & friends");
+    }
+
+    #[test]
+    fn rejects_files_that_are_not_a_mal_export() {
+        assert!(matches!(
+            parse_mal_xml("<html><body>nope</body></html>"),
+            Err(AppError::BadRequest(_))
+        ));
+        assert!(matches!(
+            parse_mal_xml("mal_id,title\n13,One Piece"),
+            Err(AppError::BadRequest(_))
+        ));
+        assert!(matches!(
+            parse_mal_xml("<myanimelist><manga><manga_title>broken"),
+            Err(AppError::BadRequest(_))
+        ));
+    }
+
+    #[test]
+    fn an_empty_export_is_an_empty_bundle() {
+        let b = parse_mal_xml("<myanimelist><myinfo><user_id>1</user_id></myinfo></myanimelist>")
+            .unwrap();
+        assert!(b.library.is_empty());
     }
 }

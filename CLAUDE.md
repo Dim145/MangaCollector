@@ -112,13 +112,13 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 52 tests across 13 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 61 tests across 14 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image}.rs`,
-  `services/{genres,proxy_client,google_books_api,activity_coalescer,realtime,archive}.rs`,
+  `services/{genres,proxy_client,google_books_api,activity_coalescer,realtime,archive,external_import}.rs`,
   `handlers/realtime.rs`, `models/archive.rs`). The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 845 tests across 32 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 870 tests across 35 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -192,7 +192,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 | `/api/activity`, `/api/streak` | Activity feed & streak |
 | `/api/follows` | Friends / following & feed |
 | `/api/sessions` | Active device sessions |
-| `/api/import` | External CSV / JSON import |
+| `/api/import` | External imports: MAL by username (Jikan) or official XML export, AniList, MangaDex list, Yamtrack CSV |
 | `/api/health` | Health checks (loopback-gated by default) |
 | `/api/ws` | WebSocket for cross-device invalidation |
 | `/api/public-config`, `/api/public-slug`, `/api/public-adult` | Public config & profile visibility |

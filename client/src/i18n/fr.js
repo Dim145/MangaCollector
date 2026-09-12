@@ -1995,6 +1995,14 @@ export default {
     ymPlaceholder: "yamtrack_export.csv",
     ymHint:
       "Allez dans Profil → Export sur votre Yamtrack, téléchargez le CSV, et déposez-le ici. Les lignes non-manga sont ignorées automatiquement.",
+    mxInputKind: "Par export XML · officiel",
+    mxBlurb:
+      "Importez la liste exportée depuis MyAnimeList lui-même (Profil → Export). Les tomes marqués possédés ou lus deviennent votre collection — ni pseudo, ni limite de débit.",
+    mxInputTitle: "Votre export MyAnimeList",
+    mxInputLabel: "Fichier XML (.xml ou .xml.gz)",
+    mxPlaceholder: "mangalist_….xml.gz",
+    mxHint:
+      "Sur MyAnimeList : Profil → Export → Liste manga. Déposez le .xml.gz téléchargé tel quel — il est décompressé dans votre navigateur. Les tomes « retail » (possédés) priment sur les tomes lus.",
     chooseFile: "Choisir un fichier",
     fileChosen: "Fichier sélectionné",
   },

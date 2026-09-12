@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import { useExternalImport } from "@/hooks/useExternalImport.js";
+import { readImportFile } from "@/lib/importFile.js";
 import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -29,11 +30,13 @@ export default function ImportExternalPage() {
 
   const {
     fetchMal,
+    fetchMalXml,
     fetchAniList,
     fetchMangaDex,
     fetchYamtrack,
     commit,
     isFetchingMal,
+    isFetchingMalXml,
     isFetchingAniList,
     isFetchingMangaDex,
     isFetchingYamtrack,
@@ -42,6 +45,7 @@ export default function ImportExternalPage() {
 
   const isFetching =
     isFetchingMal ||
+    isFetchingMalXml ||
     isFetchingAniList ||
     isFetchingMangaDex ||
     isFetchingYamtrack;
@@ -68,6 +72,7 @@ export default function ImportExternalPage() {
     try {
       let resp;
       if (service === "mal") resp = await fetchMal(input);
+      else if (service === "mal-xml") resp = await fetchMalXml(input);
       else if (service === "anilist") resp = await fetchAniList(input);
       else if (service === "mangadex") resp = await fetchMangaDex(input);
       else if (service === "yamtrack") resp = await fetchYamtrack(input);
@@ -143,6 +148,16 @@ export default function ImportExternalPage() {
               order={0}
             />
             <ServiceCard
+              id="mal-xml"
+              onClick={() => openService("mal-xml")}
+              kanji="帳"
+              title="MyAnimeList · export"
+              inputLabel={t("importExternal.mxInputKind")}
+              blurb={t("importExternal.mxBlurb")}
+              accent="hanko"
+              order={1}
+            />
+            <ServiceCard
               id="mangadex"
               onClick={() => openService("mangadex")}
               kanji="巻"
@@ -150,7 +165,7 @@ export default function ImportExternalPage() {
               inputLabel={t("importExternal.mdInputKind")}
               blurb={t("importExternal.mdBlurb")}
               accent="gold"
-              order={1}
+              order={2}
             />
             <ServiceCard
               id="anilist"
@@ -160,7 +175,7 @@ export default function ImportExternalPage() {
               inputLabel={t("importExternal.aniInputKind")}
               blurb={t("importExternal.aniBlurb")}
               accent="moegi"
-              order={2}
+              order={3}
             />
             <ServiceCard
               id="yamtrack"
@@ -170,7 +185,7 @@ export default function ImportExternalPage() {
               inputLabel={t("importExternal.ymInputKind")}
               blurb={t("importExternal.ymBlurb")}
               accent="sakura"
-              order={3}
+              order={4}
             />
           </div>
         )}
@@ -267,7 +282,9 @@ function InputPhase({ service, input, setInput, onCancel, onFetch, isFetching, e
 
   const handleFileChosen = async (file) => {
     try {
-      const text = await file.text();
+      // Unpacks a gzipped export (MAL ships .xml.gz) in the browser;
+      // plain CSV / XML pass straight through.
+      const text = await readImportFile(file);
       setFileName(file.name);
       setInput(text);
     } catch {
@@ -337,7 +354,7 @@ function InputPhase({ service, input, setInput, onCancel, onFetch, isFetching, e
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept={meta.fileAccept ?? ".csv,text/csv"}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) handleFileChosen(f);
@@ -626,6 +643,19 @@ const SERVICE_META = {
     inputLabelKey: "importExternal.malInputLabel",
     placeholderKey: "importExternal.malPlaceholder",
     hintKey: "importExternal.malHint",
+  },
+  "mal-xml": {
+    serviceName: "MyAnimeList · export",
+    kanji: "帳",
+    kanjiClass: "bg-hanko/15 text-hanko-bright",
+    // The official export file. Gzipped as downloaded; `readImportFile`
+    // inflates it client-side so the backend only ever sees XML text.
+    inputKind: "file",
+    fileAccept: ".xml,.gz,application/xml,text/xml,application/gzip",
+    inputTitleKey: "importExternal.mxInputTitle",
+    inputLabelKey: "importExternal.mxInputLabel",
+    placeholderKey: "importExternal.mxPlaceholder",
+    hintKey: "importExternal.mxHint",
   },
   mangadex: {
     serviceName: "MangaDex",

@@ -200,6 +200,7 @@ sentry = { version = "0.48", default-features = false, features = [
     "anyhow",
 ] }
 sentry-tower = { version = "0.48", features = ["http", "axum", "axum-matched-path"] }
+quick-xml = "0.42.0"
 
 [profile.release]
 opt-level = 3
