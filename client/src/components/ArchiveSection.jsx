@@ -144,6 +144,7 @@ function ImportFlow({ open, onClose }) {
   const [step, setStep] = useState("choose");
   const [filename, setFilename] = useState("");
   const [bundle, setBundle] = useState(null);
+  const [mode, setMode] = useState("merge");
   const [previewResult, setPreviewResult] = useState(null);
   const [commitResult, setCommitResult] = useState(null);
   const [parseError, setParseError] = useState(null);
@@ -153,6 +154,7 @@ function ImportFlow({ open, onClose }) {
     setStep("choose");
     setFilename("");
     setBundle(null);
+    setMode("merge");
     setPreviewResult(null);
     setCommitResult(null);
     setParseError(null);
@@ -175,7 +177,7 @@ function ImportFlow({ open, onClose }) {
       }
       setBundle(parsed);
       setStep("preview");
-      const result = await preview(parsed);
+      const result = await preview(parsed, mode);
       setPreviewResult(result);
     } catch (err) {
       setParseError(
@@ -187,16 +189,33 @@ function ImportFlow({ open, onClose }) {
     }
   };
 
+  // Switching policy re-runs the dry run: "replace" turns every
+  // conflict into a replacement, so the preview counts change.
+  const handleModeChange = async (next) => {
+    if (next === mode || !bundle) return;
+    setMode(next);
+    setPreviewResult(null);
+    try {
+      const result = await preview(bundle, next);
+      setPreviewResult(result);
+    } catch {
+      /* error surfaces via previewError in the preview step */
+    }
+  };
+
   const handleCommit = async () => {
     if (!bundle) return;
     try {
-      const result = await commit(bundle);
+      const result = await commit(bundle, mode);
       setCommitResult(result);
       setStep("done");
     } catch {
       /* error surfaces via commitError in the preview step */
     }
   };
+
+  const willWrite =
+    (previewResult?.added ?? 0) + (previewResult?.replaced ?? 0);
 
   return (
     <Modal
@@ -262,9 +281,11 @@ function ImportFlow({ open, onClose }) {
             isPreviewing={isPreviewing}
             result={previewResult}
             error={previewError}
+            mode={mode}
+            onModeChange={handleModeChange}
           />
         )}
-        {step === "done" && <DoneStep result={commitResult} />}
+        {step === "done" && <DoneStep result={commitResult} mode={mode} />}
       </div>
 
       {/* ── Footer / actions ── */}
@@ -288,16 +309,21 @@ function ImportFlow({ open, onClose }) {
                 isPreviewing ||
                 isCommitting ||
                 !previewResult ||
-                previewResult.added === 0
+                willWrite === 0
               }
               className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isCommitting ? (
                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
               ) : null}
-              {t("settings.archiveImportApply", {
-                n: previewResult?.added ?? 0,
-              })}
+              {mode === "replace"
+                ? t("settings.archiveImportApplyReplace", {
+                    n: previewResult?.added ?? 0,
+                    r: previewResult?.replaced ?? 0,
+                  })
+                : t("settings.archiveImportApply", {
+                    n: previewResult?.added ?? 0,
+                  })}
             </button>
           </>
         )}
@@ -379,11 +405,20 @@ function ChooseStep({ filename, parseError, onPick, onFile, fileInputRef }) {
   );
 }
 
-function PreviewStep({ filename, isPreviewing, result, error }) {
+function PreviewStep({
+  filename,
+  isPreviewing,
+  result,
+  error,
+  mode,
+  onModeChange,
+}) {
   const t = useT();
   const added = result?.added ?? 0;
   const skipped = result?.skipped_conflict ?? 0;
+  const replaced = result?.replaced ?? 0;
   const invalid = result?.skipped_invalid ?? 0;
+  const replacing = mode === "replace";
 
   return (
     <div>
@@ -391,6 +426,8 @@ function PreviewStep({ filename, isPreviewing, result, error }) {
         {t("settings.archiveImportPreviewOf")} ·{" "}
         <span className="text-washi-muted">{filename}</span>
       </p>
+
+      <ModePicker mode={mode} onChange={onModeChange} disabled={isPreviewing} />
 
       {isPreviewing && (
         <div className="flex items-center justify-center py-10">
@@ -413,11 +450,19 @@ function PreviewStep({ filename, isPreviewing, result, error }) {
               value={added}
               accent="moegi"
             />
-            <PreviewChip
-              label={t("settings.archiveImportConflict")}
-              value={skipped}
-              accent="gold"
-            />
+            {replacing ? (
+              <PreviewChip
+                label={t("settings.archiveImportReplaced")}
+                value={replaced}
+                accent="gold"
+              />
+            ) : (
+              <PreviewChip
+                label={t("settings.archiveImportConflict")}
+                value={skipped}
+                accent="gold"
+              />
+            )}
             <PreviewChip
               label={t("settings.archiveImportInvalid")}
               value={invalid}
@@ -434,20 +479,104 @@ function PreviewStep({ filename, isPreviewing, result, error }) {
           )}
           {result.conflict_series?.length > 0 && (
             <CollapsibleList
-              title={t("settings.archiveImportConflictList")}
+              title={t(
+                replacing
+                  ? "settings.archiveImportReplacedList"
+                  : "settings.archiveImportConflictList",
+              )}
               items={result.conflict_series}
               accent="gold"
             />
           )}
 
-          {added === 0 && skipped > 0 && (
+          {added === 0 && replaced === 0 && skipped > 0 && (
             <p className="mt-5 rounded-md border border-border bg-ink-2/40 px-4 py-3 text-xs text-washi-muted">
               {t("settings.archiveImportNothingToAdd")}
+            </p>
+          )}
+
+          {replacing && replaced > 0 && (
+            <p
+              role="alert"
+              className="mt-5 rounded-md border border-hanko/40 bg-hanko/10 px-4 py-3 text-xs text-hanko-bright"
+            >
+              {t("settings.archiveImportReplaceWarning", { n: replaced })}
             </p>
           )}
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Conflict policy — a two-way segmented control. "merge" is the safe
+ * default; "replace" is what you want when restoring a backup over a
+ * library that has drifted, and it is destructive for the matched
+ * series, so it gets the hanko (red) treatment and a warning below
+ * the counts.
+ */
+function ModePicker({ mode, onChange, disabled }) {
+  const t = useT();
+  const options = [
+    {
+      value: "merge",
+      label: t("settings.archiveImportModeMerge"),
+      hint: t("settings.archiveImportModeMergeHint"),
+    },
+    {
+      value: "replace",
+      label: t("settings.archiveImportModeReplace"),
+      hint: t("settings.archiveImportModeReplaceHint"),
+    },
+  ];
+  return (
+    <fieldset className="mb-4" disabled={disabled}>
+      <legend className="mb-2 font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim">
+        {t("settings.archiveImportMode")}
+      </legend>
+      <div
+        role="radiogroup"
+        aria-label={t("settings.archiveImportMode")}
+        className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+      >
+        {options.map((opt) => {
+          const active = opt.value === mode;
+          const danger = opt.value === "replace";
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange?.(opt.value)}
+              className={`rounded-lg border px-3 py-2 text-left transition disabled:opacity-50 ${
+                active
+                  ? danger
+                    ? "border-hanko/60 bg-hanko/10"
+                    : "border-gold/60 bg-gold/10"
+                  : "border-border bg-ink-2/30 hover:border-washi-dim"
+              }`}
+            >
+              <p
+                className={`font-display text-sm font-semibold ${
+                  active
+                    ? danger
+                      ? "text-hanko-bright"
+                      : "text-gold"
+                    : "text-washi"
+                }`}
+              >
+                {opt.label}
+              </p>
+              <p className="mt-0.5 text-[11px] leading-snug text-washi-muted">
+                {opt.hint}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 
@@ -526,7 +655,7 @@ function CollapsibleList({ title, items, accent }) {
   );
 }
 
-function DoneStep({ result }) {
+function DoneStep({ result, mode }) {
   const t = useT();
   return (
     <div className="flex flex-col items-center text-center">
@@ -540,10 +669,15 @@ function DoneStep({ result }) {
         {t("settings.archiveImportDoneTitle")}
       </h3>
       <p className="mt-2 max-w-md text-sm text-washi-muted">
-        {t("settings.archiveImportDoneBody", {
-          added: result?.added ?? 0,
-          skipped: result?.skipped_conflict ?? 0,
-        })}
+        {mode === "replace"
+          ? t("settings.archiveImportDoneBodyReplace", {
+              added: result?.added ?? 0,
+              replaced: result?.replaced ?? 0,
+            })
+          : t("settings.archiveImportDoneBody", {
+              added: result?.added ?? 0,
+              skipped: result?.skipped_conflict ?? 0,
+            })}
       </p>
     </div>
   );

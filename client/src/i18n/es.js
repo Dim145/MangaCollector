@@ -1141,7 +1141,7 @@ export default {
     archiveExportCsv: "CSV plano",
     archiveImport: "IMPORTAR · 封",
     archiveImportBody:
-      "Arrastra un JSON exportado desde MangaCollector. Las series existentes nunca se sobrescriben.",
+      "Arrastra un JSON exportado desde MangaCollector. Tú eliges si las series ya presentes se conservan o se restauran desde el fichero.",
     archiveImportCta: "Elegir un fichero",
     archiveImportExternalCta: "Importar desde un servicio externo",
     archiveImportStep: "Paso {step}/{total}",
@@ -1169,6 +1169,20 @@ export default {
     archiveImportDoneTitle: "Rollo sellado",
     archiveImportDoneBody:
       "{added} series añadidas, {skipped} conflictos ignorados. Tu biblioteca está al día.",
+    archiveImportMode: "Si una serie ya está aquí",
+    archiveImportModeMerge: "Conservar la mía",
+    archiveImportModeMergeHint:
+      "Las series que ya están en tu biblioteca se dejan intactas; solo se añaden las nuevas.",
+    archiveImportModeReplace: "Tomar la del fichero",
+    archiveImportModeReplaceHint:
+      "Las series del fichero sobrescriben tu copia — tomos, notas, préstamos y cofres incluidos. Úsalo para restaurar una copia de seguridad.",
+    archiveImportReplaced: "A reemplazar",
+    archiveImportReplacedList: "Serán reemplazadas",
+    archiveImportReplaceWarning:
+      "{n} series se reescribirán desde el fichero. Todo lo que hayas cambiado en ellas desde la exportación se perderá.",
+    archiveImportApplyReplace: "Aplicar · +{n} / ↻{r} series",
+    archiveImportDoneBodyReplace:
+      "{added} series añadidas, {replaced} restauradas desde el fichero. Tu biblioteca está al día.",
     dataSection: "Datos",
     dataBody:
       "Archivo offline cacheado en este dispositivo. Recupera el estado fresco del servidor cuando quieras empezar limpio.",

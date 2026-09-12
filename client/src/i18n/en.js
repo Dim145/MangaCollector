@@ -1135,7 +1135,7 @@ export default {
     archiveExportCsv: "Flat CSV",
     archiveImport: "IMPORT · 封",
     archiveImportBody:
-      "Drop a JSON file exported from MangaCollector. Existing series are never overwritten.",
+      "Drop a JSON file exported from MangaCollector. You choose whether series already here are kept or restored from the file.",
     archiveImportCta: "Choose a file",
     archiveImportExternalCta: "Import from an external service",
     archiveImportStep: "Step {step}/{total}",
@@ -1163,6 +1163,20 @@ export default {
     archiveImportDoneTitle: "Scroll sealed",
     archiveImportDoneBody:
       "{added} series added, {skipped} conflicts skipped. Your library is up to date.",
+    archiveImportMode: "If a series is already here",
+    archiveImportModeMerge: "Keep mine",
+    archiveImportModeMergeHint:
+      "Series already in your library are left untouched; only new ones are added.",
+    archiveImportModeReplace: "Take the file's",
+    archiveImportModeReplaceHint:
+      "Series in the file overwrite your copy — volumes, notes, loans and box sets included. Use this to restore a backup.",
+    archiveImportReplaced: "To replace",
+    archiveImportReplacedList: "Will be replaced",
+    archiveImportReplaceWarning:
+      "{n} series will be rewritten from the file. Anything you changed on them since the export is lost.",
+    archiveImportApplyReplace: "Apply · +{n} / ↻{r} series",
+    archiveImportDoneBodyReplace:
+      "{added} series added, {replaced} restored from the file. Your library is up to date.",
     dataSection: "Data",
     dataBody:
       "Offline archive cached on this device. Pull fresh state from the server when you want to start clean.",

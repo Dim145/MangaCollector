@@ -1160,7 +1160,7 @@ export default {
     archiveExportCsv: "CSV plat",
     archiveImport: "IMPORTER · 封",
     archiveImportBody:
-      "Déposez un fichier JSON exporté depuis MangaCollector. Les séries déjà présentes ne seront pas écrasées.",
+      "Déposez un fichier JSON exporté depuis MangaCollector. Vous choisissez si les séries déjà présentes sont conservées ou restaurées depuis le fichier.",
     archiveImportCta: "Choisir un fichier",
     archiveImportExternalCta: "Importer depuis un service externe",
     archiveImportStep: "Étape {step}/{total}",
@@ -1188,6 +1188,20 @@ export default {
     archiveImportDoneTitle: "Rouleau scellé",
     archiveImportDoneBody:
       "{added} séries ajoutées, {skipped} conflits ignorés. Votre bibliothèque est à jour.",
+    archiveImportMode: "Si une série est déjà présente",
+    archiveImportModeMerge: "Garder la mienne",
+    archiveImportModeMergeHint:
+      "Les séries déjà dans votre bibliothèque restent intactes ; seules les nouvelles sont ajoutées.",
+    archiveImportModeReplace: "Prendre celle du fichier",
+    archiveImportModeReplaceHint:
+      "Les séries du fichier écrasent votre copie — tomes, notes, prêts et coffrets compris. À utiliser pour restaurer une sauvegarde.",
+    archiveImportReplaced: "À remplacer",
+    archiveImportReplacedList: "Seront remplacées",
+    archiveImportReplaceWarning:
+      "{n} séries seront réécrites depuis le fichier. Tout ce que vous y avez modifié depuis l'export sera perdu.",
+    archiveImportApplyReplace: "Appliquer · +{n} / ↻{r} séries",
+    archiveImportDoneBodyReplace:
+      "{added} séries ajoutées, {replaced} restaurées depuis le fichier. Votre bibliothèque est à jour.",
     restoreFromServer: "Restaurer depuis le serveur",
     restoreDesc: "Remplace l'archive locale par le dernier état serveur.",
     pendingDiscardOne: " {n} modification en attente sera perdue.",
