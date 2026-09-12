@@ -43,7 +43,13 @@ initAnalytics();
 // "no observability at all" — and per the spec, a silent fetch failure
 // just leaves the feature disabled for this session.
 fetchPublicConfig().then((config) => {
-  if (config?.errorTracking) initErrorTracking(config.errorTracking);
+  // `initErrorTracking` now loads the SDK chunk on demand; a failed
+  // load (first visit while offline, chunk not yet in the SW cache)
+  // must not surface as an unhandled rejection — the app simply runs
+  // without error tracking until the next boot.
+  if (config?.errorTracking) {
+    initErrorTracking(config.errorTracking).catch(() => {});
+  }
 });
 
 // 言 · Pre-load the active language bundle (and English fallback if

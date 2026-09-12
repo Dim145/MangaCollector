@@ -16,10 +16,16 @@
  * the public-config fetch failed silently — see `publicConfig.js`).
  */
 
-import * as Sentry from "@sentry/browser";
-
-export function initErrorTracking(config) {
+export async function initErrorTracking(config) {
   if (!config) return;
+  // 遅 · The SDK is loaded on demand, only once the runtime config
+  // says a DSN is configured. A static `import * as Sentry` put the
+  // whole SDK (~100 KB minified) in the critical-path index chunk for
+  // every install — including the majority that never set a DSN, for
+  // whom this function returns on the line above. Callers don't await
+  // the result (main.jsx fires it from `fetchPublicConfig().then`), so
+  // the extra round trip costs nothing on the first paint.
+  const Sentry = await import("@sentry/browser");
 
   const integrations = [];
   const tracesSampleRate = clampSampleRate(config.tracesSampleRate);
