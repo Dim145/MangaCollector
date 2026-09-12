@@ -18,7 +18,14 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-pub const EXPORT_VERSION: u32 = 1;
+/// v1 — series, per-volume ownership/price/store/collector/read/notes,
+///      coffret names and ranges.
+/// v2 — everything the data model actually holds: publisher, edition,
+///      review (+ visibility) and author on a series; loans and
+///      upcoming-release fields on a volume; the coffret `collector`
+///      flag; and coffret MEMBERSHIP is restored on import (by range).
+///      Every new field is `serde(default)`, so a v1 file still imports.
+pub const EXPORT_VERSION: u32 = 2;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExportBundle {
@@ -54,6 +61,20 @@ pub struct ExportSeries {
     pub volumes_owned: i32,
     pub image_url_jpg: Option<String>,
     pub genres: Vec<String>,
+    // ── v2 ──
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publisher: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edition: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<String>,
+    #[serde(default)]
+    pub review_public: bool,
+    /// Author NAME. Authors are a shared table keyed by id; ids are
+    /// meaningless across instances, so the bundle carries the text and
+    /// the importer resolves it the way the edit form does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
     pub volumes_detail: Vec<ExportVolume>,
     pub coffrets: Vec<ExportCoffret>,
 }
@@ -73,12 +94,31 @@ pub struct ExportVolume {
     /// Personal note — preserved through export/import round-trips.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
-    /// Preserved so the import can restore coffret grouping. Coffret
-    /// identity is recomputed on import (new serial IDs) but the link
-    /// between a volume and its coffret's NAME is preserved via the
-    /// per-series `coffrets[]` array below — NOT through this field.
+    /// Advisory. Coffret identity is recomputed on import (new serial
+    /// ids); membership is restored from each coffret's vol_start..=
+    /// vol_end range in the per-series `coffrets[]` array, so this flag
+    /// only tells a human reader which rows belong to a box set.
     #[serde(default)]
     pub in_coffret: bool,
+    // ── v2 · upcoming / announced release ──
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_date: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_isbn: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_url: Option<String>,
+    /// `manual` / scraper origin tag. `None` on import keeps the DB default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub announced_at: Option<chrono::DateTime<chrono::Utc>>,
+    // ── v2 · loan ──
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loaned_to: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loan_started_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loan_due_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -103,6 +143,10 @@ pub struct ExportCoffret {
 pub struct ImportPreview {
     pub total_in_file: usize,
     pub added: usize,
+    /// Series that were already present and were swapped for the
+    /// bundle's version (`mode = replace` only; always 0 in merge mode).
+    #[serde(default)]
+    pub replaced: usize,
     pub skipped_conflict: usize,
     pub skipped_invalid: usize,
     pub added_series: Vec<ImportAddedSummary>,
@@ -122,5 +166,97 @@ pub struct ImportAddedSummary {
 pub struct ImportRequest {
     #[serde(default)]
     pub dry_run: bool,
+    /// `merge` (default) leaves a series that is already in the library
+    /// untouched; `replace` swaps it — volumes and coffrets included —
+    /// for the bundle's version. `replace` is what "restore my backup"
+    /// means on the account the backup came from.
+    #[serde(default)]
+    pub mode: ImportMode,
     pub bundle: ExportBundle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImportMode {
+    #[default]
+    Merge,
+    Replace,
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+
+    const V1_SERIES: &str = r#"{
+        "mal_id": 2, "mangadex_id": null, "name": "Berserk", "volumes": 41,
+        "volumes_owned": 3, "image_url_jpg": null, "genres": ["Action"],
+        "volumes_detail": [{"vol_num": 1, "owned": true, "read_at": null}],
+        "coffrets": [{"name": "Box", "vol_start": 1, "vol_end": 3}]
+    }"#;
+
+    #[test]
+    fn a_v1_series_still_deserialises_with_the_v2_fields_defaulted() {
+        let s: ExportSeries = serde_json::from_str(V1_SERIES).unwrap();
+        assert_eq!(s.publisher, None);
+        assert_eq!(s.author, None);
+        assert!(!s.review_public);
+        let v = &s.volumes_detail[0];
+        assert_eq!(v.loaned_to, None);
+        assert_eq!(v.release_date, None);
+        assert_eq!(v.origin, None);
+    }
+
+    #[test]
+    fn v2_fields_round_trip_and_absent_options_are_omitted() {
+        let mut s: ExportSeries = serde_json::from_str(V1_SERIES).unwrap();
+        s.publisher = Some("Glénat".into());
+        s.author = Some("Kentaro Miura".into());
+        s.review_public = true;
+        s.volumes_detail[0].loaned_to = Some("Alex".into());
+        s.volumes_detail[0].release_isbn = Some("9782505011514".into());
+        let json = serde_json::to_string(&s).unwrap();
+        // `None` options are skipped, so a v2 file stays as lean as v1.
+        assert!(!json.contains("\"edition\""));
+        assert!(!json.contains("\"loan_due_at\""));
+        let back: ExportSeries = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.publisher.as_deref(), Some("Glénat"));
+        assert_eq!(back.author.as_deref(), Some("Kentaro Miura"));
+        assert!(back.review_public);
+        assert_eq!(back.volumes_detail[0].loaned_to.as_deref(), Some("Alex"));
+        assert_eq!(
+            back.volumes_detail[0].release_isbn.as_deref(),
+            Some("9782505011514")
+        );
+    }
+
+    #[test]
+    fn import_mode_defaults_to_merge_and_parses_replace() {
+        let req: ImportRequest = serde_json::from_str(
+            r#"{"bundle":{"version":1,"exported_at":"2026-01-01T00:00:00Z","source":"x","user":{"name":null},"settings":null,"library":[]}}"#,
+        )
+        .unwrap();
+        assert_eq!(req.mode, ImportMode::Merge);
+        assert!(!req.dry_run);
+        let req: ImportRequest = serde_json::from_str(
+            r#"{"mode":"replace","dry_run":true,"bundle":{"version":2,"exported_at":"2026-01-01T00:00:00Z","source":"x","user":{"name":null},"settings":null,"library":[]}}"#,
+        )
+        .unwrap();
+        assert_eq!(req.mode, ImportMode::Replace);
+        assert!(req.dry_run);
+    }
+
+    #[test]
+    fn preview_serialises_the_replaced_counter() {
+        let p = ImportPreview {
+            total_in_file: 1,
+            added: 0,
+            replaced: 1,
+            skipped_conflict: 0,
+            skipped_invalid: 0,
+            added_series: vec![],
+            conflict_series: vec![],
+        };
+        let v: serde_json::Value = serde_json::to_value(&p).unwrap();
+        assert_eq!(v["replaced"], 1);
+    }
 }

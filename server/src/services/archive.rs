@@ -7,13 +7,13 @@
 
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::archive::{
-    ExportBundle, ExportCoffret, ExportSeries, ExportSettings, ExportUser,
-    ExportVolume, ImportAddedSummary, ImportPreview, EXPORT_VERSION,
+    EXPORT_VERSION, ExportBundle, ExportCoffret, ExportSeries, ExportSettings, ExportUser,
+    ExportVolume, ImportAddedSummary, ImportMode, ImportPreview,
 };
 use crate::models::coffret::{self, Entity as CoffretEntity};
 use crate::models::library::{self, Entity as LibraryEntity};
@@ -69,6 +69,20 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
         coffrets_by_mal.entry(c.mal_id).or_default().push(c);
     }
 
+    // ─── Author names — a shared table keyed by id; ids don't travel
+    //     across instances, the bundle carries the text ───
+    let author_ids: Vec<i32> = {
+        let mut ids: Vec<i32> = library_rows.iter().filter_map(|r| r.author_id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    };
+    let author_names = if author_ids.is_empty() {
+        HashMap::new()
+    } else {
+        crate::services::author::lookup_authors_by_ids(db, &author_ids).await?
+    };
+
     // ─── Shape each series ───
     let mut library: Vec<ExportSeries> = Vec::with_capacity(library_rows.len());
     for row in library_rows {
@@ -86,6 +100,14 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
                 read_at: v.read_at,
                 notes: v.notes,
                 in_coffret: v.coffret_id.is_some(),
+                release_date: v.release_date,
+                release_isbn: v.release_isbn,
+                release_url: v.release_url,
+                origin: Some(v.origin),
+                announced_at: v.announced_at,
+                loaned_to: v.loaned_to,
+                loan_started_at: v.loan_started_at,
+                loan_due_at: v.loan_due_at,
             })
             .collect();
         vols.sort_by_key(|v| v.vol_num);
@@ -119,6 +141,14 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
             volumes: row.volumes,
             volumes_owned: row.volumes_owned,
             image_url_jpg: row.image_url_jpg,
+            publisher: row.publisher,
+            edition: row.edition,
+            review: row.review,
+            review_public: row.review_public,
+            author: row
+                .author_id
+                .and_then(|id| author_names.get(&id))
+                .map(|a| a.name.clone()),
             genres,
             volumes_detail: vols,
             coffrets,
@@ -223,6 +253,36 @@ fn starts_like_formula(s: &str) -> bool {
     }
 }
 
+/// How a bundle series is matched against one already in the library.
+///
+/// MAL series share a global id. MangaDex series carry the MangaDex
+/// UUID. Anything else is a hand-made entry whose only identity is its
+/// title (case- and whitespace-insensitive). A negative `mal_id` is
+/// never an identity: it comes from a per-instance sequence, so the same
+/// MangaDex series has a different one in every library — matching on
+/// it made re-importing your own backup duplicate every non-MAL series.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum SeriesKey {
+    Mal(i32),
+    MangaDex(String),
+    Custom(String),
+}
+
+fn series_key(mal_id: Option<i32>, mangadex_id: Option<&str>, name: &str) -> SeriesKey {
+    match (mal_id, mangadex_id) {
+        (Some(m), _) if m > 0 => SeriesKey::Mal(m),
+        (_, Some(md)) if crate::util::uuid::is_canonical_uuid(md) => {
+            SeriesKey::MangaDex(md.to_ascii_lowercase())
+        }
+        _ => SeriesKey::Custom(
+            name.split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase(),
+        ),
+    }
+}
+
 /// Apply an import bundle in **merge** mode. Series whose mal_id is
 /// already present in the user's library are skipped (reported as
 /// conflicts). Entries without a mal_id are always added as new custom
@@ -236,6 +296,7 @@ pub async fn apply_import_merge(
     user: &User,
     bundle: &ExportBundle,
     dry_run: bool,
+    mode: ImportMode,
 ) -> Result<ImportPreview, AppError> {
     // Version gate — reject unknown schemas outright.
     if bundle.version > EXPORT_VERSION {
@@ -245,47 +306,23 @@ pub async fn apply_import_merge(
         )));
     }
 
-    // Pre-fetch the current library's mal_ids so we can detect conflicts
-    // in one query.
-    let existing_mal_ids: HashSet<i32> = LibraryEntity::find()
+    // Pre-fetch the current library once and index it by identity so
+    // conflicts are detected without a query per series. The value is
+    // the LIVE row's mal_id — for a custom series that is the negative
+    // id this instance minted, which is what the replace path has to
+    // delete (and hand back to the re-inserted row), not whatever id
+    // the bundle carries.
+    let mut existing: HashMap<SeriesKey, i32> = LibraryEntity::find()
         .filter(library::Column::UserId.eq(user.id))
         .all(db)
         .await
         .map_err(AppError::from)?
         .into_iter()
-        .filter_map(|r| r.mal_id)
+        .filter_map(|r| {
+            let mal = r.mal_id?;
+            Some((series_key(r.mal_id, r.mangadex_id.as_deref(), &r.name), mal))
+        })
         .collect();
-
-    // For custom entries with mal_id < 0 we need to mint fresh negative
-    // IDs that don't clash. Find the current floor.
-    //
-    // On DB error we fall back to `None` (→ starting at -1), but log a
-    // warning first so the silent degradation is diagnosable if it
-    // produces surprising duplicate-entry errors downstream.
-    let min_mal_id: Option<i32> = match LibraryEntity::find()
-        .filter(library::Column::UserId.eq(user.id))
-        .filter(library::Column::MalId.lt(0))
-        .all(db)
-        .await
-    {
-        Ok(rows) => rows.iter().filter_map(|r| r.mal_id).min(),
-        Err(err) => {
-            tracing::warn!(
-                %err,
-                user_id = user.id,
-                "apply_import_merge: MIN(mal_id) lookup failed, starting from -1"
-            );
-            None
-        }
-    };
-    // Overflow-safe: if the user somehow has a row with mal_id = i32::MIN,
-    // `v - 1` would panic in debug / wrap in release. `checked_sub` falls
-    // back to -1 in that case; the UNIQUE(user_id, mal_id) partial index
-    // will reject the eventual duplicate and the import fails cleanly
-    // instead of silently corrupting data.
-    let mut next_custom_id: i32 = min_mal_id
-        .and_then(|v| v.checked_sub(1))
-        .unwrap_or(-1);
 
     let mut preview = ImportPreview {
         total_in_file: bundle.library.len(),
@@ -306,36 +343,76 @@ pub async fn apply_import_merge(
             preview.skipped_invalid += 1;
             continue;
         }
-        // Conflict check: if the bundle carries a positive mal_id that
-        // matches an existing library row, skip in merge mode.
-        if let Some(mal) = series.mal_id
-            && mal > 0 && existing_mal_ids.contains(&mal) {
-                preview.skipped_conflict += 1;
-                preview.conflict_series.push(ImportAddedSummary {
-                    mal_id: Some(mal),
-                    name: series.name.clone(),
-                    volumes: series.volumes,
-                    owned_volumes: series
-                        .volumes_detail
-                        .iter()
-                        .filter(|v| v.owned)
-                        .count(),
-                });
-                continue;
+        // Conflict: the bundle's series is already in the library (same
+        // MAL id, same MangaDex UUID, or same custom title — see
+        // `series_key`). Merge leaves the live series alone; replace
+        // swaps it for the bundle's version — volumes and coffrets too —
+        // inside this same transaction, then falls through to the insert
+        // path below as if it were new.
+        let key = series_key(series.mal_id, series.mangadex_id.as_deref(), &series.name);
+        let existing_mal = existing.get(&key).copied();
+        let conflict = existing_mal.is_some();
+        if conflict && mode == ImportMode::Merge {
+            preview.skipped_conflict += 1;
+            preview.conflict_series.push(ImportAddedSummary {
+                mal_id: series.mal_id,
+                name: series.name.clone(),
+                volumes: series.volumes,
+                owned_volumes: series
+                    .volumes_detail
+                    .iter()
+                    .filter(|v| v.owned)
+                    .count(),
+            });
+            continue;
+        }
+        if let Some(live_mal) = existing_mal {
+            preview.replaced += 1;
+            if !dry_run {
+                let mal = live_mal;
+                crate::services::volume::delete_all_for_user_by_mal_id_tx(&txn, user.id, mal)
+                    .await?;
+                CoffretEntity::delete_many()
+                    .filter(coffret::Column::UserId.eq(user.id))
+                    .filter(coffret::Column::MalId.eq(mal))
+                    .exec(&txn)
+                    .await
+                    .map_err(AppError::from)?;
+                LibraryEntity::delete_many()
+                    .filter(library::Column::UserId.eq(user.id))
+                    .filter(library::Column::MalId.eq(mal))
+                    .exec(&txn)
+                    .await
+                    .map_err(AppError::from)?;
             }
-
-        preview.added += 1;
+        } else {
+            preview.added += 1;
+        }
         let owned_count = series
             .volumes_detail
             .iter()
             .filter(|v| v.owned)
             .count();
-        preview.added_series.push(ImportAddedSummary {
+        let summary = ImportAddedSummary {
             mal_id: series.mal_id,
             name: series.name.clone(),
             volumes: series.volumes,
             owned_volumes: owned_count,
-        });
+        };
+        // A replaced series is listed with the conflicts (the client
+        // titles that list "will be replaced"), so `added_series` keeps
+        // meaning "was not in the library before".
+        if conflict {
+            preview.conflict_series.push(summary);
+        } else {
+            preview.added_series.push(summary);
+        }
+
+        // A later copy of the same series in this bundle conflicts with
+        // the row this iteration writes (or would write, in a dry run).
+        existing
+            .entry(key.clone())
+            .or_insert(series.mal_id.unwrap_or_default());
 
         if dry_run {
             continue;
@@ -344,19 +421,27 @@ pub async fn apply_import_merge(
         // Persist — library row first, then volumes, then coffrets.
         let assigned_mal = match series.mal_id {
             Some(m) if m > 0 => Some(m),
-            // Custom entries use negative mal_ids. Honour the imported
-            // ID if it's still free, otherwise mint a new one so the
-            // NOT NULL/UNIQUE(user, mal_id) invariant holds.
-            _ => {
-                let mal = next_custom_id;
-                // `saturating_sub` pins at i32::MIN on overflow. The
-                // UNIQUE index guarantees that the subsequent INSERT
-                // fails rather than silently producing duplicates if
-                // we've actually reached that range (which requires
-                // 2.1 billion custom entries — effectively never).
-                next_custom_id = next_custom_id.saturating_sub(1);
-                Some(mal)
+            // A replaced custom series keeps the negative id it already
+            // had, so activity rows and snapshots that point at it stay
+            // attached. A new one gets an id minted from the same Postgres
+            // sequence every live add path uses, so an import can never
+            // collide with a later custom add — the previous MIN(mal_id)-1
+            // scheme could. Imported negative ids are never honoured:
+            // they are meaningless across instances.
+            _ => Some(match existing_mal {
+                Some(live) => live,
+                None => crate::services::library::mint_next_custom_mal_id(&txn, user.id).await?,
+            }),
+        };
+        existing.insert(key, assigned_mal.unwrap_or_default());
+
+        // Author is exported as text; resolve it the way the edit form
+        // does (find or create in the shared table, scoped by user).
+        let author_id = match series.author.as_deref() {
+            Some(name) if !name.trim().is_empty() => {
+                crate::services::author::resolve_author_from_text_tx(&txn, user.id, name).await?
             }
+            _ => None,
         };
 
         // Clamp imported counts to the same ceiling the live write
@@ -377,6 +462,11 @@ pub async fn apply_import_merge(
             volumes: Set(series_volumes),
             volumes_owned: Set(series_volumes_owned),
             image_url_jpg: Set(series.image_url_jpg.clone()),
+            publisher: Set(series.publisher.clone()),
+            edition: Set(series.edition.clone()),
+            review: Set(series.review.clone()),
+            review_public: Set(series.review_public),
+            author_id: Set(author_id),
             genres: Set(if genres_str.is_empty() {
                 None
             } else {
@@ -444,6 +534,18 @@ pub async fn apply_import_merge(
                     collector: Set(v.collector),
                     read_at: Set(v.read_at),
                     notes: Set(v.notes.clone()),
+                    release_date: Set(v.release_date),
+                    release_isbn: Set(v.release_isbn.clone()),
+                    release_url: Set(v.release_url.clone()),
+                    // `None` keeps the column's DB default ('manual').
+                    origin: match &v.origin {
+                        Some(o) => Set(o.clone()),
+                        None => sea_orm::ActiveValue::NotSet,
+                    },
+                    announced_at: Set(v.announced_at),
+                    loaned_to: Set(v.loaned_to.clone()),
+                    loan_started_at: Set(v.loan_started_at),
+                    loan_due_at: Set(v.loan_due_at),
                     created_on: Set(now),
                     modified_on: Set(now),
                     ..Default::default()
@@ -477,36 +579,35 @@ pub async fn apply_import_merge(
                 .map_err(AppError::from)?;
         }
 
-        // Coffrets — names & ranges only. Volumes aren't re-linked to
-        // a coffret_id here; doing so would require a second pass and
-        // the v1 import contract is "restore metadata, user can
-        // re-assign coffrets if needed". The per-volume `in_coffret`
-        // flag in the bundle is advisory for future versions. Same
-        // bulk-insert pattern as volumes — a coffret-heavy series can
-        // legitimately ship 50+ slipcases.
-        if !series.coffrets.is_empty() {
-            let coffret_models: Vec<coffret::ActiveModel> = series
-                .coffrets
-                .iter()
-                .map(|c| coffret::ActiveModel {
-                    user_id: Set(user.id),
-                    mal_id: Set(assigned_mal.unwrap_or(0)),
-                    name: Set(c.name.clone()),
-                    vol_start: Set(c.vol_start),
-                    vol_end: Set(c.vol_end),
-                    price: Set(c.price),
-                    store: Set(c.store.clone()),
-                    created_on: Set(now),
-                    modified_on: Set(now),
-                    ..Default::default()
-                })
-                .collect();
-            for chunk in coffret_models.chunks(BULK_INSERT_CHUNK) {
-                CoffretEntity::insert_many(chunk.to_vec())
-                    .exec(&txn)
-                    .await
-                    .map_err(AppError::from)?;
+        // Coffrets — inserted one by one so each new serial id can be
+        // written back onto its member volumes: membership is restored
+        // by range, the same rule the live create path applies. (v1 left
+        // volumes unlinked and the page could not group them.)
+        for c in &series.coffrets {
+            let row = coffret::ActiveModel {
+                user_id: Set(user.id),
+                mal_id: Set(assigned_mal.unwrap_or(0)),
+                name: Set(c.name.clone()),
+                vol_start: Set(c.vol_start),
+                vol_end: Set(c.vol_end),
+                price: Set(c.price),
+                store: Set(c.store.clone()),
+                created_on: Set(now),
+                modified_on: Set(now),
+                ..Default::default()
             }
+            .insert(&txn)
+            .await
+            .map_err(AppError::from)?;
+            VolumeEntity::update_many()
+                .filter(volume_mod::Column::UserId.eq(user.id))
+                .filter(volume_mod::Column::MalId.eq(assigned_mal.unwrap_or(0)))
+                .filter(volume_mod::Column::VolNum.gte(c.vol_start))
+                .filter(volume_mod::Column::VolNum.lte(c.vol_end))
+                .col_expr(volume_mod::Column::CoffretId, row.id.into())
+                .exec(&txn)
+                .await
+                .map_err(AppError::from)?;
         }
     }
 
@@ -522,4 +623,53 @@ pub async fn apply_import_merge(
     }
 
     Ok(preview)
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    const MD: &str = "32d76d19-8a05-4db0-9fc2-e0b0648fe9d0";
+
+    #[test]
+    fn a_positive_mal_id_is_the_identity_whatever_else_is_set() {
+        assert_eq!(
+            series_key(Some(13), Some(MD), "One Piece"),
+            SeriesKey::Mal(13)
+        );
+    }
+
+    #[test]
+    fn a_negative_mal_id_is_not_an_identity() {
+        // Minted per instance: the same MangaDex series carries a
+        // different negative id in every library, so the UUID is the key.
+        assert_eq!(
+            series_key(Some(-7), Some(MD), "Berserk"),
+            series_key(Some(-9), Some(MD), "Berserk")
+        );
+        assert_eq!(
+            series_key(Some(-7), Some(MD), "Berserk"),
+            SeriesKey::MangaDex(MD.to_string())
+        );
+    }
+
+    #[test]
+    fn a_malformed_mangadex_id_falls_back_to_the_title() {
+        assert_eq!(
+            series_key(None, Some("not-a-uuid"), "Berserk"),
+            SeriesKey::Custom("berserk".into())
+        );
+    }
+
+    #[test]
+    fn custom_titles_match_loosely() {
+        assert_eq!(
+            series_key(None, None, "  Mon   Manga "),
+            series_key(Some(-3), None, "mon manga")
+        );
+        assert_ne!(
+            series_key(None, None, "Mon Manga"),
+            series_key(None, None, "Mon Manga 2")
+        );
+    }
 }

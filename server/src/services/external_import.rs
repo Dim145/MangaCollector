@@ -204,6 +204,11 @@ pub async fn fetch_mal_by_username(
                 volumes_owned: owned,
                 image_url_jpg: image,
                 genres,
+                publisher: None,
+                edition: None,
+                review: None,
+                review_public: false,
+                author: None,
                 volumes_detail: Vec::new(),
                 coffrets: Vec::new(),
             });
@@ -407,6 +412,11 @@ pub async fn fetch_anilist_by_username(
                     .cover_image
                     .and_then(|c| c.large),
                 genres: entry.media.genres,
+                publisher: None,
+                edition: None,
+                review: None,
+                review_public: false,
+                author: None,
                 volumes_detail: Vec::new(),
                 coffrets: Vec::new(),
             });
@@ -525,6 +535,11 @@ pub async fn fetch_mangadex_by_input(
                     volumes_owned: 0,
                     image_url_jpg: m.image_url,
                     genres: m.genres,
+                    publisher: None,
+                    edition: None,
+                    review: None,
+                    review_public: false,
+                    author: None,
                     volumes_detail: Vec::new(),
                     coffrets: Vec::new(),
                 });
@@ -691,6 +706,11 @@ pub fn parse_yamtrack_csv(csv_text: &str) -> Result<ExportBundle, AppError> {
             volumes_owned: 0,
             image_url_jpg: image,
             genres: Vec::new(),
+            publisher: None,
+            edition: None,
+            review: None,
+            review_public: false,
+            author: None,
             volumes_detail: Vec::new(),
             coffrets: Vec::new(),
         });

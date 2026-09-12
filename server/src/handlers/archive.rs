@@ -45,16 +45,18 @@ pub async fn export_csv(
     ))
 }
 
-/// POST /api/user/import — merge-mode import. Body:
-///   { "dry_run": true, "bundle": <ExportBundle> }
-/// Returns an ImportPreview describing what was (or would be) added.
+/// POST /api/user/import. Body:
+///   { "dry_run": true, "mode": "merge" | "replace", "bundle": <ExportBundle> }
+/// `merge` (default) skips series already in the library; `replace`
+/// swaps them for the bundle's version. Returns an ImportPreview
+/// describing what was (or would be) added / replaced / skipped.
 pub async fn import_archive(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Json(body): Json<ImportRequest>,
 ) -> Result<Json<ImportPreview>, AppError> {
     let preview =
-        archive::apply_import_merge(&state.db, &user, &body.bundle, body.dry_run)
+        archive::apply_import_merge(&state.db, &user, &body.bundle, body.dry_run, body.mode)
             .await?;
     Ok(Json(preview))
 }

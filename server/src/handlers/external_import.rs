@@ -47,7 +47,14 @@ async fn finalise_preview(
     bundle: ExportBundle,
 ) -> Result<ExternalImportResponse, AppError> {
     let preview =
-        archive::apply_import_merge(&state.db, user, &bundle, true).await?;
+        archive::apply_import_merge(
+            &state.db,
+            user,
+            &bundle,
+            true,
+            crate::models::archive::ImportMode::Merge,
+        )
+        .await?;
     Ok(ExternalImportResponse { bundle, preview })
 }
 
