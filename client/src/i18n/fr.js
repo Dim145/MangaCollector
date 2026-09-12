@@ -158,6 +158,22 @@ export default {
     lensSleepingHint: "aucune activité depuis plus de 6 mois",
     lensWishlistAged: "Wishlist > 1 an",
     lensWishlistAgedHint: "sur la liste depuis plus d'un an, jamais commencé",
+    sortLabel: "ORDRE · 並",
+    sortShort: "Trier",
+    sortTitle: "Ordonner l'étagère",
+    sortOpen: "Ouvrir le menu de tri",
+    sortByTitle: "Titre",
+    sortByAdded: "Date d'ajout",
+    sortByUpdated: "Dernière modification",
+    sortByProgress: "Avancement",
+    sortByMissing: "Tomes manquants",
+    sortByOwned: "Tomes possédés",
+    sortByAuthor: "Auteur",
+    sortByUpcoming: "Prochaine sortie",
+    sortDirAsc: "Croissant",
+    sortDirDesc: "Décroissant",
+    sortFlip: "Inverser l'ordre",
+    sortGapsNote: "Les séries sans valeur pour ce critère vont à la fin.",
     // 連 · Label volontairement distinct de « Séries » (manga) qui
     // est déjà utilisé dans le ribbon stats deux items plus loin.
     // « Suite » conserve la sémantique « succession ininterrompue ».

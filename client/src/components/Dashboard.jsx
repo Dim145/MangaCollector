@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import MangaGrid from "./dashboard/MangaGrid.jsx";
+import SortMenu from "./dashboard/SortMenu.jsx";
 import BulkActionsBar from "./BulkActionsBar.jsx";
 import DefaultBackground from "./DefaultBackground";
 import PullToRefresh from "./ui/PullToRefresh.jsx";
@@ -26,7 +27,8 @@ import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useStreak } from "@/hooks/useStreak.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
-import { useT } from "@/i18n/index.jsx";
+import { normalizeSort, sortLibrary } from "@/utils/librarySort.js";
+import { useLang, useT } from "@/i18n/index.jsx";
 
 // All series are rendered on mount — `content-visibility: auto` on each
 // card (see render below) lets the browser skip layout / paint for
@@ -65,6 +67,11 @@ function readPersistedDashboardState() {
       // ambiguously. Old persisted states without the field default
       // to null (no lens) — backwards-compatible.
       lens: typeof parsed.lens === "string" ? parsed.lens : null,
+      // 並 · Sort `{ key, dir }` — validated by `normalizeSort` at use
+      // time, so an unknown key from an older build falls back to the
+      // title order instead of throwing.
+      sort:
+        parsed.sort && typeof parsed.sort === "object" ? parsed.sort : null,
     };
   } catch {
     return null;
@@ -127,6 +134,12 @@ export default function Dashboard() {
   //   wishlist_aged  → wishlist items > 1 year old
   const [lens, setLens] = useState(() => persisted?.lens ?? null);
 
+  // 並 · Sort order of the grid — `{ key, dir }`, see utils/librarySort.
+  // Orthogonal to the filter axes above: it only reorders whatever
+  // survives them. Title A→Z by default; the Dexie read underneath is
+  // in mal_id order, which is no order at all for a reader.
+  const [sort, setSort] = useState(() => normalizeSort(persisted?.sort));
+
   // 一括 · Bulk-select state. NOT persisted — selection is a transient
   // UI mode tied to the current tab; reloading the page clears it on
   // purpose so a forgotten selection doesn't auto-apply on the next
@@ -182,6 +195,7 @@ export default function Dashboard() {
   const { adult_content_level, shelf_3d_enabled } = useContext(SettingsContext);
   const navigate = useNavigate();
   const t = useT();
+  const lang = useLang();
 
   // 並 · Tag toggles update state directly. The earlier revisions
   // wrapped them in `withViewTransition` for a per-card FLIP morph
@@ -383,14 +397,23 @@ export default function Dashboard() {
     // dep list so engaging a smart filter triggers a recompute.
   }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal, lens]);
 
+  // 並 · Order is applied after filtering, on the (usually smaller)
+  // survivor list. Collation follows the UI language; the "upcoming"
+  // key reads the next-release map already derived for the cards.
+  const sorted = useMemo(
+    () => sortLibrary(filtered, sort, { locale: lang, nextUpcomingByMal }),
+    [filtered, sort, lang, nextUpcomingByMal],
+  );
+
   useEffect(() => {
     writePersistedDashboardState({
       query,
       filter,
       activeTags: Array.from(activeTags),
       lens,
+      sort,
     });
-  }, [query, filter, activeTags, lens]);
+  }, [query, filter, activeTags, lens, sort]);
 
   useEffect(() => {
     let pending = false;
@@ -541,13 +564,16 @@ export default function Dashboard() {
             clearText={t("dashboard.clearFilter")}
             additionalButtons={
               !isInitialLoad && !isEmpty ? (
-                <FilterButton
-                  library={library}
-                  activeTags={activeTags}
-                  onToggle={toggleTag}
-                  onClear={clearTags}
-                  resultsCount={filtered.length}
-                />
+                <>
+                  <FilterButton
+                    library={library}
+                    activeTags={activeTags}
+                    onToggle={toggleTag}
+                    onClear={clearTags}
+                    resultsCount={filtered.length}
+                  />
+                  <SortMenu sort={sort} onChange={setSort} />
+                </>
               ) : null
             }
           />
@@ -806,7 +832,7 @@ export default function Dashboard() {
             // small libraries keep the simple render path for zero
             // overhead.
             <MangaGrid
-              filtered={filtered}
+              filtered={sorted}
               adult_content_level={adult_content_level}
               allCollectorSet={allCollectorSet}
               tsundokuByMal={tsundokuByMal}

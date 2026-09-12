@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/utils/axios.js", () => ({
@@ -94,6 +94,10 @@ describe("useArchive import mutations", () => {
     await act(async () => {
       await expect(result.current.preview(BUNDLE)).rejects.toThrow("boom");
     });
-    expect(result.current.previewError).toBeInstanceOf(Error);
+    // The mutation's error state lands on the next render, not
+    // synchronously with the rejected promise.
+    await waitFor(() =>
+      expect(result.current.previewError).toBeInstanceOf(Error),
+    );
   });
 });
