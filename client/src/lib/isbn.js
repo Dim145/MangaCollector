@@ -66,7 +66,11 @@ export function getCooldownRemainingMs() {
 const VOL_PATTERNS = [
   /,?\s*vol(?:ume|\.)?\s*(\d+)\b/i,
   /,?\s*tome\s*(\d+)\b/i,
-  /,?\s*t\.?\s*(\d+)\b/i,
+  // `\b` before the `t` is load-bearing: without it this pattern
+  // matches the trailing "t" of any word followed by a number, so
+  // "Berserk Part 12" was stripped to "Berserk Par" before the
+  // dedicated `part` pattern further down ever got a chance to run.
+  /,?\s*\bt\.?\s*(\d+)\b/i,
   /,?\s*book\s*(\d+)\b/i,
   /,?\s*part\s*(\d+)\b/i,
   /\s*第\s*(\d+)\s*巻/,

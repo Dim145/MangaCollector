@@ -42,8 +42,8 @@ const THEME_OPTION_VALUES = [
 // immediately, instead of degrading to "$" until the next /api/user/settings
 // round-trip.
 const CURRENCY_FORMATS = {
-  USD: { code: "USD", symbol: "$", separator: ",", decimal: ".", precision: 2, format: "!#", negative_pattern: "-!#" },
-  EUR: { code: "EUR", symbol: "€", separator: " ", decimal: ",", precision: 2, format: "#!", negative_pattern: "-#!" },
+  USD: { code: "USD", symbol: "$", separator: ",", decimal: ".", precision: 2, format: "!#", negativePattern: "-!#" },
+  EUR: { code: "EUR", symbol: "€", separator: " ", decimal: ",", precision: 2, format: "#!", negativePattern: "-#!" },
 };
 
 // 章 · The four chapters of the settings tome. Each chapter pairs a

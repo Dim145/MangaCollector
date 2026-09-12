@@ -61,8 +61,15 @@ function summarizeRange(nums) {
  */
 function formatShortDate(iso) {
   if (!iso) return "";
+  // `new Date("nope")` does NOT throw — it yields an Invalid Date whose
+  // `toLocaleDateString()` returns the literal string "Invalid Date".
+  // The try/catch below therefore never fires for malformed input, and
+  // without this guard that string interpolates straight into a volume
+  // tile. Check the timestamp explicitly, the way `utils/date.js` does.
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
   try {
-    return new Date(iso).toLocaleDateString(undefined, {
+    return d.toLocaleDateString(undefined, {
       year: "numeric",
       month: "short",
       day: "numeric",
