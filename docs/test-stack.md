@@ -63,6 +63,32 @@ and its `/top/manga` and `?q=` search endpoints are unreliable, so
 MangaDex add path instead (the mixed MAL + MangaDex library real users
 end up with).
 
+## Verify the archive round-trip
+
+```bash
+node scripts/verify-archive-roundtrip.mjs
+```
+
+Exercises `GET /api/user/export.json` → `POST /api/user/import` with
+real data instead of unit fixtures. The script first *enriches* the
+seeded library with every field the v1 bundle used to drop (publisher,
+edition, review, author, three loans with notes, a hand-pencilled
+upcoming volume, a box set), then runs two scenarios and diffs
+normalised API snapshots of both sides:
+
+- **fresh account, `mode: "merge"`** — import into a brand-new user and
+  expect the two libraries to read back identically;
+- **same account, `mode: "replace"`** — damage the original (clear
+  fields, return a loan, delete a coffret), re-import the bundle over
+  it and expect the damage undone.
+
+Any field that comes back different is listed by series/volume and the
+process exits 1. Re-running is safe: the enrichment tolerates what a
+previous run already created, and each run restores into a new
+throwaway `restore-check-*` user (the mock accepts any username).
+`scripts/lib/stack-client.mjs` is the headless login + cookie-jar
+helper both scripts share; reuse it for further stack checks.
+
 ## Reset
 
 ```bash

@@ -112,11 +112,13 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 44 tests across 11 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 52 tests across 13 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image}.rs`,
-  `services/{genres,proxy_client,google_books_api,activity_coalescer,realtime}.rs`,
-  `handlers/realtime.rs`).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 830 tests across 30 suites
+  `services/{genres,proxy_client,google_books_api,activity_coalescer,realtime,archive}.rs`,
+  `handlers/realtime.rs`, `models/archive.rs`). The archive ones pin the
+  bundle wire format (v1 still imports) and the series-identity rule the
+  importer matches conflicts with (MAL id → MangaDex UUID → title).
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 845 tests across 32 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -131,9 +133,11 @@ docker compose build
     delete cascade are exercised rather than mocked. `lib/db.test.js`
     covers the outbox-aware cache writers the same way; `clientId` and
     `realtimePlan` (the websocket decision table) are pure and tested.
-  - `components/ui/CoverImage.test.jsx` and `components/VirtualVolumeGrid.test.jsx`
-    are the component tests; `hooks/useWindowGridVirtualizer.test.js` covers
-    the lane / pinned-row maths shared by both windowed grids.
+  - `components/ui/CoverImage.test.jsx`, `components/VirtualVolumeGrid.test.jsx`
+    and `components/ArchiveSection.test.jsx` (the import modal's merge /
+    replace choice) are the component tests; `hooks/useWindowGridVirtualizer.test.js`
+    covers the lane / pinned-row maths shared by both windowed grids and
+    `hooks/useArchive.test.jsx` pins the import endpoint's wire shape.
   - Three suites assert **cross-language parity** by parsing the Rust
     source: the seal catalogue against `services/seals.rs::CATALOG`, the
     accent list against `services/settings.rs::VALID_ACCENT_COLORS`, and
@@ -156,6 +160,10 @@ docker compose build
 Log in with any username. `node scripts/seed-test-stack.mjs [--big]` fills the
 library from MyAnimeList (Jikan) with a MangaDex fallback, including a
 110-volume One Piece for the virtualized volumes grid.
+`node scripts/verify-archive-roundtrip.mjs` then proves export → import is
+lossless against that library (fresh-account merge and same-account replace),
+and fails on any dropped field or duplicated series. Run it whenever a column
+is added to the library, volume or coffret tables — the bundle must carry it.
 
 ## Code Style
 
