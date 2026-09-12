@@ -21,9 +21,17 @@ import FirePunchAvif from "../assets/firepunch.avif";
 import FirePunchWebp from "../assets/firepunch.webp";
 import FirePunchJpg from "../assets/firepunch.jpg";
 
-const FirePunch = { avif: FirePunchAvif, webp: FirePunchWebp, jpg: FirePunchJpg };
+const FirePunch = {
+  avif: FirePunchAvif,
+  webp: FirePunchWebp,
+  jpg: FirePunchJpg,
+};
 const Punpun = { avif: PunpunAvif, webp: PunpunWebp, jpg: PunpunJpg };
-const TokyoGhoul = { avif: TokyoGhoulAvif, webp: TokyoGhoulWebp, jpg: TokyoGhoulJpg };
+const TokyoGhoul = {
+  avif: TokyoGhoulAvif,
+  webp: TokyoGhoulWebp,
+  jpg: TokyoGhoulJpg,
+};
 const Berserk = { avif: BerserkAvif, webp: BerserkWebp, jpg: BerserkJpg };
 const Vinland = { avif: VinlandAvif, webp: VinlandWebp, jpg: VinlandJpg };
 const Beastars = { avif: BeastarsAvif, webp: BeastarsWebp, jpg: BeastarsJpg };
@@ -66,7 +74,7 @@ export default function About({ googleUser } = {}) {
           // bundle (the format the bundled mocked covers ship in). MAL
           // only serves JPG, so the avif/webp `<source>` slots stay
           // empty and `<picture>` naturally falls through to the
-          // `<img src={img.jpg}>`. Returning a bare string here (the
+          // `<img decoding="async" src={img.jpg}>`. Returning a bare string here (the
           // previous behaviour) made `m.img.jpg` undefined and the
           // cards rendered as empty frames.
           img: { jpg: m.images?.jpg?.large_image_url },
@@ -396,7 +404,9 @@ export default function About({ googleUser } = {}) {
               Dashboard
             </a>
             <a className="hover:text-washi" href="/glossary">
-              <span aria-hidden="true" className="font-jp text-xs">字典</span>
+              <span aria-hidden="true" className="font-jp text-xs">
+                字典
+              </span>
               <span className="ml-1.5">{t("about.footerGlossary")}</span>
             </a>
             <a className="hover:text-washi" href="/log-in">

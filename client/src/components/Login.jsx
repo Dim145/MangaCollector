@@ -162,7 +162,13 @@ export default function Login() {
               </svg>
             ) : (
               authIcon && (
-                <img referrerPolicy="no-referrer" src={authIcon} alt="" className="relative h-5 w-5" />
+                <img
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  src={authIcon}
+                  alt=""
+                  className="relative h-5 w-5"
+                />
               )
             )}
             <span className="relative">

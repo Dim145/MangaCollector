@@ -16,7 +16,7 @@ import { useT, useLang } from "@/i18n/index.jsx";
  * have to settle). While that runs we show a tasteful loading panel
  * with the same brushstroke kanji vocabulary as the rest of the app.
  *
- * Once the blob lands we render it as a flat <img> preview (faster
+ * Once the blob lands we render it as a flat <img decoding="async"> preview (faster
  * + lighter than re-injecting the canvas) and offer two actions:
  *
  *   - Share  — only shown when `navigator.canShare({ files })` is
@@ -127,7 +127,11 @@ export default function ShelfSnapshotModal({
   };
 
   return (
-    <Modal popupOpen={open} handleClose={onClose} additionalClasses="w-full max-w-2xl">
+    <Modal
+      popupOpen={open}
+      handleClose={onClose}
+      additionalClasses="w-full max-w-2xl"
+    >
       <div className="relative overflow-hidden rounded-2xl border border-washi/15 bg-ink-1/98 shadow-2xl">
         {/* Cream + hanko atmospheric blooms — same vocabulary as
             AddCoffretModal so the snapshot modal feels like part
@@ -170,6 +174,7 @@ export default function ShelfSnapshotModal({
           >
             {previewUrl ? (
               <img
+                decoding="async"
                 src={previewUrl}
                 alt={t("snapshot.previewAlt")}
                 className="h-full w-full object-contain animate-fade-in"
@@ -231,7 +236,9 @@ export default function ShelfSnapshotModal({
                 <polyline points="16 6 12 2 8 6" />
                 <line x1="12" y1="2" x2="12" y2="15" />
               </svg>
-              {canShareRef.current ? t("snapshot.share") : t("snapshot.download")}
+              {canShareRef.current
+                ? t("snapshot.share")
+                : t("snapshot.download")}
             </button>
           </div>
         </footer>

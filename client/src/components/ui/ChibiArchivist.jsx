@@ -14,7 +14,7 @@ import chibiUrl from "@/assets/chibi-archivist.svg";
  *     bloat the route's JS chunk; serving as a separate
  *     asset lets the browser cache it independently and
  *     keeps the React tree lean.
- *   • As an `<img>`, the SVG renders crisp at any size and
+ *   • As an `<img decoding="async">`, the SVG renders crisp at any size and
  *     can't accidentally pollute the document's id /
  *     filter / gradient namespaces.
  *
@@ -62,6 +62,7 @@ export default function ChibiArchivist({ className = "" }) {
           0.8 (352 / 443), so we let height drive layout
           and width auto-fit. */}
       <img
+        decoding="async"
         src={chibiUrl}
         alt=""
         className="chibi-bob h-full w-auto select-none"

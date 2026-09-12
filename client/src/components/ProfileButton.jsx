@@ -29,7 +29,7 @@ export default function ProfileButton() {
 
   // Avatar-failure self-healing.
   //
-  // `avatarFailed` used to be a one-way latch: an `<img onError>` fire
+  // `avatarFailed` used to be a one-way latch: an `<img decoding="async" onError>` fire
   // (transient CDN hiccup, slow cold start, MAL 429, SW caching a bad
   // response) would set it true forever because ProfileButton lives
   // inside Header and Header mounts once per session — no remount,
@@ -45,7 +45,7 @@ export default function ProfileButton() {
   //      browser a fresh attempt 30s after a failure. Covers the
   //      transient-network case where the URL is valid but the
   //      first load raced a hiccup. Harmless if still failing — the
-  //      `<img>` just re-invokes onError and we wait another 30s.
+  //      `<img decoding="async">` just re-invokes onError and we wait another 30s.
   useEffect(() => {
     // Any URL change (including swap to a new character, or logout
     // → login as another user whose settings arrive in Dexie) gets
@@ -119,7 +119,9 @@ export default function ProfileButton() {
         }`}
       >
         {avatarUrl ? (
-          <img referrerPolicy="no-referrer"
+          <img
+            decoding="async"
+            referrerPolicy="no-referrer"
             src={avatarUrl}
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
@@ -166,7 +168,9 @@ export default function ProfileButton() {
               }`}
             >
               {avatarUrl ? (
-                <img referrerPolicy="no-referrer"
+                <img
+                  decoding="async"
+                  referrerPolicy="no-referrer"
                   src={avatarUrl}
                   alt=""
                   className="h-full w-full object-cover"
@@ -379,10 +383,7 @@ export default function ProfileButton() {
           opens it; closed state keeps the chunk off the wire. */}
       {sessionsOpen && (
         <Suspense fallback={null}>
-          <SessionsModal
-            open
-            onClose={() => setSessionsOpen(false)}
-          />
+          <SessionsModal open onClose={() => setSessionsOpen(false)} />
         </Suspense>
       )}
     </div>

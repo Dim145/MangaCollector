@@ -3,6 +3,14 @@ import { useLocation } from "react-router-dom";
 import { getCurrentSeason, isInSeasonTransition } from "@/lib/season.js";
 import { useAtmosphere } from "@/hooks/useAtmosphere.js";
 
+/** Read per render; cheap, and the preference is a boot-time setting in practice. */
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches)
+  );
+}
+
 /**
  * Drifts a small swarm of season-tinted particles in the background.
  * Renders only on the public landing or during the 7-day window
@@ -22,7 +30,8 @@ function makeParticles(season) {
   const count = COUNT[season] ?? 0;
   if (count === 0) return [];
   let seed = 0;
-  for (let i = 0; i < season.length; i++) seed = (seed * 31 + season.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < season.length; i++)
+    seed = (seed * 31 + season.charCodeAt(i)) >>> 0;
   const rand = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     return seed / 4294967296;
@@ -54,7 +63,9 @@ export default function SeasonAtmosphere() {
   const { pathname } = useLocation();
 
   const [tabVisible, setTabVisible] = useState(
-    typeof document === "undefined" ? true : document.visibilityState !== "hidden",
+    typeof document === "undefined"
+      ? true
+      : document.visibilityState !== "hidden",
   );
   useEffect(() => {
     const handler = () => setTabVisible(document.visibilityState !== "hidden");
@@ -67,6 +78,11 @@ export default function SeasonAtmosphere() {
 
   if (!enabled) return null;
   if (!tabVisible) return null;
+  // 静 · Honour the OS motion preference the same way InkTrailCursor
+  // does. The stylesheet already freezes these particles under
+  // `prefers-reduced-motion`, but building the layer only to hold it
+  // still was wasted work on every page.
+  if (prefersReducedMotion()) return null;
   if (!shouldRender(pathname)) return null;
   if (particles.length === 0) return null;
 

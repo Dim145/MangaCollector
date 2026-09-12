@@ -39,7 +39,7 @@ import { useT, useLang } from "@/i18n/index.jsx";
  *
  * Cover sizing fix: the previous revision passed `className="h-28
  * w-20"` to `<CoverImage>` which only sized the WRAPPER span; the
- * inner `<img>` had no constraint and rendered at its natural pixel
+ * inner `<img decoding="async">` had no constraint and rendered at its natural pixel
  * size. We now pass `imgClassName="h-full w-full object-cover"` so
  * the photo inherits its slot's dimensions instead of blowing the
  * page out.
@@ -92,14 +92,14 @@ export default function AuthorPage() {
   // link) via React Query. The detail call resolves shared MAL
   // authors via Jikan (cache-aside) and custom authors directly
   // from our authors table.
-  const { data: detail, isLoading: detailLoading } = useAuthorDetail(authorMalId);
+  const { data: detail, isLoading: detailLoading } =
+    useAuthorDetail(authorMalId);
 
   // Display name preference: detail (canonical from Jikan or the
   // custom row) → first matched library row's author embed → empty
   // string. The fallback chain matters during cold start when only
   // Dexie has answered.
-  const displayName =
-    detail?.name ?? matches[0]?.author?.name ?? "";
+  const displayName = detail?.name ?? matches[0]?.author?.name ?? "";
 
   // CRUD modal state — drives the edit form + delete confirm. The
   // edit/delete pair only fires for custom authors; shared MAL rows
@@ -233,14 +233,20 @@ export default function AuthorPage() {
         ) : (
           <>
             {stats.topGenres.length > 0 && (
-              <GenreSignature topGenres={stats.topGenres} total={stats.seriesCount} t={t} />
+              <GenreSignature
+                topGenres={stats.topGenres}
+                total={stats.seriesCount}
+                t={t}
+              />
             )}
 
             <PublicationsSection
               matches={matches}
               adult_content_level={adult_content_level}
               onOpen={(m) =>
-                navigate("/mangapage", { state: { manga: m, adult_content_level } })
+                navigate("/mangapage", {
+                  state: { manga: m, adult_content_level },
+                })
               }
               t={t}
             />
@@ -350,9 +356,7 @@ function Hero({
             onClick={onRefreshClick}
             disabled={refreshing || !online}
             title={!online ? t("author.refreshOfflineHint") : undefined}
-            aria-label={
-              !online ? t("author.refreshOfflineHint") : undefined
-            }
+            aria-label={!online ? t("author.refreshOfflineHint") : undefined}
             className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/8 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/80 hover:bg-gold/15 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span aria-hidden="true" className="font-jp text-[10px] not-italic">
@@ -374,7 +378,10 @@ function Hero({
               onClick={onEditClick}
               className="inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-hanko/5 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
             >
-              <span aria-hidden="true" className="font-jp text-[10px] not-italic">
+              <span
+                aria-hidden="true"
+                className="font-jp text-[10px] not-italic"
+              >
                 編
               </span>
               {t("author.editAction")}
@@ -384,7 +391,10 @@ function Hero({
               onClick={onDeleteClick}
               className="inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-transparent px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
             >
-              <span aria-hidden="true" className="font-jp text-[10px] not-italic">
+              <span
+                aria-hidden="true"
+                className="font-jp text-[10px] not-italic"
+              >
                 消
               </span>
               {t("author.deleteAction")}
@@ -496,13 +506,16 @@ function Portrait({
         onClick={() => editable && fileRef.current?.click()}
         disabled={!editable || uploading}
         className={`group/portrait relative h-32 w-32 overflow-hidden rounded-full border-2 border-gold/50 bg-gradient-to-br from-ink-2 to-ink-3 shadow-[0_8px_24px_-8px_rgba(201,169,97,0.4)] sm:h-40 sm:w-40 md:h-48 md:w-48 ${
-          editable ? "cursor-pointer transition hover:border-gold" : "cursor-default"
+          editable
+            ? "cursor-pointer transition hover:border-gold"
+            : "cursor-default"
         }`}
         style={{ transform: "rotate(-2deg)" }}
         aria-label={editable ? t("author.uploadPhotoAria") : undefined}
       >
         {photoUrl ? (
           <img
+            decoding="async"
             src={photoUrl}
             alt=""
             referrerPolicy="no-referrer"
@@ -667,13 +680,7 @@ function AuthorEditorModal({
 
 // ─── Delete confirmation ───────────────────────────────────────────
 
-function DeleteConfirmModal({
-  authorName,
-  onClose,
-  onConfirm,
-  submitting,
-  t,
-}) {
+function DeleteConfirmModal({ authorName, onClose, onConfirm, submitting, t }) {
   return (
     <Modal popupOpen={true} handleClose={onClose}>
       <div className="w-full max-w-md rounded-2xl border border-hanko/40 bg-ink-1 p-6 shadow-2xl">
@@ -699,9 +706,7 @@ function DeleteConfirmModal({
             disabled={submitting}
             className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright disabled:opacity-60"
           >
-            {submitting
-              ? t("common.saving")
-              : t("author.deleteConfirmAction")}
+            {submitting ? t("common.saving") : t("author.deleteConfirmAction")}
           </button>
         </div>
       </div>
@@ -720,11 +725,14 @@ function SecondaryIdentity({ detail, t }) {
   const formattedBirthday = useMemo(() => {
     if (!birthday) return null;
     try {
-      return new Date(birthday).toLocaleDateString(lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : "en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+      return new Date(birthday).toLocaleDateString(
+        lang === "fr" ? "fr-FR" : lang === "es" ? "es-ES" : "en-US",
+        {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        },
+      );
     } catch {
       return null;
     }
@@ -804,7 +812,10 @@ function MalChip({ url, t }) {
         印
       </span>
       {t("author.malLink")}
-      <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">
+      <span
+        aria-hidden="true"
+        className="transition-transform group-hover:translate-x-0.5"
+      >
         ↗
       </span>
     </a>
@@ -1055,7 +1066,11 @@ function PosterCard({ manga, index, adult_content_level, onOpen, t }) {
           </span>
           <span
             className={
-              isComplete ? "text-gold" : pct > 50 ? "text-hanko-bright" : "text-washi-dim"
+              isComplete
+                ? "text-gold"
+                : pct > 50
+                  ? "text-hanko-bright"
+                  : "text-washi-dim"
             }
           >
             {pct}%
@@ -1083,11 +1098,17 @@ function LoadingPanel({ t }) {
   return (
     <section className="mb-8 animate-fade-up" aria-label={t("common.loading")}>
       <div className="mb-6 flex items-baseline gap-3 md:mb-8">
-        <span aria-hidden="true" className="font-jp text-2xl font-bold leading-none text-hanko-bright/60">
+        <span
+          aria-hidden="true"
+          className="font-jp text-2xl font-bold leading-none text-hanko-bright/60"
+        >
           著作
         </span>
         <span className="h-4 w-32 rounded bg-ink-2/60" />
-        <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-hanko/20 via-border to-transparent" />
+        <span
+          aria-hidden="true"
+          className="h-px flex-1 bg-gradient-to-r from-hanko/20 via-border to-transparent"
+        />
       </div>
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 lg:gap-6">
         {Array.from({ length: 8 }).map((_, i) => (
@@ -1148,7 +1169,13 @@ function Brushstroke({ className = "" }) {
       className={`h-1.5 w-full max-w-md ${className}`}
     >
       <defs>
-        <linearGradient id="author-brush-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <linearGradient
+          id="author-brush-grad"
+          x1="0%"
+          y1="0%"
+          x2="100%"
+          y2="0%"
+        >
           <stop offset="0%" stopColor="var(--gold)" stopOpacity="0" />
           <stop offset="14%" stopColor="var(--gold)" stopOpacity="0.7" />
           <stop offset="50%" stopColor="var(--hanko-bright)" stopOpacity="1" />

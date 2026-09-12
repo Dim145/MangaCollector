@@ -140,6 +140,12 @@ function Manga({
       // — those still pay the chunk fetch on click, same as before.
       onMouseEnter={prefetchMangaPage}
       onFocus={prefetchMangaPage}
+      // 触 · Touch devices never hover, and they are the primary PWA
+      // audience — without this they paid the route chunk on tap.
+      // touchstart fires ~100 ms before the synthetic click, which is
+      // enough to get the chunk request in flight. React registers
+      // touchstart as a passive listener, so scrolling stays smooth.
+      onTouchStart={prefetchMangaPage}
       aria-pressed={selectionMode ? isSelected : undefined}
       // `contain: layout` — the Library grid renders many of these
       // (now also lazy-paginated by 30s). `layout` containment keeps any
@@ -323,11 +329,7 @@ function Manga({
           >
             {/* Half-filled disc — the universal "in progress" glyph.
                 Outer circle = total target, filled half = work landed. */}
-            <svg
-              viewBox="0 0 16 16"
-              className="h-2.5 w-2.5"
-              aria-hidden="true"
-            >
+            <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" aria-hidden="true">
               <circle
                 cx="8"
                 cy="8"
@@ -336,10 +338,7 @@ function Manga({
                 stroke="currentColor"
                 strokeWidth="1.6"
               />
-              <path
-                d="M8 2.5 A5.5 5.5 0 0 1 8 13.5 Z"
-                fill="currentColor"
-              />
+              <path d="M8 2.5 A5.5 5.5 0 0 1 8 13.5 Z" fill="currentColor" />
             </svg>
             {t("manga.ongoing")}
           </div>
