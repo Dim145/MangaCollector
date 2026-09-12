@@ -44,7 +44,7 @@ path = "src/main.rs"
 #     `use tower::` line. Declaring it as a top-level dep added noise
 #     without giving any new types.
 axum = { version = "0.8", features = ["multipart", "macros", "ws"] }
-tower-http = { version = "0.6", features = ["cors", "trace", "set-header"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "set-header", "catch-panic"] }
 
 # Async runtime — narrow feature selection instead of "full".
 # "full" pulls in tokio's entire feature set including features we

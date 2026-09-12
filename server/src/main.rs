@@ -21,6 +21,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Router;
 use http::{HeaderValue, Method, StatusCode};
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, DefaultOnResponse, TraceLayer};
@@ -422,6 +423,11 @@ async fn main() -> anyhow::Result<()> {
         .layer(axum::extract::DefaultBodyLimit::max(max_body_bytes))
         .layer(session_layer)
         .layer(cors)
+        // 災 · Convert a handler panic into a logged, generic 500 instead
+        // of a dropped connection. Sits just inside TraceLayer so the
+        // request span still records the failure (status + latency).
+        // See `errors::panic_response` for the body it produces.
+        .layer(CatchPanicLayer::custom(crate::errors::panic_response))
         // HTTP trace — noisy 2xx logs are muted at DEBUG, but the
         // request span itself runs at INFO so failure logs carry
         // method/uri context instead of the bare "500 Internal Server

@@ -171,3 +171,58 @@ impl From<sea_orm::DbErr> for AppError {
         }
     }
 }
+
+/// 災 · Turn a caught handler panic into the same response any other
+/// 500 gets. Wired into `tower_http::catch_panic::CatchPanicLayer` in
+/// `main.rs`. Without that layer a panic inside a handler tears down
+/// the connection — the client sees a reset, not a status code, and no
+/// error line reaches the logs. Routing the payload through
+/// `AppError::Internal` buys both for free: the ERROR log with context,
+/// and the generic JSON body that leaks nothing (see `into_response`).
+pub fn panic_response(err: Box<dyn std::any::Any + Send + 'static>) -> Response {
+    let detail = if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else {
+        "non-string panic payload".to_string()
+    };
+    AppError::Internal(format!("handler panicked: {detail}")).into_response()
+}
+
+#[cfg(test)]
+mod panic_tests {
+    use super::*;
+    use http::StatusCode;
+
+    async fn body_json(resp: Response) -> serde_json::Value {
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        serde_json::from_slice(&bytes).expect("json body")
+    }
+
+    #[tokio::test]
+    async fn string_payload_becomes_generic_500_json() {
+        let resp = panic_response(Box::new(String::from("boom")));
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let v = body_json(resp).await;
+        assert_eq!(v["success"], false);
+        // The panic text must NOT reach the wire — same OWASP rule as
+        // every other 5xx.
+        assert_eq!(v["error"], "Internal server error");
+    }
+
+    #[tokio::test]
+    async fn str_payload_is_handled() {
+        let resp = panic_response(Box::new("static str panic"));
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(body_json(resp).await["error"], "Internal server error");
+    }
+
+    #[tokio::test]
+    async fn non_string_payload_does_not_itself_panic() {
+        let resp = panic_response(Box::new(42_u32));
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+}
