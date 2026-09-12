@@ -31,8 +31,15 @@
             root.setAttribute("data-theme", "light");
           }
           root.style.colorScheme = resolved;
+          // Must equal what `body { @apply bg-background }` resolves to
+          // once the stylesheet lands — `--background: var(--ink-0)`,
+          // i.e. oklch(1 0 0) = #ffffff in light and oklch(0.08 0.005 30)
+          // = #020101 in dark (styles/index.css :root / [data-theme=light]).
+          // This script exists to remove the first-paint flash, so a
+          // near-miss here IS the flash. Not the `theme-color` meta —
+          // that is the address-bar tint and is deliberately warmer.
           root.style.backgroundColor =
-            resolved === "light" ? "#ffffff" : "#15100f";
+            resolved === "light" ? "#ffffff" : "#020101";
         } catch (_) {
           /* fallback: dark stays as default */
         }

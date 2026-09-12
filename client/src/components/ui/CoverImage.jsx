@@ -96,7 +96,7 @@ export default function CoverImage({
             // the viewport.
             loading={loading}
             decoding="async"
-            fetchpriority={fetchPriority}
+            fetchPriority={fetchPriority}
             draggable={draggable}
             // MangaDex and a few other hosts 403 cross-origin requests
             // that carry a Referer they don't recognise; the page-level

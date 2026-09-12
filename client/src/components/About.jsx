@@ -79,7 +79,17 @@ export default function About({ googleUser } = {}) {
   }, []);
 
   return (
-    <div className="relative isolate overflow-hidden grain min-h-[calc(100svh_-_4rem)]">
+    <div
+      // 底 · `pb-nav` is the same bottom clearance every other page root
+      // carries (20 of them) so the fixed mobile tab bar never covers
+      // the last content. Conditional here — unlike those pages, the
+      // landing is routinely visited signed-out, and the bar only
+      // renders for an authenticated session; padding for a bar that
+      // isn't there would leave a dead band under the footer.
+      className={`relative isolate overflow-hidden grain min-h-[calc(100svh_-_4rem)] ${
+        isAuthed ? "pb-nav md:pb-0" : ""
+      }`.trim()}
+    >
       {/* Ambient */}
       <div
         className="pointer-events-none absolute inset-0 -z-10"
