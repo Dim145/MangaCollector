@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
@@ -62,6 +63,9 @@ export function useActiveLoans() {
         loaned_to: v.loaned_to,
         loan_started_at: v.loan_started_at,
         loan_due_at: v.loan_due_at ?? null,
+        // 友 · The link is cached; the friend's slug/name are not (they
+        // live on another user's row) — merged in from the server below.
+        loaned_to_user_id: v.loaned_to_user_id ?? null,
       };
     });
 
@@ -100,8 +104,21 @@ export function useActiveLoans() {
 
   // Render priority: Dexie if it has answered, otherwise the
   // server response, otherwise empty. The widget self-hides on
-  // empty so a brief loading flash isn't a concern.
-  const data = cached ?? query.data ?? [];
+  // empty so a brief loading flash isn't a concern. The server rows
+  // also carry the linked borrower's public identity, which the
+  // local cache cannot know — graft it onto the cached rows by id.
+  const data = useMemo(() => {
+    const base = cached ?? query.data ?? [];
+    const server = new Map((query.data ?? []).map((l) => [l.volume_id, l]));
+    return base.map((l) => {
+      const s = server.get(l.volume_id);
+      return {
+        ...l,
+        borrower_slug: l.borrower_slug ?? s?.borrower_slug ?? null,
+        borrower_name: l.borrower_name ?? s?.borrower_name ?? null,
+      };
+    });
+  }, [cached, query.data]);
 
   return {
     data,
@@ -111,6 +128,29 @@ export function useActiveLoans() {
     isFetching: query.isFetching,
     refetch: query.refetch,
   };
+}
+
+/**
+ * 借 · Volumes friends have lent to the user — the other side of the
+ * ledger. Online-only: the rows belong to the lenders' libraries, so
+ * there is nothing to mirror locally, and freshness matters more than
+ * availability for a "remember to give it back" list.
+ */
+export function useBorrowedLoans() {
+  const query = useQuery({
+    queryKey: ["loans", "borrowed"],
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data } = await axios.get("/api/user/volume/loans/borrowed");
+      return Array.isArray(data) ? data : [];
+    },
+    retry: (failureCount, err) => {
+      const status = err?.response?.status;
+      if (status === 401 || status === 404) return false;
+      return failureCount < 2;
+    },
+  });
+  return { data: query.data ?? [], isLoading: query.isLoading };
 }
 
 /**

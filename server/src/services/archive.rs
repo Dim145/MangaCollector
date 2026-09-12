@@ -16,9 +16,10 @@ use crate::models::archive::{
     ExportVolume, ImportAddedSummary, ImportMode, ImportPreview,
 };
 use crate::models::coffret::{self, Entity as CoffretEntity};
+use crate::models::follow::{self, Entity as FollowEntity};
 use crate::models::library::{self, Entity as LibraryEntity};
 use crate::models::setting::Entity as SettingEntity;
-use crate::models::user::User;
+use crate::models::user::{self as user_mod, Entity as UserEntity, User};
 use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
 
 /// Build a complete export bundle for the given user.
@@ -83,6 +84,30 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
         crate::services::author::lookup_authors_by_ids(db, &author_ids).await?
     };
 
+    // 友 · Linked borrowers travel as public slugs — ids are per instance.
+    let borrower_ids: Vec<i32> = {
+        let mut ids: Vec<i32> = volumes_by_mal
+            .values()
+            .flatten()
+            .filter_map(|v| v.loaned_to_user_id)
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    };
+    let borrower_slugs: HashMap<i32, String> = if borrower_ids.is_empty() {
+        HashMap::new()
+    } else {
+        UserEntity::find()
+            .filter(user_mod::Column::Id.is_in(borrower_ids))
+            .all(db)
+            .await
+            .map_err(AppError::from)?
+            .into_iter()
+            .filter_map(|u| Some((u.id, u.public_slug?)))
+            .collect()
+    };
+
     // ─── Shape each series ───
     let mut library: Vec<ExportSeries> = Vec::with_capacity(library_rows.len());
     for row in library_rows {
@@ -108,6 +133,9 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
                 loaned_to: v.loaned_to,
                 loan_started_at: v.loan_started_at,
                 loan_due_at: v.loan_due_at,
+                loaned_to_slug: v
+                    .loaned_to_user_id
+                    .and_then(|id| borrower_slugs.get(&id).cloned()),
                 created_on: Some(v.created_on),
                 modified_on: Some(v.modified_on),
             })
@@ -259,6 +287,46 @@ fn starts_like_formula(s: &str) -> bool {
     }
 }
 
+/// 友 · Slug → user id for every linked borrower in the bundle, kept
+/// only where the importing user follows that account.
+async fn resolve_borrowers(
+    db: &Db,
+    user_id: i32,
+    bundle: &ExportBundle,
+) -> Result<HashMap<String, i32>, AppError> {
+    let mut slugs: Vec<&str> = bundle
+        .library
+        .iter()
+        .flat_map(|s| s.volumes_detail.iter())
+        .filter_map(|v| v.loaned_to_slug.as_deref())
+        .collect();
+    slugs.sort_unstable();
+    slugs.dedup();
+    if slugs.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let users = UserEntity::find()
+        .filter(user_mod::Column::PublicSlug.is_in(slugs.iter().map(|s| s.to_string())))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    let ids: Vec<i32> = users.iter().map(|u| u.id).collect();
+    let followed: std::collections::HashSet<i32> = FollowEntity::find()
+        .filter(follow::Column::FollowerId.eq(user_id))
+        .filter(follow::Column::FollowingId.is_in(ids))
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .map(|f| f.following_id)
+        .collect();
+    Ok(users
+        .into_iter()
+        .filter(|u| followed.contains(&u.id))
+        .filter_map(|u| Some((u.public_slug?, u.id)))
+        .collect())
+}
+
 /// How a bundle series is matched against one already in the library.
 ///
 /// MAL series share a global id. MangaDex series carry the MangaDex
@@ -334,6 +402,12 @@ pub async fn apply_import_merge(
         total_in_file: bundle.library.len(),
         ..Default::default()
     };
+
+    // 友 · Re-link borrowers by public slug — only users who exist here
+    // AND whom the importer follows, the rule the live lend path applies,
+    // so a crafted bundle can't pin a loan on a stranger. Unresolved
+    // slugs keep the text handle and lose the link.
+    let borrower_by_slug = resolve_borrowers(db, user.id, bundle).await?;
 
     // 一括 · Wrap every write in a single transaction. A failure mid-
     // bundle (DB blip, broken row, unique-index conflict on a custom
@@ -554,6 +628,10 @@ pub async fn apply_import_merge(
                     loaned_to: Set(v.loaned_to.clone()),
                     loan_started_at: Set(v.loan_started_at),
                     loan_due_at: Set(v.loan_due_at),
+                    loaned_to_user_id: Set(v
+                        .loaned_to_slug
+                        .as_deref()
+                        .and_then(|s| borrower_by_slug.get(s).copied())),
                     created_on: Set(v.created_on.unwrap_or(now)),
                     modified_on: Set(v.modified_on.unwrap_or(now)),
                     ..Default::default()

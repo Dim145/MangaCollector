@@ -9,9 +9,11 @@ use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity::event_types;
 use crate::models::coffret::STORE_MAX_LEN;
+use crate::models::follow::{self, Entity as FollowEntity};
 use crate::models::library::{self as library_mod, Entity as LibraryEntity, sanitize_label};
+use crate::models::user::{self as user_mod, Entity as UserEntity};
 use crate::models::volume::{
-    self, ActiveLoan, ActiveModel, Entity as VolumeEntity, LOAN_BORROWER_MAX_CHARS,
+    self, ActiveLoan, ActiveModel, BorrowedVolume, Entity as VolumeEntity, LOAN_BORROWER_MAX_CHARS,
     LoanPatch, NOTE_MAX_CHARS, Volume,
 };
 use crate::services::activity;
@@ -134,6 +136,10 @@ where
             sea_orm::sea_query::Expr::value(
                 Option::<chrono::DateTime<chrono::Utc>>::None,
             ),
+        )
+        .col_expr(
+            volume::Column::LoanedToUserId,
+            sea_orm::sea_query::Expr::value(Option::<i32>::None),
         )
 }
 
@@ -318,6 +324,7 @@ pub async fn set_loan(
             active.loaned_to = Set(None);
             active.loan_started_at = Set(None);
             active.loan_due_at = Set(None);
+            active.loaned_to_user_id = Set(None);
         }
         Some(p) => {
             // 預け · Lending requires real ownership. You can't
@@ -357,6 +364,25 @@ pub async fn set_loan(
             if existing.loan_started_at.is_none() {
                 active.loan_started_at = Set(Some(now));
             }
+            // 友 · A linked borrower must be someone the lender follows —
+            // the only relationship the app knows, and it keeps a
+            // stranger's account from being pinned to a loan they never
+            // saw. Re-lending to a free-text name drops the link.
+            if let Some(friend) = p.to_user_id {
+                let follows = FollowEntity::find()
+                    .filter(follow::Column::FollowerId.eq(user_id))
+                    .filter(follow::Column::FollowingId.eq(friend))
+                    .one(db)
+                    .await
+                    .map_err(AppError::from)?
+                    .is_some();
+                if !follows {
+                    return Err(AppError::BadRequest(
+                        "A linked borrower must be someone you follow.".into(),
+                    ));
+                }
+            }
+            active.loaned_to_user_id = Set(p.to_user_id);
             active.loan_due_at = Set(p.due_at);
         }
     }
@@ -399,11 +425,15 @@ pub async fn list_active_loans(db: &Db, user_id: i32) -> Result<Vec<ActiveLoan>,
             name_lookup.insert(m, (r.name, r.image_url_jpg));
         }
     }
+    // 友 · Linked borrowers → public identity, one batched query.
+    let friend_ids = dedup_ids(rows.iter().filter_map(|v| v.loaned_to_user_id));
+    let friends = lookup_users(db, &friend_ids).await?;
     let mut loans: Vec<ActiveLoan> = rows
         .into_iter()
         .filter_map(|v| {
             let started = v.loan_started_at?;
             let to = v.loaned_to?;
+            let friend = v.loaned_to_user_id.and_then(|id| friends.get(&id));
             let (series_name, series_image_url) = v
                 .mal_id
                 .and_then(|m| name_lookup.get(&m))
@@ -418,15 +448,20 @@ pub async fn list_active_loans(db: &Db, user_id: i32) -> Result<Vec<ActiveLoan>,
                 loaned_to: to,
                 loan_started_at: started,
                 loan_due_at: v.loan_due_at,
+                loaned_to_user_id: v.loaned_to_user_id,
+                borrower_slug: friend.and_then(|u| u.public_slug.clone()),
+                borrower_name: friend.and_then(|u| u.name.clone()),
             })
         })
         .collect();
     // Overdue first, then by due date asc, then undated last.
-    loans.sort_by(|a, b| match (a.loan_due_at, b.loan_due_at) {
-        (Some(x), Some(y)) => x.cmp(&y),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
-        (None, None) => a.loan_started_at.cmp(&b.loan_started_at),
+    loans.sort_by(|a, b| {
+        loan_order(
+            a.loan_due_at,
+            b.loan_due_at,
+            a.loan_started_at,
+            b.loan_started_at,
+        )
     });
     Ok(loans)
 }
@@ -862,3 +897,115 @@ pub async fn remove_volume_by_num_tx(
         .map_err(AppError::from)?;
     Ok(())
 }
+
+/// Sorted, deduplicated id list — the shape `is_in` wants.
+fn dedup_ids(ids: impl Iterator<Item = i32>) -> Vec<i32> {
+    let mut v: Vec<i32> = ids.collect();
+    v.sort_unstable();
+    v.dedup();
+    v
+}
+
+/// Batched `users` lookup, for attaching a public identity to the
+/// other party of a linked loan.
+async fn lookup_users(
+    db: &Db,
+    ids: &[i32],
+) -> Result<std::collections::HashMap<i32, user_mod::Model>, AppError> {
+    if ids.is_empty() {
+        return Ok(Default::default());
+    }
+    let rows = UserEntity::find()
+        .filter(user_mod::Column::Id.is_in(ids.iter().copied()))
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    Ok(rows.into_iter().map(|u| (u.id, u)).collect())
+}
+
+/// Overdue first, then by due date ascending, undated last (oldest
+/// open loan first among those). Shared by both sides of a loan so
+/// lender and borrower read the same order.
+fn loan_order(
+    a_due: Option<chrono::DateTime<Utc>>,
+    b_due: Option<chrono::DateTime<Utc>>,
+    a_started: chrono::DateTime<Utc>,
+    b_started: chrono::DateTime<Utc>,
+) -> std::cmp::Ordering {
+    match (a_due, b_due) {
+        (Some(x), Some(y)) => x.cmp(&y),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => a_started.cmp(&b_started),
+    }
+}
+
+/// 友 · Borrower-side listing: every volume a friend has lent to the
+/// caller. Series identity comes from the LENDER's library row — the
+/// borrower may not track the series at all — and the lender's public
+/// identity rides along so the widget can say who to give it back to.
+pub async fn list_borrowed(db: &Db, user_id: i32) -> Result<Vec<BorrowedVolume>, AppError> {
+    let rows = VolumeEntity::find()
+        .filter(volume::Column::LoanedToUserId.eq(user_id))
+        .filter(volume::Column::LoanedTo.is_not_null())
+        .all(db)
+        .await
+        .map_err(AppError::from)?;
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    let lender_ids = dedup_ids(rows.iter().map(|v| v.user_id));
+    let lenders = lookup_users(db, &lender_ids).await?;
+    let mal_ids = dedup_ids(rows.iter().filter_map(|v| v.mal_id));
+    let lib_rows = if mal_ids.is_empty() {
+        Vec::new()
+    } else {
+        LibraryEntity::find()
+            .filter(library_mod::Column::UserId.is_in(lender_ids.iter().copied()))
+            .filter(library_mod::Column::MalId.is_in(mal_ids))
+            .all(db)
+            .await
+            .map_err(AppError::from)?
+    };
+    let mut series: std::collections::HashMap<(i32, i32), (String, Option<String>)> =
+        std::collections::HashMap::new();
+    for r in lib_rows {
+        if let Some(m) = r.mal_id {
+            series.insert((r.user_id, m), (r.name, r.image_url_jpg));
+        }
+    }
+    let mut out: Vec<BorrowedVolume> = rows
+        .into_iter()
+        .filter_map(|v| {
+            let started = v.loan_started_at?;
+            let (series_name, series_image_url) = v
+                .mal_id
+                .and_then(|m| series.get(&(v.user_id, m)))
+                .map(|p| (Some(p.0.clone()), p.1.clone()))
+                .unwrap_or((None, None));
+            let lender = lenders.get(&v.user_id);
+            Some(BorrowedVolume {
+                volume_id: v.id,
+                mal_id: v.mal_id,
+                vol_num: v.vol_num,
+                series_name,
+                series_image_url,
+                lender_id: v.user_id,
+                lender_slug: lender.and_then(|u| u.public_slug.clone()),
+                lender_name: lender.and_then(|u| u.name.clone()),
+                loan_started_at: started,
+                loan_due_at: v.loan_due_at,
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| {
+        loan_order(
+            a.loan_due_at,
+            b.loan_due_at,
+            a.loan_started_at,
+            b.loan_started_at,
+        )
+    });
+    Ok(out)
+}
+

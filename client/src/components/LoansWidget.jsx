@@ -1,7 +1,11 @@
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useT, useLang } from "@/i18n/index.jsx";
-import { useActiveLoans, classifyLoan } from "@/hooks/useActiveLoans.js";
+import {
+  useActiveLoans,
+  useBorrowedLoans,
+  classifyLoan,
+} from "@/hooks/useActiveLoans.js";
 import CoverImage from "./ui/CoverImage.jsx";
 import { formatCompactDate } from "@/utils/date.js";
 
@@ -26,6 +30,7 @@ export default function LoansWidget() {
   const lang = useLang();
   const navigate = useNavigate();
   const { data: loans = [], isLoading } = useActiveLoans();
+  const { data: borrowed = [] } = useBorrowedLoans();
 
   // Sort + classify in one pass so the render path stays cheap.
   // The server already sorts overdue→due_soon→active→open, but we
@@ -39,48 +44,54 @@ export default function LoansWidget() {
   // Hide entirely when nothing is lent — same logic as GapSuggestions
   // self-hide. Loading states show a single skeleton card so the
   // layout doesn't pop in if data arrives late.
-  if (!isLoading && enriched.length === 0) return null;
+  if (!isLoading && enriched.length === 0 && borrowed.length === 0) {
+    return null;
+  }
 
   const overdueCount = enriched.filter((l) => l.status === "overdue").length;
 
   return (
-    <section
-      aria-label={t("loans.aria")}
-      className="azuke-section animate-fade-up mt-10 md:mt-14"
-      style={{ animationDelay: "100ms" }}
-    >
-      <header className="mb-5 flex flex-wrap items-baseline gap-3">
-        <span
-          aria-hidden="true"
-          className="font-jp text-2xl font-bold leading-none text-hanko-bright"
+    <>
+      {(isLoading || enriched.length > 0) && (
+        <section
+          aria-label={t("loans.aria")}
+          className="azuke-section animate-fade-up mt-10 md:mt-14"
+          style={{ animationDelay: "100ms" }}
         >
-          預
-        </span>
-        <h2 className="font-display text-xl font-light italic text-washi md:text-2xl">
-          {t("loans.title")}
-        </h2>
-        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
-          {t("loans.kicker")}
-        </span>
-        <span
-          aria-hidden="true"
-          className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent"
-        />
-        <span className="font-mono text-[11px] tabular-nums uppercase tracking-[0.2em] text-washi-dim">
-          {enriched.length}{" "}
-          {enriched.length === 1 ? t("loans.itemSingular") : t("loans.itemPlural")}
-          {overdueCount > 0 && (
-            <>
-              {" · "}
-              <span className="text-hanko-bright">
-                {overdueCount} {t("loans.overdueShort")}
-              </span>
-            </>
-          )}
-        </span>
-      </header>
+          <header className="mb-5 flex flex-wrap items-baseline gap-3">
+            <span
+              aria-hidden="true"
+              className="font-jp text-2xl font-bold leading-none text-hanko-bright"
+            >
+              預
+            </span>
+            <h2 className="font-display text-xl font-light italic text-washi md:text-2xl">
+              {t("loans.title")}
+            </h2>
+            <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+              {t("loans.kicker")}
+            </span>
+            <span
+              aria-hidden="true"
+              className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent"
+            />
+            <span className="font-mono text-[11px] tabular-nums uppercase tracking-[0.2em] text-washi-dim">
+              {enriched.length}{" "}
+              {enriched.length === 1
+                ? t("loans.itemSingular")
+                : t("loans.itemPlural")}
+              {overdueCount > 0 && (
+                <>
+                  {" · "}
+                  <span className="text-hanko-bright">
+                    {overdueCount} {t("loans.overdueShort")}
+                  </span>
+                </>
+              )}
+            </span>
+          </header>
 
-      {/* Horizontal scroll-snap rail of due cards. On wide screens
+          {/* Horizontal scroll-snap rail of due cards. On wide screens
           ~3 cards visible, on mobile one at a time.
           ── Vertical padding sized for hover overflow ──
           `overflow-x: auto` promotes `overflow-y: visible` to `auto`
@@ -91,48 +102,53 @@ export default function LoansWidget() {
           hanko seal at -bottom-2 all stay inside the visible
           flow. The neg-margin / px tandem keeps the cards bleeding
           past the section edges horizontally as before. */}
-      <ul
-        role="list"
-        className="azuke-rail -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-clip px-4 py-7 sm:gap-5"
-        style={{
-          // Allow the hover lift + drop-shadow to overflow the
-          // y-axis up to 32px past the rail's clip box. Supported
-          // in Chrome 90+ / Firefox 102+; gracefully ignored
-          // elsewhere (the py-7 padding alone is enough on those
-          // browsers since the clip happens at the padding edge,
-          // not the content edge).
-          overflowClipMargin: "32px",
-        }}
-      >
-        {isLoading && enriched.length === 0
-          ? Array.from({ length: 3 }).map((_, i) => (
-              <li key={`sk-${i}`} className="snap-start shrink-0">
-                <DueCardSkeleton />
-              </li>
-            ))
-          : enriched.map((loan, i) => (
-              <li
-                key={loan.volume_id}
-                className="snap-start shrink-0 animate-fade-up"
-                style={{ animationDelay: `${150 + i * 60}ms` }}
-              >
-                <DueCard
-                  loan={loan}
-                  index={i}
-                  lang={lang}
-                  t={t}
-                  onOpen={() =>
-                    loan.mal_id != null
-                      ? navigate("/mangapage", {
-                          state: { manga: { mal_id: loan.mal_id } },
-                        })
-                      : null
-                  }
-                />
-              </li>
-            ))}
-      </ul>
-    </section>
+          <ul
+            role="list"
+            className="azuke-rail -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto overflow-y-clip px-4 py-7 sm:gap-5"
+            style={{
+              // Allow the hover lift + drop-shadow to overflow the
+              // y-axis up to 32px past the rail's clip box. Supported
+              // in Chrome 90+ / Firefox 102+; gracefully ignored
+              // elsewhere (the py-7 padding alone is enough on those
+              // browsers since the clip happens at the padding edge,
+              // not the content edge).
+              overflowClipMargin: "32px",
+            }}
+          >
+            {isLoading && enriched.length === 0
+              ? Array.from({ length: 3 }).map((_, i) => (
+                  <li key={`sk-${i}`} className="snap-start shrink-0">
+                    <DueCardSkeleton />
+                  </li>
+                ))
+              : enriched.map((loan, i) => (
+                  <li
+                    key={loan.volume_id}
+                    className="snap-start shrink-0 animate-fade-up"
+                    style={{ animationDelay: `${150 + i * 60}ms` }}
+                  >
+                    <DueCard
+                      loan={loan}
+                      index={i}
+                      lang={lang}
+                      t={t}
+                      onOpen={() =>
+                        loan.mal_id != null
+                          ? navigate("/mangapage", {
+                              state: { manga: { mal_id: loan.mal_id } },
+                            })
+                          : null
+                      }
+                    />
+                  </li>
+                ))}
+          </ul>
+        </section>
+      )}
+      {borrowed.length > 0 && (
+        <BorrowedSection rows={borrowed} lang={lang} t={t} />
+      )}
+    </>
   );
 }
 
@@ -216,6 +232,22 @@ function DueCard({ loan, index, lang, t, onOpen }) {
           >
             {loan.loaned_to}
           </p>
+          {loan.loaned_to_user_id != null && (
+            <p
+              className="mt-0.5 flex items-center gap-1 truncate font-mono text-[9px] uppercase tracking-[0.2em] text-gold"
+              title={t("loans.linkedFriend")}
+            >
+              <span
+                aria-hidden="true"
+                className="font-jp text-[11px] normal-case tracking-normal"
+              >
+                友
+              </span>
+              {loan.borrower_slug
+                ? `@${loan.borrower_slug}`
+                : t("loans.linkedFriend")}
+            </p>
+          )}
         </div>
         <div className="shrink-0 text-right">
           <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-washi-dim">
@@ -345,6 +377,113 @@ function daysOverdueLabel(iso, t) {
   if (!iso) return "";
   const due = new Date(iso).getTime();
   if (Number.isNaN(due)) return "";
-  const days = Math.max(1, Math.floor((Date.now() - due) / (1000 * 60 * 60 * 24)));
+  const days = Math.max(
+    1,
+    Math.floor((Date.now() - due) / (1000 * 60 * 60 * 24)),
+  );
   return t("loans.daysOverdue", { n: days });
+}
+
+/**
+ * 借 · The other side of the ledger — volumes friends have lent to the
+ * user. Compact rows rather than due cards: these are reminders to
+ * give something back, not items to manage, and the series identity
+ * comes from the lender's library (the user may not track it at all).
+ */
+function BorrowedSection({ rows, lang, t }) {
+  return (
+    <section
+      aria-label={t("loans.borrowedAria")}
+      className="animate-fade-up mt-8"
+      style={{ animationDelay: "160ms" }}
+    >
+      <header className="mb-3 flex flex-wrap items-baseline gap-3">
+        <span
+          aria-hidden="true"
+          className="font-jp text-xl font-bold leading-none text-gold"
+        >
+          借
+        </span>
+        <h3 className="font-display text-lg font-light italic text-washi">
+          {t("loans.borrowedTitle")}
+        </h3>
+        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-gold">
+          {t("loans.borrowedKicker")}
+        </span>
+        <span
+          aria-hidden="true"
+          className="h-px flex-1 bg-gradient-to-r from-gold/40 via-border to-transparent"
+        />
+        <span className="font-mono text-[11px] tabular-nums uppercase tracking-[0.2em] text-washi-dim">
+          {rows.length}
+        </span>
+      </header>
+      <ul
+        role="list"
+        className="flex flex-col divide-y divide-border/60 rounded-md border border-border/70 bg-ink-1/40"
+      >
+        {rows.map((b) => {
+          const status = classifyLoan(b);
+          const lender =
+            b.lender_name ?? (b.lender_slug ? `@${b.lender_slug}` : "?");
+          const from = t("loans.borrowedFrom", { name: lender });
+          const dueTone =
+            status === "overdue"
+              ? "text-hanko-bright"
+              : status === "due_soon"
+                ? "text-gold"
+                : "";
+          return (
+            <li
+              key={b.volume_id}
+              className="flex items-center gap-3 px-3 py-2.5"
+            >
+              <div className="aspect-[2/3] h-12 shrink-0 overflow-hidden rounded-sm border border-border/60 bg-ink-2/40">
+                {b.series_image_url ? (
+                  <CoverImage
+                    src={b.series_image_url}
+                    alt=""
+                    paletteSeed={b.mal_id}
+                    imgClassName="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="grid h-full w-full place-items-center font-display text-lg italic text-gold/40">
+                    巻
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-display text-[14px] italic text-washi">
+                  {b.series_name ?? t("loans.unknownSeries")}
+                  <span className="ml-2 font-mono text-[11px] not-italic tabular-nums text-gold">
+                    #{b.vol_num}
+                  </span>
+                </p>
+                <p className="mt-0.5 truncate font-mono text-[10px] uppercase tracking-[0.18em] text-washi-dim">
+                  {b.lender_slug ? (
+                    <Link
+                      to={`/u/${b.lender_slug}`}
+                      className="text-washi-muted underline-offset-2 hover:text-washi hover:underline"
+                    >
+                      {from}
+                    </Link>
+                  ) : (
+                    from
+                  )}
+                  {" · "}
+                  <span className={dueTone}>
+                    {b.loan_due_at
+                      ? t("loans.borrowedDue", {
+                          date: formatCompactDate(b.loan_due_at, lang),
+                        })
+                      : t("loans.borrowedOpen")}
+                  </span>
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }

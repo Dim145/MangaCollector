@@ -2106,6 +2106,17 @@ export default {
     borrowerPlaceholder: "Prestatario · ej. Mathieu",
     dueDateLabel: "Fecha de devolución",
     dueDateHint: "Dejar vacío para un préstamo sin fecha.",
+    friendPickerLabel: "Prestar a un amigo",
+    friendPickerHint:
+      "Elige a alguien a quien sigues — el tomo aparecerá entre sus préstamos recibidos.",
+    friendSelected: "Vinculado a la cuenta de {name}",
+    linkedFriend: "Amigo vinculado",
+    borrowedTitle: "Prestados por amigos",
+    borrowedKicker: "PRESTADOS · 借",
+    borrowedAria: "Tomos prestados por amigos",
+    borrowedFrom: "de {name}",
+    borrowedDue: "devolver el {date}",
+    borrowedOpen: "sin fecha de devolución",
   },
   snapshots: {
     archivist: "el archivista",

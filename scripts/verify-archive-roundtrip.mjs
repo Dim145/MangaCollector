@@ -29,6 +29,7 @@ import { login } from "./lib/stack-client.mjs";
 
 const SOURCE = process.env.SEED_USER ?? "test-collector";
 const TARGET = process.env.RESTORE_USER ?? `restore-check-${Date.now().toString(36)}`;
+const FRIEND = "friend-alex"; // followed by the source; one loan is linked to this account
 
 const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o?.[k] ?? null]));
 const by = (k) => (a, b) => (a[k] > b[k] ? 1 : a[k] < b[k] ? -1 : 0);
@@ -54,6 +55,16 @@ async function enrich(c) {
     log.push(`series fields on ${s.name}`);
   }
 
+  // a friend account the source follows — the first loan is linked to it,
+  // so the bundle carries a borrower slug and the friend's "borrowed"
+  // list has to show the volume
+  const friend = await login(FRIEND);
+  const slugged = await friend.api("PATCH", "/api/user/public-slug", { slug: FRIEND });
+  if (!slugged.ok && slugged.status !== 409) throw new Error(`friend slug → ${slugged.status}`);
+  const fol = await c.api("POST", `/api/user/follows/${FRIEND}`);
+  if (!fol.ok && fol.status !== 409) throw new Error(`follow ${FRIEND} → ${fol.status}`);
+  log.push(`follows ${FRIEND} (user ${friend.user.id})`);
+
   // loans + notes on the big series' first volumes
   const vols = (await c.json("GET", `/api/user/volume/${big.mal_id}`)).sort(by("vol_num"));
   for (const [i, v] of vols.slice(0, 3).entries()) {
@@ -65,10 +76,18 @@ async function enrich(c) {
       collector: i === 0,
       read: true,
       notes: `Note de test ${i + 1}`,
-      loan: { to: `Ami ${i + 1}`, due_at: new Date(Date.now() + (i + 1) * 7 * 86400000).toISOString() },
+      loan: {
+        to: i === 0 ? "Alex (ami)" : `Ami ${i + 1}`,
+        due_at: new Date(Date.now() + (i + 1) * 7 * 86400000).toISOString(),
+        to_user_id: i === 0 ? friend.user.id : null,
+      },
     });
   }
-  log.push(`3 loans + notes on ${big.name}`);
+  log.push(`3 loans + notes on ${big.name} (vol ${vols[0].vol_num} linked to ${FRIEND})`);
+  const borrowed = await friend.json("GET", "/api/user/volume/loans/borrowed");
+  const mine = borrowed.filter((b) => b.lender_id === c.user.id && b.vol_num === vols[0].vol_num);
+  if (mine.length !== 1) throw new Error(`${FRIEND}'s borrowed list should show vol ${vols[0].vol_num} once, got ${mine.length}`);
+  log.push(`${FRIEND} sees "${mine[0].series_name}" #${mine[0].vol_num} under borrowed`);
 
   // a manually pencilled upcoming volume (409 = already there from a previous run)
   const up = await c.api("POST", `/api/user/library/${big.mal_id}/volumes/upcoming`, {
@@ -101,7 +120,7 @@ const SERIES_FIELDS = ["name", "volumes", "volumes_owned", "image_url_jpg", "gen
   "publisher", "edition", "review", "review_public", "author_name", "created_on", "modified_on"];
 const VOLUME_FIELDS = ["vol_num", "owned", "price", "store", "collector", "read_at", "notes",
   "release_date", "release_isbn", "release_url", "origin", "announced_at",
-  "loaned_to", "loan_started_at", "loan_due_at", "in_coffret", "created_on", "modified_on"];
+  "loaned_to", "loaned_to_user_id", "loan_started_at", "loan_due_at", "in_coffret", "created_on", "modified_on"];
 const COFFRET_FIELDS = ["name", "vol_start", "vol_end", "price", "store", "collector", "created_on", "modified_on"];
 
 async function snapshot(c) {
@@ -220,6 +239,10 @@ async function main() {
   console.log(`✓ exported bundle v${bundle.version}: ${bundle.library.length} series`);
 
   const dst = await login(TARGET);
+  // A linked borrower travels as a public slug and is re-linked only when
+  // the importing account follows them — a restored account has to
+  // rebuild its follows first, as a real user would.
+  await dst.api("POST", `/api/user/follows/${FRIEND}`);
   const preview = await dst.json("POST", "/api/user/import", { dry_run: false, bundle });
   console.log(`✓ imported into fresh user: added ${preview.added}, conflicts ${preview.skipped_conflict}, invalid ${preview.skipped_invalid}`);
 

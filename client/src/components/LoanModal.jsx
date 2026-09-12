@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db.js";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
+import { useFollowList } from "@/hooks/useFriends.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 import Modal from "./ui/Modal.jsx";
 import { formatShortDate } from "@/utils/date.js";
@@ -20,6 +21,12 @@ import { formatShortDate } from "@/utils/date.js";
  * the dashboard rail, a future bulk-loan flow) without prop-threading.
  * The mutation rides through the same `useUpdateVolume` outbox path
  * as every other volume edit — offline support is automatic.
+ *
+ * 友 · The borrower can be a friend (someone the user follows): a row
+ * of chips above the name field links the loan to their account, so
+ * the volume also shows up under "borrowed from friends" on their
+ * side. Typing in the name field drops the link — the text is always
+ * what the slip displays, the link is an extra.
  */
 export default function LoanModal({ open, volumeId, onClose }) {
   const t = useT();
@@ -36,16 +43,17 @@ export default function LoanModal({ open, volumeId, onClose }) {
   const isLent = Boolean(volume?.loaned_to);
   const [borrower, setBorrower] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [borrowerUserId, setBorrowerUserId] = useState(null);
+  const { data: friends = [] } = useFollowList();
 
   useEffect(() => {
     if (!open) return;
     setBorrower(volume?.loaned_to ?? "");
+    setBorrowerUserId(volume?.loaned_to_user_id ?? null);
     // <input type=date> wants a YYYY-MM-DD string. Strip the time
     // portion of the ISO timestamp; show empty for open-ended loans.
-    setDueDate(
-      volume?.loan_due_at ? toDateInputValue(volume.loan_due_at) : "",
-    );
-  }, [open, volume?.loaned_to, volume?.loan_due_at]);
+    setDueDate(volume?.loan_due_at ? toDateInputValue(volume.loan_due_at) : "");
+  }, [open, volume?.loaned_to, volume?.loan_due_at, volume?.loaned_to_user_id]);
 
   const lentLabel = useMemo(
     () => formatShortDate(volume?.loan_started_at, lang) || "—",
@@ -70,7 +78,7 @@ export default function LoanModal({ open, volumeId, onClose }) {
       price: Number(volume?.price) || 0,
       store: volume?.store ?? "",
       collector: Boolean(volume?.collector),
-      loan: { to: trimmed, due_at: due },
+      loan: { to: trimmed, due_at: due, to_user_id: borrowerUserId },
     });
     onClose?.();
   }
@@ -124,12 +132,64 @@ export default function LoanModal({ open, volumeId, onClose }) {
           </h2>
           {isLent && volume?.loan_started_at && (
             <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
-              {t("loans.lentOn")} · <span className="text-washi">{lentLabel}</span>
+              {t("loans.lentOn")} ·{" "}
+              <span className="text-washi">{lentLabel}</span>
             </p>
           )}
         </header>
 
         <div className="space-y-4 px-6 py-5">
+          {friends.length > 0 && (
+            <fieldset>
+              <legend className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim">
+                {t("loans.friendPickerLabel")} · 友
+              </legend>
+              <div
+                role="radiogroup"
+                aria-label={t("loans.friendPickerLabel")}
+                className="flex flex-wrap gap-1.5"
+              >
+                {friends.map((f) => {
+                  const active = f.user_id === borrowerUserId;
+                  const name = f.display_name ?? `@${f.public_slug}`;
+                  return (
+                    <button
+                      key={f.user_id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => {
+                        if (active) {
+                          setBorrowerUserId(null);
+                          return;
+                        }
+                        setBorrowerUserId(f.user_id);
+                        setBorrower(name);
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition ${
+                        active
+                          ? "border-hanko/60 bg-hanko/15 text-washi"
+                          : "border-border text-washi-muted hover:border-hanko/40 hover:text-washi"
+                      }`}
+                    >
+                      <span aria-hidden="true" className="font-jp text-[11px]">
+                        友
+                      </span>
+                      <span className="max-w-[10rem] truncate font-display text-[12px] italic">
+                        {name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 font-mono text-[10px] tracking-[0.18em] text-washi-dim">
+                {borrowerUserId != null
+                  ? t("loans.friendSelected", { name: borrower })
+                  : t("loans.friendPickerHint")}
+              </p>
+            </fieldset>
+          )}
+
           <label className="block">
             <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim">
               {t("loans.borrowerLabel")} · 借
@@ -137,7 +197,11 @@ export default function LoanModal({ open, volumeId, onClose }) {
             <input
               type="text"
               value={borrower}
-              onChange={(e) => setBorrower(e.target.value)}
+              onChange={(e) => {
+                setBorrower(e.target.value);
+                // A hand-typed name is a free-text borrower again.
+                setBorrowerUserId(null);
+              }}
               maxLength={80}
               placeholder={t("loans.borrowerPlaceholder")}
               autoComplete="off"
@@ -171,7 +235,10 @@ export default function LoanModal({ open, volumeId, onClose }) {
               disabled={updateVolume.isPending}
               className="azuke-keycap inline-flex items-center justify-center gap-1.5 rounded-md border border-moegi/50 bg-moegi/8 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-moegi transition hover:border-moegi hover:bg-moegi/15 disabled:opacity-50"
             >
-              <span aria-hidden="true" className="font-jp text-[12px] not-italic">
+              <span
+                aria-hidden="true"
+                className="font-jp text-[12px] not-italic"
+              >
                 返
               </span>
               {t("loans.returnAction")}
@@ -193,7 +260,10 @@ export default function LoanModal({ open, volumeId, onClose }) {
               disabled={!borrower.trim() || updateVolume.isPending}
               className="azuke-keycap inline-flex items-center gap-1.5 rounded-md bg-hanko px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-washi transition hover:bg-hanko-bright disabled:opacity-60"
             >
-              <span aria-hidden="true" className="font-jp text-[12px] not-italic">
+              <span
+                aria-hidden="true"
+                className="font-jp text-[12px] not-italic"
+              >
                 {isLent ? "更" : "貸"}
               </span>
               {updateVolume.isPending
@@ -232,4 +302,3 @@ function toDateInputValue(iso) {
     return "";
   }
 }
-

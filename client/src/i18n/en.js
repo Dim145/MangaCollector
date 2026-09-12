@@ -2095,6 +2095,17 @@ export default {
     borrowerPlaceholder: "Borrower · e.g. Mathieu",
     dueDateLabel: "Return date",
     dueDateHint: "Leave empty for an open-ended loan.",
+    friendPickerLabel: "Lend to a friend",
+    friendPickerHint:
+      "Pick someone you follow — the volume will show under their borrowed books.",
+    friendSelected: "Linked to {name}'s account",
+    linkedFriend: "Linked friend",
+    borrowedTitle: "Borrowed from friends",
+    borrowedKicker: "BORROWED · 借",
+    borrowedAria: "Volumes borrowed from friends",
+    borrowedFrom: "from {name}",
+    borrowedDue: "due {date}",
+    borrowedOpen: "no return date",
   },
   snapshots: {
     archivist: "the archivist",

@@ -87,6 +87,12 @@ pub struct Model {
     /// NOW(); the service does not enforce.
     #[sea_orm(default)]
     pub loan_due_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 友 · The borrower's account when they are someone the lender
+    /// follows; NULL for a free-text borrower. Kept alongside
+    /// `loaned_to` (the display handle) so a loan to "Alex" reads the
+    /// same whether or not Alex has an account here.
+    #[sea_orm(default)]
+    pub loaned_to_user_id: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -135,6 +141,10 @@ pub struct LoanPatch {
     /// Optional expected return date. Pass `null` for open-ended.
     #[serde(default)]
     pub due_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 友 · Link the loan to a followed user's account. Omitted or
+    /// `null` = free-text borrower only.
+    #[serde(default)]
+    pub to_user_id: Option<i32>,
 }
 
 /// Three-state deserializer for the loan field — mirrors the
@@ -167,6 +177,29 @@ pub struct ActiveLoan {
     pub series_name: Option<String>,
     pub series_image_url: Option<String>,
     pub loaned_to: String,
+    pub loan_started_at: chrono::DateTime<chrono::Utc>,
+    pub loan_due_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 友 · Set when the borrower is a linked friend; the slug lets the
+    /// widget deep-link to their public profile.
+    pub loaned_to_user_id: Option<i32>,
+    pub borrower_slug: Option<String>,
+    pub borrower_name: Option<String>,
+}
+
+/// 友 · Response shape for the borrower-side listing: every volume a
+/// friend has lent to the caller, with the lender's public identity
+/// and the series the LENDER files it under (the borrower may not
+/// track that series at all).
+#[derive(Debug, Clone, Serialize)]
+pub struct BorrowedVolume {
+    pub volume_id: i32,
+    pub mal_id: Option<i32>,
+    pub vol_num: i32,
+    pub series_name: Option<String>,
+    pub series_image_url: Option<String>,
+    pub lender_id: i32,
+    pub lender_slug: Option<String>,
+    pub lender_name: Option<String>,
     pub loan_started_at: chrono::DateTime<chrono::Utc>,
     pub loan_due_at: Option<chrono::DateTime<chrono::Utc>>,
 }

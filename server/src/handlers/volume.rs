@@ -207,3 +207,14 @@ pub async fn list_loans(
     let loans = volume::list_active_loans(&state.db, user.id).await?;
     Ok(Json(loans))
 }
+
+/// GET /api/user/volume/loans/borrowed — every volume a friend has
+/// lent to the caller: the other side of `list_loans`. Empty array
+/// when nothing is borrowed — never 404.
+pub async fn list_borrowed(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+) -> Result<Json<Vec<crate::models::volume::BorrowedVolume>>, AppError> {
+    let rows = volume::list_borrowed(&state.db, user.id).await?;
+    Ok(Json(rows))
+}

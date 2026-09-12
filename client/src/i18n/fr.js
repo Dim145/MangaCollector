@@ -2130,6 +2130,17 @@ export default {
     borrowerPlaceholder: "Nom de l'emprunteur · ex. Mathieu",
     dueDateLabel: "Échéance",
     dueDateHint: "Laisser vide pour un prêt sans date de retour.",
+    friendPickerLabel: "Prêter à un ami",
+    friendPickerHint:
+      "Choisissez quelqu'un que vous suivez — le tome apparaîtra dans ses emprunts.",
+    friendSelected: "Lié au compte de {name}",
+    linkedFriend: "Ami lié",
+    borrowedTitle: "Empruntés à des amis",
+    borrowedKicker: "EMPRUNTS · 借",
+    borrowedAria: "Tomes empruntés à des amis",
+    borrowedFrom: "chez {name}",
+    borrowedDue: "à rendre le {date}",
+    borrowedOpen: "sans date de retour",
   },
   snapshots: {
     archivist: "l'archiviste",

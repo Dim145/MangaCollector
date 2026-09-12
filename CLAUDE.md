@@ -184,7 +184,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 |---|---|
 | `/auth` | OAuth callbacks & session lifecycle |
 | `/api/library` | Manga library CRUD |
-| `/api/volume` | Volume tracking, bulk marks, upcoming volumes |
+| `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`) |
 | `/api/authors` | Author records, photos, refresh |
 | `/api/user`, `/api/account` | Profile, deletion, public slug |
 | `/api/settings` | User preferences |
@@ -200,7 +200,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 
 ## Database
 
-- Migrations: **`server/migrations/`** — 44 raw `.sql` files, embedded at
+- Migrations: **`server/migrations/`** — 45 raw `.sql` files, embedded at
   compile time via `sqlx::migrate!("./migrations")` in `server/src/db.rs`
   and applied automatically on startup. There is no separate migrate script.
 - Entities (`server/src/models/`): `activity`, `archive`, `author`,

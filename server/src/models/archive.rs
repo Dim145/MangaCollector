@@ -125,6 +125,11 @@ pub struct ExportVolume {
     pub loan_started_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loan_due_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 友 · Public slug of a linked borrower. Ids are meaningless across
+    /// instances; the importer re-links by slug when that user exists
+    /// here and is followed, and keeps the text handle otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loaned_to_slug: Option<String>,
     // ── v2 · row timestamps ──
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_on: Option<chrono::DateTime<chrono::Utc>>,

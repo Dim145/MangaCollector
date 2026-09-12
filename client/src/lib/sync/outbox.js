@@ -347,12 +347,15 @@ export async function enqueueVolumeUpdate(volume) {
       local.loaned_to = null;
       local.loan_started_at = null;
       local.loan_due_at = null;
+      local.loaned_to_user_id = null;
     } else if (loan && typeof loan.to === "string") {
       local.loaned_to = loan.to;
       // Don't overwrite an existing started_at — the server uses the
       // same "preserve on edit" rule. We approximate locally by only
       // stamping when there's nothing yet.
       local.loan_due_at = loan.due_at ?? null;
+      // 友 · Linked friend, or back to a free-text borrower.
+      local.loaned_to_user_id = loan.to_user_id ?? null;
     }
   }
 

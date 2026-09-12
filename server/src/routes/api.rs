@@ -136,6 +136,7 @@ fn user_router() -> Router<AppState> {
         // and `/sessions/{session_id}`.
         .route("/volume", get(volume::get_all_volumes))
         .route("/volume/loans", get(volume::list_loans))
+        .route("/volume/loans/borrowed", get(volume::list_borrowed))
         .route("/volume/{mal_id}", get(volume::get_volumes_by_id))
         .route("/volume", patch(volume::update_volume))
         // 印影 Inei · Snapshot history endpoints. POST creates a new
