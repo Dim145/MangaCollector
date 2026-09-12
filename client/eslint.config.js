@@ -54,8 +54,14 @@ export default defineConfig([
   {
     // Vitest suites and their setup run under Node, not just the browser:
     // `setup.js` pins `process.env.TZ`, and the runner injects the test
-    // globals. Both are invisible to the browser-only globals above.
-    files: ["src/**/*.{test,spec}.{js,jsx}", "src/test/**/*.{js,jsx}"],
+    // globals. Both are invisible to the browser-only globals above. The
+    // Vite / Vitest config files are Node modules too (`process.env`).
+    files: [
+      "src/**/*.{test,spec}.{js,jsx}",
+      "src/test/**/*.{js,jsx}",
+      "vite.config.js",
+      "vitest.config.js",
+    ],
     languageOptions: {
       globals: { ...globals.node, ...globals.vitest },
     },

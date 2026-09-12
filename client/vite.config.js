@@ -80,8 +80,27 @@ function i18nPreloadInjector() {
  * `@vitejs/plugin-react` is paired with the bundler: 5.x for Vite 7,
  * 6.x for Vite 8. We're on the 6.x line.
  */
+/*
+ * 試 · Optional dev proxy. `pnpm dev` alone has no way to reach a
+ * backend — the Docker stack routes /api and /auth through Traefik,
+ * and a bare Vite server answers those paths with its own 404. Set
+ * `VITE_API_PROXY=http://localhost:3000` to forward them to a locally
+ * running `cargo run`, websocket included. Unset (the default) leaves
+ * the config exactly as before, so nothing changes for anyone else.
+ * See docs/test-stack.md.
+ */
+const apiProxy = process.env.VITE_API_PROXY;
+const devProxy = apiProxy
+  ? {
+      "/api": { target: apiProxy, changeOrigin: false, ws: true },
+      "/auth": { target: apiProxy, changeOrigin: false },
+      "/public": { target: apiProxy, changeOrigin: false },
+    }
+  : undefined;
+
 // https://vite.dev/config/
 export default defineConfig({
+  server: devProxy ? { proxy: devProxy } : undefined,
   plugins: [
     react(),
     tailwindcss(),

@@ -156,3 +156,6 @@ tmp
 
 # graphify knowledge graph — generated artifacts (~6 MB, rebuild with `graphify update .`)
 graphify-out/
+
+# Local test stack (docs/test-stack.md): filesystem storage backend
+server/.test-stack-storage/

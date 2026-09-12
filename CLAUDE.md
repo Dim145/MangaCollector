@@ -116,7 +116,7 @@ docker compose build
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image}.rs`,
   `services/{genres,proxy_client,google_books_api,activity_coalescer,realtime}.rs`,
   `handlers/realtime.rs`).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 806 tests across 28 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 830 tests across 30 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -131,7 +131,9 @@ docker compose build
     delete cascade are exercised rather than mocked. `lib/db.test.js`
     covers the outbox-aware cache writers the same way; `clientId` and
     `realtimePlan` (the websocket decision table) are pure and tested.
-  - `components/ui/CoverImage.test.jsx` is the first component test.
+  - `components/ui/CoverImage.test.jsx` and `components/VirtualVolumeGrid.test.jsx`
+    are the component tests; `hooks/useWindowGridVirtualizer.test.js` covers
+    the lane / pinned-row maths shared by both windowed grids.
   - Three suites assert **cross-language parity** by parsing the Rust
     source: the seal catalogue against `services/seals.rs::CATALOG`, the
     accent list against `services/settings.rs::VALID_ACCENT_COLORS`, and
@@ -145,6 +147,15 @@ docker compose build
     canvas/Web-Audio modules (`shelfSnapshot`, `sounds`, `barcode`).
 - **Formatting caveat:** the Rust tree is not clean under `rustfmt` 1.9 — a
   blind `cargo fmt` reflows ~54 files. Format only the hunks you touch.
+
+## Local test stack
+
+`docs/test-stack.md` — Postgres + a mock OpenID Connect provider in Docker
+(`docker-compose.test-stack.yml`), the server run natively with
+`server/test-stack.env`, the client with `VITE_API_PROXY=http://localhost:3000`.
+Log in with any username. `node scripts/seed-test-stack.mjs [--big]` fills the
+library from MyAnimeList (Jikan) with a MangaDex fallback, including a
+110-volume One Piece for the virtualized volumes grid.
 
 ## Code Style
 

@@ -1,0 +1,52 @@
+# 試 · Local test stack — the pieces that need containers.
+#
+#   docker compose -f docker-compose.test-stack.yml up -d
+#
+# Postgres on a non-default port so it never collides with another
+# project's database, and a mock OpenID Connect provider so the app's
+# real OAuth flow can be exercised end-to-end with NO real identity
+# provider and NO real credentials: the mock accepts any username on
+# its login form and issues signed id tokens. The Rust server and the
+# Vite client run natively (see docs/test-stack.md) — a Rust release
+# build inside Docker is far too slow for a dev loop.
+#
+# Nothing here is a secret. Nothing here is reachable from outside
+# localhost. Do not point production at any of it.
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: mc-test-pg
+    environment:
+      POSTGRES_USER: manga
+      POSTGRES_PASSWORD: manga
+      POSTGRES_DB: mangacollector
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - mc-test-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U manga -d mangacollector"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  oidc:
+    # https://github.com/navikt/mock-oauth2-server — a purpose-built
+    # mock. Issuer is derived from the request Host, so both the
+    # browser and the native server reach it as
+    # http://localhost:8484/default.
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    container_name: mc-test-oidc
+    environment:
+      SERVER_PORT: "8484"
+      JSON_CONFIG: >-
+        {"interactiveLogin": true,
+         "tokenCallbacks": [{"issuerId": "default",
+           "tokenExpiry": 86400,
+           "requestMappings": [{"requestParam": "scope", "match": "*",
+             "claims": {"email": "test@example.invalid", "name": "Test Collector"}}]}]}
+    ports:
+      - "127.0.0.1:8484:8484"
+
+volumes:
+  mc-test-pg-data:
