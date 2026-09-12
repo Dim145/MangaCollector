@@ -92,27 +92,51 @@ export function useRealtimeSync({ enabled = true } = {}) {
       }, 300);
     };
 
-    // 範 · Scoped events: one in-flight refresh per `kind:mal_id`. The
-    // rows land in Dexie and every live query re-renders from there,
-    // so no React Query key needs invalidating for these.
-    const inFlight = new Map();
+    // 範 · Scoped events: refresh one series' rows into Dexie; every
+    // live query re-renders from there, so no React Query key needs
+    // invalidating. Per `kind:mal_id`, events are coalesced with the
+    // same ~250 ms trailing debounce the key path uses — a bulk mark or
+    // another device's rapid toggles arrive as a burst of dozens of
+    // events, and one refresh after the burst settles is the point. If
+    // an event lands while a refresh is in flight, one more run follows
+    // it so the settled state is never missed.
+    const scoped = new Map(); // token → { timer, running, again }
+    const runScoped = (token, kind, mal_id) => {
+      const st = scoped.get(token);
+      st.running = true;
+      st.again = false;
+      const run = kind === "library" ? refetchLibraryEntry : refetchVolumes;
+      run(mal_id)
+        .catch(() => {
+          // Fall back to the broad invalidation this kind always had;
+          // a transient failure must not leave the row stale forever.
+          for (const key of KIND_TO_KEYS[kind]) {
+            coalescedKeys.add(JSON.stringify(key));
+          }
+          scheduleInvalidate();
+        })
+        .finally(() => {
+          st.running = false;
+          if (st.again) runScoped(token, kind, mal_id);
+          else if (!st.timer) scoped.delete(token);
+        });
+    };
     const refreshScoped = (kind, mal_id) => {
       const token = `${kind}:${mal_id}`;
-      if (inFlight.has(token)) return;
-      const run = kind === "library" ? refetchLibraryEntry : refetchVolumes;
-      inFlight.set(
-        token,
-        run(mal_id)
-          .catch(() => {
-            // Fall back to the broad invalidation this kind always had;
-            // a transient failure must not leave the row stale forever.
-            for (const key of KIND_TO_KEYS[kind]) {
-              coalescedKeys.add(JSON.stringify(key));
-            }
-            scheduleInvalidate();
-          })
-          .finally(() => inFlight.delete(token)),
-      );
+      let st = scoped.get(token);
+      if (!st) {
+        st = { timer: null, running: false, again: false };
+        scoped.set(token, st);
+      }
+      if (st.running) {
+        st.again = true;
+        return;
+      }
+      if (st.timer) return; // already scheduled — the burst is still going
+      st.timer = setTimeout(() => {
+        st.timer = null;
+        runScoped(token, kind, mal_id);
+      }, 250);
     };
 
     const connect = () => {
@@ -239,6 +263,10 @@ export function useRealtimeSync({ enabled = true } = {}) {
     return () => {
       stoppedRef.current = true;
       document.removeEventListener("visibilitychange", onVisibility);
+      for (const st of scoped.values()) {
+        if (st.timer) clearTimeout(st.timer);
+      }
+      scoped.clear();
       if (invalidateTimer) {
         clearTimeout(invalidateTimer);
         invalidateTimer = null;

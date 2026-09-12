@@ -1385,10 +1385,9 @@ async function refetchLibrary() {
  * mirror that locally (guards permitting) instead of leaving a ghost.
  */
 export async function refetchLibraryEntry(mal_id) {
+  let data;
   try {
-    const { data } = await axios.get(`/api/user/library/${mal_id}`);
-    await cacheLibraryEntry(data);
-    return data;
+    ({ data } = await axios.get(`/api/user/library/${mal_id}`));
   } catch (err) {
     if (err?.response?.status === 404) {
       await dropCachedLibraryEntry(mal_id);
@@ -1396,6 +1395,16 @@ export async function refetchLibraryEntry(mal_id) {
     }
     throw err;
   }
+  // `GET /api/user/library/{mal_id}` answers `Vec<LibraryEntry>` — an
+  // array of 0..1 rows, 200 either way. An empty array after a delete on
+  // another device is the "series is gone" signal, not a 404.
+  const entry = Array.isArray(data) ? data[0] : data;
+  if (!entry || entry.mal_id == null) {
+    await dropCachedLibraryEntry(mal_id);
+    return null;
+  }
+  await cacheLibraryEntry(entry);
+  return entry;
 }
 
 export async function refetchVolumes(mal_id) {

@@ -11,13 +11,18 @@ vi.mock("../connectivity.js", () => ({
   probeServer: vi.fn(() => Promise.resolve(false)),
 }));
 vi.mock("../queryClient.js", () => ({
-  queryClient: { invalidateQueries: vi.fn(), setQueryData: vi.fn(), removeQueries: vi.fn() },
+  queryClient: {
+    invalidateQueries: vi.fn(),
+    setQueryData: vi.fn(),
+    removeQueries: vi.fn(),
+  },
 }));
 vi.mock("@/utils/axios.js", () => ({
   default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
 const { db } = await import("../db.js");
+const axios = (await import("@/utils/axios.js")).default;
 const {
   enqueueBulkMark,
   enqueueLibraryDelete,
@@ -25,6 +30,7 @@ const {
   enqueueLibraryUpsert,
   enqueueVolumeUpdate,
   pendingCount,
+  refetchLibraryEntry,
 } = await import("./outbox.js");
 
 /*
@@ -35,7 +41,12 @@ const {
  * now-pointless ops queued against the row it removes.
  */
 
-const manga = (over = {}) => ({ mal_id: 2, name: "Berserk", volumes: 41, ...over });
+const manga = (over = {}) => ({
+  mal_id: 2,
+  name: "Berserk",
+  volumes: 41,
+  ...over,
+});
 
 beforeEach(async () => {
   await Promise.all(db.tables.map((t) => t.clear()));
@@ -86,7 +97,9 @@ describe("enqueueLibraryUpsert", () => {
 
   it("handles a negative custom-series id", async () => {
     await enqueueLibraryUpsert(manga({ mal_id: -1 }));
-    await expect(db.outboxLibrary.get(-1)).resolves.toMatchObject({ mal_id: -1 });
+    await expect(db.outboxLibrary.get(-1)).resolves.toMatchObject({
+      mal_id: -1,
+    });
   });
 });
 
@@ -100,7 +113,9 @@ describe("enqueueLibraryDelete", () => {
 
   it("queues a delete op", async () => {
     await enqueueLibraryDelete(2);
-    await expect(db.outboxLibrary.get(2)).resolves.toMatchObject({ op: "delete" });
+    await expect(db.outboxLibrary.get(2)).resolves.toMatchObject({
+      op: "delete",
+    });
   });
 
   it("drops the optimistic library row", async () => {
@@ -115,7 +130,9 @@ describe("enqueueLibraryDelete", () => {
 
   it("discards pending per-volume ops that would 404 after the cascade", async () => {
     await enqueueLibraryDelete(2);
-    await expect(db.outboxVolumes.where("mal_id").equals(2).count()).resolves.toBe(0);
+    await expect(
+      db.outboxVolumes.where("mal_id").equals(2).count(),
+    ).resolves.toBe(0);
   });
 
   it("discards the pending bulk-mark op", async () => {
@@ -132,8 +149,12 @@ describe("enqueueLibraryDelete", () => {
     await enqueueLibraryUpsert(manga({ mal_id: 3 }));
     await enqueueVolumeUpdate({ id: 20, mal_id: 3, owned: true });
     await enqueueLibraryDelete(2);
-    await expect(db.outboxLibrary.get(3)).resolves.toMatchObject({ op: "upsert" });
-    await expect(db.outboxVolumes.where("mal_id").equals(3).count()).resolves.toBe(1);
+    await expect(db.outboxLibrary.get(3)).resolves.toMatchObject({
+      op: "upsert",
+    });
+    await expect(
+      db.outboxVolumes.where("mal_id").equals(3).count(),
+    ).resolves.toBe(1);
   });
 });
 
@@ -182,7 +203,9 @@ describe("enqueueLibraryPatch", () => {
       "",
       null,
     ])("accepts %p", async (url) => {
-      await expect(enqueueLibraryPatch(2, { image_url_jpg: url })).resolves.not.toThrow();
+      await expect(
+        enqueueLibraryPatch(2, { image_url_jpg: url }),
+      ).resolves.not.toThrow();
     });
 
     it.each([
@@ -195,9 +218,9 @@ describe("enqueueLibraryPatch", () => {
     ])("rejects %p", async (url) => {
       // The stored value is rendered as an <img src>; anything that is
       // not http(s) or app-relative has no business reaching it.
-      await expect(enqueueLibraryPatch(2, { image_url_jpg: url })).rejects.toThrow(
-        /http\(s\) or app-relative/,
-      );
+      await expect(
+        enqueueLibraryPatch(2, { image_url_jpg: url }),
+      ).rejects.toThrow(/http\(s\) or app-relative/);
     });
 
     it("does not queue anything when validation rejects", async () => {
@@ -223,11 +246,14 @@ describe("enqueueLibraryPatch", () => {
       expect(row.author).toMatchObject({ name: "Kentaro Miura" });
     });
 
-    it.each([[null], [""], ["   "]])("clears the author for %p", async (value) => {
-      await enqueueLibraryPatch(2, { author: value });
-      expect((await payload()).author).toBeNull();
-      expect((await db.library.get(2)).author).toBeNull();
-    });
+    it.each([[null], [""], ["   "]])(
+      "clears the author for %p",
+      async (value) => {
+        await enqueueLibraryPatch(2, { author: value });
+        expect((await payload()).author).toBeNull();
+        expect((await db.library.get(2)).author).toBeNull();
+      },
+    );
   });
 
   it("merges successive patches into one pending op", async () => {
@@ -273,7 +299,12 @@ describe("enqueueVolumeUpdate", () => {
 
   describe("merging", () => {
     it("keeps columns the new patch did not touch", async () => {
-      await enqueueVolumeUpdate({ id: 10, mal_id: 2, price: 7.99, store: "Fnac" });
+      await enqueueVolumeUpdate({
+        id: 10,
+        mal_id: 2,
+        price: 7.99,
+        store: "Fnac",
+      });
       await enqueueVolumeUpdate({ id: 10, mal_id: 2, owned: true });
       const r = await row(10);
       expect(r.price).toBe(7.99);
@@ -357,5 +388,58 @@ describe("enqueueVolumeUpdate", () => {
       await enqueueVolumeUpdate({ id: 10, mal_id: 2, loan: null });
       expect((await op(10)).payload.loan).toBeNull();
     });
+  });
+});
+
+describe("refetchLibraryEntry (scoped realtime refresh)", () => {
+  // The endpoint answers `Vec<LibraryEntry>`: one row when the series is
+  // in the library, an empty array once it has been deleted — with a
+  // 200 in both cases. Handing the raw array to the cache writer made
+  // the whole scoped path a silent no-op; these pin the unwrap.
+  it("caches the single row the server returns", async () => {
+    axios.get.mockResolvedValueOnce({ data: [manga({ name: "Fresh" })] });
+    await expect(refetchLibraryEntry(2)).resolves.toMatchObject({
+      name: "Fresh",
+    });
+    await expect(db.library.get(2)).resolves.toMatchObject({ name: "Fresh" });
+  });
+
+  it("drops the local row and its volumes when the server returns an empty array", async () => {
+    await db.library.put(manga());
+    await db.volumes.bulkPut([
+      { id: 1, mal_id: 2, vol_num: 1 },
+      { id: 2, mal_id: 2, vol_num: 2 },
+    ]);
+    axios.get.mockResolvedValueOnce({ data: [] });
+    await expect(refetchLibraryEntry(2)).resolves.toBeNull();
+    await expect(db.library.get(2)).resolves.toBeUndefined();
+    await expect(db.volumes.where("mal_id").equals(2).count()).resolves.toBe(0);
+  });
+
+  it("treats a 404 the same way", async () => {
+    await db.library.put(manga());
+    axios.get.mockRejectedValueOnce({ response: { status: 404 } });
+    await expect(refetchLibraryEntry(2)).resolves.toBeNull();
+    await expect(db.library.get(2)).resolves.toBeUndefined();
+  });
+
+  it("does not drop a row the outbox still owns", async () => {
+    await enqueueLibraryUpsert(manga({ mal_id: -9, name: "Offline add" }));
+    axios.get.mockResolvedValueOnce({ data: [] });
+    await refetchLibraryEntry(-9);
+    await expect(db.library.get(-9)).resolves.toMatchObject({
+      name: "Offline add",
+    });
+  });
+
+  it("rethrows a non-404 failure so the caller can fall back", async () => {
+    axios.get.mockRejectedValueOnce({ response: { status: 500 } });
+    await expect(refetchLibraryEntry(2)).rejects.toBeTruthy();
+  });
+
+  it("still accepts a bare object, should the endpoint ever change shape", async () => {
+    axios.get.mockResolvedValueOnce({ data: manga({ name: "Bare" }) });
+    await refetchLibraryEntry(2);
+    await expect(db.library.get(2)).resolves.toMatchObject({ name: "Bare" });
   });
 });
