@@ -396,33 +396,150 @@ db.version(15).stores({
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 
-/** Replace the entire library cache. */
+/*
+ * 守 · Outbox-aware cache writes.
+ *
+ * Every refetch path — React Query's window-focus refetch, a websocket
+ * invalidation (including the echo of this device's own flush, since
+ * `SyncEvent` carries no origin), and `syncOutbox`'s post-flush refetch —
+ * lands in the `cache*` functions below. They used to be plain
+ * replace-all writes: clear the table, bulkPut the server snapshot.
+ *
+ * That is exactly wrong while the outbox still holds work. The server
+ * snapshot predates the pending op by definition, so the rewrite reverts
+ * the optimistic row to its pre-edit state; the edit then "comes back"
+ * once the flush lands and the next refetch runs. A series added
+ * offline is worse — the snapshot doesn't contain it at all, so the
+ * clear() wipes it from the shelf until the flush. `useUpdateVolume`
+ * closed one trigger of this (it stopped invalidating on mutation) and
+ * documented the failure mode; the focus and websocket triggers were
+ * still open. Guarding here, at the single choke point every refetch
+ * goes through, closes all of them at once.
+ *
+ * Rule: a row with an op waiting in its outbox table is the user's
+ * intent and outranks the snapshot. Concretely —
+ *   - pending `delete`   → the server row must NOT be resurrected;
+ *   - any other pending op → the local row survives the rewrite as-is;
+ *   - everything else    → server snapshot wins, as before.
+ * A pending bulk-mark covers every volume of its series *and* the
+ * series row itself (`applyBulkMarkLocal` rewrites `volumes_owned`).
+ *
+ * Once the outbox drains, the guards are empty sets and each function
+ * degrades to the original replace-all — a fully synced client behaves
+ * exactly as it did before.
+ */
+
+/** Library rows the outbox says to keep, and those it says are gone. */
+async function libraryGuards() {
+  const [libOps, bulkOps] = await Promise.all([
+    db.outboxLibrary.toArray(),
+    db.outboxBulkMark.toArray(),
+  ]);
+  const keep = new Set();
+  const dropped = new Set();
+  for (const op of libOps) (op.op === "delete" ? dropped : keep).add(op.mal_id);
+  for (const op of bulkOps) keep.add(op.mal_id);
+  return { keep, dropped };
+}
+
+/** Volume rows the outbox says to keep — by volume id, or by whole series. */
+async function volumeGuards() {
+  const [volOps, bulkOps] = await Promise.all([
+    db.outboxVolumes.toArray(),
+    db.outboxBulkMark.toArray(),
+  ]);
+  return {
+    ids: new Set(volOps.map((op) => op.id)),
+    series: new Set(bulkOps.map((op) => op.mal_id)),
+  };
+}
+
+const isGuardedVolume = (row, g) =>
+  g.ids.has(row.id) || g.series.has(row.mal_id);
+
+/** Local volume rows that must outlive a rewrite, optionally scoped to one series. */
+async function guardedVolumeRows(g, mal_id) {
+  const byId = g.ids.size ? await db.volumes.bulkGet([...g.ids]) : [];
+  const bySeries = g.series.size
+    ? await db.volumes.where("mal_id").anyOf([...g.series]).toArray()
+    : [];
+  const seen = new Set();
+  const rows = [];
+  for (const row of [...byId, ...bySeries]) {
+    if (!row || seen.has(row.id)) continue;
+    if (mal_id !== undefined && row.mal_id !== mal_id) continue;
+    seen.add(row.id);
+    rows.push(row);
+  }
+  return rows;
+}
+
+/** Replace the library cache with the server snapshot, minus rows the outbox still owns. */
 export async function cacheLibrary(library) {
-  await db.transaction("rw", db.library, async () => {
-    await db.library.clear();
-    if (library?.length) await db.library.bulkPut(library);
-  });
+  await db.transaction(
+    "rw",
+    db.library,
+    db.outboxLibrary,
+    db.outboxBulkMark,
+    async () => {
+      const { keep, dropped } = await libraryGuards();
+      const preserved = keep.size
+        ? (await db.library.bulkGet([...keep])).filter(Boolean)
+        : [];
+      await db.library.clear();
+      const fromServer = (library ?? []).filter(
+        (row) => !keep.has(row.mal_id) && !dropped.has(row.mal_id),
+      );
+      if (fromServer.length) await db.library.bulkPut(fromServer);
+      if (preserved.length) await db.library.bulkPut(preserved);
+    },
+  );
 }
 
-/** Replace volumes for a given mal_id. */
+/** Replace one series' volumes with the server snapshot, minus rows the outbox still owns. */
 export async function cacheVolumesForManga(mal_id, volumes) {
-  await db.transaction("rw", db.volumes, async () => {
-    await db.volumes.where("mal_id").equals(mal_id).delete();
-    if (volumes?.length) await db.volumes.bulkPut(volumes);
-  });
+  await db.transaction(
+    "rw",
+    db.volumes,
+    db.outboxVolumes,
+    db.outboxBulkMark,
+    async () => {
+      const g = await volumeGuards();
+      const preserved = await guardedVolumeRows(g, mal_id);
+      await db.volumes.where("mal_id").equals(mal_id).delete();
+      const fromServer = (volumes ?? []).filter(
+        (row) => !isGuardedVolume(row, g),
+      );
+      if (fromServer.length) await db.volumes.bulkPut(fromServer);
+      if (preserved.length) await db.volumes.bulkPut(preserved);
+    },
+  );
 }
 
-/** Replace all volumes (for /profile). */
+/** Replace every volume with the server snapshot, minus rows the outbox still owns. */
 export async function cacheAllVolumes(volumes) {
-  await db.transaction("rw", db.volumes, async () => {
-    await db.volumes.clear();
-    if (volumes?.length) await db.volumes.bulkPut(volumes);
-  });
+  await db.transaction(
+    "rw",
+    db.volumes,
+    db.outboxVolumes,
+    db.outboxBulkMark,
+    async () => {
+      const g = await volumeGuards();
+      const preserved = await guardedVolumeRows(g);
+      await db.volumes.clear();
+      const fromServer = (volumes ?? []).filter(
+        (row) => !isGuardedVolume(row, g),
+      );
+      if (fromServer.length) await db.volumes.bulkPut(fromServer);
+      if (preserved.length) await db.volumes.bulkPut(preserved);
+    },
+  );
 }
 
-/** Store / fetch the single settings row. */
+/** Store the single settings row — unless a newer choice is still waiting in the outbox. */
 export async function cacheSettings(settings) {
   if (!settings) return;
+  if (await db.outboxSettings.get(SETTINGS_KEY)) return;
   await db.settings.put({ key: SETTINGS_KEY, ...settings });
 }
 
@@ -434,6 +551,9 @@ export async function cacheSettings(settings) {
  */
 export async function cacheAuthor(detail) {
   if (!detail || detail.mal_id == null) return;
+  // Same rule as the library: a pending author patch or delete outranks
+  // the snapshot — don't overwrite the edit, don't resurrect the row.
+  if (await db.outboxAuthors.get(detail.mal_id)) return;
   await db.authors.put({ ...detail, ts: Date.now() });
 }
 
@@ -509,13 +629,23 @@ export async function readSnapshots() {
  */
 export async function cacheCoffretsForManga(mal_id, coffrets) {
   if (mal_id == null) return;
-  await db.transaction("rw", db.coffrets, async () => {
+  await db.transaction("rw", db.coffrets, db.outboxCoffrets, async () => {
+    const ops = await db.outboxCoffrets
+      .where("mal_id")
+      .equals(mal_id)
+      .toArray();
+    const keep = new Set();
+    const dropped = new Set();
+    for (const op of ops) (op.op === "delete" ? dropped : keep).add(op.id);
+    const preserved = keep.size
+      ? (await db.coffrets.bulkGet([...keep])).filter(Boolean)
+      : [];
     await db.coffrets.where("mal_id").equals(mal_id).delete();
-    if (coffrets?.length) {
-      await db.coffrets.bulkPut(
-        coffrets.map((c) => ({ ...c, mal_id })),
-      );
-    }
+    const fromServer = (coffrets ?? [])
+      .filter((c) => !keep.has(c.id) && !dropped.has(c.id))
+      .map((c) => ({ ...c, mal_id }));
+    if (fromServer.length) await db.coffrets.bulkPut(fromServer);
+    if (preserved.length) await db.coffrets.bulkPut(preserved);
   });
 }
 
