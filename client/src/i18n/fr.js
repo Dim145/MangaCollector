@@ -803,6 +803,8 @@ export default {
     photoOpen: "Utiliser une photo",
     photoReading: "Lecture de la photo…",
     photoNothing: "Aucun code trouvé — réessaie",
+    torch: "Torche",
+    zoom: "Zoom",
     scannedCount: "{n} scannés",
     lookingUp: "ISBN {isbn} — recherche…",
     foundMatching: "Trouvé « {title} »{vol} — correspondance MAL…",

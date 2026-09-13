@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { detectFromImage, startScan } from "@/lib/barcode.js";
+import { cameraControls, detectFromImage, startScan } from "@/lib/barcode.js";
 import { normalizeISBN } from "@/lib/isbn.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -36,9 +36,14 @@ export default function BarcodeScanner({
   const [error, setError] = useState(null);
   const [state, setState] = useState("requesting");
   const [manualOpen, setManualOpen] = useState(false);
-  // 写 · The still-image path — the way back in when the camera is
-  // refused or simply absent.
+  // 灯 · What this camera can do beyond pointing, discovered once the
+  // track is live; and 写 · the still-image path, which is the way back
+  // in when the camera is refused or absent.
+  const trackRef = useRef(null);
   const fileRef = useRef(null);
+  const [caps, setCaps] = useState({ torch: false, zoom: null });
+  const [torchOn, setTorchOn] = useState(false);
+  const [zoom, setZoom] = useState(null);
   const [reading, setReading] = useState(false);
   const [photoMiss, setPhotoMiss] = useState(false);
   const t = useT();
@@ -76,6 +81,14 @@ export default function BarcodeScanner({
         video.setAttribute("muted", "true");
         await video.play();
         setState("running");
+
+        const track = stream.getVideoTracks()[0] ?? null;
+        trackRef.current = track;
+        if (track) {
+          const controls = cameraControls(track);
+          setCaps({ torch: controls.torch, zoom: controls.zoom });
+          if (controls.zoom) setZoom(controls.zoom.current);
+        }
 
         stopFnRef.current = await startScan(video, (raw) => {
           if (disposed) return;
@@ -122,13 +135,39 @@ export default function BarcodeScanner({
           if (stopFnRef.current) await stopFnRef.current();
         } catch {
           /* ignore */
-        }        if (stream) stream.getTracks().forEach((t) => t.stop());
+        }
+        // Put the torch out before releasing the track: on several
+        // Android builds the LED stays lit until the app is killed.
+        const track = trackRef.current;
+        if (track) {
+          try {
+            await cameraControls(track).setTorch(false);
+          } catch {
+            /* ignore */
+          }
+        }
+        trackRef.current = null;
+        if (stream) stream.getTracks().forEach((t) => t.stop());
       })();
     };
     // manualOpen is read by the Esc handler above; re-attach the
     // listener when it flips so the branching stays correct without
     // a ref dance.
   }, [manualOpen]);
+
+  const toggleTorch = async () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const next = !torchOn;
+    if (await cameraControls(track).setTorch(next)) setTorchOn(next);
+    else setCaps((c) => ({ ...c, torch: false }));
+  };
+
+  const applyZoom = (value) => {
+    setZoom(value);
+    const track = trackRef.current;
+    if (track) cameraControls(track).setZoom(value);
+  };
 
   // 写 · A photo instead of a live camera: the same `onDetect` path, so
   // nothing downstream knows the difference.
@@ -344,6 +383,48 @@ export default function BarcodeScanner({
                 onClick={() => setManualOpen(true)}
                 t={t}
               />
+            </div>
+          )}
+
+          {state === "running" && (caps.torch || caps.zoom) && (
+            <div className="mt-3 flex items-center gap-4 border-t border-border/60 pt-3">
+              {caps.torch && (
+                <button
+                  type="button"
+                  onClick={toggleTorch}
+                  aria-pressed={torchOn}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] transition ${
+                    torchOn
+                      ? "border-gold bg-gold/20 text-gold"
+                      : "border-border text-washi-muted hover:border-gold/60 hover:text-washi"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="font-jp text-[13px] leading-none"
+                  >
+                    灯
+                  </span>
+                  {t("scan.torch")}
+                </button>
+              )}
+              {caps.zoom && (
+                <label className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-washi-dim">
+                    {t("scan.zoom")}
+                  </span>
+                  <input
+                    type="range"
+                    min={caps.zoom.min}
+                    max={caps.zoom.max}
+                    step={caps.zoom.step}
+                    value={zoom ?? caps.zoom.min}
+                    onChange={(e) => applyZoom(Number(e.target.value))}
+                    aria-label={t("scan.zoom")}
+                    className="h-1 min-w-0 flex-1 cursor-pointer accent-[var(--gold)]"
+                  />
+                </label>
+              )}
             </div>
           )}
 

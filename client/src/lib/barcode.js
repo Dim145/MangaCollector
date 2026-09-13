@@ -152,3 +152,55 @@ async function downscale(bitmap, max) {
     return bitmap;
   }
 }
+
+/**
+ * 灯 · What this particular camera can do beyond pointing: a torch for a
+ * dark spine, a zoom for a barcode the lens will not come close enough
+ * to. Both are optional everywhere and absent on most desktops, so the
+ * caller shows a control only when the capability is real.
+ *
+ * `applyConstraints` rejects on hardware that advertises a capability it
+ * cannot actually honour, so every setter reports success rather than
+ * throwing at the UI.
+ */
+export function cameraControls(track) {
+  const caps =
+    typeof track?.getCapabilities === "function"
+      ? (track.getCapabilities() ?? {})
+      : {};
+  const settings =
+    typeof track?.getSettings === "function" ? (track.getSettings() ?? {}) : {};
+
+  const zoomCap = caps.zoom;
+  const zoom =
+    zoomCap &&
+    Number.isFinite(zoomCap.min) &&
+    Number.isFinite(zoomCap.max) &&
+    zoomCap.max > zoomCap.min
+      ? {
+          min: zoomCap.min,
+          max: zoomCap.max,
+          step:
+            Number.isFinite(zoomCap.step) && zoomCap.step > 0
+              ? zoomCap.step
+              : 0.1,
+          current: Number.isFinite(settings.zoom) ? settings.zoom : zoomCap.min,
+        }
+      : null;
+
+  const apply = async (advanced) => {
+    try {
+      await track.applyConstraints({ advanced: [advanced] });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  return {
+    torch: Boolean(caps.torch),
+    zoom,
+    setTorch: (on) => apply({ torch: Boolean(on) }),
+    setZoom: (value) => apply({ zoom: value }),
+  };
+}

@@ -789,6 +789,8 @@ export default {
     photoOpen: "Usar una foto",
     photoReading: "Leyendo la foto…",
     photoNothing: "Ningún código encontrado — inténtalo de nuevo",
+    torch: "Linterna",
+    zoom: "Zoom",
     scannedCount: "{n} escaneados",
     lookingUp: "ISBN {isbn} — buscando…",
     foundMatching: "Encontrado «{title}»{vol} — buscando en MAL…",

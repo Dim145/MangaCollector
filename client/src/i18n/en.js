@@ -778,6 +778,8 @@ export default {
     photoOpen: "Use a photo",
     photoReading: "Reading the photo…",
     photoNothing: "No barcode found — try again",
+    torch: "Torch",
+    zoom: "Zoom",
     scannedCount: "{n} scanned",
     lookingUp: "ISBN {isbn} — looking up…",
     foundMatching: 'Found "{title}"{vol} — matching on MAL…',
