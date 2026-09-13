@@ -50,6 +50,8 @@ export default {
   },
   nav: {
     scan: "Scanner un code-barres",
+    badge_library: "{n} prêt(s) en retard",
+    badge_calendar: "{n} tome(s) à paraître ce mois-ci",
     library: "Bibliothèque",
     add: "Ajouter",
     stats: "Stats",

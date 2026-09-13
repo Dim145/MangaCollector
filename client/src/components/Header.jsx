@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import ProfileButton from "./ProfileButton";
 import InstallPrompt from "./InstallPrompt";
 import { useAuth } from "@/hooks/useAuth.js";
+import { useNavCounters } from "@/hooks/useNavCounters.js";
 import { useT } from "@/i18n/index.jsx";
 
 // 図 · SVG icons reused across both nav surfaces. Lifted out of
@@ -155,6 +156,9 @@ export default function Header() {
   // every navigation — an unnecessary round-trip for a value that
   // can't change between navigations.
   const { isAuthenticated } = useAuth();
+  // 数 · Badges: overdue loans on the library, tomes due out this month
+  // on the calendar. Cached rows only — no request behind the header.
+  const counters = useNavCounters(isAuthenticated);
   const TOP_NAV_ITEMS = TOP_NAV_ITEMS_BASE.map((item) => ({
     ...item,
     label: t(`nav.${item.key}`),
@@ -246,6 +250,12 @@ export default function Header() {
                 >
                   {item.icon}
                   <span>{item.label}</span>
+                  <NavBadge
+                    count={counters[item.key] ?? 0}
+                    label={t(`nav.badge_${item.key}`, {
+                      n: counters[item.key] ?? 0,
+                    })}
+                  />
                 </NavLink>
               ))}
             </nav>
@@ -342,6 +352,12 @@ export default function Header() {
                           {item.icon}
                         </span>
                         <span>{item.label}</span>
+                        <NavBadge
+                          count={counters[item.key] ?? 0}
+                          label={t(`nav.badge_${item.key}`, {
+                            n: counters[item.key] ?? 0,
+                          })}
+                        />
                         {isActive && (
                           <span className="absolute -top-0.5 left-1/2 h-1 w-6 -translate-x-1/2 rounded-full bg-hanko" />
                         )}
@@ -355,5 +371,22 @@ export default function Header() {
         </nav>
       )}
     </>
+  );
+}
+
+/**
+ * 数 · A small count pinned to a nav item — hidden at zero. The label
+ * carries the meaning for screen readers ("2 overdue loans").
+ */
+function NavBadge({ count, label }) {
+  if (!count) return null;
+  return (
+    <span
+      aria-label={label}
+      title={label}
+      className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-hanko px-1 font-mono text-[9px] font-bold leading-none tabular-nums text-washi shadow-[0_0_0_2px_var(--ink-0)]"
+    >
+      {count > 99 ? "99+" : count}
+    </span>
   );
 }

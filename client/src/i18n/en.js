@@ -47,6 +47,8 @@ export default {
   },
   nav: {
     scan: "Scan a barcode",
+    badge_library: "{n} overdue loan(s)",
+    badge_calendar: "{n} tome(s) out this month",
     library: "Library",
     add: "Add",
     stats: "Stats",
