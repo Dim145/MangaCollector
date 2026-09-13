@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeLibraryStats } from "./libraryStats.js";
+import { computeDoubles, computeLibraryStats } from "./libraryStats.js";
 
 /*
  * `computeLibraryStats` is the single source of truth behind the
@@ -58,7 +58,9 @@ describe("computeLibraryStats", () => {
     // `volumes: 0` means "MAL doesn't know yet" — owning 3 of an
     // unknown total is not completion, and the `v > 0` guard is what
     // keeps the profile page from claiming otherwise.
-    const stats = computeLibraryStats([series({ volumes: 0, volumes_owned: 3 })]);
+    const stats = computeLibraryStats([
+      series({ volumes: 0, volumes_owned: 3 }),
+    ]);
     expect(stats.seriesComplete).toBe(0);
   });
 
@@ -76,7 +78,9 @@ describe("computeLibraryStats", () => {
   });
 
   it("reports 0% rather than NaN when no series has a volume count", () => {
-    const stats = computeLibraryStats([series({ volumes: 0, volumes_owned: 0 })]);
+    const stats = computeLibraryStats([
+      series({ volumes: 0, volumes_owned: 0 }),
+    ]);
     expect(stats.completionPct).toBe(0);
     expect(Number.isNaN(stats.completionPct)).toBe(false);
   });
@@ -144,6 +148,70 @@ describe("computeLibraryStats", () => {
     it("survives a series whose genres field is missing", () => {
       expect(() => computeLibraryStats([{ volumes: 1 }])).not.toThrow();
       expect(computeLibraryStats([{ volumes: 1 }]).topGenres).toEqual([]);
+    });
+  });
+});
+
+describe("computeDoubles", () => {
+  const NOW = Date.UTC(2026, 8, 13);
+  const vol = (over) => ({
+    id: 1,
+    mal_id: 13,
+    owned: true,
+    price: 7.5,
+    extra_copies: 0,
+    release_date: null,
+    ...over,
+  });
+
+  it("returns zeros for nothing, junk and single copies", () => {
+    const zero = {
+      extraCopies: 0,
+      tomes: 0,
+      series: 0,
+      value: 0,
+      pricedTomes: 0,
+    };
+    expect(computeDoubles(undefined, NOW)).toEqual(zero);
+    expect(computeDoubles("nope", NOW)).toEqual(zero);
+    expect(
+      computeDoubles([vol(), vol({ id: 2, extra_copies: "many" })], NOW),
+    ).toEqual(zero);
+  });
+
+  it("sums extras, counts tomes and distinct series, prices the estimate", () => {
+    const rows = [
+      vol({ id: 1, extra_copies: 1 }),
+      vol({ id: 2, extra_copies: 2, price: 10 }),
+      vol({ id: 3, mal_id: 2, extra_copies: 1, price: null }),
+    ];
+    expect(computeDoubles(rows, NOW)).toEqual({
+      extraCopies: 4,
+      tomes: 3,
+      series: 2,
+      value: 27.5,
+      pricedTomes: 2,
+    });
+  });
+
+  it("ignores copies that are not on the shelf", () => {
+    const rows = [
+      vol({ id: 1, owned: false, extra_copies: 3 }),
+      vol({
+        id: 2,
+        extra_copies: 2,
+        release_date: new Date(NOW + 86400000).toISOString(),
+      }),
+      vol({ id: 3, extra_copies: -1 }),
+      vol({
+        id: 4,
+        extra_copies: 1,
+        release_date: new Date(NOW - 86400000).toISOString(),
+      }),
+    ];
+    expect(computeDoubles(rows, NOW)).toMatchObject({
+      extraCopies: 1,
+      tomes: 1,
     });
   });
 });

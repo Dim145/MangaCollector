@@ -1581,6 +1581,15 @@ export default {
       premiumHint: "Supplément moyen payé par tome collector.",
       empty: "Marque un tome collector pour voir le surcoût.",
     },
+    doubles: {
+      label: "DOUBLES · 重",
+      title: "En double",
+      unit: "exemplaires en plus",
+      spread: "{tomes} tomes · {series} séries",
+      valueLabel: "Immobilisé dans les doubles",
+      valueHint: "En supposant que chaque exemplaire en plus a coûté le prix du premier.",
+      empty: "Chaque tome n'est là qu'une fois — aucun double pour l'instant.",
+    },
     coffret: {
       label: "COFFRETS · 盒",
       title: "Économies coffret",
@@ -2130,6 +2139,7 @@ export default {
     multipleSeriesShort: "séries",
     volumesUnit: "tomes",
     completionLabel: "complétion",
+    doublesLabel: "doubles",
     genreSignatureAria: "Empreinte par genre du catalogue",
     genreSignatureTitle: "Empreinte par genre",
     genreSignatureHint: "sur {n} séries",

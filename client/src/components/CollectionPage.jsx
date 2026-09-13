@@ -4,6 +4,8 @@ import DefaultBackground from "./DefaultBackground";
 import CoverImage from "./ui/CoverImage.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
+import { useAllVolumes } from "@/hooks/useVolumes.js";
+import { computeDoubles } from "@/utils/libraryStats.js";
 import { useCollection } from "@/hooks/useCollection.js";
 import { hasToBlurImage } from "@/utils/library.js";
 import { useT } from "@/i18n/index.jsx";
@@ -52,6 +54,14 @@ export default function CollectionPage({ kind = "publisher" }) {
     name: targetName,
     library,
   });
+
+  // 重 · Doubles within this corpus — volumes of the matching series
+  // only. Shown as a fourth headline figure when there is at least one.
+  const { data: volumes } = useAllVolumes();
+  const doubles = useMemo(() => {
+    const ids = new Set((matches ?? []).map((m) => m.mal_id));
+    return computeDoubles((volumes ?? []).filter((v) => ids.has(v.mal_id)));
+  }, [matches, volumes]);
 
   // Per-kind labels picked from the i18n tree. Avoids a sprawl of
   // ternary expressions in the JSX below; localisation stays a
@@ -120,17 +130,14 @@ export default function CollectionPage({ kind = "publisher" }) {
           className="pointer-events-none absolute -left-24 -bottom-24 -z-10 h-72 w-72 rounded-full bg-gold/10 blur-3xl"
         />
         <CornerWatermark kanji={labels.watermarkLeft} accent="hanko" />
-        <CornerWatermark
-          kanji={labels.watermarkRight}
-          accent="gold"
-          right
-        />
+        <CornerWatermark kanji={labels.watermarkRight} accent="gold" right />
 
         <Hero
           kind={kind}
           labels={labels}
           displayName={displayName}
           stats={stats}
+          doubles={doubles}
           t={t}
         />
 
@@ -165,9 +172,7 @@ export default function CollectionPage({ kind = "publisher" }) {
                 because "Édition deluxe" can come from Glénat AND
                 Pika AND Kana, and the user often wants to know
                 which publishers have invested in that format. */}
-            {kind === "edition" && (
-              <PublishersStrip matches={matches} t={t} />
-            )}
+            {kind === "edition" && <PublishersStrip matches={matches} t={t} />}
 
             <PublicationsSection
               matches={matches}
@@ -201,7 +206,8 @@ export default function CollectionPage({ kind = "publisher" }) {
 
 // ─── Hero ──────────────────────────────────────────────────────────
 
-function Hero({ kind, labels, displayName, stats, t }) {
+function Hero({ kind, labels, displayName, stats, doubles, t }) {
+  const showDoubles = (doubles?.extraCopies ?? 0) > 0;
   return (
     <header className="relative mb-12 animate-fade-up md:mb-16">
       {/* Top kicker rule — the imprint catalog signature row.
@@ -243,7 +249,13 @@ function Hero({ kind, labels, displayName, stats, t }) {
         {/* Headline stats — three numbers laid as an editorial
             triad. Identical shape to AuthorPage so the page reads
             as a sister surface. */}
-        <dl className="grid grid-cols-3 gap-4 sm:gap-8 md:max-w-xs">
+        <dl
+          className={`grid gap-4 sm:gap-8 ${
+            showDoubles
+              ? "grid-cols-2 sm:grid-cols-4 md:max-w-md"
+              : "grid-cols-3 md:max-w-xs"
+          }`}
+        >
           <HeadlineStat
             value={stats.seriesCount}
             label={
@@ -263,6 +275,13 @@ function Hero({ kind, labels, displayName, stats, t }) {
             label={t("collection.completionLabel")}
             kanji="完"
           />
+          {showDoubles && (
+            <HeadlineStat
+              value={doubles.extraCopies}
+              label={t("collection.doublesLabel")}
+              kanji="重"
+            />
+          )}
         </dl>
       </div>
 
@@ -550,8 +569,7 @@ function PosterCard({ manga, index, adult_content_level, onOpen, t }) {
               className="block h-full bg-gradient-to-r from-moegi/70 via-moegi to-moegi-bright transition-[width]"
               style={{
                 width: `${pct}%`,
-                boxShadow:
-                  pct > 0 ? "0 0 6px rgba(163,201,97,0.35)" : "none",
+                boxShadow: pct > 0 ? "0 0 6px rgba(163,201,97,0.35)" : "none",
               }}
             />
           </div>
@@ -647,11 +665,8 @@ function CornerWatermark({ kanji, accent = "hanko", right = false }) {
   // 100 chars wide kanji watermark in the page corner. Different
   // from AuthorPage's so the two surfaces are visually distinct
   // even when seen back-to-back.
-  const colour =
-    accent === "gold" ? "text-gold/[0.05]" : "text-hanko/[0.04]";
-  const positional = right
-    ? "-bottom-6 left-2"
-    : "-top-2 right-3";
+  const colour = accent === "gold" ? "text-gold/[0.05]" : "text-hanko/[0.04]";
+  const positional = right ? "-bottom-6 left-2" : "-top-2 right-3";
   const rotate = right ? "rotate(-8deg)" : "rotate(8deg)";
   return (
     <span

@@ -1552,6 +1552,15 @@ export default {
       premiumHint: "Average extra paid per collector volume.",
       empty: "Flag a volume as collector to see the premium.",
     },
+    doubles: {
+      label: "DOUBLES · 重",
+      title: "Held twice",
+      unit: "extra copies",
+      spread: "{tomes} tomes · {series} series",
+      valueLabel: "Tied up in doubles",
+      valueHint: "Assuming each extra copy cost what the first did.",
+      empty: "Every tome is held once — no doubles yet.",
+    },
     coffret: {
       label: "BOX SETS · 盒",
       title: "Bundled savings",
@@ -2095,6 +2104,7 @@ export default {
     multipleSeriesShort: "series",
     volumesUnit: "vols",
     completionLabel: "completion",
+    doublesLabel: "doubles",
     genreSignatureAria: "Catalogue genre fingerprint",
     genreSignatureTitle: "Genre fingerprint",
     genreSignatureHint: "across {n} series",

@@ -1562,6 +1562,15 @@ export default {
       premiumHint: "Sobrecoste medio por tomo coleccionista.",
       empty: "Marca un tomo como coleccionista para ver el extra.",
     },
+    doubles: {
+      label: "DUPLICADOS · 重",
+      title: "Por duplicado",
+      unit: "ejemplares extra",
+      spread: "{tomes} tomos · {series} series",
+      valueLabel: "Inmovilizado en duplicados",
+      valueHint: "Suponiendo que cada ejemplar extra costó lo que el primero.",
+      empty: "Cada tomo está una sola vez — sin duplicados por ahora.",
+    },
     coffret: {
       label: "CAJAS · 盒",
       title: "Ahorros en cajas",
@@ -2106,6 +2115,7 @@ export default {
     multipleSeriesShort: "series",
     volumesUnit: "tomos",
     completionLabel: "compleción",
+    doublesLabel: "duplicados",
     genreSignatureAria: "Huella por género del catálogo",
     genreSignatureTitle: "Huella por género",
     genreSignatureHint: "sobre {n} series",

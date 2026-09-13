@@ -5,22 +5,112 @@ import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
- * Three compact stat panels laid out in a 3-col grid:
+ * Four compact stat panels in a responsive grid:
  *   1. Collector insights — ratio + premium paid vs standard
  *   2. Coffret savings — estimated money saved by buying box-sets
  *   3. Next milestone — progress bar toward the next volume-count jalon
+ *   4. Doubles — copies held twice, and the money they tie up
  *
  * Each card has a distinctive accent so the user can scan the row and pick
  * the interesting one by colour alone.
  */
-export default function InsightCards({ collector, coffret, milestones, loading }) {
+export default function InsightCards({
+  collector,
+  coffret,
+  milestones,
+  doubles,
+  loading,
+}) {
   const t = useT();
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       <CollectorCard collector={collector} loading={loading} t={t} />
       <CoffretCard coffret={coffret} loading={loading} t={t} />
       <MilestoneCard milestones={milestones} loading={loading} t={t} />
+      <DoublesCard doubles={doubles} loading={loading} t={t} />
+    </div>
+  );
+}
+
+/* ─────────────────────────── Doubles ─────────────────────────── */
+
+/**
+ * 重 · Copies held beyond the first. The headline is the number of
+ * extra copies; below it, how many tomes and series they touch and —
+ * when those tomes have a price — an estimate of the money tied up,
+ * assuming each extra cost what the first did.
+ */
+function DoublesCard({ doubles, loading, t }) {
+  const { currency: currencySetting } = useContext(SettingsContext);
+  const d = doubles ?? {
+    extraCopies: 0,
+    tomes: 0,
+    series: 0,
+    value: 0,
+    pricedTomes: 0,
+  };
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-sakura/25 bg-gradient-to-br from-sakura/[0.05] via-ink-1/40 to-ink-1/40 p-5 backdrop-blur transition hover:border-sakura/50">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-6 -right-6 grid h-24 w-24 place-items-center rounded-full bg-gradient-to-br from-sakura/20 to-transparent blur-xl"
+      />
+      <div className="relative flex items-baseline gap-2">
+        <span
+          className="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-sakura to-sakura/70 text-ink-0 shadow-[0_1px_4px_rgba(245,194,210,0.55)]"
+          style={{ transform: "rotate(-4deg)" }}
+          title={t("analytics.doubles.title")}
+        >
+          <span className="font-jp text-[11px] font-bold leading-none">重</span>
+        </span>
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-sakura">
+          {t("analytics.doubles.label")}
+        </p>
+      </div>
+      <h3 className="mt-1 font-display text-base font-semibold italic text-washi">
+        {t("analytics.doubles.title")}
+      </h3>
+      {loading ? (
+        <Skeleton className="mt-4 h-8 w-32" />
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div>
+            <p className="font-display text-3xl font-semibold tabular-nums text-sakura">
+              {d.extraCopies}
+              <span className="ml-2 font-mono text-sm font-normal text-washi-dim">
+                {t("analytics.doubles.unit")}
+              </span>
+            </p>
+            {d.extraCopies > 0 && (
+              <p className="mt-0.5 text-[11px] text-washi-muted">
+                {t("analytics.doubles.spread", {
+                  tomes: d.tomes,
+                  series: d.series,
+                })}
+              </p>
+            )}
+          </div>
+          {d.value > 0 && (
+            <div className="border-t border-border/50 pt-2">
+              <p className="font-mono text-[9px] uppercase tracking-wider text-washi-dim">
+                {t("analytics.doubles.valueLabel")}
+              </p>
+              <p className="font-display text-lg font-semibold tabular-nums text-washi">
+                ≈ {formatCurrency(d.value, currencySetting)}
+              </p>
+              <p className="text-[10px] text-washi-muted">
+                {t("analytics.doubles.valueHint")}
+              </p>
+            </div>
+          )}
+          {d.extraCopies === 0 && (
+            <p className="text-xs text-washi-muted">
+              {t("analytics.doubles.empty")}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -142,7 +232,9 @@ function CoffretCard({ coffret, loading, t }) {
               <span className="font-semibold text-washi">
                 {coffret.distinctCount}
               </span>{" "}
-              {t("analytics.coffret.coffretsCount", { n: coffret.distinctCount })}{" "}
+              {t("analytics.coffret.coffretsCount", {
+                n: coffret.distinctCount,
+              })}{" "}
               •{" "}
               <span className="font-semibold text-washi">
                 {coffret.volumeCount}
@@ -152,7 +244,10 @@ function CoffretCard({ coffret, loading, t }) {
             {coffret.savingsPerVol > 0 && (
               <p className="mt-0.5">
                 {t("analytics.coffret.perVol", {
-                  amount: formatCurrency(coffret.savingsPerVol, currencySetting),
+                  amount: formatCurrency(
+                    coffret.savingsPerVol,
+                    currencySetting,
+                  ),
                 })}
               </p>
             )}

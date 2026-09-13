@@ -270,6 +270,7 @@ export default function StatsPage() {
                   collector={profileAnalytics.collector}
                   coffret={profileAnalytics.coffret}
                   milestones={profileAnalytics.milestones}
+                  doubles={profileAnalytics.doubles}
                   loading={profileAnalytics.loading}
                 />
               </div>

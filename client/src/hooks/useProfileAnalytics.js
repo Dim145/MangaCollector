@@ -1,6 +1,7 @@
 import { useDeferredValue, useMemo } from "react";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
+import { computeDoubles } from "@/utils/libraryStats.js";
 
 /**
  * Derive the full analytics bundle for /profile from the library + volumes
@@ -21,9 +22,7 @@ import { useAllVolumes } from "@/hooks/useVolumes.js";
  *     volume > 6 months old. Ignores series with no owned volumes.
  */
 
-const VOLUME_MILESTONES = [
-  10, 25, 50, 100, 250, 500, 1000, 2500, 5000,
-];
+const VOLUME_MILESTONES = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
 const SERIES_MILESTONES = [5, 10, 25, 50, 100, 250, 500, 1000];
 const STALE_THRESHOLD_MS = 180 * 24 * 60 * 60 * 1000; // ~6 months
 
@@ -84,7 +83,13 @@ export function useProfileAnalytics() {
     for (let i = 11; i >= 0; i -= 1) {
       const d = addMonths(now, -i);
       const key = monthKey(d);
-      if (key) buckets.set(key, { month: key, label: formatMonthLabel(key), amount: 0, count: 0 });
+      if (key)
+        buckets.set(key, {
+          month: key,
+          label: formatMonthLabel(key),
+          amount: 0,
+          count: 0,
+        });
     }
     let totalSpent = 0;
     let totalOwnedWithPrice = 0;
@@ -111,7 +116,12 @@ export function useProfileAnalytics() {
     for (let i = 11; i >= 0; i -= 1) {
       const d = addMonths(now, -i);
       const key = monthKey(d);
-      if (key) seriesBuckets.set(key, { month: key, label: formatMonthLabel(key), count: 0 });
+      if (key)
+        seriesBuckets.set(key, {
+          month: key,
+          label: formatMonthLabel(key),
+          count: 0,
+        });
     }
     for (const m of lib) {
       const key = monthKey(m.created_on);
@@ -190,14 +200,16 @@ export function useProfileAnalytics() {
     const coffretSavingsPerVol = looseAvg > 0 ? looseAvg - coffretAvg : 0;
     const coffretSavingsTotal =
       coffretSavingsPerVol > 0 ? coffretSavingsPerVol * coffretVols.length : 0;
-    const distinctCoffretCount = new Set(
-      coffretVols.map((v) => v.coffret_id),
-    ).size;
+    const distinctCoffretCount = new Set(coffretVols.map((v) => v.coffret_id))
+      .size;
 
     // ─── next milestone ──────────────────────────────────────────
     const ownedVolumeCount = owned.length;
     const seriesCount = lib.length;
-    const nextVolumeMilestone = nextMilestone(ownedVolumeCount, VOLUME_MILESTONES);
+    const nextVolumeMilestone = nextMilestone(
+      ownedVolumeCount,
+      VOLUME_MILESTONES,
+    );
     const nextSeriesMilestone = nextMilestone(seriesCount, SERIES_MILESTONES);
 
     // ─── reading stats ───────────────────────────────────────────
@@ -363,6 +375,8 @@ export function useProfileAnalytics() {
         readRatio,
         monthlyReads,
       },
+      // 重 · Doubles — copies beyond the first, and what they tie up.
+      doubles: computeDoubles(vols),
       middleGaps: middleGaps.slice(0, 8),
       stale: stale.slice(0, 6),
     };
