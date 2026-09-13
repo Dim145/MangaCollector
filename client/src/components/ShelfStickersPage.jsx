@@ -197,7 +197,7 @@ export default function ShelfStickersPage() {
                       aria-hidden="true"
                       className={`grid h-4 w-4 shrink-0 place-items-center rounded-sm border transition ${
                         checked
-                          ? "border-hanko bg-hanko text-washi"
+                          ? "border-hanko bg-hanko text-on-hanko"
                           : "border-border"
                       }`}
                     >
@@ -257,7 +257,7 @@ export default function ShelfStickersPage() {
           type="button"
           onClick={handlePrint}
           disabled={stickers.length === 0}
-          className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <svg
             viewBox="0 0 24 24"

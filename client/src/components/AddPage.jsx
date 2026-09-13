@@ -665,7 +665,7 @@ export default function AddPage() {
                   type="button"
                   onClick={acceptShareIntent}
                   disabled={!online}
-                  className="rounded-full bg-hanko px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full bg-hanko px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {t("share.bannerAccept")}
                 </button>
@@ -689,7 +689,7 @@ export default function AddPage() {
           disabled={!online}
           className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-hanko/30 bg-gradient-to-br from-hanko/20 via-ink-1/50 to-gold/5 p-5 text-left backdrop-blur transition hover:border-hanko/60 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-hanko text-washi shadow-lg glow-red">
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-hanko text-on-hanko shadow-lg glow-red">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -735,7 +735,7 @@ export default function AddPage() {
           onClick={() => setCustomEntry(false)}
           className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition ${
             !customEntry
-              ? "bg-hanko text-washi shadow-md"
+              ? "bg-hanko text-on-hanko shadow-md"
               : "text-washi-muted hover:text-washi"
           }`}
         >
@@ -745,7 +745,7 @@ export default function AddPage() {
           onClick={() => setCustomEntry(true)}
           className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider transition ${
             customEntry
-              ? "bg-hanko text-washi shadow-md"
+              ? "bg-hanko text-on-hanko shadow-md"
               : "text-washi-muted hover:text-washi"
           }`}
         >
@@ -807,7 +807,7 @@ export default function AddPage() {
               <button
                 onClick={handleSaveCustomEntry}
                 disabled={!customEntryTitle.trim() || !online}
-                className="rounded-full bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi shadow-lg transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-full bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-on-hanko shadow-lg transition hover:bg-hanko-deep active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {t("add.createEntry")}
               </button>
@@ -996,7 +996,7 @@ export default function AddPage() {
                 setRateLimited(null);
                 navigate("/settings");
               }}
-              className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright"
+              className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-on-hanko transition hover:bg-hanko-deep"
             >
               {t("common.openSettings")}
             </button>
@@ -1140,7 +1140,7 @@ function ScanMatchCard({
   return (
     <>
       <div className="border-b border-border p-4">
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
           {t("scan.isbnPrefix", { isbn: result.isbn })}
         </p>
         <p className="mt-1 text-xs text-washi-muted">
@@ -1295,7 +1295,7 @@ function ScanMatchCard({
             <button
               onClick={() => onConfirm({ missingVolumes: missing })}
               disabled={committing || !Number(result.volume)}
-              className="w-full rounded-lg bg-hanko px-4 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+              className="w-full rounded-lg bg-hanko px-4 py-2.5 text-sm font-semibold text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
             >
               {committing ? (
                 <span className="inline-flex items-center gap-2">
@@ -1336,7 +1336,7 @@ function ScanMatchCard({
             <button
               onClick={() => onConfirm({ missingVolumes: [] })}
               disabled={committing || !Number(result.volume)}
-              className="rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+              className="rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
             >
               {committing ? (
                 <span className="inline-flex items-center gap-2">
@@ -1412,7 +1412,7 @@ function NotFoundCard({ notFound, onRescan, onManual, onClose }) {
         <button
           type="button"
           onClick={onRescan}
-          className="rounded-lg bg-hanko px-4 py-2.5 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95"
+          className="rounded-lg bg-hanko px-4 py-2.5 text-sm font-semibold text-on-hanko transition hover:bg-hanko-deep active:scale-95"
         >
           {t("scan.scanAnother")}
         </button>

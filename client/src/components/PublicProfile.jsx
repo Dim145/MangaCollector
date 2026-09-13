@@ -89,7 +89,7 @@ export default function PublicProfile() {
               className="my-10 flex items-center justify-center gap-4"
             >
               <span className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-border" />
-              <span className="font-jp text-base text-hanko/70 tracking-[0.4em]">
+              <span className="font-jp text-base text-hanko-bright tracking-[0.4em]">
                 蔵書
               </span>
               <span className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-border" />
@@ -149,7 +149,7 @@ export default function PublicProfile() {
               </p>
               <Link
                 to="/"
-                className="font-display text-sm italic text-washi-muted transition hover:text-hanko"
+                className="font-display text-sm italic text-washi-muted transition hover:text-hanko-bright"
               >
                 MangaCollector
               </Link>
@@ -392,7 +392,7 @@ function PublicStat({ kanji, label, value, accent }) {
           {value}
         </span>
       </div>
-      <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim">
+      <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
         {label}
       </p>
     </div>
@@ -469,7 +469,7 @@ function PublicCard({ entry, index, blurAdult }) {
             <span className="font-jp text-5xl font-bold text-gold drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]">
               成
             </span>
-            <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-washi/80">
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-muted">
               {t("publicProfile.adultHidden")}
             </span>
           </div>

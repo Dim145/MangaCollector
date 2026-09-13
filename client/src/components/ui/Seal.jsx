@@ -222,11 +222,11 @@ export default function Seal({
         {label}
       </p>
       {earned && earnedAt ? (
-        <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim">
+        <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
           {formatDate(earnedAt)}
         </p>
       ) : (
-        <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim/60">
+        <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
           {t("seals.lockedHint")}
         </p>
       )}

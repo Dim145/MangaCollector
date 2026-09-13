@@ -35,7 +35,7 @@ export default function FriendsInsights({ overlap, t, loading }) {
         </p>
         <Link
           to="/friends"
-          className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.22em] text-washi transition hover:text-hanko"
+          className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.22em] text-washi transition hover:text-hanko-bright"
         >
           {t("stats.tomo.empty.cta")} →
         </Link>
@@ -89,13 +89,13 @@ function SharedHero({ top, friendTotal, t }) {
           aria-hidden="true"
           className="absolute right-3 top-3 inline-flex items-baseline gap-1 rounded-md border border-washi/60 bg-ink-1/90 px-3 py-1 font-display italic shadow-[0_6px_18px_-6px_rgba(0,0,0,0.6)]"
         >
-          <span className="font-jp text-base font-bold not-italic text-hanko">
+          <span className="font-jp text-base font-bold not-italic text-hanko-bright">
             友
           </span>
           <span className="font-display text-lg leading-none text-washi">
             {top.friend_count}
           </span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-washi-muted">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-muted">
             / {friendTotal}
           </span>
         </span>
@@ -173,7 +173,7 @@ function LatentRow({ entry, friendTotal, t }) {
             className="h-full w-full object-cover"
           />
         ) : (
-          <span className="flex h-full w-full items-center justify-center font-jp text-base font-bold text-hanko/40">
+          <span className="flex h-full w-full items-center justify-center font-jp text-base font-bold text-hanko-bright/40">
             巻
           </span>
         )}

@@ -78,7 +78,7 @@ function TopTomeCard({ top, currency, t, loading }) {
         {/* Hanko-style price stamp, rotated. */}
         <span
           aria-hidden="true"
-          className="absolute bottom-3 right-3 inline-flex items-baseline gap-1 rounded-md border border-hanko/70 bg-hanko/85 px-3 py-1 font-display text-xl italic text-washi shadow-[0_6px_18px_-6px_rgba(0,0,0,0.6)]"
+          className="absolute bottom-3 right-3 inline-flex items-baseline gap-1 rounded-md border border-hanko/70 bg-hanko/85 px-3 py-1 font-display text-xl italic text-on-hanko shadow-[0_6px_18px_-6px_rgba(0,0,0,0.6)]"
           style={{ transform: "rotate(-3deg)" }}
         >
           {formatCurrency(top.price, currency)}
@@ -234,7 +234,7 @@ function BasketEvolution({ data, currency, t, loading }) {
       </svg>
 
       {/* Month labels — thin row, every 3rd to avoid clutter. */}
-      <div className="mt-1 flex justify-between font-mono text-[9px] tabular-nums text-washi-dim">
+      <div className="mt-1 flex justify-between font-mono text-[10px] tabular-nums text-washi-dim">
         {data
           .filter((_, i) => i % 3 === 0)
           .map((b) => (

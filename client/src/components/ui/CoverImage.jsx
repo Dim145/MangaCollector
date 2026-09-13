@@ -125,7 +125,7 @@ export default function CoverImage({
         placeholderColor ? { backgroundColor: placeholderColor } : undefined
       }
     >
-      <span className="font-display text-4xl italic text-hanko/40 select-none">
+      <span className="font-display text-4xl italic text-hanko-bright/40 select-none">
         {fallbackKanji}
       </span>
     </div>

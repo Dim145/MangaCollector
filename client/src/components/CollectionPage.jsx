@@ -215,10 +215,10 @@ function Hero({ kind, labels, displayName, stats, doubles, t }) {
           nothing-else (imprints don't carry photo/MAL/edit
           actions, so no chips here). */}
       <div className="mb-6 flex flex-wrap items-baseline gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
           {labels.kicker}
         </span>
-        <span className="font-jp text-[11px] tracking-[0.4em] text-hanko/80">
+        <span className="font-jp text-[11px] tracking-[0.4em] text-hanko-bright">
           {labels.kanji}
         </span>
         <span className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent" />
@@ -315,7 +315,7 @@ function HeadlineStat({ value, label, kanji }) {
     <div className="relative">
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -top-3 -left-1 font-jp text-3xl font-bold leading-none text-hanko/15 sm:text-4xl"
+        className="pointer-events-none absolute -top-3 -left-1 font-jp text-3xl font-bold leading-none text-hanko-bright/15 sm:text-4xl"
       >
         {kanji}
       </span>
@@ -539,7 +539,7 @@ function PosterCard({ manga, index, adult_content_level, onOpen, t }) {
             imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-2 to-ink-3 font-display text-5xl italic text-hanko/30">
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-2 to-ink-3 font-display text-5xl italic text-hanko-bright/30">
             巻
           </div>
         )}
@@ -626,7 +626,7 @@ function NotFoundPanel({ title, backLabel }) {
       </h1>
       <Link
         to="/dashboard"
-        className="mt-6 inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-hanko transition hover:text-hanko-bright"
+        className="mt-6 inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-hanko-bright transition hover:text-hanko-bright"
       >
         ← {backLabel}
       </Link>
@@ -665,7 +665,7 @@ function CornerWatermark({ kanji, accent = "hanko", right = false }) {
   // 100 chars wide kanji watermark in the page corner. Different
   // from AuthorPage's so the two surfaces are visually distinct
   // even when seen back-to-back.
-  const colour = accent === "gold" ? "text-gold/[0.05]" : "text-hanko/[0.04]";
+  const colour = accent === "gold" ? "text-gold/[0.05]" : "text-hanko-bright/[0.04]";
   const positional = right ? "-bottom-6 left-2" : "-top-2 right-3";
   const rotate = right ? "rotate(-8deg)" : "rotate(8deg)";
   return (

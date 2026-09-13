@@ -500,7 +500,7 @@ function VowCard({ verb, identity, fallbackPhrase, hint, matches }) {
       )}
 
       {!fallbackPhrase && (
-        <p className="mt-1 text-center font-mono text-[9px] uppercase tracking-[0.22em] text-washi-dim">
+        <p className="mt-1 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
           {hint}
         </p>
       )}

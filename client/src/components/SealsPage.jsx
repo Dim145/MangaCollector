@@ -235,7 +235,7 @@ export default function SealsPage() {
             {/* LEFT: eyebrow / title / hero-stat / progress / lanterns */}
             <div className="min-w-0">
               <div className="flex items-baseline gap-3">
-                <span className="font-mono text-xs uppercase tracking-[0.3em] text-hanko">
+                <span className="font-mono text-xs uppercase tracking-[0.3em] text-hanko-bright">
                   {t("seals.eyebrow")}
                 </span>
                 <span className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent" />
@@ -567,7 +567,7 @@ function RankBadge({ tier, t }) {
 
       {/* Floating label below the medallion */}
       <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-border bg-ink-1/90 px-3 py-1 backdrop-blur">
-        <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-washi-dim">
+        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim">
           {t("seals.rankLabel")}
         </p>
         <p className="text-center font-display text-xs italic text-washi">
@@ -621,7 +621,7 @@ function TierLanterns({ tierStats, highestTier, t }) {
               >
                 {label}
               </span>
-              <span className="mt-1.5 font-mono text-[9px] tabular-nums text-washi-muted">
+              <span className="mt-1.5 font-mono text-[10px] tabular-nums text-washi-muted">
                 {stats.earned}
                 <span className="text-washi-dim">/{stats.total}</span>
               </span>

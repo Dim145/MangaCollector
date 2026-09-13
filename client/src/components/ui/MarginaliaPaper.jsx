@@ -183,7 +183,7 @@ export default function MarginaliaPaper({
             }}
           />
           <span
-            className="font-display text-[11px] italic leading-snug text-washi-muted/85 md:text-xs"
+            className="font-display text-[11px] italic leading-snug text-washi-muted md:text-xs"
             style={{ transform: "rotate(-7deg)" }}
           >
             {inscription}

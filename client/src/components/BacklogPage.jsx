@@ -152,7 +152,7 @@ function Hero({ data, t }) {
         </div>
 
         <div className="pt-2 sm:pt-6">
-          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
             {t("backlog.kicker")}
           </p>
           <h1 className="mt-3 font-display text-3xl font-light italic leading-tight text-washi md:text-5xl">
@@ -248,7 +248,7 @@ function Stat({ kanji, kanjiLabel, label, value, accent, delay }) {
         {value}
       </p>
       <p
-        className={`mt-2 font-mono text-[9px] uppercase tracking-[0.28em] ${kanjiColor}`}
+        className={`mt-2 font-mono text-[10px] uppercase tracking-[0.28em] ${kanjiColor}`}
       >
         {kanjiLabel}
       </p>
@@ -379,7 +379,7 @@ function SpineCard({
             className="absolute inset-0"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-2 to-ink-3 font-display text-2xl italic text-hanko/40">
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-2 to-ink-3 font-display text-2xl italic text-hanko-bright/40">
             巻
           </div>
         )}
@@ -453,7 +453,7 @@ function SpineCard({
           hover (transform). Reads as "pull this book out". */}
       <span
         aria-hidden="true"
-        className="flex shrink-0 items-center pr-4 pl-2 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-hanko"
+        className="flex shrink-0 items-center pr-4 pl-2 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-hanko-bright"
       >
         →
       </span>

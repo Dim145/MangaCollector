@@ -29,7 +29,7 @@ export default function RecentSealCard({ earned, t, lang, loading }) {
         </p>
         <Link
           to="/seals"
-          className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.22em] text-hanko transition hover:text-hanko-bright"
+          className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.22em] text-hanko-bright transition hover:text-hanko-bright"
         >
           {t("stats.seals.cta")} →
         </Link>
@@ -66,7 +66,7 @@ export default function RecentSealCard({ earned, t, lang, loading }) {
         className="pointer-events-none absolute -top-12 right-1/2 h-48 w-48 translate-x-1/2 rounded-full bg-hanko/[0.18] blur-3xl"
       />
 
-      <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+      <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
         {t("stats.seals.recentEyebrow")}
       </p>
 
@@ -99,7 +99,7 @@ export default function RecentSealCard({ earned, t, lang, loading }) {
         {t(`seals.codes.${latest.code}.description`)}
       </p>
 
-      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-hanko transition group-hover:text-hanko-bright">
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-hanko-bright transition group-hover:text-hanko-bright">
         {t("stats.seals.cta")} →
       </span>
     </Link>

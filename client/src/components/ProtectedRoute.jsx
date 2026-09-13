@@ -66,7 +66,7 @@ export default function ProtectedRoute({ children, setGoogleUser }) {
           <span className="hanko-seal grid h-14 w-14 place-items-center rounded-lg font-display text-base font-bold animate-pulse-glow">
             待
           </span>
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
             {t("auth.serverUnreachableLabel")}
           </p>
           <h1 className="font-display text-2xl font-light italic text-washi md:text-3xl">

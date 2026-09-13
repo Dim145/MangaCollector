@@ -144,7 +144,7 @@ function ScannerKeySection({
             type="button"
             onClick={onSave}
             disabled={apiKey === (getApiKey() ?? "")}
-            className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:opacity-40"
           >
             {saved ? (
               <>
@@ -240,7 +240,7 @@ function OnboardingSection() {
           >
             <span
               aria-hidden="true"
-              className="font-jp text-base font-bold leading-none text-washi-dim transition-colors group-hover:text-hanko"
+              className="font-jp text-base font-bold leading-none text-washi-dim transition-colors group-hover:text-hanko-bright"
             >
               字典
             </span>

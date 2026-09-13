@@ -57,7 +57,7 @@ export default function NotFoundPage() {
                 emotional cue that the body copy frames. */}
             <ChibiArchivist className="h-48 w-40 md:h-56 md:w-48" />
 
-            <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-hanko">
+            <p className="font-mono text-[11px] uppercase tracking-[0.32em] text-hanko-bright">
               {t("notFound.kicker")}
             </p>
 
@@ -80,7 +80,7 @@ export default function NotFoundPage() {
             <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
               <Link
                 to="/dashboard"
-                className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
+                className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-on-hanko shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
               >
                 <span aria-hidden="true" className="font-jp text-[14px] font-bold leading-none">
                   本

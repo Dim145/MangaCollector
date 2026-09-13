@@ -233,7 +233,7 @@ export default function CalendarSubscribeModal({ open, onClose }) {
           <p className="flex items-start gap-2 font-mono text-[11px] leading-snug text-washi-muted">
             <span
               aria-hidden
-              className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-full bg-hanko/15 font-jp text-[10px] font-bold leading-none text-hanko"
+              className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-full bg-hanko/15 font-jp text-[10px] font-bold leading-none text-hanko-bright"
               style={{ transform: "rotate(-4deg)" }}
             >
               機
@@ -268,7 +268,7 @@ export default function CalendarSubscribeModal({ open, onClose }) {
                 type="button"
                 onClick={handleRegenerate}
                 disabled={regenerating}
-                className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-washi shadow-md transition hover:bg-hanko-bright disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-on-hanko shadow-md transition hover:bg-hanko-deep disabled:opacity-60"
               >
                 {regenerating
                   ? t("calendarSubscribe.regenRunning")

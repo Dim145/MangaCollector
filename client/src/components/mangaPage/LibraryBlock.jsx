@@ -329,7 +329,7 @@ function LibraryChip({ kanji, label, value, total, percent, accent }) {
           </span>
         )}
       </div>
-      <p className="mt-0.5 flex items-baseline gap-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim">
+      <p className="mt-0.5 flex items-baseline gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
         <span>{label}</span>
         {percent != null && total > 0 && (
           <span className="text-washi-muted tabular-nums">· {percent}%</span>

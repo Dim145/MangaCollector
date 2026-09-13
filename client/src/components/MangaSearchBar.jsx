@@ -68,7 +68,7 @@ export default function MangaSearchBar({
     <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
       {/* Search Input */}
       <div className="group relative flex-1">
-        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-washi-dim group-focus-within:text-hanko transition-colors">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-washi-dim group-focus-within:text-hanko-bright transition-colors">
           <svg
             className="h-5 w-5"
             viewBox="0 0 24 24"
@@ -116,7 +116,7 @@ export default function MangaSearchBar({
         <button
           onClick={searchManga}
           disabled={loading}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-hanko px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-washi transition-all hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-hanko px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-on-hanko transition-all hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
         >
           {loading ? (
             <>

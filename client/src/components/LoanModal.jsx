@@ -127,7 +127,7 @@ export default function LoanModal({ open, volumeId, onClose }) {
         />
 
         <header className="border-b border-border/70 px-6 pt-5 pb-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
             {isLent ? t("loans.modalKickerEdit") : t("loans.modalKickerLend")}
             {" · "}
             <span className="font-jp text-[12px]">
@@ -271,7 +271,7 @@ export default function LoanModal({ open, volumeId, onClose }) {
             <button
               type="submit"
               disabled={!borrower.trim() || updateVolume.isPending}
-              className="azuke-keycap inline-flex items-center gap-1.5 rounded-md bg-hanko px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-washi transition hover:bg-hanko-bright disabled:opacity-60"
+              className="azuke-keycap inline-flex items-center gap-1.5 rounded-md bg-hanko px-4 py-2 font-mono text-[11px] uppercase tracking-[0.22em] text-on-hanko transition hover:bg-hanko-deep disabled:opacity-60"
             >
               <span
                 aria-hidden="true"

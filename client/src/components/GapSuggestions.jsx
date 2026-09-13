@@ -71,7 +71,7 @@ function GapCard({ manga, missing, gap, t, onOpen, blurred }) {
         />
       ) : (
         <div
-          className="grid h-20 w-14 shrink-0 place-items-center rounded-md border border-border bg-ink-2 font-display text-2xl italic text-hanko/40"
+          className="grid h-20 w-14 shrink-0 place-items-center rounded-md border border-border bg-ink-2 font-display text-2xl italic text-hanko-bright/40"
           title={t("badges.volume")}
         >
           巻

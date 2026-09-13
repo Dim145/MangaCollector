@@ -87,14 +87,14 @@ export default function SessionsModal({ open, onClose }) {
             rest of the app. */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-6 -right-2 select-none font-display italic font-light leading-none text-hanko/5"
+          className="pointer-events-none absolute -bottom-6 -right-2 select-none font-display italic font-light leading-none text-hanko-bright/5"
           style={{ fontSize: "12rem" }}
         >
           機
         </span>
 
         <header className="relative">
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
             {t("sessions.kicker")} · 機
           </p>
           <h2
@@ -206,7 +206,7 @@ function SessionRow({ session, onRevoke, pending, locked = false, t }) {
                 {label}
               </p>
               {session.is_current && (
-                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-hanko/20 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-hanko-bright">
+                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-hanko/20 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-hanko-bright">
                   {t("sessions.thisDevice")}
                 </span>
               )}

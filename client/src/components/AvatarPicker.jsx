@@ -153,7 +153,7 @@ export default function AvatarPicker({ open, onClose }) {
         {/* Watermark — 顔 (kao, "face"). */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-4 -right-2 select-none font-display italic font-light leading-none text-hanko/[0.06]"
+          className="pointer-events-none absolute -bottom-4 -right-2 select-none font-display italic font-light leading-none text-hanko-bright/[0.06]"
           style={{ fontSize: "11rem" }}
         >
           顔
@@ -162,7 +162,7 @@ export default function AvatarPicker({ open, onClose }) {
         {/* === HEADER === */}
         <header className="relative z-[1] shrink-0 border-b border-border/40 px-5 pt-6 pb-4 sm:px-7 sm:pt-7 sm:pb-5">
           <div className="flex items-baseline gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
               {t("avatar.label")}
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-hanko/30 via-border to-transparent" />
@@ -196,7 +196,7 @@ export default function AvatarPicker({ open, onClose }) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   aria-hidden="true"
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-washi-dim transition-colors group-focus-within:text-hanko"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-washi-dim transition-colors group-focus-within:text-hanko-bright"
                 >
                   <circle cx="11" cy="11" r="7" />
                   <path d="m20 20-3.5-3.5" />
@@ -459,7 +459,7 @@ function CharacterTile({ character, selected, onSelect, t }) {
         {isMain && (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute left-0 top-0 grid h-7 w-7 place-items-center rounded-full bg-hanko/95 font-jp text-[12px] font-bold leading-none text-washi shadow-[0_2px_8px_rgba(0,0,0,0.45)] ring-2 ring-ink-1"
+            className="pointer-events-none absolute left-0 top-0 grid h-7 w-7 place-items-center rounded-full bg-hanko/95 font-jp text-[12px] font-bold leading-none text-on-hanko shadow-[0_2px_8px_rgba(0,0,0,0.45)] ring-2 ring-ink-1"
             style={{ transform: "rotate(-10deg)" }}
             title={t("avatar.mainBadge")}
           >
@@ -473,7 +473,7 @@ function CharacterTile({ character, selected, onSelect, t }) {
         {selected && (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute right-0 top-0 grid h-7 w-7 place-items-center rounded-full bg-hanko font-jp text-[12px] font-bold leading-none text-washi shadow-[0_3px_12px_rgba(0,0,0,0.55)] ring-2 ring-ink-1 animate-fade-up"
+            className="pointer-events-none absolute right-0 top-0 grid h-7 w-7 place-items-center rounded-full bg-hanko font-jp text-[12px] font-bold leading-none text-on-hanko shadow-[0_3px_12px_rgba(0,0,0,0.55)] ring-2 ring-ink-1 animate-fade-up"
             style={{ transform: "rotate(8deg)" }}
           >
             印
@@ -581,7 +581,7 @@ function EmptyState({ t, reason, query }) {
   const { icon, title, hint } = map[reason] ?? map.empty;
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-      <span className="font-display text-6xl italic text-hanko/40">
+      <span className="font-display text-6xl italic text-hanko-bright/40">
         {icon}
       </span>
       <h3 className="font-display text-lg font-semibold italic text-washi">

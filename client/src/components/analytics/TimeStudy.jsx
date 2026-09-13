@@ -140,13 +140,13 @@ function AnniversaryCard({ anniversary, t, lang, loading }) {
               className="h-full w-full object-cover"
             />
           ) : (
-            <span className="flex h-full w-full items-center justify-center font-jp text-base font-bold text-hanko/40">
+            <span className="flex h-full w-full items-center justify-center font-jp text-base font-bold text-hanko-bright/40">
               巻
             </span>
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-washi-dim">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
             {t("stats.time.firstSeriesEyebrow")}
           </p>
           <p className="truncate font-display text-sm italic text-washi md:text-base">

@@ -183,7 +183,7 @@ export default function ShelfSnapshotModal({
             ) : busy ? (
               <div className="absolute inset-0 grid place-items-center">
                 <div className="flex flex-col items-center gap-3 text-washi-dim">
-                  <span className="font-jp text-5xl font-bold text-hanko/60 animate-pulse">
+                  <span className="font-jp text-5xl font-bold text-hanko-bright animate-pulse">
                     棚
                   </span>
                   <span className="font-mono text-[11px] uppercase tracking-[0.25em]">
@@ -218,7 +218,7 @@ export default function ShelfSnapshotModal({
               type="button"
               onClick={handleShare}
               disabled={busy || !blob}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-hanko px-5 py-2 text-xs font-semibold uppercase tracking-wider text-washi shadow-md transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-hanko px-5 py-2 text-xs font-semibold uppercase tracking-wider text-on-hanko shadow-md transition hover:bg-hanko-deep active:scale-95 disabled:opacity-50"
             >
               <svg
                 viewBox="0 0 24 24"

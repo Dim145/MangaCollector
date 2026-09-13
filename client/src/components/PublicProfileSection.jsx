@@ -180,7 +180,7 @@ export default function PublicProfileSection() {
               type="button"
               onClick={handleSave}
               disabled={!dirty || isUpdating}
-              className="inline-flex items-center justify-center rounded-lg bg-hanko px-4 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center justify-center rounded-lg bg-hanko px-4 py-2 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isUpdating ? (
                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />

@@ -184,7 +184,7 @@ export default function MalRecommendationModal({
 
         {/* Header — same "source of this suggestion" strip as the scan card */}
         <div className="relative z-10 border-b border-border p-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
             {t("recs.label")}
           </p>
           <p className="mt-1 text-xs text-washi-muted">
@@ -202,7 +202,7 @@ export default function MalRecommendationModal({
             />
           ) : (
             <div
-              className="h-32 w-24 shrink-0 rounded-md border border-border bg-ink-2 grid place-items-center font-display text-3xl italic text-hanko/40"
+              className="h-32 w-24 shrink-0 rounded-md border border-border bg-ink-2 grid place-items-center font-display text-3xl italic text-hanko-bright/40"
               title={t("badges.volume")}
             >
               巻
@@ -368,7 +368,7 @@ export default function MalRecommendationModal({
             type="button"
             onClick={handleAdd}
             disabled={committing || done}
-            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
           >
             {committing ? (
               <span className="inline-flex items-center gap-2">

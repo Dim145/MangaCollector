@@ -170,10 +170,10 @@ function Hero({ count, online = true, onCapture, t }) {
   return (
     <header className="relative mb-12 animate-fade-up md:mb-16">
       <div className="mb-6 flex flex-wrap items-baseline gap-3">
-        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
           {t("snapshots.kicker")}
         </span>
-        <span className="font-jp text-[11px] tracking-[0.4em] text-hanko/80">
+        <span className="font-jp text-[11px] tracking-[0.4em] text-hanko-bright">
           印影
         </span>
         <span className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent" />
@@ -292,7 +292,7 @@ function Plate({ snapshot, index, onView, t, lang }) {
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center font-display text-7xl italic text-hanko/40">
+          <div className="flex h-full w-full items-center justify-center font-display text-7xl italic text-hanko-bright/40">
             印
           </div>
         )}
@@ -309,7 +309,7 @@ function Plate({ snapshot, index, onView, t, lang }) {
         {/* Inscribed date band — top-right. Hanko-red ink stamp. */}
         <span
           aria-hidden="true"
-          className="absolute right-2 top-2 inline-flex items-center gap-1.5 rounded-sm bg-hanko/85 px-2 py-1 font-mono text-[10px] tabular-nums uppercase tracking-[0.18em] text-washi shadow"
+          className="absolute right-2 top-2 inline-flex items-center gap-1.5 rounded-sm bg-hanko/85 px-2 py-1 font-mono text-[10px] tabular-nums uppercase tracking-[0.18em] text-on-hanko shadow"
           style={{ transform: "rotate(-2deg)" }}
         >
           <span className="font-jp not-italic">日</span>
@@ -431,7 +431,7 @@ function CaptureModal({ library, userName, lang, onClose, t }) {
         />
 
         <header className="border-b border-border/70 px-6 pt-5 pb-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
             {t("snapshots.captureKicker")}
             {" · "}
             <span className="font-jp text-[12px]">撮</span>
@@ -700,7 +700,7 @@ function DetailModal({
                 type="button"
                 onClick={handleDelete}
                 disabled={del.isPending}
-                className="rounded-md bg-hanko px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi transition hover:bg-hanko-bright disabled:opacity-50"
+                className="rounded-md bg-hanko px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-on-hanko transition hover:bg-hanko-deep disabled:opacity-50"
               >
                 {del.isPending ? t("common.saving") : t("snapshots.deleteAction")}
               </button>
@@ -808,7 +808,7 @@ function CornerKanji() {
     <>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -top-2 right-3 hidden -z-10 font-jp text-9xl font-bold leading-none text-hanko/[0.04] md:block"
+        className="pointer-events-none absolute -top-2 right-3 hidden -z-10 font-jp text-9xl font-bold leading-none text-hanko-bright/[0.04] md:block"
         style={{ transform: "rotate(8deg)" }}
       >
         印

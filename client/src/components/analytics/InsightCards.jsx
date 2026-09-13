@@ -93,7 +93,7 @@ function DoublesCard({ doubles, loading, t }) {
           </div>
           {d.value > 0 && (
             <div className="border-t border-border/50 pt-2">
-              <p className="font-mono text-[9px] uppercase tracking-wider text-washi-dim">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
                 {t("analytics.doubles.valueLabel")}
               </p>
               <p className="font-display text-lg font-semibold tabular-nums text-washi">
@@ -160,7 +160,7 @@ function CollectorCard({ collector, loading, t }) {
           </div>
           {collector.premiumPct != null && collector.count > 0 && (
             <div className="border-t border-border/50 pt-2">
-              <p className="font-mono text-[9px] uppercase tracking-wider text-washi-dim">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
                 {t("analytics.collector.premiumLabel")}
               </p>
               <p className="font-display text-lg font-semibold tabular-nums text-washi">
@@ -274,7 +274,7 @@ function MilestoneCard({ milestones, loading, t }) {
       <div className="relative flex items-baseline gap-2">
         <span
           aria-hidden="true"
-          className="grid h-6 w-6 place-items-center rounded-md bg-hanko text-washi shadow-md glow-red"
+          className="grid h-6 w-6 place-items-center rounded-md bg-hanko text-on-hanko shadow-md glow-red"
         >
           <svg
             viewBox="0 0 24 24"

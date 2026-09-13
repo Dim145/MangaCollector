@@ -157,7 +157,7 @@ export default function About({ googleUser } = {}) {
             >
               <a
                 href={isAuthed ? "/dashboard" : "/log-in"}
-                className="group inline-flex items-center justify-center gap-2 rounded-full bg-hanko px-7 py-3.5 text-sm font-semibold uppercase tracking-wider text-washi shadow-xl glow-red transition hover:scale-[1.02] hover:bg-hanko-bright active:scale-95"
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-hanko px-7 py-3.5 text-sm font-semibold uppercase tracking-wider text-on-hanko shadow-xl glow-red transition hover:scale-[1.02] hover:bg-hanko-deep active:scale-95"
               >
                 {isAuthed ? t("about.openDashboard") : t("about.getStarted")}
                 <svg
@@ -237,7 +237,7 @@ export default function About({ googleUser } = {}) {
         <div className="mx-auto max-w-6xl">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-16">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
                 {t("about.philosophy")}
               </p>
               <h2 className="mt-3 font-display text-3xl font-light italic leading-tight text-washi md:text-5xl">
@@ -345,13 +345,13 @@ export default function About({ googleUser } = {}) {
           <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-ink-1 via-hanko/10 to-gold/5 p-8 text-center md:p-16">
             {/* Ornamental Japanese character */}
             <span
-              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-display italic font-light text-hanko/5 text-[20rem] leading-none select-none"
+              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-display italic font-light text-hanko-bright/5 text-[20rem] leading-none select-none"
               aria-hidden="true"
             >
               始
             </span>
             <div className="relative">
-              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
                 {t("about.begin")}
               </p>
               <h2 className="mt-3 font-display text-3xl font-light italic leading-tight text-washi md:text-5xl">
@@ -454,7 +454,7 @@ function Testimonial({ quote, name, role }) {
       <svg
         viewBox="0 0 24 24"
         fill="currentColor"
-        className="h-6 w-6 text-hanko/30"
+        className="h-6 w-6 text-hanko-bright/30"
       >
         <path d="M10 11H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v9c0 2.8-2.2 5-5 5v-2c1.7 0 3-1.3 3-3zM18 11h-4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v9c0 2.8-2.2 5-5 5v-2c1.7 0 3-1.3 3-3z" />
       </svg>

@@ -165,7 +165,7 @@ export default function CoverPickerModal({
             and competes for attention more than a form-modal would. */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-16 -left-16 z-0 select-none font-jp text-[28rem] font-bold leading-none text-hanko/[0.06]"
+          className="pointer-events-none absolute -bottom-16 -left-16 z-0 select-none font-jp text-[28rem] font-bold leading-none text-hanko-bright/[0.06]"
           style={{ writingMode: "vertical-rl" }}
         >
           表
@@ -178,11 +178,11 @@ export default function CoverPickerModal({
             className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-hanko/40 to-transparent"
           />
           <div className="flex items-baseline gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
               {t("coverPicker.label")}
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
-            <span className="font-mono text-[9px] uppercase tracking-wider text-washi-dim">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
               {isPending
                 ? t("coverPicker.loading")
                 : canNavigate
@@ -241,7 +241,7 @@ export default function CoverPickerModal({
           ) : (
             <div className="grid h-[60vh] w-[40vh] max-h-[540px] place-items-center rounded-lg border border-dashed border-border bg-ink-2 text-washi-dim">
               <span
-                className="font-display text-7xl italic text-hanko/40"
+                className="font-display text-7xl italic text-hanko-bright/40"
                 title={t("badges.volume")}
               >
                 巻
@@ -391,7 +391,7 @@ export default function CoverPickerModal({
               type="button"
               onClick={handleConfirm}
               disabled={!canConfirm}
-              className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-5 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:cursor-not-allowed disabled:bg-ink-3 disabled:text-washi-dim"
+              className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-5 py-2 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:cursor-not-allowed disabled:bg-ink-3 disabled:text-washi-dim"
             >
               {submitting ? (
                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
@@ -432,7 +432,7 @@ function NavChevron({ direction, onClick, label }) {
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`absolute top-1/2 z-10 hidden -translate-y-1/2 grid h-12 w-12 place-items-center rounded-full border border-border bg-ink-1/70 text-washi-muted opacity-0 backdrop-blur transition duration-200 hover:bg-hanko hover:text-washi hover:border-hanko focus-visible:opacity-100 group-hover:opacity-100 md:grid ${
+      className={`absolute top-1/2 z-10 hidden -translate-y-1/2 grid h-12 w-12 place-items-center rounded-full border border-border bg-ink-1/70 text-washi-muted opacity-0 backdrop-blur transition duration-200 hover:bg-hanko hover:text-on-hanko hover:border-hanko focus-visible:opacity-100 group-hover:opacity-100 md:grid ${
         isPrev ? "left-3" : "right-3"
       }`}
       // `group-hover` on the parent flex container — handled by adding

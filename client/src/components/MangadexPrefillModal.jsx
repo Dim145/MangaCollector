@@ -135,7 +135,7 @@ export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
             onClick={submit}
             disabled={submitting || !online}
             title={!online ? t("mangadexPrefill.offlineRequired") : undefined}
-            className="rounded-full bg-hanko px-5 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-full bg-hanko px-5 py-2 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? (
               <span className="inline-flex h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />

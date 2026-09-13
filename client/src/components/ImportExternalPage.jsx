@@ -410,7 +410,7 @@ function InputPhase({ service, input, setInput, onCancel, onFetch, isFetching, e
             type="button"
             onClick={onFetch}
             disabled={isFetching || !input.trim()}
-            className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-on-hanko shadow-lg transition hover:bg-hanko-deep disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isFetching && (
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
@@ -513,7 +513,7 @@ function PreviewPhase({ service, bundle, preview, onBack, onCommit, isCommitting
             type="button"
             onClick={onCommit}
             disabled={isCommitting || added === 0}
-            className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-on-hanko shadow-lg transition hover:bg-hanko-deep disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isCommitting && (
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
@@ -540,7 +540,7 @@ function PreviewChip({ label, value, accent }) {
       >
         {value}
       </p>
-      <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.25em] text-washi-dim">
+      <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim">
         {label}
       </p>
     </div>
@@ -622,7 +622,7 @@ function DonePhase({ result, onReset }) {
         </button>
         <Link
           to="/dashboard"
-          className="rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright"
+          className="rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-on-hanko shadow-lg transition hover:bg-hanko-deep"
         >
           {t("importExternal.goToLibrary")}
         </Link>

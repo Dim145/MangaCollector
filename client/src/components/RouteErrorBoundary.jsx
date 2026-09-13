@@ -75,7 +75,7 @@ export default class RouteErrorBoundary extends Component {
         >
           災
         </span>
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
           {isChunkError ? "OFFLINE · 通信" : "ERROR · 災"}
         </p>
         <h1 className="font-display text-2xl font-light italic text-washi md:text-3xl">
@@ -91,7 +91,7 @@ export default class RouteErrorBoundary extends Component {
         <button
           type="button"
           onClick={this.reset}
-          className="mt-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:border-hanko hover:bg-hanko hover:text-washi"
+          className="mt-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:border-hanko hover:bg-hanko hover:text-on-hanko"
         >
           Reload
         </button>

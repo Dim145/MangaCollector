@@ -158,7 +158,7 @@ export default function ScanPage() {
                     onClick={() =>
                       navigate("/addmanga", { state: { isbn: result.isbn } })
                     }
-                    className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-4 py-2 font-mono text-[11px] uppercase tracking-[0.18em] text-washi transition hover:bg-hanko-bright"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-4 py-2 font-mono text-[11px] uppercase tracking-[0.18em] text-on-hanko transition hover:bg-hanko-deep"
                   >
                     <span aria-hidden="true" className="font-jp text-[12px]">
                       追
@@ -224,7 +224,7 @@ function FoundCard({ local, t, busy, onOpen, onAddCopy, onNext }) {
             <button
               type="button"
               onClick={onOpen}
-              className="rounded-full bg-hanko px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-washi transition hover:bg-hanko-bright"
+              className="rounded-full bg-hanko px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-on-hanko transition hover:bg-hanko-deep"
             >
               {t("scanPage.openSeries")}
             </button>

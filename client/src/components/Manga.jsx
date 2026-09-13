@@ -200,7 +200,7 @@ function Manga({
             aria-hidden="true"
             className={`pointer-events-none absolute left-2 top-2 z-20 grid h-6 w-6 place-items-center rounded-full border-2 transition ${
               isSelected
-                ? "border-hanko bg-hanko text-washi shadow-[0_2px_8px_rgba(220,38,38,0.5)]"
+                ? "border-hanko bg-hanko text-on-hanko shadow-[0_2px_8px_rgba(220,38,38,0.5)]"
                 : "border-washi/60 bg-ink-0/70 text-transparent"
             }`}
           >
@@ -277,7 +277,7 @@ function Manga({
             <span className="font-jp text-[9px] font-bold leading-none">
               積
             </span>
-            <span className="font-mono text-[9px] font-bold leading-none tabular-nums">
+            <span className="font-mono text-[10px] font-bold leading-none tabular-nums">
               {tsundokuCount}
             </span>
           </div>

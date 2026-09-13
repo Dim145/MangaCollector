@@ -75,7 +75,7 @@ export default function SeasonSection() {
               >
                 {opt.kanji}
               </span>
-              <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-washi-muted">
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-muted">
                 {t(`settings.seasonName.${opt.id}`)}
               </span>
               {active && (

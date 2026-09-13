@@ -191,7 +191,7 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
                 type="button"
                 onClick={handleDelete}
                 disabled={deleteCoffret.isPending}
-                className="rounded-md bg-hanko px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+                className="rounded-md bg-hanko px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
               >
                 {deleteCoffret.isPending ? t("common.saving") : t("common.yes")}
               </button>
@@ -272,7 +272,7 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
           <div>
             <label
               htmlFor={`coffret-name-${coffret.id}`}
-              className="mb-1 block font-mono text-[9px] uppercase tracking-wider text-washi-dim"
+              className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
             >
               {t("coffret.nameLabel")}
             </label>
@@ -290,7 +290,7 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
             <div>
               <label
                 htmlFor={`coffret-price-${coffret.id}`}
-                className="mb-1 block font-mono text-[9px] uppercase tracking-wider text-washi-dim"
+                className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
               >
                 {t("coffret.priceLabel", {
                   symbol: currencySetting?.symbol || "$",
@@ -310,7 +310,7 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
             <div>
               <label
                 htmlFor={`coffret-store-${coffret.id}`}
-                className="mb-1 block font-mono text-[9px] uppercase tracking-wider text-washi-dim"
+                className="mb-1 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
               >
                 {t("coffret.storeLabel")}
               </label>
@@ -329,7 +329,7 @@ export default function CoffretGroup({ coffret, currencySetting, children }) {
               type="button"
               onClick={handleSave}
               disabled={updateCoffret.isPending || !name.trim()}
-              className="flex-1 rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+              className="flex-1 rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
             >
               {updateCoffret.isPending
                 ? t("common.saving")

@@ -365,7 +365,7 @@ function VolumeImpl({
       : collectorStatus
         ? "border-gold bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-md"
         : ownedStatus
-          ? "border-hanko bg-hanko text-washi shadow-md glow-red"
+          ? "border-hanko bg-hanko text-on-hanko shadow-md glow-red"
           : "border-border bg-ink-2 text-washi-dim hover:border-hanko/40 hover:text-washi";
 
   return (
@@ -598,7 +598,7 @@ function VolumeImpl({
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 grid place-items-center"
               >
-                <span className="grid h-7 w-7 place-items-center rounded-full bg-hanko/95 text-washi shadow-[0_2px_12px_rgba(220,38,38,0.55)] ring-1 ring-hanko-bright animate-volume-tick">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-hanko/95 text-on-hanko shadow-[0_2px_12px_rgba(220,38,38,0.55)] ring-1 ring-hanko-bright animate-volume-tick">
                   <svg
                     viewBox="0 0 16 16"
                     fill="none"
@@ -631,7 +631,7 @@ function VolumeImpl({
                   : collectorStatus
                     ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
                     : ownedStatus
-                      ? "bg-hanko text-washi"
+                      ? "bg-hanko text-on-hanko"
                       : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
               }`}
               // Lift the volNum chip above the loan stamp so it
@@ -724,7 +724,7 @@ function VolumeImpl({
           <p className="flex items-baseline gap-2 font-display text-base font-semibold leading-none text-washi">
             <span>{t("volume.volume", { n: volNum })}</span>
             {collectorStatus && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/10 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.15em] text-gold">
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/10 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.15em] text-gold">
                 <svg
                   viewBox="0 0 24 24"
                   fill="currentColor"
@@ -1022,7 +1022,7 @@ function VolumeImpl({
                   onClick={() => setIsEditing(true)}
                   disabled={locked}
                   aria-label={t("volume.noteIndicatorAria")}
-                  className={`ml-auto inline-flex items-center gap-1 rounded-full border border-hanko/20 bg-hanko/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-hanko-bright/80 transition hover:border-hanko/45 hover:bg-hanko/10 hover:text-hanko-bright ${
+                  className={`ml-auto inline-flex items-center gap-1 rounded-full border border-hanko/20 bg-hanko/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-hanko-bright transition hover:border-hanko/45 hover:bg-hanko/10 hover:text-hanko-bright ${
                     locked ? "cursor-default opacity-60 hover:bg-hanko/5" : ""
                   }`}
                 >

@@ -164,7 +164,7 @@ export function FilterButton({
         {activeCount > 0 && (
           <span
             key={activeCount}
-            className="animate-stamp grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-hanko px-1.5 font-mono text-[10px] font-bold tabular-nums text-washi shadow-[0_0_0_2px_var(--ink-0)]"
+            className="animate-stamp grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-hanko px-1.5 font-mono text-[10px] font-bold tabular-nums text-on-hanko shadow-[0_0_0_2px_var(--ink-0)]"
           >
             {activeCount}
           </span>
@@ -206,7 +206,7 @@ export function FilterButton({
             {/* Decorative watermark kanji — sits behind content, top-right */}
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute -right-3 -top-2 select-none font-jp text-[110px] leading-none text-hanko/[0.06]"
+              className="pointer-events-none absolute -right-3 -top-2 select-none font-jp text-[110px] leading-none text-hanko-bright/[0.06]"
             >
               題
             </span>

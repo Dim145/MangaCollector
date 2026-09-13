@@ -98,7 +98,7 @@ export default function ProfileButton() {
     return (
       <button
         onClick={() => navigate("/log-in")}
-        className="rounded-full bg-hanko px-4 py-1.5 text-sm font-semibold text-washi shadow-md transition-transform hover:scale-[1.03] active:scale-95 glow-red"
+        className="rounded-full bg-hanko px-4 py-1.5 text-sm font-semibold text-on-hanko shadow-md transition-transform hover:scale-[1.03] active:scale-95 glow-red"
       >
         {t("nav.signIn")}
       </button>
@@ -410,7 +410,7 @@ function MenuItem({ onClick, icon, label, danger, disabled, hint }) {
         <span
           className={
             disabled
-              ? "text-washi-dim/60"
+              ? "text-washi-dim"
               : danger
                 ? "text-hanko-bright"
                 : "text-washi-muted"
@@ -420,7 +420,7 @@ function MenuItem({ onClick, icon, label, danger, disabled, hint }) {
         </span>
         <span className="flex-1">{label}</span>
         {disabled && hint && (
-          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-washi-dim/70">
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-washi-dim">
             {hint}
           </span>
         )}

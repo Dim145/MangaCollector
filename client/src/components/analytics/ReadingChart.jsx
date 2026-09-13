@@ -189,7 +189,7 @@ function Chip({ label, value, accent = "washi", hint }) {
           : "text-washi";
   return (
     <div className="group relative overflow-hidden rounded-xl border border-border bg-ink-1/60 p-3 backdrop-blur transition hover:border-moegi/30">
-      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim">
+      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
         {label}
       </p>
       <p

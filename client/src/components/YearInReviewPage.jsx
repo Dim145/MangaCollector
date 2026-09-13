@@ -458,7 +458,7 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
         <p className="font-display text-base italic text-washi">
           @{displayName}
         </p>
-        <p className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.4em] text-washi-dim">
+        <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.4em] text-washi-dim">
           MangaCollector · {year}
         </p>
       </footer>
@@ -544,7 +544,7 @@ function Bookend({ kanji, label, volume, t, align = "start" }) {
           <span className="block truncate font-display text-sm italic text-washi group-hover:text-hanko-bright">
             {volume.seriesName}
           </span>
-          <span className="block font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim">
+          <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
             {t("yearReview.volumeShort", { n: volume.vol_num })}
           </span>
         </span>
@@ -580,12 +580,12 @@ function EmptyState({ year }) {
       <p className="font-mono text-[11px] uppercase tracking-[0.4em] text-washi-dim">
         {t("yearReview.eyebrow")}
       </p>
-      <h1 className="mt-3 font-display text-7xl font-light italic leading-[0.9] tracking-tight text-washi/60 sm:text-8xl">
+      <h1 className="mt-3 font-display text-7xl font-light italic leading-[0.9] tracking-tight text-washi-dim sm:text-8xl">
         {year}
       </h1>
       <span
         aria-hidden="true"
-        className="mt-6 font-jp text-3xl font-bold leading-none text-hanko-bright/60"
+        className="mt-6 font-jp text-3xl font-bold leading-none text-hanko-bright"
       >
         収
       </span>

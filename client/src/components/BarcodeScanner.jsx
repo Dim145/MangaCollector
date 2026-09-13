@@ -168,7 +168,7 @@ export default function BarcodeScanner({
         type="button"
         onClick={() => onCloseRef.current?.()}
         aria-label={t("scan.closeScanner")}
-        className="absolute grid h-12 w-12 place-items-center rounded-full border border-border bg-ink-0/80 text-washi backdrop-blur-md transition hover:bg-hanko hover:border-hanko active:scale-95"
+        className="absolute grid h-12 w-12 place-items-center rounded-full border border-border bg-ink-0/80 text-on-hanko backdrop-blur-md transition hover:bg-hanko hover:border-hanko active:scale-95"
         style={{
           top: `calc(0.75rem + env(safe-area-inset-top))`,
           left: `calc(0.75rem + env(safe-area-inset-left))`,
@@ -437,7 +437,7 @@ function ManualIsbnTray({ open, onClose, onSubmit, t }) {
         <div className="px-6 pt-4 pb-5">
           {/* Eyebrow + title row */}
           <div className="flex items-baseline gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
               {t("scan.manualEyebrow")}
             </span>
             <span
@@ -490,7 +490,7 @@ function ManualIsbnTray({ open, onClose, onSubmit, t }) {
                     ? "text-moegi"
                     : value.length === 0
                       ? "text-washi-dim"
-                      : "text-hanko"
+                      : "text-hanko-bright"
                 }`}
               >
                 {value.length === 0
@@ -516,7 +516,7 @@ function ManualIsbnTray({ open, onClose, onSubmit, t }) {
                 placeholder={t("scan.manualInputPlaceholder")}
                 aria-invalid={value.length > 0 && !isValid}
                 aria-describedby="manual-isbn-rule"
-                className="w-full bg-transparent px-0 py-3 font-mono text-2xl tabular-nums tracking-[0.22em] text-washi placeholder:text-washi-dim/50 focus:outline-none md:text-3xl"
+                className="w-full bg-transparent px-0 py-3 font-mono text-2xl tabular-nums tracking-[0.22em] text-washi placeholder:text-washi-dim focus:outline-none md:text-3xl"
               />
               {/* Bottom rule — morphs between hanko (default/invalid)
                   and moegi (valid) with a subtle grow-in on focus. */}

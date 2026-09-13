@@ -136,7 +136,7 @@ export default function MalRecommendations() {
           // isn't "frozen" between cycles.
           <span
             aria-hidden="true"
-            className="font-jp text-[10px] font-bold leading-none text-gold/80"
+            className="font-jp text-[10px] font-bold leading-none text-gold"
             title={t("recs.rotating")}
           >
             廻
@@ -184,7 +184,7 @@ export default function MalRecommendations() {
                     />
                   ) : (
                     <div
-                      className="grid aspect-[2/3] w-full place-items-center font-display text-3xl italic text-hanko/40"
+                      className="grid aspect-[2/3] w-full place-items-center font-display text-3xl italic text-hanko-bright/40"
                       title={t("badges.volume")}
                     >
                       巻
@@ -194,12 +194,12 @@ export default function MalRecommendations() {
                     <p className="line-clamp-2 font-display text-[11px] font-semibold leading-tight text-washi">
                       {rec.title}
                     </p>
-                    <p className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-gold">
+                    <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-gold">
                       {t("recs.recommendedBy", { n: rec.sourceCount })}
                     </p>
                   </div>
                   {/* Hover hint */}
-                  <span className="pointer-events-none absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-hanko/90 text-washi opacity-0 shadow-lg transition group-hover:opacity-100">
+                  <span className="pointer-events-none absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-hanko/90 text-on-hanko opacity-0 shadow-lg transition group-hover:opacity-100">
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"

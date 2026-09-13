@@ -392,7 +392,7 @@ export default function AddCoffretModal({
                 rangeInvalid ||
                 volumesCount === 0
               }
-              className="relative flex-1 overflow-hidden rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi shadow-md transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="relative flex-1 overflow-hidden rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-on-hanko shadow-md transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {createCoffret.isPending
                 ? t("common.saving")

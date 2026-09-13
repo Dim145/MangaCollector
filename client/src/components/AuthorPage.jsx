@@ -331,10 +331,10 @@ function Hero({
           Edit/Delete for custom rows OR Refresh for shared MAL rows)
           ride on this rule when the page has them. */}
       <div className="mb-6 flex flex-wrap items-baseline gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
           {t("author.kicker")}
         </span>
-        <span className="font-jp text-[11px] tracking-[0.4em] text-hanko/80">
+        <span className="font-jp text-[11px] tracking-[0.4em] text-hanko-bright">
           作家
         </span>
         <span className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent" />
@@ -357,7 +357,7 @@ function Hero({
             disabled={refreshing || !online}
             title={!online ? t("author.refreshOfflineHint") : undefined}
             aria-label={!online ? t("author.refreshOfflineHint") : undefined}
-            className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/8 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/80 hover:bg-gold/15 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/8 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/80 hover:bg-gold/15 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span aria-hidden="true" className="font-jp text-[10px] not-italic">
               {refreshing ? "…" : !online ? "圏" : "更"}
@@ -376,7 +376,7 @@ function Hero({
             <button
               type="button"
               onClick={onEditClick}
-              className="inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-hanko/5 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
+              className="inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-hanko/5 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
             >
               <span
                 aria-hidden="true"
@@ -389,7 +389,7 @@ function Hero({
             <button
               type="button"
               onClick={onDeleteClick}
-              className="inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-transparent px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
+              className="inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-transparent px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-hanko-bright transition hover:border-hanko/70 hover:bg-hanko/10"
             >
               <span
                 aria-hidden="true"
@@ -525,7 +525,7 @@ function Portrait({
         ) : loading || uploading ? (
           <span className="absolute inset-0 animate-pulse bg-ink-2/40" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center font-display text-7xl italic text-hanko/40">
+          <div className="flex h-full w-full items-center justify-center font-display text-7xl italic text-hanko-bright/40">
             {fallbackInitial || "?"}
           </div>
         )}
@@ -569,7 +569,7 @@ function Portrait({
           type="button"
           onClick={onClear}
           disabled={uploading}
-          className="absolute -top-1 -left-1 grid h-7 w-7 place-items-center rounded-full border border-hanko/50 bg-ink-1/95 font-mono text-[9px] uppercase tracking-[0.18em] text-hanko-bright shadow-md transition hover:bg-hanko/15 disabled:opacity-50"
+          className="absolute -top-1 -left-1 grid h-7 w-7 place-items-center rounded-full border border-hanko/50 bg-ink-1/95 font-mono text-[10px] uppercase tracking-[0.18em] text-hanko-bright shadow-md transition hover:bg-hanko/15 disabled:opacity-50"
           aria-label={t("author.clearPhotoAria")}
         >
           ×
@@ -616,7 +616,7 @@ function AuthorEditorModal({
         className="w-full max-w-lg rounded-2xl border border-border bg-ink-1 p-6 shadow-2xl"
       >
         <header className="mb-5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-hanko-bright">
             {t("author.editorKickerEdit")}
             {" · "}
             <span className="font-jp text-[11px]">編集</span>
@@ -668,7 +668,7 @@ function AuthorEditorModal({
           <button
             type="submit"
             disabled={submitting || !name.trim()}
-            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright disabled:opacity-60"
+            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-on-hanko transition hover:bg-hanko-deep disabled:opacity-60"
           >
             {submitting ? t("common.saving") : t("author.editorSubmitEdit")}
           </button>
@@ -704,7 +704,7 @@ function DeleteConfirmModal({ authorName, onClose, onConfirm, submitting, t }) {
           <button
             onClick={onConfirm}
             disabled={submitting}
-            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright disabled:opacity-60"
+            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-on-hanko transition hover:bg-hanko-deep disabled:opacity-60"
           >
             {submitting ? t("common.saving") : t("author.deleteConfirmAction")}
           </button>
@@ -741,7 +741,7 @@ function SecondaryIdentity({ detail, t }) {
     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
       {family && given && (
         <span>
-          <span className="font-jp text-[11px] text-hanko/80">姓</span>{" "}
+          <span className="font-jp text-[11px] text-hanko-bright">姓</span>{" "}
           <span className="not-italic text-washi-muted">
             {family} {given}
           </span>
@@ -749,13 +749,13 @@ function SecondaryIdentity({ detail, t }) {
       )}
       {formattedBirthday && (
         <span>
-          <span className="font-jp text-[11px] text-hanko/80">誕</span>{" "}
+          <span className="font-jp text-[11px] text-hanko-bright">誕</span>{" "}
           <span className="text-washi-muted">{formattedBirthday}</span>
         </span>
       )}
       {favorites > 0 && (
         <span>
-          <span className="font-jp text-[11px] text-hanko/80">愛</span>{" "}
+          <span className="font-jp text-[11px] text-hanko-bright">愛</span>{" "}
           <span className="tabular-nums text-washi-muted">
             {favorites.toLocaleString()}
           </span>{" "}
@@ -788,7 +788,7 @@ function AboutBlock({ about, t }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] text-hanko-bright transition hover:text-hanko"
+          className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] text-hanko-bright transition hover:text-hanko-bright"
         >
           {expanded ? t("author.aboutCollapse") : t("author.aboutExpand")}
           <span aria-hidden="true">{expanded ? "↑" : "↓"}</span>
@@ -806,7 +806,7 @@ function MalChip({ url, t }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/40 bg-gold/5 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/70 hover:bg-gold/10 hover:text-gold-muted"
+      className="group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/40 bg-gold/5 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/70 hover:bg-gold/10 hover:text-gold-muted"
     >
       <span aria-hidden="true" className="font-jp text-[10px] not-italic">
         印
@@ -827,7 +827,7 @@ function HeadlineStat({ value, label, kanji }) {
     <div className="relative">
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -top-3 -left-1 font-jp text-3xl font-bold leading-none text-hanko/15 sm:text-4xl"
+        className="pointer-events-none absolute -top-3 -left-1 font-jp text-3xl font-bold leading-none text-hanko-bright/15 sm:text-4xl"
       >
         {kanji}
       </span>
@@ -1010,7 +1010,7 @@ function PosterCard({ manga, index, adult_content_level, onOpen, t }) {
             imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-2 to-ink-3 font-display text-5xl italic text-hanko/30">
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-2 to-ink-3 font-display text-5xl italic text-hanko-bright/30">
             巻
           </div>
         )}
@@ -1100,7 +1100,7 @@ function LoadingPanel({ t }) {
       <div className="mb-6 flex items-baseline gap-3 md:mb-8">
         <span
           aria-hidden="true"
-          className="font-jp text-2xl font-bold leading-none text-hanko-bright/60"
+          className="font-jp text-2xl font-bold leading-none text-hanko-bright"
         >
           著作
         </span>
@@ -1150,7 +1150,7 @@ function NotFoundPanel({ title, backLabel }) {
       </h1>
       <Link
         to="/dashboard"
-        className="mt-6 inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-hanko transition hover:text-hanko-bright"
+        className="mt-6 inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-hanko-bright transition hover:text-hanko-bright"
       >
         ← {backLabel}
       </Link>
@@ -1240,7 +1240,7 @@ function CornerOrnaments() {
     <>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -top-2 right-3 hidden -z-10 font-jp text-9xl font-bold leading-none text-hanko/[0.04] md:block"
+        className="pointer-events-none absolute -top-2 right-3 hidden -z-10 font-jp text-9xl font-bold leading-none text-hanko-bright/[0.04] md:block"
         style={{ transform: "rotate(8deg)" }}
       >
         作

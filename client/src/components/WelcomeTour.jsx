@@ -468,7 +468,7 @@ function IntroPage({ active, pageKey, t }) {
         </div>
 
         <div className="pt-2 sm:pt-10">
-          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
             {t("tour.kicker")} · 始
           </p>
           <h2
@@ -506,7 +506,7 @@ function IntroPage({ active, pageKey, t }) {
             className="group relative overflow-hidden rounded-xl border border-border bg-ink-2/40 p-3 transition hover:border-hanko/40 hover:bg-ink-2/70 animate-fade-up"
             style={{ animationDelay: `${active ? 320 + i * 80 : 0}ms` }}
           >
-            <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-washi-dim">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
               第{["一", "二", "三", "四"][i]}章
             </span>
             <p className="mt-2 font-jp text-3xl font-bold leading-none text-hanko-gradient">
@@ -565,7 +565,7 @@ function CategoryPage({ category, active, pageKey, onFeatureClick, t }) {
         </div>
 
         <div className="pt-2 sm:pt-12">
-          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
             {t("tour.chapterLabel")} · {category.romaji}
           </p>
           <h2 className="mt-3 font-display text-3xl font-light italic leading-tight tracking-tight text-washi md:text-4xl">
@@ -689,7 +689,7 @@ function OutroPage({ active, pageKey, onClose, t }) {
         </div>
 
         <div className="pt-2 sm:pt-12">
-          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+          <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
             {t("tour.outroKicker")} · 完
           </p>
           <h2 className="mt-3 font-display text-3xl font-light italic leading-tight tracking-tight text-washi md:text-4xl">
@@ -711,7 +711,7 @@ function OutroPage({ active, pageKey, onClose, t }) {
         >
           <span
             aria-hidden="true"
-            className="font-jp text-base font-bold leading-none text-washi-dim transition-colors group-hover:text-hanko"
+            className="font-jp text-base font-bold leading-none text-washi-dim transition-colors group-hover:text-hanko-bright"
           >
             字典
           </span>
@@ -724,7 +724,7 @@ function OutroPage({ active, pageKey, onClose, t }) {
         >
           <span
             aria-hidden="true"
-            className="font-jp text-base font-bold leading-none text-washi-dim transition-colors group-hover:text-hanko"
+            className="font-jp text-base font-bold leading-none text-washi-dim transition-colors group-hover:text-hanko-bright"
           >
             設
           </span>
@@ -765,7 +765,7 @@ function Footer({ isIntro, isOutro, onBack, onNext, onSkipSection, onClose, t })
           <span className="hidden sm:inline">{t("tour.prev")}</span>
           <span
             aria-hidden="true"
-            className="font-jp text-sm font-bold leading-none text-washi-dim/60 transition-colors group-hover:text-hanko/80"
+            className="font-jp text-sm font-bold leading-none text-washi-dim transition-colors group-hover:text-hanko-bright"
           >
             前
           </span>
@@ -785,7 +785,7 @@ function Footer({ isIntro, isOutro, onBack, onNext, onSkipSection, onClose, t })
           <button
             type="button"
             onClick={onSkipSection}
-            className="group inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.22em] text-washi-dim transition hover:text-washi sm:text-[10px]"
+            className="group inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim transition hover:text-washi sm:text-[10px]"
           >
             <span className="border-b border-dotted border-current pb-0.5">
               {t("tour.skipSection")}
@@ -876,7 +876,7 @@ function ProgressTrail({ current, total }) {
 
       {/* Numeric counter — small, mono, dim. Reads "01 / 06" so the
           user always knows the journey length. */}
-      <span className="font-mono text-[9px] uppercase tracking-[0.22em] tabular-nums text-washi-dim">
+      <span className="font-mono text-[10px] uppercase tracking-[0.22em] tabular-nums text-washi-dim">
         {String(current + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
       </span>
     </div>

@@ -44,7 +44,7 @@ export default function StatsHero({ t, totals, loading }) {
           pointer events disabled. */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -right-6 top-2 select-none font-jp text-[clamp(11rem,28vw,22rem)] font-bold leading-none text-hanko/[0.07] md:-right-16"
+        className="pointer-events-none absolute -right-6 top-2 select-none font-jp text-[clamp(11rem,28vw,22rem)] font-bold leading-none text-hanko-bright/[0.07] md:-right-16"
         style={{ transform: "rotate(-6deg)" }}
       >
         帳
@@ -73,7 +73,7 @@ export default function StatsHero({ t, totals, loading }) {
           </Link>
         </div>
 
-        <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.32em] text-hanko">
+        <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.32em] text-hanko-bright">
           {t("stats.hero.eyebrow")}
         </p>
 
@@ -102,7 +102,7 @@ export default function StatsHero({ t, totals, loading }) {
             >
               <span
                 aria-hidden="true"
-                className="absolute right-2 top-2 font-jp text-2xl font-bold leading-none text-hanko/40 md:text-3xl"
+                className="absolute right-2 top-2 font-jp text-2xl font-bold leading-none text-hanko-bright/40 md:text-3xl"
                 style={{ transform: "rotate(-4deg)" }}
               >
                 {s.kanji}

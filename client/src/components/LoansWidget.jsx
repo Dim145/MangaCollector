@@ -75,7 +75,7 @@ export default function LoansWidget() {
             <h2 className="font-display text-xl font-light italic text-washi md:text-2xl">
               {t("loans.title")}
             </h2>
-            <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+            <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
               {t("loans.kicker")}
             </span>
             <span
@@ -283,7 +283,7 @@ function DueCard({ loan, index, lang, t, onOpen }) {
               imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
             />
           ) : (
-            <div className="grid h-full w-full place-items-center font-display text-3xl italic text-hanko/40">
+            <div className="grid h-full w-full place-items-center font-display text-3xl italic text-hanko-bright/40">
               巻
             </div>
           )}

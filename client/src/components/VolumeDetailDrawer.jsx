@@ -187,7 +187,7 @@ export default function VolumeDetailDrawer({
         <span
           aria-hidden
           className={`pointer-events-none absolute -right-12 top-24 select-none font-jp text-[28rem] font-bold leading-none ${
-            isUpcoming ? "text-moegi/[0.06]" : "text-hanko/[0.04]"
+            isUpcoming ? "text-moegi/[0.06]" : "text-hanko-bright/[0.04]"
           }`}
           style={{ writingMode: "vertical-rl" }}
         >
@@ -234,7 +234,7 @@ export default function VolumeDetailDrawer({
                       : collectorStatus
                         ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0"
                         : ownedStatus
-                          ? "bg-hanko text-washi"
+                          ? "bg-hanko text-on-hanko"
                           : "bg-ink-0/85 text-washi ring-1 ring-washi/10"
                   }`}
                 >
@@ -249,7 +249,7 @@ export default function VolumeDetailDrawer({
                     : collectorStatus
                       ? "border-gold text-gold"
                       : ownedStatus
-                        ? "border-hanko text-hanko"
+                        ? "border-hanko text-hanko-bright"
                         : "border-border text-washi-dim"
                 }`}
               >
@@ -259,7 +259,7 @@ export default function VolumeDetailDrawer({
             <div className="min-w-0">
               <p
                 className={`font-mono text-[10px] uppercase tracking-[0.22em] ${
-                  isUpcoming ? "text-moegi" : "text-hanko"
+                  isUpcoming ? "text-moegi" : "text-hanko-bright"
                 }`}
               >
                 {isUpcoming
@@ -296,7 +296,7 @@ export default function VolumeDetailDrawer({
             type="button"
             onClick={onCancel}
             aria-label={t("common.close")}
-            className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border border-border bg-ink-2/80 text-washi-dim transition hover:border-hanko hover:bg-hanko hover:text-washi"
+            className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border border-border bg-ink-2/80 text-washi-dim transition hover:border-hanko hover:bg-hanko hover:text-on-hanko"
           >
             <svg
               viewBox="0 0 24 24"
@@ -421,7 +421,7 @@ export default function VolumeDetailDrawer({
                     className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition ${
                       ownedStatus === opt.v
                         ? opt.v
-                          ? "border-hanko bg-hanko text-washi"
+                          ? "border-hanko bg-hanko text-on-hanko"
                           : "border-border bg-ink-2 text-washi"
                         : "border-border bg-transparent text-washi-dim hover:text-washi"
                     }`}
@@ -666,7 +666,7 @@ export default function VolumeDetailDrawer({
                 type="button"
                 onClick={onSave}
                 disabled={isLoading}
-                className="flex-1 rounded-lg bg-hanko px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+                className="flex-1 rounded-lg bg-hanko px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
               >
                 {isLoading ? t("common.saving") : t("common.save")}
               </button>
@@ -712,7 +712,7 @@ function NoteField({ fieldId, value, onChange, t }) {
         >
           <span
             aria-hidden="true"
-            className="font-jp text-base font-bold leading-none text-hanko-bright/70"
+            className="font-jp text-base font-bold leading-none text-hanko-bright"
           >
             記
           </span>

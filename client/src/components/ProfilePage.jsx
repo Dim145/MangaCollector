@@ -268,14 +268,14 @@ export default function ProfilePage({ googleUser }) {
               cards above it stay clickable. */}
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute -right-4 -top-4 select-none font-jp text-[clamp(7rem,17vw,13rem)] font-bold leading-none text-hanko/[0.07] md:-right-6"
+            className="pointer-events-none absolute -right-4 -top-4 select-none font-jp text-[clamp(7rem,17vw,13rem)] font-bold leading-none text-hanko-bright/[0.07] md:-right-6"
             style={{ transform: "rotate(-6deg)" }}
           >
             個
           </span>
 
           <div className="relative flex items-baseline gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+            <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
               {t("profile.profile")} · 名刺
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-hanko/30 via-border to-transparent" />
@@ -401,7 +401,7 @@ export default function ProfilePage({ googleUser }) {
                   {publicSlug ? (
                     <Link
                       to={`/u/${publicSlug}`}
-                      className="text-hanko-bright transition hover:text-hanko"
+                      className="text-hanko-bright transition hover:text-hanko-bright"
                     >
                       @{publicSlug}
                     </Link>
@@ -577,13 +577,13 @@ export default function ProfilePage({ googleUser }) {
         >
           <span
             aria-hidden="true"
-            className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-hanko/55 bg-hanko/15 font-jp text-2xl font-bold leading-none text-hanko shadow-inner md:h-14 md:w-14"
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-hanko/55 bg-hanko/15 font-jp text-2xl font-bold leading-none text-hanko-bright shadow-inner md:h-14 md:w-14"
             style={{ transform: "rotate(-4deg)" }}
           >
             帳
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-hanko">
+            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-hanko-bright">
               {t("stats.profileCtaHint")}
             </p>
             <p className="mt-1 font-display text-lg italic text-washi md:text-xl">
@@ -592,7 +592,7 @@ export default function ProfilePage({ googleUser }) {
           </div>
           <span
             aria-hidden="true"
-            className="font-mono text-[14px] text-washi-muted transition-transform group-hover:translate-x-0.5 group-hover:text-hanko"
+            className="font-mono text-[14px] text-washi-muted transition-transform group-hover:translate-x-0.5 group-hover:text-hanko-bright"
           >
             →
           </span>
@@ -652,7 +652,7 @@ export default function ProfilePage({ googleUser }) {
                 // that the parent no longer enforces h-64.
                 <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
                   <span
-                    className="font-display text-4xl italic text-hanko/30"
+                    className="font-display text-4xl italic text-hanko-bright/30"
                     aria-hidden="true"
                   >
                     完
@@ -747,11 +747,11 @@ export default function ProfilePage({ googleUser }) {
         >
           <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-hanko/10 via-ink-1/50 to-gold/5 p-6 backdrop-blur md:p-8">
             <div className="pointer-events-none absolute -right-10 -top-10 grid h-40 w-40 place-items-center opacity-20">
-              <span className="font-display text-[10rem] italic leading-none text-hanko">
+              <span className="font-display text-[10rem] italic leading-none text-hanko-bright">
                 ⟡
               </span>
             </div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
               {t("profile.insightLabel")}
             </p>
             <h3 className="mt-2 max-w-xl font-display text-xl font-semibold italic text-washi md:text-2xl">
@@ -925,7 +925,7 @@ const ProfileChip = forwardRef(function ProfileChip(
       {spotlightHint ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[color:var(--chip-accent)]/55 bg-ink-1/95 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.22em] text-[color:var(--chip-accent)] shadow-[0_4px_14px_var(--chip-glow)] animate-fade-up"
+          className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[color:var(--chip-accent)]/55 bg-ink-1/95 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-[color:var(--chip-accent)] shadow-[0_4px_14px_var(--chip-glow)] animate-fade-up"
           style={styleVars}
         >
           {spotlightHint}

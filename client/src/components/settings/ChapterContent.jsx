@@ -181,7 +181,7 @@ function CurrencySection({ currency, onChange, t }) {
               </p>
             </div>
             {currency?.code === c.code && (
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-hanko text-washi">
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-hanko text-on-hanko">
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"

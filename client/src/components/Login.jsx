@@ -68,7 +68,7 @@ export default function Login() {
 
       {/* Japanese character ornament */}
       <span
-        className="pointer-events-none absolute right-[-10%] top-[10%] font-display italic font-light text-hanko/5 text-[30rem] leading-none select-none hidden md:block"
+        className="pointer-events-none absolute right-[-10%] top-[10%] font-display italic font-light text-hanko-bright/5 text-[30rem] leading-none select-none hidden md:block"
         aria-hidden="true"
       >
         巻

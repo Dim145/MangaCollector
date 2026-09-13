@@ -744,7 +744,7 @@ function RestoreModal({
           <button
             onClick={onConfirm}
             disabled={restoring || restoreDone}
-            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright disabled:opacity-60"
+            className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-on-hanko transition hover:bg-hanko-deep disabled:opacity-60"
           >
             {restoring ? (
               <span className="inline-flex items-center gap-2">

@@ -167,7 +167,7 @@ export default function CommandPalette() {
         {/* 検 watermark — same kanji-poster vocabulary as other modals */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-6 -right-2 select-none font-jp text-[14rem] font-bold leading-none text-hanko/[0.05]"
+          className="pointer-events-none absolute -bottom-6 -right-2 select-none font-jp text-[14rem] font-bold leading-none text-hanko-bright/[0.05]"
           style={{ writingMode: "vertical-rl" }}
         >
           検
@@ -177,7 +177,7 @@ export default function CommandPalette() {
         <div className="relative z-10 flex items-center gap-3 border-b border-border/60 px-5 py-4">
           <span
             aria-hidden="true"
-            className="font-jp text-lg font-bold leading-none text-hanko"
+            className="font-jp text-lg font-bold leading-none text-hanko-bright"
           >
             検
           </span>
@@ -253,7 +253,7 @@ export default function CommandPalette() {
                         {item.label}
                       </span>
                       {isSeries && (
-                        <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.22em] text-washi-dim">
+                        <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
                           {t("palette.seriesTag")}
                         </span>
                       )}
@@ -266,7 +266,7 @@ export default function CommandPalette() {
         </div>
 
         {/* Footer hint */}
-        <div className="relative z-10 flex items-center justify-between gap-2 border-t border-border/60 bg-ink-1/60 px-5 py-2 font-mono text-[9px] uppercase tracking-[0.22em] text-washi-dim">
+        <div className="relative z-10 flex items-center justify-between gap-2 border-t border-border/60 bg-ink-1/60 px-5 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
           <span>
             <kbd className="rounded border border-border bg-ink-2/80 px-1 py-0.5 text-washi-muted">
               ↑↓

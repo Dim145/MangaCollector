@@ -169,7 +169,7 @@ export default function GlossaryPage() {
             content stack via z-10. */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute right-2 top-8 select-none font-display italic font-light leading-none text-hanko/5 md:right-12 md:top-12"
+          className="pointer-events-none absolute right-2 top-8 select-none font-display italic font-light leading-none text-hanko-bright/5 md:right-12 md:top-12"
           style={{ fontSize: "clamp(8rem, 22vw, 18rem)" }}
         >
           字
@@ -207,7 +207,7 @@ export default function GlossaryPage() {
                   the rest of the app. */}
               <header className="flex items-baseline gap-4">
                 <span
-                  className="font-jp text-3xl font-bold leading-none text-hanko md:text-4xl"
+                  className="font-jp text-3xl font-bold leading-none text-hanko-bright md:text-4xl"
                   aria-hidden="true"
                 >
                   {section.kanji}
@@ -249,13 +249,13 @@ export default function GlossaryPage() {
         <footer className="relative z-10 mt-20 flex flex-col items-center gap-3 border-t border-border pt-10 text-center">
           <span
             aria-hidden="true"
-            className="font-jp text-base text-hanko/40 tracking-[0.4em]"
+            className="font-jp text-base text-hanko-bright/40 tracking-[0.4em]"
           >
             字
           </span>
           <Link
             to="/"
-            className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim transition hover:text-hanko"
+            className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim transition hover:text-hanko-bright"
           >
             ← {t("glossary.backHome")}
           </Link>
@@ -407,7 +407,7 @@ function KanjiCopyButton({ char, t }) {
         <span
           role="status"
           aria-live="polite"
-          className="pointer-events-none absolute left-2 top-full z-10 mt-1 inline-flex animate-fade-in items-center gap-1.5 whitespace-nowrap rounded-md border border-hanko/40 bg-ink-1/95 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.25em] text-hanko-bright shadow-md backdrop-blur"
+          className="pointer-events-none absolute left-2 top-full z-10 mt-1 inline-flex animate-fade-in items-center gap-1.5 whitespace-nowrap rounded-md border border-hanko/40 bg-ink-1/95 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-hanko-bright shadow-md backdrop-blur"
         >
           <span aria-hidden="true" className="font-jp text-[11px] leading-none">
             印
@@ -501,7 +501,7 @@ function ColourSwatch({ token, t }) {
           "tap to copy" and "✓ copied" on action. The state lives at
           this level so the swatch can keep its own visual breathing
           room even while the label changes. */}
-      <span className="flex items-center justify-center gap-1.5 border-t border-border/60 bg-ink-1/40 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.3em]">
+      <span className="flex items-center justify-center gap-1.5 border-t border-border/60 bg-ink-1/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.3em]">
         {copied ? (
           <>
             <svg

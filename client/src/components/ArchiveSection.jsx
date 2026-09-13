@@ -311,7 +311,7 @@ function ImportFlow({ open, onClose }) {
                 !previewResult ||
                 willWrite === 0
               }
-              className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-on-hanko shadow-lg transition hover:bg-hanko-deep disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isCommitting ? (
                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
@@ -331,7 +331,7 @@ function ImportFlow({ open, onClose }) {
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright"
+            className="rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-on-hanko shadow-lg transition hover:bg-hanko-deep"
           >
             {t("common.close")}
           </button>
@@ -594,7 +594,7 @@ function PreviewChip({ label, value, accent }) {
       <p className={`font-display text-3xl font-semibold tabular-nums ${colour}`}>
         {value}
       </p>
-      <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim">
+      <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
         {label}
       </p>
     </div>

@@ -45,7 +45,7 @@ export default function SpendingChart({ data, loading }) {
       </div>
       <div className="mt-2 flex flex-wrap items-baseline gap-4">
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-wider text-washi-dim">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
             {t("analytics.spending.total")}
           </p>
           <p className="font-display text-2xl font-semibold tabular-nums text-hanko-gradient">
@@ -53,7 +53,7 @@ export default function SpendingChart({ data, loading }) {
           </p>
         </div>
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-wider text-washi-dim">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
             {t("analytics.spending.avgActive")}
           </p>
           <p className="font-display text-lg font-semibold tabular-nums text-washi">
@@ -110,7 +110,7 @@ export default function SpendingChart({ data, loading }) {
                   const count = row.count ?? 0;
                   return (
                     <div className="rounded-lg border border-border bg-ink-1/98 px-3 py-2 shadow-xl backdrop-blur">
-                      <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
                         {label}
                       </p>
                       <p className="mt-1 font-display text-sm font-semibold tabular-nums text-washi">

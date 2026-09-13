@@ -81,7 +81,7 @@ export default function ComparePage() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
           >
-            <span className="absolute -right-10 -top-16 select-none font-jp text-[28rem] font-bold leading-none text-hanko/[0.06]">
+            <span className="absolute -right-10 -top-16 select-none font-jp text-[28rem] font-bold leading-none text-hanko-bright/[0.06]">
               対
             </span>
           </div>
@@ -356,7 +356,7 @@ function AddToMyLibraryModal({
                   {candidate.genres.slice(0, 4).map((g) => (
                     <span
                       key={g}
-                      className="rounded-full border border-border bg-ink-1/60 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-washi-muted"
+                      className="rounded-full border border-border bg-ink-1/60 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-washi-muted"
                     >
                       {g}
                     </span>
@@ -408,7 +408,7 @@ function AddToMyLibraryModal({
                 <button
                   type="button"
                   onClick={onSeeSeries}
-                  className="rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright"
+                  className="rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-on-hanko shadow-lg transition hover:bg-hanko-deep"
                 >
                   {t("compare.addSeeSeries")}
                 </button>
@@ -427,7 +427,7 @@ function AddToMyLibraryModal({
                   type="button"
                   onClick={onConfirm}
                   disabled={isCopying}
-                  className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-washi shadow-lg transition hover:bg-hanko-bright disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-on-hanko shadow-lg transition hover:bg-hanko-deep disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {isCopying ? (
                     <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />
@@ -479,7 +479,7 @@ function BucketSummary({ shared, mine, theirs, otherName, t }) {
 function TabButton({ active, onClick, count, accent, label }) {
   const activeCls =
     accent === "hanko"
-      ? "bg-hanko text-washi"
+      ? "bg-hanko text-on-hanko"
       : accent === "gold"
         ? "bg-gold text-ink-0"
         : "bg-moegi text-ink-0";
@@ -544,7 +544,7 @@ function Panel({
             {kanji}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-washi-dim">
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
               {subtitle}
             </p>
             <h3 className="font-display text-lg italic leading-tight text-washi truncate">

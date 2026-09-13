@@ -703,7 +703,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-ink-2">
                     <span
-                      className="font-display text-6xl italic text-hanko/40"
+                      className="font-display text-6xl italic text-hanko-bright/40"
                       title={t("badges.volume")}
                     >
                       巻
@@ -781,7 +781,7 @@ export default function MangaPage({ manga, adult_content_level }) {
 
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+                <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
                   {t("manga.seriesLabel")}
                 </span>
               </div>
@@ -878,7 +878,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
                   <span
                     aria-hidden="true"
-                    className="font-jp text-xs text-hanko/70"
+                    className="font-jp text-xs text-hanko-bright"
                   >
                     出版
                   </span>
@@ -926,7 +926,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                   {liveLibraryRow.author.mal_id != null ? (
                     <Link
                       to={`/author/${liveLibraryRow.author.mal_id}`}
-                      className="text-hanko-bright transition hover:text-hanko"
+                      className="text-hanko-bright transition hover:text-hanko-bright"
                     >
                       {liveLibraryRow.author.name}
                     </Link>
@@ -1019,7 +1019,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           type="checkbox"
                           checked={reviewPublic}
                           onChange={(e) => setReviewPublic(e.target.checked)}
-                          className="h-3.5 w-3.5 rounded border-border bg-ink-0 text-hanko focus:ring-hanko/40"
+                          className="h-3.5 w-3.5 rounded border-border bg-ink-0 text-hanko-bright focus:ring-hanko/40"
                         />
                         <span className="font-mono text-[10px] uppercase tracking-[0.2em]">
                           {t("manga.reviewPublicLabel")}
@@ -1058,7 +1058,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                       {t("manga.reviewHeader")}
                     </span>
                     {reviewPublic && (
-                      <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-hanko/80">
+                      <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-hanko-bright">
                         · {t("manga.reviewPublicMark")}
                       </span>
                     )}
@@ -1102,7 +1102,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                     >
                       <button
                         onClick={() => setIsEditing(true)}
-                        className={`inline-flex flex-1 items-center justify-center gap-1.5 bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi shadow-lg transition hover:bg-hanko-bright active:scale-95 sm:flex-none ${
+                        className={`inline-flex flex-1 items-center justify-center gap-1.5 bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-on-hanko shadow-lg transition hover:bg-hanko-deep active:scale-95 sm:flex-none ${
                           manga.mal_id > 0 || liveMangadexId
                             ? "rounded-l-full"
                             : "rounded-full"
@@ -1141,7 +1141,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           aria-label={t("manga.syncMenuLabel")}
                           aria-expanded={editMenuOpen}
                           aria-haspopup="menu"
-                          className="inline-flex items-center justify-center rounded-r-full border-l border-hanko-deep/60 bg-hanko px-2.5 py-2.5 text-washi shadow-lg transition hover:bg-hanko-bright active:scale-95 disabled:opacity-60"
+                          className="inline-flex items-center justify-center rounded-r-full border-l border-hanko-deep/60 bg-hanko px-2.5 py-2.5 text-on-hanko shadow-lg transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
                         >
                           <svg
                             viewBox="0 0 24 24"
@@ -1253,7 +1253,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 <p className="mt-1 text-xs text-washi-muted">
                   {t("manga.bulkActionHint")}
                 </p>
-                <span className="absolute bottom-4 right-4 grid h-8 w-8 place-items-center rounded-full bg-hanko/20 text-hanko transition group-hover:bg-hanko group-hover:text-washi">
+                <span className="absolute bottom-4 right-4 grid h-8 w-8 place-items-center rounded-full bg-hanko/20 text-hanko-bright transition group-hover:bg-hanko group-hover:text-on-hanko">
                   <svg
                     viewBox="0 0 24 24"
                     fill="none"
@@ -1269,7 +1269,7 @@ export default function MangaPage({ manga, adult_content_level }) {
               </button>
             ) : (
               <div className="rounded-2xl border border-hanko/30 bg-ink-1/80 p-4 backdrop-blur animate-fade-up">
-                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-hanko">
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-hanko-bright">
                   {t("manga.bulkAdd")}
                 </p>
                 <div className="mt-3 space-y-3">
@@ -1304,7 +1304,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                   <div className="flex gap-2 pt-1">
                     <button
                       onClick={handleAddAllVolumes}
-                      className="flex-1 rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95"
+                      className="flex-1 rounded-lg bg-hanko px-3 py-2 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95"
                     >
                       {t("common.confirm")}
                     </button>
@@ -1737,7 +1737,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 strokeWidth="1.6"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="h-3 w-3 shrink-0 text-moegi/70"
+                className="h-3 w-3 shrink-0 text-moegi"
               >
                 <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
               </svg>
@@ -1805,7 +1805,7 @@ export default function MangaPage({ manga, adult_content_level }) {
             </button>
             <button
               onClick={confirmDeleteManga}
-              className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-washi transition hover:bg-hanko-bright"
+              className="flex-1 rounded-lg bg-hanko px-4 py-2 text-sm font-semibold text-on-hanko transition hover:bg-hanko-deep"
             >
               {t("common.remove")}
             </button>

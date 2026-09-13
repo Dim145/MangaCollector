@@ -79,7 +79,7 @@ function FeaturedRow({ rank, author, t }) {
             </div>
           ))
         ) : (
-          <div className="col-span-4 flex aspect-[12/4] items-center justify-center font-display text-5xl italic text-hanko/30">
+          <div className="col-span-4 flex aspect-[12/4] items-center justify-center font-display text-5xl italic text-hanko-bright/30">
             人
           </div>
         )}
@@ -163,7 +163,7 @@ function RankBadge({ rank }) {
   return (
     <span
       aria-hidden="true"
-      className="absolute left-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-hanko/70 bg-hanko/90 font-jp text-base font-bold text-washi shadow-[0_4px_14px_-4px_rgba(0,0,0,0.5)]"
+      className="absolute left-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-hanko/70 bg-hanko/90 font-jp text-base font-bold text-on-hanko shadow-[0_4px_14px_-4px_rgba(0,0,0,0.5)]"
       style={{ transform: "rotate(-4deg)" }}
     >
       {rank === 1 ? "壱" : rank === 2 ? "弐" : "参"}

@@ -162,7 +162,7 @@ function IosInstructions({ open, onClose }) {
             because the close CTA + step badges already speak hanko. */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-8 -right-8 select-none font-jp text-[20rem] font-bold leading-none text-hanko/[0.07]"
+          className="pointer-events-none absolute -bottom-8 -right-8 select-none font-jp text-[20rem] font-bold leading-none text-hanko-bright/[0.07]"
           style={{ writingMode: "vertical-rl" }}
         >
           携
@@ -216,7 +216,7 @@ function IosInstructions({ open, onClose }) {
         <div className="relative flex justify-end border-t border-border/60 px-4 py-3">
           <button
             onClick={onClose}
-            className="rounded-full bg-hanko px-4 py-1.5 text-sm font-semibold text-washi shadow-md transition hover:bg-hanko-bright active:scale-95"
+            className="rounded-full bg-hanko px-4 py-1.5 text-sm font-semibold text-on-hanko shadow-md transition hover:bg-hanko-deep active:scale-95"
           >
             {t("install.iosClose")}
           </button>

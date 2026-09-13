@@ -163,7 +163,7 @@ export default function BulkActionsBar({ library, selectedIds, onClose }) {
                 type="button"
                 onClick={runDelete}
                 disabled={busy}
-                className="inline-flex items-center rounded-full bg-hanko px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-washi transition hover:bg-hanko-bright disabled:opacity-50"
+                className="inline-flex items-center rounded-full bg-hanko px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep disabled:opacity-50"
               >
                 {t("bulk.deleteConfirmYes")}
               </button>

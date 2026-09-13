@@ -36,13 +36,22 @@
      warm-cream cast survives. */
   --washi: oklch(0.96 0.012 85); /* cream */
   --washi-muted: oklch(0.85 0.015 70);
-  --washi-dim: oklch(0.68 0.015 60);
+  --washi-dim: oklch(0.72 0.015 60); /* captions · ≥8:1 on every ink */
 
   /* Signature */
-  --hanko: oklch(0.6 0.22 25); /* stamp red */
+  --hanko: oklch(
+    0.565 0.22 25
+  ); /* stamp red · filled surface, carries white at 4.5:1 */
   --hanko-bright: oklch(0.68 0.24 25);
   --hanko-deep: oklch(0.48 0.2 25);
-  --hanko-glow: oklch(0.6 0.22 25 / 0.35);
+  --hanko-glow: oklch(0.565 0.22 25 / 0.35);
+
+  /* 判 · The ink that reads ON a hanko surface. The accent palettes
+     rotate `--hanko` through seven hues, three of them pastel — white
+     on those lands at 1.9:1, unreadable. So a filled button names this
+     token rather than hard-coding `text-washi`, and each accent says
+     which ink its own surface carries. */
+  --on-hanko: var(--washi);
 
   /* 消 · Erase / destructive — accent-INDEPENDENT red.
      `--hanko-*` rotates through the user's accent palette (kin
@@ -143,6 +152,8 @@
    re-tints with the chosen accent — no half-rebrand where the
    buttons turn purple but the page glow stays red. */
 :root[data-accent="kin"] {
+  /* pastel surface — dark ink reads on it (10.2:1), white does not */
+  --on-hanko: var(--ink-0);
   --hanko: oklch(0.78 0.15 78);
   --hanko-bright: oklch(0.86 0.16 78);
   --hanko-deep: oklch(0.62 0.14 78);
@@ -151,6 +162,8 @@
   --scene-red: oklch(0.78 0.15 78 / 0.32);
 }
 :root[data-accent="moegi"] {
+  /* pastel surface — dark ink reads on it (8.3:1), white does not */
+  --on-hanko: var(--ink-0);
   --hanko: oklch(0.7 0.18 140);
   --hanko-bright: oklch(0.78 0.2 140);
   --hanko-deep: oklch(0.56 0.16 140);
@@ -159,6 +172,8 @@
   --scene-red: oklch(0.7 0.18 140 / 0.32);
 }
 :root[data-accent="sakura"] {
+  /* pastel surface — dark ink reads on it (9.8:1), white does not */
+  --on-hanko: var(--ink-0);
   --hanko: oklch(0.78 0.13 12);
   --hanko-bright: oklch(0.84 0.14 12);
   --hanko-deep: oklch(0.6 0.12 12);
@@ -167,16 +182,16 @@
   --scene-red: oklch(0.78 0.13 12 / 0.32);
 }
 :root[data-accent="ai"] {
-  --hanko: oklch(0.58 0.16 250);
+  --hanko: oklch(0.53 0.16 250);
   --hanko-bright: oklch(0.66 0.18 250);
   --hanko-deep: oklch(0.46 0.14 250);
-  --hanko-glow: oklch(0.58 0.16 250 / 0.35);
+  --hanko-glow: oklch(0.53 0.16 250 / 0.35);
   --bg-glow-red: oklch(0.58 0.16 250 / 0.08);
   --scene-red: oklch(0.58 0.16 250 / 0.32);
 }
 :root[data-accent="kuro"] {
   --hanko: oklch(0.5 0.06 60);
-  --hanko-bright: oklch(0.6 0.08 60);
+  --hanko-bright: oklch(0.66 0.08 60);
   --hanko-deep: oklch(0.36 0.05 60);
   --hanko-glow: oklch(0.5 0.06 60 / 0.4);
   --bg-glow-red: oklch(0.5 0.06 60 / 0.08);
@@ -191,10 +206,10 @@
   --scene-red: oklch(0.56 0.18 310 / 0.32);
 }
 :root[data-accent="akane"] {
-  --hanko: oklch(0.58 0.2 15);
+  --hanko: oklch(0.56 0.2 15);
   --hanko-bright: oklch(0.66 0.22 15);
   --hanko-deep: oklch(0.46 0.18 15);
-  --hanko-glow: oklch(0.58 0.2 15 / 0.35);
+  --hanko-glow: oklch(0.56 0.2 15 / 0.35);
   --bg-glow-red: oklch(0.58 0.2 15 / 0.08);
   --scene-red: oklch(0.58 0.2 15 / 0.32);
 }
@@ -220,16 +235,19 @@
 
   /* Signature — deeper red so it reads against pure white */
   --hanko: oklch(0.5 0.22 25);
-  --hanko-bright: oklch(0.56 0.23 25);
+  --hanko-bright: oklch(0.45 0.22 25); /* the red as text on paper */
   --hanko-deep: oklch(0.38 0.18 25);
   --hanko-glow: oklch(0.5 0.22 25 / 0.22);
+  /* on paper `--washi` IS the dark ink, so a filled red button takes
+     the page white instead */
+  --on-hanko: var(--ink-0);
 
   /* Accent — gold darkened so it's readable as a text colour */
-  --gold: oklch(0.52 0.14 78);
-  --gold-muted: oklch(0.44 0.12 75);
+  --gold: oklch(0.44 0.14 78);
+  --gold-muted: oklch(0.42 0.12 75);
   --sakura: oklch(0.56 0.15 20);
-  --moegi: oklch(0.55 0.17 140); /* moegi · deep leaf on paper */
-  --moegi-muted: oklch(0.45 0.15 140);
+  --moegi: oklch(0.44 0.15 140); /* moegi · deep leaf on paper */
+  --moegi-muted: oklch(0.42 0.14 140);
   --ai: oklch(0.45 0.16 248); /* 藍 · indigo on paper (light theme) */
   --ai-muted: oklch(0.4 0.14 248);
 
@@ -463,6 +481,7 @@
   --color-hanko: var(--hanko);
   --color-hanko-bright: var(--hanko-bright);
   --color-hanko-deep: var(--hanko-deep);
+  --color-on-hanko: var(--on-hanko);
   --color-erase: var(--erase);
   --color-erase-bright: var(--erase-bright);
   --color-erase-deep: var(--erase-deep);
@@ -664,7 +683,9 @@
     animation: brushstroke-draw 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
   @keyframes brushstroke-draw {
-    to { stroke-dashoffset: 0; }
+    to {
+      stroke-dashoffset: 0;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .brushstroke-path {
@@ -785,31 +806,29 @@
        (warm sumi tones from the existing palette) with a faint
        highlight line at the leading edge. Pinned to the bottom of
        the grid so the cards visually rest on it. */
-    background-image:
-      linear-gradient(
-        to bottom,
-        transparent 0,
-        transparent calc(100% - 14px),
-        oklch(0.18 0.025 60 / 0.9) calc(100% - 14px),
-        oklch(0.12 0.02 50 / 0.95) calc(100% - 6px),
-        oklch(0.08 0.015 40 / 1) 100%
-      );
+    background-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(100% - 14px),
+      oklch(0.18 0.025 60 / 0.9) calc(100% - 14px),
+      oklch(0.12 0.02 50 / 0.95) calc(100% - 6px),
+      oklch(0.08 0.015 40 / 1) 100%
+    );
     background-repeat: no-repeat;
     background-size: 100% 270px;
     background-position: 0 270px;
     /* Tile the shelf line behind every grid row by repeating the
        gradient with `repeating-linear-gradient` along the Y-axis. */
-    background-image:
-      repeating-linear-gradient(
-        to bottom,
-        transparent 0,
-        transparent 256px,
-        oklch(0.18 0.025 60 / 0.5) 256px,
-        oklch(0.1 0.02 50 / 0.85) 262px,
-        oklch(0.06 0.015 40 / 0.4) 270px,
-        transparent 270px,
-        transparent 286px
-      );
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 256px,
+      oklch(0.18 0.025 60 / 0.5) 256px,
+      oklch(0.1 0.02 50 / 0.85) 262px,
+      oklch(0.06 0.015 40 / 0.4) 270px,
+      transparent 270px,
+      transparent 286px
+    );
     padding-bottom: 16px;
   }
   .shelf-3d > * {
@@ -1626,7 +1645,12 @@
     0 0 24px -4px oklch(0.82 0.13 78 / 0.35);
 }
 .seal-earned.seal-tier-shikkoku > span.font-jp {
-  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-muted) 40%, var(--gold) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--gold) 0%,
+    var(--gold-muted) 40%,
+    var(--gold) 100%
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -1680,7 +1704,8 @@
 
 /* ─── Shine sweep — kin/shikkoku get a slow diagonal glint ──────── */
 @keyframes seal-shine {
-  0%, 65% {
+  0%,
+  65% {
     transform: translateX(-80%) translateY(-80%) rotate(25deg);
     opacity: 0;
   }
@@ -1713,11 +1738,21 @@
 }
 
 /* ─── Tier-tinted glow halos for the ceremony animation ─────────── */
-.seal-glow-sumi { background: oklch(0.78 0.015 70 / 0.25); }
-.seal-glow-hanko { background: var(--hanko-glow); }
-.seal-glow-moegi { background: oklch(0.78 0.16 140 / 0.35); }
-.seal-glow-kin { background: oklch(0.82 0.13 78 / 0.4); }
-.seal-glow-shikkoku { background: oklch(0.82 0.13 78 / 0.55); }
+.seal-glow-sumi {
+  background: oklch(0.78 0.015 70 / 0.25);
+}
+.seal-glow-hanko {
+  background: var(--hanko-glow);
+}
+.seal-glow-moegi {
+  background: oklch(0.78 0.16 140 / 0.35);
+}
+.seal-glow-kin {
+  background: oklch(0.82 0.13 78 / 0.4);
+}
+.seal-glow-shikkoku {
+  background: oklch(0.82 0.13 78 / 0.55);
+}
 
 /* ─── 季節 Season chips — self-illustrative swatches in Settings.
    Each chip carries a scaled-down preview of the palette it would
@@ -1800,12 +1835,11 @@
 /* Paper base — gradient from ivory-tinted ink-2 to ink-3, with a soft
    inner top shadow to suggest the curl of unrolled paper. */
 .emaki-strip {
-  background:
-    linear-gradient(
-      180deg,
-      oklch(0.19 0.012 75 / 1) 0%,
-      oklch(0.13 0.008 68 / 1) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    oklch(0.19 0.012 75 / 1) 0%,
+    oklch(0.13 0.008 68 / 1) 100%
+  );
   border-radius: 2px;
   box-shadow:
     inset 0 1px 0 oklch(0.96 0.012 85 / 0.06),
@@ -1991,7 +2025,8 @@
   animation: emaki-halo 2.4s ease-in-out infinite;
 }
 @keyframes emaki-halo {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(0.7);
     opacity: 0.6;
   }
@@ -2028,7 +2063,8 @@
 /* Ring-flash — used when a reading-cell click scrolls-to its volume.
    A one-shot animation that overlays a hanko-red glow around the card. */
 @keyframes ring-flash {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 var(--hanko-glow);
   }
   30% {
@@ -2156,7 +2192,9 @@
   width: 0.625rem;
   height: 0.625rem;
   border-radius: 9999px;
-  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.4), 0 0 6px -1px currentColor;
+  box-shadow:
+    0 0 0 1px oklch(0 0 0 / 0.4),
+    0 0 6px -1px currentColor;
 }
 .tier-legend-sumi {
   background: linear-gradient(160deg, var(--ink-3), var(--ink-2));
@@ -2205,11 +2243,7 @@
   box-shadow: 0 0 8px -1px oklch(0.82 0.13 78 / 0.5);
 }
 .tier-bar-shikkoku > div {
-  background: linear-gradient(
-    90deg,
-    oklch(0.12 0.02 28),
-    oklch(0.32 0.06 28)
-  );
+  background: linear-gradient(90deg, oklch(0.12 0.02 28), oklch(0.32 0.06 28));
   box-shadow:
     inset 0 0 0 1px oklch(0.82 0.13 78 / 0.4),
     0 0 6px -1px oklch(0.82 0.13 78 / 0.4);
@@ -2220,7 +2254,8 @@
    feels like it breathes. Period intentionally long (12s) — anything
    shorter starts to read as a glitch rather than ambience. */
 @keyframes seal-watermark-drift {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0) rotate(0deg);
     opacity: 1;
   }
@@ -2235,7 +2270,8 @@
    row of three reads as one continuous shimmer rather than three
    blinks in lockstep. */
 @keyframes seal-spark {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.25;
     transform: translateY(0) scale(0.85);
   }
@@ -2252,7 +2288,8 @@
   animation: seal-progress-pulse 2.4s ease-in-out infinite;
 }
 @keyframes seal-progress-pulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 8px var(--hanko-glow);
     transform: translate(-50%, -50%) scale(1);
   }
@@ -2280,8 +2317,7 @@
     opacity: var(--petal-opacity, 0.55);
   }
   100% {
-    transform:
-      translate3d(var(--drift-x, 80px), 110vh, 0)
+    transform: translate3d(var(--drift-x, 80px), 110vh, 0)
       rotate(var(--drift-rot, 360deg));
     opacity: 0;
   }
@@ -2508,11 +2544,22 @@
 
 /* Delete-account modal — short shake on wrong input */
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-6px); }
-  40% { transform: translateX(6px); }
-  60% { transform: translateX(-4px); }
-  80% { transform: translateX(4px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
 }
 .animate-shake {
   animation: shake 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
@@ -2520,8 +2567,15 @@
 
 /* Delete-account modal — ambient red glow pulse in the background */
 @keyframes delete-pulse {
-  0%, 100% { opacity: 0.3; transform: scale(1); }
-  50% { opacity: 0.55; transform: scale(1.04); }
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.04);
+  }
 }
 .animate-delete-pulse {
   animation: delete-pulse 2.4s ease-in-out infinite;
@@ -2729,7 +2783,6 @@
   z-index: 90;
 }
 
-
 /* ─── 迷子 · Chibi archivist mascot ───
    Three independent animations choreograph the ChibiArchivist
    composition on the 404 page. The character itself is a
@@ -2861,13 +2914,12 @@
   align-items: center;
   gap: 0.45rem;
   padding: 0.4rem 1.4rem 0.4rem 0.8rem;
-  background:
-    linear-gradient(
-      135deg,
-      var(--gold) 0%,
-      color-mix(in oklab, var(--gold) 65%, white 35%) 50%,
-      var(--gold) 100%
-    );
+  background: linear-gradient(
+    135deg,
+    var(--gold) 0%,
+    color-mix(in oklab, var(--gold) 65%, white 35%) 50%,
+    var(--gold) 100%
+  );
   color: var(--ink-0);
   font-family: "Fraunces", "Noto Serif JP", serif;
   font-style: italic;
@@ -3478,13 +3530,15 @@
     opacity: 0.55;
   }
   50% {
-    transform: translate3d(2vw, 50vh, 0) rotate(calc(var(--rot) + 180deg)) scale(var(--scale));
+    transform: translate3d(2vw, 50vh, 0) rotate(calc(var(--rot) + 180deg))
+      scale(var(--scale));
   }
   90% {
     opacity: 0.55;
   }
   100% {
-    transform: translate3d(-1vw, 110vh, 0) rotate(calc(var(--rot) + 360deg)) scale(var(--scale));
+    transform: translate3d(-1vw, 110vh, 0) rotate(calc(var(--rot) + 360deg))
+      scale(var(--scale));
     opacity: 0;
   }
 }
@@ -3498,13 +3552,15 @@
     opacity: 0.65;
   }
   50% {
-    transform: translate3d(-3vw, 50vh, 0) rotate(calc(var(--rot) + 540deg)) scale(var(--scale));
+    transform: translate3d(-3vw, 50vh, 0) rotate(calc(var(--rot) + 540deg))
+      scale(var(--scale));
   }
   88% {
     opacity: 0.65;
   }
   100% {
-    transform: translate3d(2vw, 110vh, 0) rotate(calc(var(--rot) + 1080deg)) scale(var(--scale));
+    transform: translate3d(2vw, 110vh, 0) rotate(calc(var(--rot) + 1080deg))
+      scale(var(--scale));
     opacity: 0;
   }
 }
@@ -3565,27 +3621,62 @@
 
 .yir-accent-spring {
   background-image:
-    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-sakura) 22%, transparent), transparent 55%),
-    radial-gradient(circle at 100% 100%, color-mix(in oklch, var(--scene-sakura) 14%, transparent), transparent 50%);
+    radial-gradient(
+      circle at 50% 0%,
+      color-mix(in oklch, var(--scene-sakura) 22%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 100% 100%,
+      color-mix(in oklch, var(--scene-sakura) 14%, transparent),
+      transparent 50%
+    );
 }
 .yir-accent-summer {
   background-image:
-    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-gold) 20%, transparent), transparent 55%),
-    radial-gradient(circle at 0% 100%, color-mix(in oklch, var(--scene-gold) 14%, transparent), transparent 50%);
+    radial-gradient(
+      circle at 50% 0%,
+      color-mix(in oklch, var(--scene-gold) 20%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 0% 100%,
+      color-mix(in oklch, var(--scene-gold) 14%, transparent),
+      transparent 50%
+    );
 }
 .yir-accent-autumn {
   background-image:
-    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-gold) 22%, transparent), transparent 55%),
-    radial-gradient(circle at 100% 100%, color-mix(in oklch, var(--scene-red) 14%, transparent), transparent 50%);
+    radial-gradient(
+      circle at 50% 0%,
+      color-mix(in oklch, var(--scene-gold) 22%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 100% 100%,
+      color-mix(in oklch, var(--scene-red) 14%, transparent),
+      transparent 50%
+    );
 }
 .yir-accent-winter {
   background-image:
-    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--washi) 16%, transparent), transparent 55%),
-    radial-gradient(circle at 0% 100%, color-mix(in oklch, var(--scene-red) 12%, transparent), transparent 50%);
+    radial-gradient(
+      circle at 50% 0%,
+      color-mix(in oklch, var(--washi) 16%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 0% 100%,
+      color-mix(in oklch, var(--scene-red) 12%, transparent),
+      transparent 50%
+    );
 }
 .yir-accent-neutral {
-  background-image:
-    radial-gradient(circle at 50% 0%, color-mix(in oklch, var(--scene-red) 18%, transparent), transparent 55%);
+  background-image: radial-gradient(
+    circle at 50% 0%,
+    color-mix(in oklch, var(--scene-red) 18%, transparent),
+    transparent 55%
+  );
 }
 
 /* Shelf stickers — Avery L7160 (A4, 21 stickers, 63.5 × 38.1 mm

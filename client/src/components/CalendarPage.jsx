@@ -116,7 +116,7 @@ export default function CalendarPage() {
             its column even as the page scrolls. */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute right-0 top-12 hidden select-none font-jp text-[18rem] font-bold leading-none text-hanko/[0.045] md:block"
+          className="pointer-events-none absolute right-0 top-12 hidden select-none font-jp text-[18rem] font-bold leading-none text-hanko-bright/[0.045] md:block"
           style={{ writingMode: "vertical-rl", letterSpacing: "0.5rem" }}
         >
           来 月 暦
@@ -125,7 +125,7 @@ export default function CalendarPage() {
         {/* ── Masthead ──────────────────────────────────────────── */}
         <header className="relative mb-10 animate-fade-up">
           <div className="flex items-baseline gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko">
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
               {t("calendar.eyebrow")}
             </span>
             <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
@@ -276,7 +276,7 @@ function Toolbar({
           strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-washi-dim transition-colors group-focus-within:text-hanko"
+          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-washi-dim transition-colors group-focus-within:text-hanko-bright"
           aria-hidden="true"
         >
           <circle cx="11" cy="11" r="7" />
@@ -310,7 +310,7 @@ function Toolbar({
               onClick={() => setWindowMonths(n)}
               className={`rounded-full px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider transition ${
                 active
-                  ? "bg-hanko text-washi shadow-md"
+                  ? "bg-hanko text-on-hanko shadow-md"
                   : "text-washi-muted hover:text-washi"
               }`}
             >
@@ -478,7 +478,7 @@ function MonthBlock({ label, kanji, releases, today, navigate, t, delayMs }) {
       <div className="mb-6 flex items-end gap-4 md:gap-6">
         <span
           aria-hidden
-          className="font-jp text-5xl font-bold leading-none text-hanko md:text-6xl"
+          className="font-jp text-5xl font-bold leading-none text-hanko-bright md:text-6xl"
           style={{ transform: "rotate(-2deg)" }}
         >
           {kanji}
@@ -606,10 +606,10 @@ function ReleaseCard({ release, today, navigate, t, tilt = 0 }) {
           >
             {dayNum}
           </span>
-          <span className="mt-1 font-mono text-[9px] uppercase tracking-[0.18em] text-washi-dim">
+          <span className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-washi-dim">
             {weekday}
           </span>
-          <span className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-washi-muted">
+          <span className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-washi-muted">
             {monthShort}
           </span>
         </div>
@@ -746,7 +746,7 @@ function MonthGrid({ label, kanji, releases, today, navigate, t }) {
       <div className="mb-5 flex items-baseline gap-4">
         <span
           aria-hidden
-          className="font-jp text-4xl font-bold leading-none text-hanko"
+          className="font-jp text-4xl font-bold leading-none text-hanko-bright"
           style={{ transform: "rotate(-2deg)" }}
         >
           {kanji}
@@ -764,7 +764,7 @@ function MonthGrid({ label, kanji, releases, today, navigate, t }) {
         {headers.map((d) => (
           <div
             key={d}
-            className="pb-1.5 text-center font-mono text-[9px] uppercase tracking-wider text-washi-dim"
+            className="pb-1.5 text-center font-mono text-[10px] uppercase tracking-wider text-washi-dim"
           >
             {d}
           </div>
@@ -806,13 +806,13 @@ function MonthGrid({ label, kanji, releases, today, navigate, t }) {
                     })
                   }
                   title={`${rel.manga_name} · ${t("calendar.volumeLabel", { n: rel.vol_num })}`}
-                  className="block w-full truncate rounded bg-moegi/15 px-1 py-0.5 text-left font-mono text-[9px] text-moegi transition hover:bg-moegi/25"
+                  className="block w-full truncate rounded bg-moegi/15 px-1 py-0.5 text-left font-mono text-[10px] text-moegi transition hover:bg-moegi/25"
                 >
                   {rel.manga_name.split(" ").slice(0, 2).join(" ")} · {rel.vol_num}
                 </button>
               ))}
               {cell.releases.length > 2 && (
-                <span className="font-mono text-[9px] text-washi-dim">
+                <span className="font-mono text-[10px] text-washi-dim">
                   +{cell.releases.length - 2}
                 </span>
               )}
@@ -850,7 +850,7 @@ function ErrorState({ onRetry, t }) {
     <div className="rounded-2xl border border-hanko/30 bg-hanko/5 p-8 text-center">
       <span
         aria-hidden
-        className="font-jp text-3xl font-bold leading-none text-hanko"
+        className="font-jp text-3xl font-bold leading-none text-hanko-bright"
         style={{ transform: "rotate(-3deg)", display: "inline-block" }}
       >
         災
@@ -862,7 +862,7 @@ function ErrorState({ onRetry, t }) {
       <button
         type="button"
         onClick={() => onRetry()}
-        className="mt-4 inline-flex items-center gap-2 rounded-full border border-hanko/50 bg-hanko/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-washi transition hover:border-hanko hover:bg-hanko hover:text-washi"
+        className="mt-4 inline-flex items-center gap-2 rounded-full border border-hanko/50 bg-hanko/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:border-hanko hover:bg-hanko hover:text-on-hanko"
       >
         {t("common.retryNow")}
       </button>

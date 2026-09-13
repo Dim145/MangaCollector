@@ -148,7 +148,7 @@ export default function ReadingProgress({ series }) {
                 type="button"
                 disabled={busy}
                 onClick={() => reread.mutate(malId)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-washi transition hover:bg-hanko-bright disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-full bg-hanko px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-on-hanko transition hover:bg-hanko-deep disabled:opacity-50"
               >
                 <span
                   aria-hidden="true"
@@ -202,7 +202,7 @@ export default function ReadingProgress({ series }) {
 function DateField({ id, label, value, display, onChange, disabled }) {
   return (
     <label htmlFor={id} className="block">
-      <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.2em] text-washi-dim">
+      <span className="mb-1 block font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
         {label}
         {display ? (
           <span className="ml-1.5 normal-case tracking-normal text-washi">

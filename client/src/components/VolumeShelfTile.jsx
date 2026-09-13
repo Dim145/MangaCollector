@@ -111,7 +111,7 @@ function VolumeShelfTileImpl({
         owned && (
           <span
             aria-label={t("manga.shelfBadgeCollector")}
-            className={`absolute grid h-5 w-5 place-items-center rounded-sm bg-hanko/90 font-jp text-[10px] font-bold leading-none text-washi shadow-[0_0_6px_var(--hanko-glow)] ${
+            className={`absolute grid h-5 w-5 place-items-center rounded-sm bg-hanko/90 font-jp text-[10px] font-bold leading-none text-on-hanko shadow-[0_0_6px_var(--hanko-glow)] ${
               isLent ? "right-1 bottom-7" : "right-1 top-1"
             }`}
             style={{ transform: "rotate(6deg)" }}
@@ -155,7 +155,7 @@ function VolumeShelfTileImpl({
           inside it ("2 ×2") rather than taking a corner: 読 owns the
           top-left, 来/限 and the loan stamp the top-right, 盒/記 the
           bottom-right, so a fifth corner seal always collided with one. */}
-      <span className="absolute bottom-1 left-1 inline-flex items-baseline gap-1 rounded-sm bg-ink-0/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-washi backdrop-blur-sm">
+      <span className="absolute bottom-1 left-1 inline-flex items-baseline gap-1 rounded-sm bg-ink-0/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-washi backdrop-blur-sm">
         {volNum}
         {hasDoubles && (
           <span

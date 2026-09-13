@@ -180,10 +180,10 @@ function Hero({ count, t }) {
   return (
     <header className="relative mb-10 animate-fade-up md:mb-14">
       <div className="mb-6 flex flex-wrap items-baseline gap-3">
-        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko">
+        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
           {t("friends.kicker")}
         </span>
-        <span className="font-jp text-[11px] tracking-[0.4em] text-hanko/80">
+        <span className="font-jp text-[11px] tracking-[0.4em] text-hanko-bright">
           友
         </span>
         <span className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent" />
@@ -311,7 +311,7 @@ function CorrespondentRow({ follow, onUnfollow, lang, t }) {
       <button
         type="button"
         onClick={onUnfollow}
-        className="shrink-0 rounded-md border border-transparent px-2 py-1 font-mono text-[9px] uppercase tracking-[0.22em] text-washi-dim opacity-0 transition hover:border-hanko/50 hover:bg-hanko/10 hover:text-hanko-bright group-hover:opacity-100 focus-visible:opacity-100"
+        className="shrink-0 rounded-md border border-transparent px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim opacity-0 transition hover:border-hanko/50 hover:bg-hanko/10 hover:text-hanko-bright group-hover:opacity-100 focus-visible:opacity-100"
         aria-label={t("friends.unfollowAria", {
           name: follow.display_name ?? follow.public_slug,
         })}
@@ -368,7 +368,7 @@ function FeedThread({ groups, t, lang }) {
 function DaySeparator({ label }) {
   return (
     <div className="flex items-center gap-3">
-      <span aria-hidden="true" className="font-jp text-base font-bold text-hanko/70">
+      <span aria-hidden="true" className="font-jp text-base font-bold text-hanko-bright">
         日
       </span>
       <span className="font-display text-sm italic tracking-wide text-washi">
@@ -410,7 +410,7 @@ function FeedEntryCard({ entry, t, lang }) {
           >
             {actorLabel}
           </Link>
-          <span aria-hidden="true" className="font-jp text-[11px] not-italic text-hanko/70">
+          <span aria-hidden="true" className="font-jp text-[11px] not-italic text-hanko-bright">
             {eventKanji[entry.event_type] ?? "便"}
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
@@ -518,7 +518,7 @@ function CornerKanji() {
     <>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -top-2 right-3 hidden -z-10 font-jp text-9xl font-bold leading-none text-hanko/[0.04] md:block"
+        className="pointer-events-none absolute -top-2 right-3 hidden -z-10 font-jp text-9xl font-bold leading-none text-hanko-bright/[0.04] md:block"
         style={{ transform: "rotate(8deg)" }}
       >
         友

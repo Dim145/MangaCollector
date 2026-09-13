@@ -80,7 +80,7 @@ export default function MangaSearchResults({
                   ) : (
                     <div className="grid h-20 w-14 place-items-center bg-ink-2 sm:h-24 sm:w-16">
                       <span
-                        className="font-display text-2xl italic text-hanko/40"
+                        className="font-display text-2xl italic text-hanko-bright/40"
                         title={t("badges.volume")}
                       >
                         巻
@@ -136,7 +136,7 @@ export default function MangaSearchResults({
                     <button
                       onClick={() => addToLibrary(result)}
                       disabled={isAdding}
-                      className="inline-flex items-center gap-1 rounded-full bg-hanko px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-washi transition hover:bg-hanko-bright active:scale-95 disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-full bg-hanko px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-on-hanko transition hover:bg-hanko-deep active:scale-95 disabled:opacity-50"
                     >
                       {isAdding ? (
                         <span className="h-3 w-3 animate-spin rounded-full border-2 border-washi/30 border-t-washi" />

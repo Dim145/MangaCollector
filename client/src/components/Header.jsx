@@ -225,7 +225,7 @@ export default function Header() {
                 Archive
               </span>
               <span className="font-display text-lg font-semibold tracking-tight text-washi group-hover:text-hanko-bright transition-colors">
-                Manga<span className="italic text-hanko">Collector</span>
+                Manga<span className="italic text-hanko-bright">Collector</span>
               </span>
             </div>
           </a>
@@ -243,7 +243,7 @@ export default function Header() {
                   className={({ isActive }) =>
                     `relative flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
                       isActive
-                        ? "bg-hanko text-washi shadow-md glow-red"
+                        ? "bg-hanko text-on-hanko shadow-md glow-red"
                         : "text-washi-muted hover:text-washi hover:bg-washi/10"
                     }`
                   }
@@ -326,8 +326,8 @@ export default function Header() {
                       <span
                         className={`grid h-12 w-12 place-items-center rounded-full transition-all ${
                           isActive
-                            ? "bg-hanko text-washi glow-red -translate-y-3"
-                            : "bg-hanko/90 text-washi -translate-y-2 shadow-lg"
+                            ? "bg-hanko text-on-hanko glow-red -translate-y-3"
+                            : "bg-hanko/90 text-on-hanko -translate-y-2 shadow-lg"
                         }`}
                       >
                         <svg
@@ -384,7 +384,7 @@ function NavBadge({ count, label }) {
     <span
       aria-label={label}
       title={label}
-      className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-hanko px-1 font-mono text-[9px] font-bold leading-none tabular-nums text-washi shadow-[0_0_0_2px_var(--ink-0)]"
+      className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-hanko px-1 font-mono text-[9px] font-bold leading-none tabular-nums text-on-hanko shadow-[0_0_0_2px_var(--ink-0)]"
     >
       {count > 99 ? "99+" : count}
     </span>

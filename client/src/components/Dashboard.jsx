@@ -647,7 +647,7 @@ export default function Dashboard() {
                         ? "bg-moegi text-ink-0 shadow-md"
                         : tab.id === "upcoming"
                           ? "bg-moegi text-ink-0 shadow-md"
-                          : "bg-hanko text-washi shadow-md";
+                          : "bg-hanko text-on-hanko shadow-md";
                   return (
                     <button
                       key={tab.id}
@@ -688,7 +688,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => navigate("/addmanga")}
-                className="group hidden md:inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-all hover:scale-[1.03] hover:glow-red active:scale-95"
+                className="group hidden md:inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-on-hanko shadow-lg transition-all hover:scale-[1.03] hover:glow-red active:scale-95"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -714,7 +714,7 @@ export default function Dashboard() {
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <span
                 aria-hidden="true"
-                className="font-mono text-[9px] uppercase tracking-[0.25em] text-washi-dim"
+                className="font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim"
               >
                 {t("dashboard.lensLabel")}
               </span>
@@ -993,7 +993,7 @@ function RibbonStat({ label, value, accent, loading, width }) {
           : "text-washi";
   return (
     <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-      <span className="text-washi-dim/80">{label}</span>
+      <span className="text-washi-dim">{label}</span>
       <span
         className={`font-display text-base font-semibold not-italic tabular-nums normal-case tracking-normal ${accentClass}`}
       >
@@ -1069,7 +1069,7 @@ function EmptyState({ hasQuery, hasActiveTags, onAdd, onClearTags }) {
       ) : !hasQuery ? (
         <button
           onClick={onAdd}
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
+          className="mt-6 inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-on-hanko shadow-lg transition-transform hover:scale-[1.03] active:scale-95"
         >
           <svg
             viewBox="0 0 24 24"
