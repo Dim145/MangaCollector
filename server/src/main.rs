@@ -41,6 +41,9 @@ async fn main() -> anyhow::Result<()> {
     // Health-check subcommand: loopback HTTP call to /api/health, exit 0 on
     // success and 1 on failure. Invoked by the Docker HEALTHCHECK so the
     // scratch-based image doesn't need curl/wget.
+    // Not a security decision: this only picks the health-check mode for
+    // the Docker HEALTHCHECK. Nothing is authorised or trusted from argv.
+    // nosemgrep: rust.lang.security.args.args
     if std::env::args().any(|a| a == "--health") {
         std::process::exit(run_health_check().await);
     }

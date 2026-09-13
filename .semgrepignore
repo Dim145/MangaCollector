@@ -1,0 +1,14 @@
+# 掃 · Paths a scan has no business reading.
+node_modules/
+target/
+dist/
+dev-dist/
+coverage/
+graphify-out/
+.stryker-tmp/
+mutants.out/
+.claude/worktrees/
+client/public/
+*.min.js
+pnpm-lock.yaml
+Cargo.lock

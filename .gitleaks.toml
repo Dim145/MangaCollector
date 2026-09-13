@@ -1,0 +1,14 @@
+# 鍵 · Secret scanning. Keeps the stock rules and allows the matches
+# that are demonstrably not secrets, each with its reason.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Browser storage keys, not credentials"
+regexTarget = "secret"
+regexes = [
+  # `mc.inventory.v1`, `mc:accent`, `mc:grid-density`… the names the app
+  # stores things under in localStorage. Public by construction: they
+  # are visible in any browser's developer tools.
+  '''^mc[.:][a-z0-9.:\-]+$''',
+]

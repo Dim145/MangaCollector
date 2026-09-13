@@ -51,6 +51,8 @@ RUN chmod +x /mc-entrypoint.sh
 # default config path). Ours mirrors the templated config to /tmp and
 # starts nginx via `-c /tmp/nginx.conf` — the upstream wrapper can't
 # pass that flag.
+# The master must bind :80; it drops its workers to `nginx` itself — see above.
+# nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint
 ENTRYPOINT ["/mc-entrypoint.sh"]
 
 EXPOSE 80

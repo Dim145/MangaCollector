@@ -1,0 +1,36 @@
+# 監 · Accepted advisories, each with the reason it does not apply here.
+#
+# `cargo audit` reads Cargo.lock, not the resolved build graph, so it
+# reports crates that are locked but never compiled. The rest are
+# transitive dependencies with no fixed version upstream; every one was
+# traced with `cargo tree -i <crate>` before being listed.
+#
+# Re-check this file whenever a dependency is bumped: an ignore that has
+# outlived its reason is worse than no ignore at all.
+
+[advisories]
+ignore = [
+    # rkyv 0.7 · out-of-bounds reads on malformed archives.
+    # Locked as an OPTIONAL dependency of rust_decimal, whose `rkyv`
+    # feature we do not enable — `cargo tree -i rkyv` prints nothing, so
+    # it is never compiled into the binary.
+    "RUSTSEC-2026-0235",
+
+    # rsa 0.9 · Marvin attack, a timing side channel on private-key
+    # operations. Pulled by openidconnect 4 for JWT signature checks,
+    # which use the identity provider's PUBLIC key; this server holds no
+    # RSA private key, so there is no secret for the side channel to
+    # recover. No fixed version exists upstream.
+    "RUSTSEC-2023-0071",
+
+    # proc-macro-error2 · unmaintained. A build-time proc-macro helper
+    # pulled by sea-bae (SeaORM's derive support); it runs on the build
+    # machine and ships nothing into the binary.
+    "RUSTSEC-2026-0173",
+
+    # lru 0.16 · use-after-free if a user-supplied Drop panics inside
+    # LruCache::pop(). Pulled by aws-sdk-s3 for its internal endpoint
+    # cache, whose values are plain structs with no custom Drop.
+    "RUSTSEC-2026-0253",
+]
+informational_warnings = ["yanked"]
