@@ -11,6 +11,10 @@ pub struct Model {
     /// key. The FK with ON DELETE CASCADE is encoded in the migration.
     #[sea_orm(primary_key, auto_increment = false)]
     pub session_id: String,
+    /// 代 · What the client sees instead of `session_id`. The real id is
+    /// the cookie value, so it must never leave the server; this
+    /// surrogate is what the listing returns and what revocation takes.
+    pub public_id: String,
     pub user_id: i32,
     pub user_agent: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -25,9 +29,9 @@ impl ActiveModelBehavior for ActiveModel {}
 /// Public DTO returned by `GET /api/user/sessions`.
 ///
 /// `is_current` lets the SPA highlight the user's own row and discourage
-/// (or specially-handle) revoking it. We don't expose the raw session
-/// id externally — `id` is opaque to the client and only used as the
-/// argument for the revoke endpoint.
+/// (or specially-handle) revoking it. `id` is the surrogate
+/// `public_id`, never the session id: that string IS the cookie, and
+/// handing it to the page would undo `HttpOnly` for every device.
 #[derive(Debug, Serialize)]
 pub struct SessionInfo {
     pub id: String,

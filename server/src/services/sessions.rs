@@ -92,6 +92,7 @@ pub async fn record_login(
 
     let model = ActiveModel {
         session_id: Set(session_id.to_string()),
+        public_id: Set(uuid::Uuid::new_v4().to_string()),
         user_id: Set(user_id),
         user_agent: Set(trimmed_ua.clone()),
         created_at: Set(now),
@@ -100,9 +101,12 @@ pub async fn record_login(
     SessionMetaEntity::insert(model)
         .on_conflict(
             OnConflict::column(session_meta::Column::SessionId)
-                // Notably absent: `Column::UserId`. Hardens against
-                // session-fixation — a meta row's owner is set
-                // exactly once (at INSERT) and never overwritten.
+                // Notably absent: `Column::UserId` and
+                // `Column::PublicId`. The first hardens against
+                // session-fixation — a meta row's owner is set exactly
+                // once (at INSERT) and never overwritten. The second
+                // keeps the surrogate stable, so a listing the SPA is
+                // already showing does not go stale under it.
                 .update_columns([
                     session_meta::Column::UserAgent,
                     session_meta::Column::LastSeenAt,
@@ -255,7 +259,8 @@ pub async fn list_for_user(
         .map(|m| SessionInfo {
             device_label: derive_device_label(m.user_agent.as_deref()),
             is_current: m.session_id == current_session_id,
-            id: m.session_id,
+            // 代 · The surrogate, never `session_id` — see the DTO.
+            id: m.public_id,
             created_at: m.created_at,
             last_seen_at: m.last_seen_at,
             // 印 · Drop the raw UA before sending it back. The
@@ -281,26 +286,29 @@ pub async fn delete_meta(db: &Db, session_id: &str) {
         .await;
 }
 
-/// Delete the meta row AND the upstream tower_sessions row for the
-/// given session id, but only if it belongs to the requesting user.
-/// Returns `false` when no row matched (foreign session id, already
-/// gone, etc.) — the handler turns that into a 404.
+/// Delete the meta row AND the upstream tower_sessions row behind the
+/// given **surrogate** id, but only if it belongs to the requesting
+/// user. Returns `false` when no row matched (foreign id, already gone,
+/// etc.) — the handler turns that into a 404.
+///
+/// Takes the surrogate rather than the session id on purpose: the
+/// client never learns the latter, so it cannot be what it sends back.
 pub async fn revoke(
     db: &Db,
     user_id: i32,
-    session_id: &str,
+    public_id: &str,
 ) -> Result<bool, AppError> {
-    // Confirm the session belongs to this user before deletion.
-    let owns = SessionMetaEntity::find()
-        .filter(session_meta::Column::SessionId.eq(session_id))
+    // Resolve the surrogate to the real id, scoped to this user.
+    let Some(row) = SessionMetaEntity::find()
+        .filter(session_meta::Column::PublicId.eq(public_id))
         .filter(session_meta::Column::UserId.eq(user_id))
         .one(db)
         .await
         .map_err(AppError::from)?
-        .is_some();
-    if !owns {
+    else {
         return Ok(false);
-    }
+    };
+    let session_id = row.session_id.as_str();
 
     // Deleting the meta row is enough thanks to the FK + ON DELETE
     // CASCADE on tower_sessions(id). Doing it the other way around

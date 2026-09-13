@@ -201,17 +201,18 @@ pub async fn list_sessions(
     Ok(Json(json!({ "sessions": entries })))
 }
 
-/// DELETE /api/user/sessions/{session_id} — revoke a session.
+/// DELETE /api/user/sessions/{public_id} — revoke a session.
 ///
-/// 404 when the session doesn't exist (already gone) or doesn't belong
-/// to the requesting user. Revoking the current session is allowed —
-/// the SPA treats it the same as logout.
+/// The path carries the surrogate id the listing handed out, not the
+/// session id; the service resolves one to the other. 404 when nothing
+/// matches (already gone, or another user's). Revoking the current
+/// session is allowed — the SPA treats it the same as logout.
 pub async fn revoke_session(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
-    Path(session_id): Path<String>,
+    Path(public_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let removed = sessions::revoke(&state.db, user.id, &session_id).await?;
+    let removed = sessions::revoke(&state.db, user.id, &public_id).await?;
     if !removed {
         return Err(AppError::NotFound("Session not found".into()));
     }
