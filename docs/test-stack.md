@@ -72,8 +72,8 @@ node scripts/verify-archive-roundtrip.mjs
 Exercises `GET /api/user/export.json` → `POST /api/user/import` with
 real data instead of unit fixtures. The script first *enriches* the
 seeded library with every field the v1 bundle used to drop (publisher,
-edition, review, author, three loans with notes, a hand-pencilled
-upcoming volume, a box set), then runs two scenarios and diffs
+edition, review, author, three loans with notes, the physical copy — condition, shelf, doubles, purchase day —,
+a hand-pencilled upcoming volume, a box set), then runs two scenarios and diffs
 normalised API snapshots of both sides:
 
 - **fresh account, `mode: "merge"`** — import into a brand-new user and
