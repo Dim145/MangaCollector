@@ -14,7 +14,7 @@ server/   → Rust 2024 + Axum 0.8 + SeaORM 1.1 (over sqlx 0.8)
 ```
 
 **Backend pattern:** `routes/` → `handlers/` → `services/` → `models/`
-(SeaORM entities). 22 handler modules, 30 service modules, 15 entity modules.
+(SeaORM entities). 23 handler modules, 31 service modules, 16 entity modules.
 
 **Auth:** `openidconnect` 4 — Google OAuth 2.0 or generic OpenID Connect,
 selected by `AUTH_MODE`. Sessions are PostgreSQL-backed via `tower-sessions`
@@ -112,10 +112,14 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 84 tests across 19 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 90 tests across 22 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
-  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library}.rs`,
-  `handlers/realtime.rs`, `models/{archive,library,volume}.rs`). `util/isbn.rs`
+  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations}.rs`,
+  `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
+  `services/cover_pool.rs` pins the cover-URL allowlist (host match,
+  `http`→`https`, no credentials, own posters pass); `loan_history.rs`
+  the loans CSV (statuses, BOM, date bounds); `locations.rs` the note
+  hygiene. `util/isbn.rs`
   pins ISBN normalisation (10 → 13, checksums); `services/isbn_resolver.rs`
   pins the four catalogue parsers on real fixtures (Google Books, Open
   Library, BnF SRU Dublin Core, openBD) and the cache freshness rule
@@ -124,7 +128,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 903 tests across 41 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 947 tests across 44 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -135,7 +139,10 @@ docker compose build
     `coverPalette`, `sealsCatalog`, `accent`, `theme`, `tour`,
     `deepLinks`, `scrollLock`, `haptics`, `connectivity`, `dailyTexts`,
     `scanLookup` (a scanned barcode against the cached shelf),
-    `loanHistory` and `navCounters` (pure read-side helpers).
+    `loanHistory` and `navCounters` (pure read-side helpers),
+    `locations` (grouping tomes by place, move payloads), `inventory`
+    (the stock-taking state machine) and `labels` (Avery sheet geometry,
+    EAN-13 checksums, label text fitting).
     `lib/isbnResolve.test.js` pins the lookup order — Dexie cache, then
     the server's resolver, then the browser's own direct fallback only
     when the server is unreachable.
@@ -164,6 +171,13 @@ docker compose build
   blind `cargo fmt` reflows ~54 files. Format only the hunks you touch:
   `python3 scripts/rustfmt-touched.py server/src/<file>.rs …` applies
   rustfmt's layout to the lines changed since HEAD (±2) and nothing else.
+- **Contrast:** `node scripts/contrast-audit.mjs` reads the palette out of
+  `client/src/styles/index.css` (base, light override, every
+  `[data-accent]` block), walks the JSX for the colour utilities actually
+  used, and exits non-zero on any text pair under 4.5:1. Currently 0
+  failures. Watermark kanji under 50 % opacity are listed apart, not
+  counted. Run it after touching the palette or adding a `text-…` /
+  `bg-…` pair.
 
 ## Local test stack
 
@@ -175,13 +189,26 @@ library from MyAnimeList (Jikan) with a MangaDex fallback, including a
 110-volume One Piece for the virtualized volumes grid.
 `node scripts/verify-archive-roundtrip.mjs` then proves export → import is
 lossless against that library (fresh-account merge and same-account replace),
-and fails on any dropped field or duplicated series. Run it whenever a column
-is added to the library, volume or coffret tables — the bundle must carry it.
+and fails on any dropped field or duplicated series. It also compares the
+loan ledger and the places registry row by row, and checks ISBN
+normalisation on real input. Run it whenever a column is added to the
+library, volume or coffret tables — the bundle must carry it.
+
+## Module guides
+
+`docs/modules/` explains one subsystem per file — mental model, data,
+flows as Mermaid diagrams, endpoints, client side, invariants, where the
+code lives, how it is tested: `archive.md` (export / import / restore),
+`loans.md` (loans, borrowing, the ledger), `locations.md` (the places
+registry), `realtime.md` (WebSocket + Dexie + the outbox), `releases.md`
+(upcoming volumes and the calendar), `scan.md` (barcodes, ISBN
+resolution, inventory, labels). Read the relevant one before changing a
+subsystem; they are written against the code, not the intent.
 
 ## Code Style
 
 - Frontend: ESLint 10 + Prettier 3 (`client/eslint.config.js`). Currently
-  clean — 0 errors, 0 warnings across 209 files. Keep it that way.
+  clean — 0 errors, 0 warnings across 276 files. Keep it that way.
 - Backend: `cargo fmt` + `cargo clippy`. Currently clippy-clean; the one
   `#[allow(clippy::too_many_arguments)]` in `services/library.rs` is
   deliberate and documented at the call site.
@@ -197,9 +224,10 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 |---|---|
 | `/auth` | OAuth callbacks & session lifecycle |
 | `/api/library` | Manga library CRUD, reading progression (`reading_status`, dates, `times_read`; `POST /{mal_id}/reread`) |
-| `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`), physical copy (condition, location, extra copies, bought on, `isbn`) |
+| `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`) |
 | `/api/authors` | Author records, photos, refresh |
 | `/api/user`, `/api/account` | Profile, deletion, public slug; `GET /api/user/isbn/{isbn}` resolves a barcode through the server-side chain (see External Integrations) |
+| `/api/user/locations` | The places registry — list with per-place counts, create, rename (cascades to the tomes filed there), annotate, reorder, delete (unfiles them) |
 | `/api/settings` | User preferences |
 | `/api/seals` | Milestone trophies |
 | `/api/activity`, `/api/streak` | Activity feed & streak |
@@ -213,12 +241,19 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 
 ## Database
 
-- Migrations: **`server/migrations/`** — 49 raw `.sql` files, embedded at
+- Migrations: **`server/migrations/`** — 50 raw `.sql` files, embedded at
   compile time via `sqlx::migrate!("./migrations")` in `server/src/db.rs`
   and applied automatically on startup. There is no separate migrate script.
 - Entities (`server/src/models/`): `activity`, `archive`, `author`,
   `coffret`, `compare`, `follow`, `isbn_cache`, `library`, `loan_history`,
-  `session_meta`, `setting`, `snapshot`, `user`, `user_seal`, `volume`.
+  `location`, `session_meta`, `setting`, `snapshot`, `user`, `user_seal`,
+  `volume`.
+- `locations` is a **registry, not a foreign key**: a tome keeps naming
+  its place in `user_volumes.location` (what the offline cache and the
+  archive carry), and the table adds the note, the order and the identity
+  that let a place be renamed or emptied in one move. A place typed on a
+  tome registers itself; a rename rewrites the tomes filed under it;
+  deleting one unfiles them.
 - `loan_history` is an **append-only ledger**: a row per lend, closed by
   `returned_at` when the tome comes back (or is un-owned), never deleted
   with the volume (`volume_id` goes `NULL`). It travels in the archive
@@ -229,12 +264,16 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 
 ## Frontend (`client/src/`)
 
-116 components in `components/`, 52 hooks in `hooks/`, plus `lib/`
+119 components in `components/`, 53 hooks in `hooks/`, plus `lib/`
 (Dexie `db.js`, outbox `sync.js`, `connectivity.js`, `theme.js`,
-`barcode.js`, `isbn.js`, `scanLookup.js`), `i18n/` (en/fr/es, lazy-loaded
-per language) and `styles/`. The barcode scanner is fully client-side
-(`/scan` finds a tome on the shelf, adds a double, or hands the ISBN to
-the add flow); only the catalogue lookup needs a network.
+`barcode.js`, `isbn.js`, `scanLookup.js`, `locations.js`, `inventory.js`,
+`labels.js`), `i18n/` (en/fr/es, lazy-loaded per language) and `styles/`.
+The barcode scanner is fully client-side (`/scan` finds a tome on the
+shelf, adds a double, or hands the ISBN to the add flow); only the
+catalogue lookup needs a network. `/rangement` is the places view (move
+tomes by selection or by scanning into a place), `/inventaire` the
+stock-taking count, and both the series page and a place can print an
+Avery label sheet with each tome's EAN-13 (jsPDF + JsBarcode, lazy).
 
 Server state via TanStack Query 5 with WebSocket-driven invalidation;
 local cache in Dexie (IndexedDB) with an offline outbox that replays
