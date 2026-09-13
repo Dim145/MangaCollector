@@ -2158,6 +2158,7 @@ export default {
     borrowedFrom: "from {name}",
     borrowedDue: "due {date}",
     borrowedOpen: "no return date",
+    borrowedFromUnknown: "a collector without a public profile",
   },
   snapshots: {
     archivist: "the archivist",

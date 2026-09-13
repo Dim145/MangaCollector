@@ -198,7 +198,10 @@ function DueCard({ loan, index, lang, t, onOpen }) {
     <button
       type="button"
       onClick={onOpen}
-      className="azuke-card group relative flex w-[260px] flex-col overflow-hidden rounded-md border border-border/80 bg-washi-cream/4 text-left shadow-[0_14px_30px_-18px_rgba(0,0,0,0.7)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-gold/40 hover:shadow-[0_22px_38px_-18px_rgba(201,169,97,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 sm:w-[280px]"
+      // `h-full` + a growing body keep every card in the rail the same
+      // height: a linked borrower adds a 友 line to the header, and
+      // without this the date bands of neighbouring cards drifted apart.
+      className="azuke-card group relative flex h-full w-[260px] flex-col overflow-hidden rounded-md border border-border/80 bg-washi-cream/4 text-left shadow-[0_14px_30px_-18px_rgba(0,0,0,0.7)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-gold/40 hover:shadow-[0_22px_38px_-18px_rgba(201,169,97,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 sm:w-[280px]"
       style={{ transform: `rotate(${restTilt})` }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "rotate(0deg) translateY(-3px)";
@@ -262,7 +265,7 @@ function DueCard({ loan, index, lang, t, onOpen }) {
       {/* Body — cover thumb (left) + title (right). The cover
           slot is an aspect-2/3 mini frame so the inner img inherits
           the slot dimensions cleanly. */}
-      <div className="relative mt-3 flex gap-3 px-4">
+      <div className="relative mt-3 flex flex-1 gap-3 px-4">
         <div className="aspect-[2/3] h-20 shrink-0 overflow-hidden rounded-sm border border-border/60 bg-ink-2/40">
           {loan.series_image_url ? (
             <CoverImage
@@ -424,8 +427,13 @@ function BorrowedSection({ rows, lang, t }) {
       >
         {rows.map((b) => {
           const status = classifyLoan(b);
+          // Name, else public handle, else an honest placeholder — a
+          // lender without a public profile is not a question mark.
           const lender =
-            b.lender_name ?? (b.lender_slug ? `@${b.lender_slug}` : "?");
+            b.lender_name ??
+            (b.lender_slug
+              ? `@${b.lender_slug}`
+              : t("loans.borrowedFromUnknown"));
           const from = t("loans.borrowedFrom", { name: lender });
           const dueTone =
             status === "overdue"

@@ -2193,6 +2193,7 @@ export default {
     borrowedFrom: "chez {name}",
     borrowedDue: "à rendre le {date}",
     borrowedOpen: "sans date de retour",
+    borrowedFromUnknown: "un collectionneur sans profil public",
   },
   snapshots: {
     archivist: "l'archiviste",

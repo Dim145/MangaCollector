@@ -2169,6 +2169,7 @@ export default {
     borrowedFrom: "de {name}",
     borrowedDue: "devolver el {date}",
     borrowedOpen: "sin fecha de devolución",
+    borrowedFromUnknown: "un coleccionista sin perfil público",
   },
   snapshots: {
     archivist: "el archivista",

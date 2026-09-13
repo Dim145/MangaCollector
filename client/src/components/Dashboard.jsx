@@ -70,8 +70,7 @@ function readPersistedDashboardState() {
       // 並 · Sort `{ key, dir }` — validated by `normalizeSort` at use
       // time, so an unknown key from an older build falls back to the
       // title order instead of throwing.
-      sort:
-        parsed.sort && typeof parsed.sort === "object" ? parsed.sort : null,
+      sort: parsed.sort && typeof parsed.sort === "object" ? parsed.sort : null,
     };
   } catch {
     return null;
@@ -282,7 +281,10 @@ export default function Dashboard() {
           }
         }
         if (!v.owned) continue;
-        const entry = byMal.get(v.mal_id) ?? { any: false, anyNonCollector: false };
+        const entry = byMal.get(v.mal_id) ?? {
+          any: false,
+          anyNonCollector: false,
+        };
         entry.any = true;
         if (!v.collector) entry.anyNonCollector = true;
         byMal.set(v.mal_id, entry);
@@ -471,22 +473,22 @@ export default function Dashboard() {
           await syncOutbox({ force: true });
         }}
       >
-      <div className="mx-auto max-w-7xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
-        {/* 季節 · Once-per-season banner. Self-renders nothing when
+        <div className="mx-auto max-w-7xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+          {/* 季節 · Once-per-season banner. Self-renders nothing when
             the current season has already been greeted; sits above
             the masthead so it reads as a foreword to the page rather
             than another stat row. */}
-        <SeasonGreeting />
-        {/* Masthead */}
-        <header className="mb-8 animate-fade-up">
-          <div className="flex items-baseline gap-3">
-            <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
-              {t("dashboard.archive")}
-            </span>
-            <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
-          </div>
+          <SeasonGreeting />
+          {/* Masthead */}
+          <header className="mb-8 animate-fade-up">
+            <div className="flex items-baseline gap-3">
+              <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
+                {t("dashboard.archive")}
+              </span>
+              <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
+            </div>
 
-          {/* 帯 · Stat ribbon — compressed from the previous 4-card
+            {/* 帯 · Stat ribbon — compressed from the previous 4-card
               grid (≈140 px tall) to a single line read.
               Why the change:
                 The dashboard's centre-of-gravity is the series grid.
@@ -501,85 +503,91 @@ export default function Dashboard() {
               The colour grammar matches the previous card treatment:
               washi for raw counts, gold for the achievement (complete
               series), hanko for the rate (progression %). */}
-          <div
-            className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-dim sm:gap-x-6"
-            role="group"
-            aria-label={t("dashboard.archive")}
-          >
-            <RibbonStat
-              label={t("dashboard.series")}
-              value={stats.series}
-              loading={isInitialLoad}
-            />
-            <span aria-hidden="true" className="text-washi-dim/40">·</span>
-            <RibbonStat
-              label={t("dashboard.volumes")}
-              value={`${stats.owned}/${stats.total || "?"}`}
-              loading={isInitialLoad}
-              width="6ch"
-            />
-            <span aria-hidden="true" className="text-washi-dim/40">·</span>
-            <RibbonStat
-              label={t("dashboard.complete")}
-              value={stats.complete}
-              accent="gold"
-              loading={isInitialLoad}
-            />
-            <span aria-hidden="true" className="text-washi-dim/40">·</span>
-            <RibbonStat
-              label={t("dashboard.progress")}
-              value={
-                stats.total
-                  ? `${Math.round((stats.owned / stats.total) * 100)}%`
-                  : "—"
+            <div
+              className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-dim sm:gap-x-6"
+              role="group"
+              aria-label={t("dashboard.archive")}
+            >
+              <RibbonStat
+                label={t("dashboard.series")}
+                value={stats.series}
+                loading={isInitialLoad}
+              />
+              <span aria-hidden="true" className="text-washi-dim/40">
+                ·
+              </span>
+              <RibbonStat
+                label={t("dashboard.volumes")}
+                value={`${stats.owned}/${stats.total || "?"}`}
+                loading={isInitialLoad}
+                width="6ch"
+              />
+              <span aria-hidden="true" className="text-washi-dim/40">
+                ·
+              </span>
+              <RibbonStat
+                label={t("dashboard.complete")}
+                value={stats.complete}
+                accent="gold"
+                loading={isInitialLoad}
+              />
+              <span aria-hidden="true" className="text-washi-dim/40">
+                ·
+              </span>
+              <RibbonStat
+                label={t("dashboard.progress")}
+                value={
+                  stats.total
+                    ? `${Math.round((stats.owned / stats.total) * 100)}%`
+                    : "—"
+                }
+                accent="hanko"
+                loading={isInitialLoad}
+                width="5ch"
+              />
+              <StreakChip />
+            </div>
+
+            <h1
+              data-ink-trail="true"
+              className="mt-3 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl"
+            >
+              {t("dashboard.yourLibrary")}{" "}
+              <span className="text-hanko-gradient font-semibold not-italic">
+                {t("dashboard.library")}
+              </span>
+            </h1>
+          </header>
+
+          {/* Controls */}
+          <section className="mb-8 space-y-4" aria-label="Controls">
+            <MangaSearchBar
+              query={query}
+              setQuery={setQuery}
+              searchManga={() => {}}
+              loading={false}
+              placeholder={t("dashboard.searchPlaceholder")}
+              clearResults={() => setQuery("")}
+              hasResults={Boolean(query)}
+              clearText={t("dashboard.clearFilter")}
+              additionalButtons={
+                !isInitialLoad && !isEmpty ? (
+                  <>
+                    <FilterButton
+                      library={library}
+                      activeTags={activeTags}
+                      onToggle={toggleTag}
+                      onClear={clearTags}
+                      resultsCount={filtered.length}
+                    />
+                    <SortMenu sort={sort} onChange={setSort} />
+                  </>
+                ) : null
               }
-              accent="hanko"
-              loading={isInitialLoad}
-              width="5ch"
             />
-            <StreakChip />
-          </div>
 
-          <h1
-            data-ink-trail="true"
-            className="mt-3 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl"
-          >
-            {t("dashboard.yourLibrary")}{" "}
-            <span className="text-hanko-gradient font-semibold not-italic">
-              {t("dashboard.library")}
-            </span>
-          </h1>
-        </header>
-
-        {/* Controls */}
-        <section className="mb-8 space-y-4" aria-label="Controls">
-          <MangaSearchBar
-            query={query}
-            setQuery={setQuery}
-            searchManga={() => {}}
-            loading={false}
-            placeholder={t("dashboard.searchPlaceholder")}
-            clearResults={() => setQuery("")}
-            hasResults={Boolean(query)}
-            clearText={t("dashboard.clearFilter")}
-            additionalButtons={
-              !isInitialLoad && !isEmpty ? (
-                <>
-                  <FilterButton
-                    library={library}
-                    activeTags={activeTags}
-                    onToggle={toggleTag}
-                    onClear={clearTags}
-                    resultsCount={filtered.length}
-                  />
-                  <SortMenu sort={sort} onChange={setSort} />
-                </>
-              ) : null
-            }
-          />
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Filter rail — kanji-first navigation.
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Filter rail — kanji-first navigation.
                 Each filter carries a Japanese glyph that's always visible,
                 with the romaji label revealed from `sm:` upwards. On mobile
                 the pill collapses to a single character framed by a
@@ -595,170 +603,182 @@ export default function Dashboard() {
 
                 Selected colour follows the state grammar already used by
                 the Manga card badges. */}
-            <div
-              className="inline-flex rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur"
-              role="tablist"
-              aria-label={t("dashboard.filterTablistLabel")}
-            >
-              {[
-                { id: "all", glyph: "全", label: t("dashboard.tabAll") },
-                { id: "inprogress", glyph: "進", label: t("dashboard.tabOngoing") },
-                {
-                  id: "wishlist",
-                  glyph: "願",
-                  label: t("dashboard.tabWishlist"),
-                  tooltip: `${t("dashboard.tabWishlist")} · ${t("dashboard.tabHintWishlist")}`,
-                },
-                { id: "complete", glyph: "完", label: t("dashboard.tabComplete") },
-                {
-                  id: "tsundoku",
-                  glyph: "積",
-                  label: t("dashboard.tabTsundoku"),
-                  tooltip: `${t("dashboard.tabTsundoku")} · ${t("dashboard.tabHintTsundoku")}`,
-                },
-                {
-                  id: "upcoming",
-                  glyph: "来",
-                  label: t("dashboard.tabUpcoming"),
-                  tooltip: `${t("dashboard.tabUpcoming")} · ${t("dashboard.tabHintUpcoming")}`,
-                },
-              ].map((tab) => {
-                const active = filter === tab.id;
-                const activeBg =
-                  tab.id === "wishlist"
-                    ? "bg-sakura text-ink-0 shadow-md"
-                    : tab.id === "tsundoku"
-                      ? "bg-moegi text-ink-0 shadow-md"
-                      : tab.id === "upcoming"
+              <div
+                className="inline-flex rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur"
+                role="tablist"
+                aria-label={t("dashboard.filterTablistLabel")}
+              >
+                {[
+                  { id: "all", glyph: "全", label: t("dashboard.tabAll") },
+                  {
+                    id: "inprogress",
+                    glyph: "進",
+                    label: t("dashboard.tabOngoing"),
+                  },
+                  {
+                    id: "wishlist",
+                    glyph: "願",
+                    label: t("dashboard.tabWishlist"),
+                    tooltip: `${t("dashboard.tabWishlist")} · ${t("dashboard.tabHintWishlist")}`,
+                  },
+                  {
+                    id: "complete",
+                    glyph: "完",
+                    label: t("dashboard.tabComplete"),
+                  },
+                  {
+                    id: "tsundoku",
+                    glyph: "積",
+                    label: t("dashboard.tabTsundoku"),
+                    tooltip: `${t("dashboard.tabTsundoku")} · ${t("dashboard.tabHintTsundoku")}`,
+                  },
+                  {
+                    id: "upcoming",
+                    glyph: "来",
+                    label: t("dashboard.tabUpcoming"),
+                    tooltip: `${t("dashboard.tabUpcoming")} · ${t("dashboard.tabHintUpcoming")}`,
+                  },
+                ].map((tab) => {
+                  const active = filter === tab.id;
+                  const activeBg =
+                    tab.id === "wishlist"
+                      ? "bg-sakura text-ink-0 shadow-md"
+                      : tab.id === "tsundoku"
                         ? "bg-moegi text-ink-0 shadow-md"
-                        : "bg-hanko text-washi shadow-md";
-                return (
-                  <button
-                    key={tab.id}
-                    role="tab"
-                    aria-selected={active}
-                    aria-label={tab.label}
-                    title={tab.tooltip ?? tab.label}
-                    onClick={() => {
-                      // Picking a rank tab clears any active lens —
-                      // the two axes are mutex (see `lens` state docstring).
-                      setFilter(tab.id);
-                      setLens(null);
-                    }}
-                    className={`group/tab inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold uppercase tracking-wider transition sm:min-h-0 sm:py-1.5 ${
-                      active && !lens ? activeBg : "text-washi-muted hover:text-washi"
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`font-jp text-base font-bold leading-none transition-transform sm:text-sm ${
-                        active ? "scale-110" : "opacity-80 group-hover/tab:opacity-100"
+                        : tab.id === "upcoming"
+                          ? "bg-moegi text-ink-0 shadow-md"
+                          : "bg-hanko text-washi shadow-md";
+                  return (
+                    <button
+                      key={tab.id}
+                      role="tab"
+                      aria-selected={active}
+                      aria-label={tab.label}
+                      title={tab.tooltip ?? tab.label}
+                      onClick={() => {
+                        // Picking a rank tab clears any active lens —
+                        // the two axes are mutex (see `lens` state docstring).
+                        setFilter(tab.id);
+                        setLens(null);
+                      }}
+                      className={`group/tab inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold uppercase tracking-wider transition sm:min-h-0 sm:py-1.5 ${
+                        active && !lens
+                          ? activeBg
+                          : "text-washi-muted hover:text-washi"
                       }`}
                     >
-                      {tab.glyph}
-                    </span>
-                    {/* Label appears from sm: up. On mobile, the glyph + the
+                      <span
+                        aria-hidden="true"
+                        className={`font-jp text-base font-bold leading-none transition-transform sm:text-sm ${
+                          active
+                            ? "scale-110"
+                            : "opacity-80 group-hover/tab:opacity-100"
+                        }`}
+                      >
+                        {tab.glyph}
+                      </span>
+                      {/* Label appears from sm: up. On mobile, the glyph + the
                         aria-label / native tooltip carry the meaning, and the
                         whole row stops fighting for horizontal space. */}
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </button>
-                );
-              })}
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => navigate("/addmanga")}
+                className="group hidden md:inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-all hover:scale-[1.03] hover:glow-red active:scale-95"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4 transition-transform group-hover:rotate-90"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                {t("dashboard.addManga")}
+              </button>
             </div>
 
-            <button
-              onClick={() => navigate("/addmanga")}
-              className="group hidden md:inline-flex items-center gap-2 rounded-full bg-hanko px-5 py-2.5 text-sm font-semibold text-washi shadow-lg transition-all hover:scale-[1.03] hover:glow-red active:scale-95"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4 transition-transform group-hover:rotate-90"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              {t("dashboard.addManga")}
-            </button>
-          </div>
-
-          {/* 鏡 · Lens row — time-based "smart filters" sitting one
+            {/* 鏡 · Lens row — time-based "smart filters" sitting one
               level below the rank tablist. Visually distinct (smaller
               chips, thinner border, no opaque background) so they read
               as a refinement rather than a peer of the primary axis.
               Mutex with rank: clicking a lens forces rank → all and
               vice-versa, making the active filter unambiguous. */}
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span
-              aria-hidden="true"
-              className="font-mono text-[9px] uppercase tracking-[0.25em] text-washi-dim"
-            >
-              {t("dashboard.lensLabel")}
-            </span>
-            {[
-              {
-                id: "recent",
-                glyph: "新",
-                label: t("dashboard.lensRecent"),
-                tooltip: t("dashboard.lensRecentHint"),
-                accent: "moegi",
-              },
-              {
-                id: "sleeping",
-                glyph: "眠",
-                label: t("dashboard.lensSleeping"),
-                tooltip: t("dashboard.lensSleepingHint"),
-                accent: "washi",
-              },
-              {
-                id: "wishlist_aged",
-                glyph: "慕",
-                label: t("dashboard.lensWishlistAged"),
-                tooltip: t("dashboard.lensWishlistAgedHint"),
-                accent: "sakura",
-              },
-            ].map((opt) => {
-              const active = lens === opt.id;
-              const accentRing =
-                opt.accent === "sakura"
-                  ? "border-sakura/70 text-sakura"
-                  : opt.accent === "moegi"
-                    ? "border-moegi/70 text-moegi"
-                    : "border-washi/40 text-washi";
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => {
-                    setLens(active ? null : opt.id);
-                    if (!active) setFilter("all");
-                  }}
-                  title={opt.tooltip}
-                  aria-pressed={active}
-                  className={`group inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition ${
-                    active
-                      ? `${accentRing} bg-ink-0/40`
-                      : "border-border text-washi-muted hover:text-washi hover:border-border/80"
-                  }`}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`font-jp text-[12px] font-bold leading-none ${
-                      active ? "" : "text-washi-dim group-hover:text-washi"
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="font-mono text-[9px] uppercase tracking-[0.25em] text-washi-dim"
+              >
+                {t("dashboard.lensLabel")}
+              </span>
+              {[
+                {
+                  id: "recent",
+                  glyph: "新",
+                  label: t("dashboard.lensRecent"),
+                  tooltip: t("dashboard.lensRecentHint"),
+                  accent: "moegi",
+                },
+                {
+                  id: "sleeping",
+                  glyph: "眠",
+                  label: t("dashboard.lensSleeping"),
+                  tooltip: t("dashboard.lensSleepingHint"),
+                  accent: "washi",
+                },
+                {
+                  id: "wishlist_aged",
+                  glyph: "慕",
+                  label: t("dashboard.lensWishlistAged"),
+                  tooltip: t("dashboard.lensWishlistAgedHint"),
+                  accent: "sakura",
+                },
+              ].map((opt) => {
+                const active = lens === opt.id;
+                const accentRing =
+                  opt.accent === "sakura"
+                    ? "border-sakura/70 text-sakura"
+                    : opt.accent === "moegi"
+                      ? "border-moegi/70 text-moegi"
+                      : "border-washi/40 text-washi";
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setLens(active ? null : opt.id);
+                      if (!active) setFilter("all");
+                    }}
+                    title={opt.tooltip}
+                    aria-pressed={active}
+                    className={`group inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition ${
+                      active
+                        ? `${accentRing} bg-ink-0/40`
+                        : "border-border text-washi-muted hover:text-washi hover:border-border/80"
                     }`}
                   >
-                    {opt.glyph}
-                  </span>
-                  <span>{opt.label}</span>
-                </button>
-              );
-            })}
-          </div>
+                    <span
+                      aria-hidden="true"
+                      className={`font-jp text-[12px] font-bold leading-none ${
+                        active ? "" : "text-washi-dim group-hover:text-washi"
+                      }`}
+                    >
+                      {opt.glyph}
+                    </span>
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-          {/* Editorial gloss — only rendered for filters whose name carries
+            {/* Editorial gloss — only rendered for filters whose name carries
               cultural baggage (the Japanese terms 願 / 積読). Sits in a
               `min-h` reserve so the grid below doesn't jump when switching
               between glossed and unglossed filters. The `key={filter}`
@@ -766,87 +786,87 @@ export default function Dashboard() {
               animation as a subtle "you just changed lens" cue.
               `aria-live="polite"` lets screen readers hear the definition
               after a filter switch without interrupting the user. */}
-          <div className="min-h-[1.5rem] px-1" aria-live="polite">
-            {(() => {
-              if (filter !== "wishlist" && filter !== "tsundoku") return null;
-              const isWishlist = filter === "wishlist";
-              const romaji = isWishlist ? "願 negai" : "積読 tsundoku";
-              const text = isWishlist
-                ? t("dashboard.tabHintWishlist")
-                : t("dashboard.tabHintTsundoku");
-              const tone = isWishlist ? "text-sakura" : "text-moegi";
-              return (
-                <p
-                  key={filter}
-                  className="animate-fade-up flex flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-snug"
-                  style={{ animationDuration: "0.4s" }}
-                >
-                  <span
-                    className={`font-jp text-[11px] font-semibold tracking-[0.15em] ${tone}`}
+            <div className="min-h-[1.5rem] px-1" aria-live="polite">
+              {(() => {
+                if (filter !== "wishlist" && filter !== "tsundoku") return null;
+                const isWishlist = filter === "wishlist";
+                const romaji = isWishlist ? "願 negai" : "積読 tsundoku";
+                const text = isWishlist
+                  ? t("dashboard.tabHintWishlist")
+                  : t("dashboard.tabHintTsundoku");
+                const tone = isWishlist ? "text-sakura" : "text-moegi";
+                return (
+                  <p
+                    key={filter}
+                    className="animate-fade-up flex flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-snug"
+                    style={{ animationDuration: "0.4s" }}
                   >
-                    {romaji}
-                  </span>
-                  <span className="font-display text-[11px] italic text-washi-muted">
-                    {text}
-                  </span>
-                </p>
-              );
-            })()}
-          </div>
-        </section>
+                    <span
+                      className={`font-jp text-[11px] font-semibold tracking-[0.15em] ${tone}`}
+                    >
+                      {romaji}
+                    </span>
+                    <span className="font-display text-[11px] italic text-washi-muted">
+                      {text}
+                    </span>
+                  </p>
+                );
+              })()}
+            </div>
+          </section>
 
-        {/* Active tag chips — discreet "Filtré par: [shōnen ×] [drame ×]"
+          {/* Active tag chips — discreet "Filtré par: [shōnen ×] [drame ×]"
             row. Only renders when at least one tag is active, so zero
             visual weight in the idle state. */}
-        <ActiveChips
-          activeTags={activeTags}
-          onToggle={toggleTag}
-          onClear={clearTags}
-        />
+          <ActiveChips
+            activeTags={activeTags}
+            onToggle={toggleTag}
+            onClear={clearTags}
+          />
 
-        {/* Grid */}
-        <section>
-          {isInitialLoad ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {[...Array(12)].map((_, i) => (
-                <Skeleton.Card key={i} />
-              ))}
-            </div>
-          ) : isEmpty || filtered.length === 0 ? (
-            <EmptyState
-              hasQuery={Boolean(query)}
-              hasActiveTags={activeTags.size > 0}
-              onAdd={() => navigate("/addmanga")}
-              onClearTags={clearTags}
-            />
-          ) : (
-            // Cards mount at full opacity. A previous version
-            // staggered an `animate-fade-up` over the first 12 tiles,
-            // but that left those tiles invisible until their delay
-            // fired — on slow networks it read as holes in the grid
-            // while later tiles were already visible. The
-            // `<CoverImage>` LQIP swatch is the loading signal now.
-            //
-            // Beyond `VIRTUALIZE_THRESHOLD` items the grid switches
-            // to windowed virtualization (TanStack react-virtual) —
-            // small libraries keep the simple render path for zero
-            // overhead.
-            <MangaGrid
-              filtered={sorted}
-              adult_content_level={adult_content_level}
-              allCollectorSet={allCollectorSet}
-              tsundokuByMal={tsundokuByMal}
-              nextUpcomingByMal={nextUpcomingByMal}
-              selectionMode={selectionMode}
-              selectedIds={selectedIds}
-              onToggleSelect={toggleSelected}
-              onEnterSelection={enterSelectionWith}
-              shelf3d={Boolean(shelf_3d_enabled)}
-            />
-          )}
-        </section>
+          {/* Grid */}
+          <section>
+            {isInitialLoad ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                {[...Array(12)].map((_, i) => (
+                  <Skeleton.Card key={i} />
+                ))}
+              </div>
+            ) : isEmpty || filtered.length === 0 ? (
+              <EmptyState
+                hasQuery={Boolean(query)}
+                hasActiveTags={activeTags.size > 0}
+                onAdd={() => navigate("/addmanga")}
+                onClearTags={clearTags}
+              />
+            ) : (
+              // Cards mount at full opacity. A previous version
+              // staggered an `animate-fade-up` over the first 12 tiles,
+              // but that left those tiles invisible until their delay
+              // fired — on slow networks it read as holes in the grid
+              // while later tiles were already visible. The
+              // `<CoverImage>` LQIP swatch is the loading signal now.
+              //
+              // Beyond `VIRTUALIZE_THRESHOLD` items the grid switches
+              // to windowed virtualization (TanStack react-virtual) —
+              // small libraries keep the simple render path for zero
+              // overhead.
+              <MangaGrid
+                filtered={sorted}
+                adult_content_level={adult_content_level}
+                allCollectorSet={allCollectorSet}
+                tsundokuByMal={tsundokuByMal}
+                nextUpcomingByMal={nextUpcomingByMal}
+                selectionMode={selectionMode}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelected}
+                onEnterSelection={enterSelectionWith}
+                shelf3d={Boolean(shelf_3d_enabled)}
+              />
+            )}
+          </section>
 
-        {/* R1 — "Complete your collection" suggestions.
+          {/* R1 — "Complete your collection" suggestions.
             Repositioned below the grid (was: between the masthead
             and the search/filter rail). The carousel is a discovery
             module, not a primary surface — putting it after the user
@@ -856,14 +876,17 @@ export default function Dashboard() {
             shelves"). The underlying component already self-hides
             when there's nothing to suggest, so empty libraries pay
             zero layout cost. */}
-        {!isInitialLoad && !isEmpty && <GapSuggestions />}
-        {/* 預け · Outstanding loans rail. Self-hides when nothing is
+          {!isInitialLoad && !isEmpty && <GapSuggestions />}
+          {/* 預け · Outstanding loans rail. Self-hides when nothing is
             currently lent, same pattern as GapSuggestions. Sits
             after the suggestions surface so the user reads the
             dashboard top-to-bottom: shelves → discovery → care for
             what's already out the door. */}
-        {!isInitialLoad && !isEmpty && <LoansWidget />}
-      </div>
+          {/* 預け · Not gated on `isEmpty`: a reader whose own library is
+            still empty can already have borrowed a friend's tomes, and
+            the widget hides itself when there is nothing on either side. */}
+          {!isInitialLoad && <LoansWidget />}
+        </div>
       </PullToRefresh>
 
       {/* 一括 · Bulk-actions bar — fixed at the viewport bottom while
@@ -912,7 +935,9 @@ function StreakChip() {
       : t("dashboard.streakTooltipCurrent", { n: current });
   return (
     <>
-      <span aria-hidden="true" className="text-washi-dim/40">·</span>
+      <span aria-hidden="true" className="text-washi-dim/40">
+        ·
+      </span>
       <span
         title={tooltip}
         aria-label={tooltip}

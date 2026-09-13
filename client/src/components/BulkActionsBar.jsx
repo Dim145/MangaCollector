@@ -71,11 +71,14 @@ export default function BulkActionsBar({ library, selectedIds, onClose }) {
 
   return (
     <div
-      // Fixed at the viewport bottom; mobile-safe inset (pb-safe
-      // accounts for the home indicator). On desktop, the bar floats
-      // centered with a max-width so the action chips don't stretch
-      // unnaturally.
-      className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-3xl px-4 pb-safe sm:bottom-6 sm:px-6"
+      // Fixed above the bottom nav while that nav is shown (< md): the
+      // nav is 5.5rem + safe area tall (see `.pb-nav`) and sits in the
+      // root stacking context, so a bar anchored at `bottom-0` ended up
+      // BEHIND it — on phones the whole bar, on tablets its second row
+      // (Delete / Cancel) — whatever its own z-index said. From `md` the
+      // nav is hidden and the bar floats 1.5rem off the bottom edge,
+      // centered with a max-width so the chips don't stretch.
+      className="fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-50 mx-auto w-full max-w-3xl px-4 md:bottom-6 md:px-6"
       role="region"
       aria-label={t("bulk.regionLabel")}
     >
