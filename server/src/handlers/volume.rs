@@ -241,6 +241,28 @@ pub async fn list_loan_history(
     Ok(Json(rows))
 }
 
+/// GET /api/user/volume/loans/export.csv?from=YYYY-MM-DD&to=YYYY-MM-DD —
+/// the ledger as a spreadsheet (lend date bounded inclusively).
+#[derive(Debug, Deserialize)]
+pub struct LoanExportQuery {
+    pub from: Option<chrono::NaiveDate>,
+    pub to: Option<chrono::NaiveDate>,
+}
+
+pub async fn export_loans_csv(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    axum::extract::Query(q): axum::extract::Query<LoanExportQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let rows = crate::services::loan_history::all_for_export(&state.db, user.id).await?;
+    let csv = crate::services::loan_history::to_csv(&rows, q.from, q.to, chrono::Utc::now());
+    Ok(crate::handlers::archive::download_response(
+        csv.into_bytes(),
+        "text/csv; charset=utf-8",
+        &crate::handlers::archive::download_filename(&user, Some("loans"), "csv"),
+    ))
+}
+
 /// GET /api/user/volume/loans/borrowed — every volume a friend has
 /// lent to the caller: the other side of `list_loans`. Empty array
 /// when nothing is borrowed — never 404.

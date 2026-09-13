@@ -272,3 +272,103 @@ pub async fn import_row(
         .map_err(AppError::from)?;
     Ok(())
 }
+
+/// The ledger as a spreadsheet: one row per loan, oldest first, a UTF-8
+/// BOM up front so Excel reads accents, dates as days. `from`/`to` bound
+/// the lend date (inclusive); `status` is judged at `now`.
+pub fn to_csv(
+    rows: &[Model],
+    from: Option<chrono::NaiveDate>,
+    to: Option<chrono::NaiveDate>,
+    now: DateTime<Utc>,
+) -> String {
+    use crate::services::archive::csv_escape;
+    let day = |t: DateTime<Utc>| t.format("%Y-%m-%d").to_string();
+    let mut out = String::from(
+        "\u{feff}series,volume,borrower,borrower_slug,lent_on,due_on,returned_on,status\n",
+    );
+    for h in rows {
+        let lent = h.loaned_at.date_naive();
+        if from.is_some_and(|f| lent < f) || to.is_some_and(|t| lent > t) {
+            continue;
+        }
+        let status = match (h.returned_at, h.due_at) {
+            (Some(_), _) => "returned",
+            (None, Some(due)) if due < now => "overdue",
+            (None, _) => "out",
+        };
+        out.push_str(&format!(
+            "{},{},{},{},{},{},{},{}\n",
+            csv_escape(&h.series_name),
+            h.vol_num,
+            csv_escape(&h.borrower),
+            csv_escape(h.borrower_slug.as_deref().unwrap_or("")),
+            day(h.loaned_at),
+            h.due_at.map(day).unwrap_or_default(),
+            h.returned_at.map(day).unwrap_or_default(),
+            status,
+        ));
+    }
+    out
+}
+
+#[cfg(test)]
+mod csv_tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn at(day: &str) -> DateTime<Utc> {
+        let d = chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").unwrap();
+        Utc.from_utc_datetime(&d.and_hms_opt(12, 0, 0).unwrap())
+    }
+
+    fn row(vol: i32, borrower: &str, lent: &str, due: Option<&str>, back: Option<&str>) -> Model {
+        Model {
+            id: vol as i64,
+            user_id: 1,
+            volume_id: None,
+            mal_id: 13,
+            vol_num: vol,
+            series_name: "One Piece, the \"grand\" line".into(),
+            borrower: borrower.into(),
+            borrower_user_id: None,
+            borrower_slug: (borrower == "Alex").then(|| "friend-alex".to_string()),
+            loaned_at: at(lent),
+            due_at: due.map(at),
+            returned_at: back.map(at),
+        }
+    }
+
+    #[test]
+    fn writes_rows_with_status_and_escaping() {
+        let now = Utc.with_ymd_and_hms(2026, 9, 14, 0, 0, 0).unwrap();
+        let rows = vec![
+            row(1, "Alex", "2026-09-01", Some("2026-09-20"), None),
+            row(2, "Ami, deux", "2026-08-01", Some("2026-08-10"), None),
+            row(3, "Sam", "2026-07-01", None, Some("2026-07-15")),
+        ];
+        let csv = to_csv(&rows, None, None, now);
+        let lines: Vec<&str> = csv.lines().collect();
+        assert!(lines[0].starts_with('\u{feff}'), "BOM for Excel");
+        assert_eq!(lines.len(), 4);
+        assert!(lines[1].contains(",1,Alex,friend-alex,2026-09-01,2026-09-20,,out"));
+        assert!(lines[2].contains("\"Ami, deux\",,2026-08-01,2026-08-10,,overdue"));
+        assert!(lines[3].ends_with(",3,Sam,,2026-07-01,,2026-07-15,returned"));
+        assert!(lines[1].starts_with("\"One Piece, the \"\"grand\"\" line\""));
+    }
+
+    #[test]
+    fn bounds_the_lend_date_inclusively() {
+        let now = Utc.with_ymd_and_hms(2026, 9, 14, 0, 0, 0).unwrap();
+        let rows = vec![
+            row(1, "A", "2026-09-01", None, None),
+            row(2, "B", "2026-08-01", None, None),
+            row(3, "C", "2026-07-01", None, None),
+        ];
+        let from = chrono::NaiveDate::from_ymd_opt(2026, 8, 1);
+        let to = chrono::NaiveDate::from_ymd_opt(2026, 9, 1);
+        let csv = to_csv(&rows, from, to, now);
+        assert_eq!(csv.lines().count(), 3);
+        assert!(!csv.contains(",3,C,"));
+    }
+}

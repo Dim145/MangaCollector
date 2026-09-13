@@ -141,6 +141,7 @@ fn user_router() -> Router<AppState> {
         .route("/volume/loans", get(volume::list_loans))
         .route("/volume/loans/borrowed", get(volume::list_borrowed))
         .route("/volume/loans/history", get(volume::list_loan_history))
+        .route("/volume/loans/export.csv", get(volume::export_loans_csv))
         .route("/locations", get(locations::list).post(locations::create))
         .route(
             "/locations/{id}",

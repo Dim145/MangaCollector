@@ -298,7 +298,7 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
 /// exported CSV is opened. We prefix such fields with a single quote so
 /// the spreadsheet renders them literally. `-` followed by a digit/`.`
 /// is left intact so legitimate negative numbers survive.
-fn csv_escape(s: &str) -> String {
+pub(crate) fn csv_escape(s: &str) -> String {
     let guarded = if starts_like_formula(s) {
         format!("'{s}")
     } else {

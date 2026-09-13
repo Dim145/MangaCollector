@@ -63,7 +63,7 @@ pub async fn import_archive(
 
 /// Common shape for export downloads — sets Content-Disposition so
 /// browsers prompt a save dialog with a helpful filename.
-fn download_response(bytes: Vec<u8>, mime: &str, filename: &str) -> Response {
+pub(crate) fn download_response(bytes: Vec<u8>, mime: &str, filename: &str) -> Response {
     let disposition = format!("attachment; filename=\"{}\"", filename);
     let mime_val =
         HeaderValue::from_str(mime).unwrap_or(HeaderValue::from_static("application/octet-stream"));
@@ -84,7 +84,17 @@ fn download_response(bytes: Vec<u8>, mime: &str, filename: &str) -> Response {
         .into_response()
 }
 
-fn filename_for(user: &crate::models::user::User, ext: &str) -> String {
+pub(crate) fn filename_for(user: &crate::models::user::User, ext: &str) -> String {
+    download_filename(user, None, ext)
+}
+
+/// `mangacollector[-kind]-{slug}-{yyyymmdd}.{ext}` — one naming scheme
+/// for every file the server hands out.
+pub(crate) fn download_filename(
+    user: &crate::models::user::User,
+    kind: Option<&str>,
+    ext: &str,
+) -> String {
     let slug = user
         .public_slug
         .clone()
@@ -103,6 +113,8 @@ fn filename_for(user: &crate::models::user::User, ext: &str) -> String {
         })
         .collect();
     let date = Utc::now().format("%Y%m%d");
-    format!("mangacollector-{safe}-{date}.{ext}")
+    match kind {
+        Some(k) => format!("mangacollector-{k}-{safe}-{date}.{ext}"),
+        None => format!("mangacollector-{safe}-{date}.{ext}"),
+    }
 }
-
