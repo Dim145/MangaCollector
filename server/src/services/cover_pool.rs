@@ -212,6 +212,26 @@ mod allowlist_tests {
         assert_eq!(allowed_cover_url(Some("http://evil.example/x.jpg")), None);
     }
 
+    /// Un hôte autorisé avec des identifiants dans l'URL : le seul
+    /// motif de refus est le garde sur `username` / `password`, donc
+    /// il est éprouvé seul. L'ancien test passait par un hôte
+    /// lookalike, qui échouait de toute façon sur la liste d'hôtes.
+    #[test]
+    fn refuses_credentials_even_on_an_allowed_host() {
+        assert_eq!(
+            allowed_cover_url(Some("https://someone@cdn.myanimelist.net/a.jpg")),
+            None
+        );
+        assert_eq!(
+            allowed_cover_url(Some("https://:secret@cdn.myanimelist.net/a.jpg")),
+            None
+        );
+        assert_eq!(
+            allowed_cover_url(Some("https://user:secret@uploads.mangadex.org/a.jpg")),
+            None
+        );
+    }
+
     #[test]
     fn drops_unknown_hosts_lookalikes_and_junk() {
         assert_eq!(
@@ -231,5 +251,46 @@ mod allowlist_tests {
         assert_eq!(allowed_cover_url(Some("javascript:alert(1)")), None);
         assert_eq!(allowed_cover_url(Some("   ")), None);
         assert_eq!(allowed_cover_url(None), None);
+    }
+}
+
+/// 印 · La porte d'entrée d'une couverture choisie par l'utilisateur
+/// (`POST /library/{mal_id}/poster`). Elle n'avait aucun test : la
+/// remplacer par `true` ou par `false` ne faisait échouer personne.
+#[cfg(test)]
+mod poster_allowlist_tests {
+    use super::is_whitelisted_poster_url;
+
+    #[test]
+    fn accepts_the_hosts_the_picker_can_offer() {
+        assert!(is_whitelisted_poster_url(
+            "https://cdn.myanimelist.net/images/manga/1/1.jpg"
+        ));
+        // l'hôte nu, pas seulement un sous-domaine
+        assert!(is_whitelisted_poster_url("https://myanimelist.net/a.jpg"));
+        assert!(is_whitelisted_poster_url(
+            "https://uploads.mangadex.org/covers/x/y.jpg"
+        ));
+    }
+
+    #[test]
+    fn refuses_plain_http_on_an_allowed_host() {
+        assert!(!is_whitelisted_poster_url(
+            "http://cdn.myanimelist.net/images/manga/1/1.jpg"
+        ));
+    }
+
+    #[test]
+    fn refuses_lookalikes_and_anything_else() {
+        assert!(!is_whitelisted_poster_url(
+            "https://myanimelist.net.evil.example/a.jpg"
+        ));
+        assert!(!is_whitelisted_poster_url(
+            "https://uploads.mangadex.org.evil.example/a.jpg"
+        ));
+        assert!(!is_whitelisted_poster_url("https://evil.example/a.jpg"));
+        assert!(!is_whitelisted_poster_url("https://"));
+        assert!(!is_whitelisted_poster_url("not a url"));
+        assert!(!is_whitelisted_poster_url(""));
     }
 }

@@ -94,6 +94,30 @@ mod tests {
         );
     }
 
+    /// La clé ISBN-13 existe pour attraper une inversion de deux
+    /// chiffres voisins, et c'est la pondération alternée 1/3 qui le
+    /// permet : sans elle la somme ne bouge pas. Les trois vecteurs
+    /// d'origine ne distinguaient pas les deux formules — sur
+    /// `978030640615`, multiplier ou additionner les poids donne la
+    /// même clé, 7.
+    #[test]
+    fn the_weighting_catches_a_transposition() {
+        assert_eq!(
+            normalize_isbn13("9780306406157").as_deref(),
+            Some("9780306406157")
+        );
+        // mêmes chiffres, deux voisins échangés : la somme pondérée
+        // change, la somme simple non
+        assert_eq!(normalize_isbn13("9870306406157"), None);
+        assert_eq!(normalize_isbn13("9780306406517"), None);
+        // un tome japonais dont la clé départage aussi les deux calculs
+        assert_eq!(
+            normalize_isbn13("9784088725093").as_deref(),
+            Some("9784088725093")
+        );
+        assert_eq!(normalize_isbn13("9784088725092"), None);
+    }
+
     #[test]
     fn rejects_bad_checksums_and_junk() {
         assert_eq!(normalize_isbn13("9780306406158"), None);
