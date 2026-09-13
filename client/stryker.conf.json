@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "変 · Mutation testing. The official Vitest runner cannot be used: it JSON.stringifies Vitest 5's resolved config, which is circular since the projects API landed. The generic command runner has no such problem — it runs the suite and reads the exit code. The cost is that there is no per-test coverage analysis, so every mutant reruns whatever the command runs. Hence `scripts/stryker-module.mjs`, which narrows the command to one module's own test file and turns a campaign into a minute rather than an afternoon.",
+  "packageManager": "pnpm",
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "pnpm exec vitest run --config vitest.config.js"
+  },
+  "coverageAnalysis": "off",
+  "reporters": ["clear-text", "progress"],
+  "mutate": ["src/lib/**/*.js", "src/utils/**/*.js", "!src/**/*.test.js"],
+  "concurrency": 4,
+  "timeoutMS": 30000
+}

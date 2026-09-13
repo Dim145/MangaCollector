@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:mutants": "stryker run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
@@ -39,6 +40,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@stryker-mutator/core": "^10.0.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",

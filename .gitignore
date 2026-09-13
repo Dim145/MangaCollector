@@ -163,3 +163,8 @@ server/.test-stack-storage/
 # cargo-mutants campaign output (rotates into .old on the next run)
 mutants.out/
 mutants.out.old/
+
+# Stryker sandbox, reports and log
+.stryker-tmp/
+client/reports/
+stryker.log
