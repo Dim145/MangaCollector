@@ -376,13 +376,17 @@ function Field({ label, hint, children }) {
 }
 
 function formatDateForInput(iso) {
-  // <input type="date"> wants `YYYY-MM-DD` in the user's local timezone.
+  // 来 · UTC, not local — the write path stores end-of-day UTC on
+  // purpose, and the calendar reads the UTC Y-M-D out of the ISO
+  // prefix. Reading it back with local getters showed the day after
+  // east of UTC, and re-saving pushed the release one day further each
+  // time the modal was opened.
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   } catch {
     return "";

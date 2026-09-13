@@ -73,7 +73,13 @@ export default function LoanModal({ open, volumeId, onClose }) {
     e?.preventDefault?.();
     const trimmed = borrower.trim();
     if (!trimmed) return;
-    const due = dueDate ? new Date(dueDate).toISOString() : null;
+    // 期 · `new Date("2026-09-20")` is UTC midnight, and the field was
+    // read back with local getters — so west of UTC the date walked a
+    // day backwards on every edit, and east of UTC a loan due today
+    // read as overdue from 01:00. End-of-day UTC is what the upcoming
+    // modal already uses, and it makes "due on the 20th" mean the whole
+    // of the 20th everywhere.
+    const due = dueDate ? new Date(`${dueDate}T23:59:59Z`).toISOString() : null;
     await updateVolume.mutateAsync({
       id: volumeId,
       mal_id: volume?.mal_id,
@@ -305,11 +311,12 @@ function toDateInputValue(iso) {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
-    // YYYY-MM-DD in local timezone — matches what <input type=date>
-    // expects without surfacing UTC drift on the user's clock.
-    const yyyy = d.getFullYear().toString().padStart(4, "0");
-    const mm = (d.getMonth() + 1).toString().padStart(2, "0");
-    const dd = d.getDate().toString().padStart(2, "0");
+    // Read back in UTC, the same basis `handleLend` writes in. Local
+    // getters here were what made the round trip lossy: the field
+    // showed one day, saving stored another.
+    const yyyy = d.getUTCFullYear().toString().padStart(4, "0");
+    const mm = (d.getUTCMonth() + 1).toString().padStart(2, "0");
+    const dd = d.getUTCDate().toString().padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
   } catch {
     return "";
