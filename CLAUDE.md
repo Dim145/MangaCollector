@@ -178,6 +178,12 @@ docker compose build
     `TZ=UTC` and clears web storage between cases.
   - Not covered yet: the other 111 components, the 50 hooks, and the
     canvas/Web-Audio modules (`shelfSnapshot`, `sounds`, `barcode`).
+- **Toolchain caveat:** `server/rust-toolchain.toml` pins **1.94**, and CI
+  runs that. A Homebrew `cargo` earlier on `PATH` than rustup's shim
+  silently wins locally (`cargo --version` will say so), and its clippy
+  is not the same clippy — 1.98 does not fire `nonminimal_bool` where
+  1.94 does, so a local green run can still fail CI. Before pushing
+  Rust: `rustup run 1.94 cargo clippy --all-targets -- -D warnings`.
 - **Formatting caveat:** neither tree is clean under its formatter — a
   blind `cargo fmt` reflows ~54 Rust files, and `prettier --write .`
   rewrites 199 of 209 client files (including `lib/season.js`, whose

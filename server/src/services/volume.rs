@@ -119,7 +119,12 @@ fn auto_clear_loan_if_unown<E>(
 where
     E: EntityTrait<Column = volume::Column>,
 {
-    if !(was_owned && !owned) {
+    // Named rather than inlined: clippy 1.94's `nonminimal_bool` rejects
+    // the nested negation and would have it as `!was_owned || owned`,
+    // which says nothing about what is going on. The transition is the
+    // point, so it gets a name.
+    let became_unowned = was_owned && !owned;
+    if !became_unowned {
         return query;
     }
     query
