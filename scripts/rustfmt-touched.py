@@ -12,11 +12,19 @@ exactly as it was, pre-existing drift included.
 Run it from anywhere inside the repository, before `cargo test`; then check
 with `rustfmt --edition 2024 --check <file>` that the diff count did not go
 up compared with `git show HEAD:<file>`.
+
+`RUSTFMT_TOUCHED_BASE=<rev>` changes what "changed" is measured against.
+Locally the default (`HEAD`, i.e. the uncommitted work) is what you want.
+CI sets it to the base of the branch, where the changes are already
+committed and a diff against HEAD would be empty — so without it the
+check would pass by having nothing to look at.
 """
-import difflib, re, subprocess, sys, tempfile, pathlib
+import difflib, os, re, subprocess, sys, tempfile, pathlib
+
+BASE = os.environ.get("RUSTFMT_TOUCHED_BASE") or "HEAD"
 
 def changed_ranges(path):
-    out = subprocess.run(["git", "diff", "-U0", "HEAD", "--", path], capture_output=True, text=True).stdout
+    out = subprocess.run(["git", "diff", "-U0", BASE, "--", path], capture_output=True, text=True).stdout
     ranges = []
     for m in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", out, re.M):
         start = int(m.group(1)); count = int(m.group(2)) if m.group(2) is not None else 1
@@ -25,9 +33,24 @@ def changed_ranges(path):
 
 def formatted_lines(path):
     src = pathlib.Path(path).read_text()
-    with tempfile.NamedTemporaryFile("w", suffix=".rs", delete=False) as tmp:
-        tmp.write(src); tmp_path = tmp.name
-    res = subprocess.run(["rustfmt", "--edition", "2024", "--emit", "stdout", tmp_path], capture_output=True, text=True)
+    # `delete=False` plus no cleanup left one copy of every file it
+    # formatted in the system temp dir — source, on every run.
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = str(pathlib.Path(tmp_dir) / "touched.rs")
+        pathlib.Path(tmp_path).write_text(src)
+        # `skip_children` keeps rustfmt on the one file we handed it.
+        # Without it a crate root (main.rs, lib.rs) makes rustfmt follow
+        # its `mod` declarations — which don't resolve next to a temp
+        # copy, so it errored out, printed nothing, and the script
+        # reported "rustfmt produced nothing, skipped". Every edit to
+        # main.rs had been going unformatted. (It is a config key, not a
+        # flag: `--skip-children` is not recognised by rustfmt 1.9.)
+        res = subprocess.run(
+            ["rustfmt", "--edition", "2024", "--config", "skip_children=true",
+             "--emit", "stdout", tmp_path],
+            capture_output=True,
+            text=True,
+        )
     lines = res.stdout.splitlines(keepends=True)
     if lines and lines[0].strip() == tmp_path:
         lines = lines[1:]
@@ -50,6 +73,23 @@ def main(path):
             out.extend(work[i1:i2])
         else:
             out.extend(fmt[j1:j2]); applied += 1
+    # 移 · rustfmt re-sorts `use` declarations across the WHOLE block, so
+    # an edit next to an import can make it move a line out of a touched
+    # hunk and into one we are deliberately not applying. The line is
+    # then in neither half of the output and the file stops compiling —
+    # this happened, silently, on the import block of main.rs. Compare
+    # the set of imports before and after and refuse to write a file
+    # that lost one.
+    def imports(ls):
+        return sorted(l.strip() for l in ls if l.lstrip().startswith("use "))
+    lost = set(imports(work)) - set(imports(out))
+    if lost:
+        print(f"{path}: NOT WRITTEN — reflowing would drop {len(lost)} import(s):")
+        for l in sorted(lost):
+            print(f"    {l}")
+        print("    (rustfmt reordered them out of the touched hunks; "
+              "reformat the import block by hand or widen the edit)")
+        return
     pathlib.Path(path).write_text("".join(out))
     print(f"{path}: {applied} hunk(s) reflowed, {len(ranges)} changed range(s)")
 

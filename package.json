@@ -1,20 +1,21 @@
 {
   "name": "mangacollector",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Workspace root — the app lives in client/ (pnpm) and server/ (cargo).",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "cd client && pnpm test",
+    "lint": "cd client && pnpm lint"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/arian-d1/MangaCollector.git"
+    "url": "git+https://github.com/Dim145/MangaCollector.git"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "dim145",
+  "license": "MIT",
   "bugs": {
-    "url": "https://github.com/arian-d1/MangaCollector/issues"
+    "url": "https://github.com/Dim145/MangaCollector/issues"
   },
-  "homepage": "https://github.com/arian-d1/MangaCollector#readme"
+  "homepage": "https://github.com/Dim145/MangaCollector#readme",
+  "private": true
 }

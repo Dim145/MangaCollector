@@ -1,0 +1,135 @@
+name: CI
+
+# Ce qui tourne avant qu'un commit n'atteigne `main` : les mêmes portes
+# que celles documentées dans CLAUDE.md, dans le même ordre. Rien ici
+# ne construit d'image — c'est le rôle de `docker-images.yaml.yml`, sur
+# publication d'une release.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Une PR qui reçoit trois pushs d'affilée n'a besoin que du dernier.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  client:
+    name: client — lint, tests, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # pnpm avant setup-node : c'est `setup-node` qui met le store en
+      # cache, et il lui faut le gestionnaire déjà installé pour savoir
+      # où ce store se trouve.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: client/.nvmrc
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+
+      # `--frozen-lockfile` : un lockfile désynchronisé du package.json
+      # est une erreur, pas quelque chose qu'on répare en silence.
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+      - run: pnpm test
+      # Le build est une porte à part entière : une erreur d'import ou
+      # une variable d'environnement manquante ne se voit ni au lint ni
+      # dans les tests, qui ne passent pas par Rollup.
+      - run: pnpm build
+
+      # 書 · PAS de `prettier --check .` : l'arbre n'est pas propre sous
+      # Prettier 3.8 — 199 fichiers sur 209 seraient réécrits, et au
+      # moins une de ces réécritures serait une perte (`season.js` aligne
+      # à la main une table de coefficients astronomiques, que Prettier
+      # normalise en `-0.0003`). Même raison que côté Rust, même
+      # conclusion : le formatage est un confort local (`pnpm format`),
+      # pas une porte. ESLint reste la porte, et il passe.
+
+  server:
+    name: server — fmt, clippy, tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      # Historique complet : l'étape rustfmt ci-dessous compare avec la
+      # base de la PR (ou le commit précédent sur `main`), et un clone
+      # superficiel ne contient pas ce commit-là.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # La version vient de `server/rust-toolchain.toml`, que l'action
+      # lit toute seule quand aucun `toolchain` n'est passé.
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: server
+
+      # 書 · PAS de `cargo fmt --check` : l'arbre n'est pas propre sous
+      # rustfmt 1.9 (~54 fichiers seraient reformatés) et le rendre
+      # propre d'un coup noierait l'historique. Ce qui est vérifié, à la
+      # place, c'est que les lignes MODIFIÉES par ce commit le sont —
+      # exactement ce que `scripts/rustfmt-touched.py` applique en local.
+      # Le script écrit dans les fichiers, donc on le lance et on
+      # demande à git si quelque chose a bougé.
+      - name: rustfmt on the touched lines only
+        working-directory: .
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -eu
+          # `github.event.before` vaut 40 zéros sur le premier push d'une
+          # branche ; on retombe alors sur le parent de HEAD.
+          case "$BASE" in
+            ""|0000000000000000000000000000000000000000) BASE=$(git rev-parse HEAD~1) ;;
+          esac
+          files=$(git diff --name-only "$BASE" HEAD -- 'server/**/*.rs')
+          if [ -z "$files" ]; then
+            echo "Aucun fichier Rust modifié — rien à vérifier."
+            exit 0
+          fi
+          echo "$files"
+          # Le script réécrit les fichiers ; s'il change quoi que ce soit,
+          # c'est que les lignes modifiées n'étaient pas formatées.
+          # shellcheck disable=SC2086
+          RUSTFMT_TOUCHED_BASE="$BASE" python3 scripts/rustfmt-touched.py $files
+          if ! git diff --quiet -- $files; then
+            echo "::error::Des lignes modifiées ne sont pas formatées. Lancez :"
+            echo "  python3 scripts/rustfmt-touched.py $files"
+            git --no-pager diff -- $files
+            exit 1
+          fi
+
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  audit:
+    name: dépendances — cargo-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: server
+      - run: cargo install cargo-audit --locked
+      # Les ignorés vivent dans `server/.cargo/audit.toml`, chacun avec
+      # la raison pour laquelle il ne nous atteint pas. Un avis nouveau
+      # fait donc échouer le job, ce qui est le but.
+      - run: cargo audit
+        working-directory: server

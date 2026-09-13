@@ -4,18 +4,20 @@
   "version": "2.13.2",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "packageManager": "pnpm@10.33.2",
   "scripts": {
-    "dev": "pnpm install && prettier --write . && vite --host",
+    "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:mutants": "stryker run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "dev:host": "vite --host",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@sentry/browser": "^10.51.0",
