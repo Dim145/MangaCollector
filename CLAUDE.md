@@ -128,7 +128,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 963 tests across 47 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 995 tests across 47 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -174,6 +174,16 @@ docker compose build
   blind `cargo fmt` reflows ~54 files. Format only the hunks you touch:
   `python3 scripts/rustfmt-touched.py server/src/<file>.rs …` applies
   rustfmt's layout to the lines changed since HEAD (±2) and nothing else.
+- **Mutation testing:** `node scripts/stryker-module.mjs <lib/foo>` runs a
+  Stryker campaign over one module against its own test file (a minute);
+  `--all` sweeps every paired module; `pnpm test:mutants` mutates the
+  whole logic layer against the whole suite (slow, deliberate). The
+  official Vitest runner is unusable — it `JSON.stringify`s Vitest 5's
+  resolved config, which is circular — so `client/stryker.conf.json`
+  uses the generic command runner and pays for it by rerunning the
+  command for every mutant. The logic layer sits around 80%; a module
+  under 70% usually means its tests assert an answer that an inverted
+  condition would also produce.
 - **Contrast:** `node scripts/contrast-audit.mjs` reads the palette out of
   `client/src/styles/index.css` (base, light override, every
   `[data-accent]` block), walks the JSX for the colour utilities actually
