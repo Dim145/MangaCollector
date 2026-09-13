@@ -104,6 +104,7 @@ describe("planRealtimeAction", () => {
       expect(planRealtimeAction({ kind: "volumes" }, ME).keys).toEqual([
         ["volumes-all"],
         ["volumes"],
+        ["locations"],
       ]);
     });
   });

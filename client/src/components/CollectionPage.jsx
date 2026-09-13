@@ -5,6 +5,7 @@ import CoverImage from "./ui/CoverImage.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
+import { useLocations } from "@/hooks/useLocations.js";
 import { computeDoubles } from "@/utils/libraryStats.js";
 import { useCollection } from "@/hooks/useCollection.js";
 import { hasToBlurImage } from "@/utils/library.js";
@@ -208,6 +209,9 @@ export default function CollectionPage({ kind = "publisher" }) {
 
 function Hero({ kind, labels, displayName, stats, doubles, t }) {
   const showDoubles = (doubles?.extraCopies ?? 0) > 0;
+  // 棚 · How many places the shelf is split into — a door to Rangement.
+  const { data: registry } = useLocations();
+  const placesCount = registry?.length ?? 0;
   return (
     <header className="relative mb-12 animate-fade-up md:mb-16">
       {/* Top kicker rule — the imprint catalog signature row.
@@ -251,8 +255,8 @@ function Hero({ kind, labels, displayName, stats, doubles, t }) {
             as a sister surface. */}
         <dl
           className={`grid gap-4 sm:gap-8 ${
-            showDoubles
-              ? "grid-cols-2 sm:grid-cols-4 md:max-w-md"
+            showDoubles || placesCount > 0
+              ? "grid-cols-2 sm:grid-cols-5 md:max-w-xl"
               : "grid-cols-3 md:max-w-xs"
           }`}
         >
@@ -280,6 +284,14 @@ function Hero({ kind, labels, displayName, stats, doubles, t }) {
               value={doubles.extraCopies}
               label={t("collection.doublesLabel")}
               kanji="重"
+            />
+          )}
+          {placesCount > 0 && (
+            <HeadlineStat
+              value={placesCount}
+              label={t("collection.placesLabel")}
+              kanji="棚"
+              to="/rangement"
             />
           )}
         </dl>
@@ -310,9 +322,9 @@ function SiblingHint({ kind, t }) {
   );
 }
 
-function HeadlineStat({ value, label, kanji }) {
-  return (
-    <div className="relative">
+function HeadlineStat({ value, label, kanji, to = null }) {
+  const body = (
+    <>
       <span
         aria-hidden="true"
         className="pointer-events-none absolute -top-3 -left-1 font-jp text-3xl font-bold leading-none text-hanko-bright/15 sm:text-4xl"
@@ -325,8 +337,21 @@ function HeadlineStat({ value, label, kanji }) {
       <dd className="relative mt-1 font-display text-3xl font-semibold italic leading-none text-washi tabular-nums sm:text-4xl">
         {value}
       </dd>
-    </div>
+    </>
   );
+  // 棚 · A stat that is also a door keeps the triad's shape; its label
+  // underlines on hover so the eye learns it opens something.
+  if (to) {
+    return (
+      <Link
+        to={to}
+        className="relative block rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-hanko/60 hover:[&_dt]:underline [&_dt]:underline-offset-4"
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div className="relative">{body}</div>;
 }
 
 // ─── Genre signature (publishers only) ─────────────────────────────

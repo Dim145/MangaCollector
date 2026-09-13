@@ -25,7 +25,8 @@
 
 export const KIND_TO_KEYS = Object.freeze({
   library: [["library"]],
-  volumes: [["volumes-all"], ["volumes"]],
+  // 棚 · a rename/delete of a place moves tomes; the registry rides along
+  volumes: [["volumes-all"], ["volumes"], ["locations"]],
   coffrets: [["coffrets"], ["volumes-all"]], // a coffret touches volumes too
   settings: [["settings"], ["user-profile"]],
   seals: [["seals"]],

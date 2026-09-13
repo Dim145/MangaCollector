@@ -8,6 +8,7 @@ import { formatShortDate as formatLocalDate } from "@/utils/date.js";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db.js";
 import { normalizeISBN } from "@/lib/isbn.js";
+import { mergeLocationNames } from "@/lib/locations.js";
 import { formatCurrency } from "@/utils/price.js";
 import { formatShortDate } from "@/utils/volume.js";
 import { useDeleteUpcomingVolume } from "@/hooks/useVolumes.js";
@@ -1011,13 +1012,11 @@ function PhysicalSection({
         ? "valid"
         : "invalid";
   const knownLocations = useLiveQuery(async () => {
-    const rows = await db.volumes.toArray();
-    const seen = new Set();
-    for (const r of rows) {
-      const loc = typeof r.location === "string" ? r.location.trim() : "";
-      if (loc) seen.add(loc);
-    }
-    return [...seen].sort((a, b) => a.localeCompare(b));
+    const [registry, rows] = await Promise.all([
+      db.locations.toArray(),
+      db.volumes.toArray(),
+    ]);
+    return mergeLocationNames(registry, rows);
   }, []);
   const copies = 1 + (Math.max(0, Math.trunc(Number(extraCopies))) || 0);
 
@@ -1105,7 +1104,7 @@ function PhysicalSection({
             onChange={(e) => setExtraCopies(e.target.value)}
             className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 font-mono text-sm tabular-nums text-washi transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
           />
-          <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.16em] text-washi-dim">
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-washi-dim">
             {t("volume.copiesHint", { n: copies })}
           </p>
         </div>

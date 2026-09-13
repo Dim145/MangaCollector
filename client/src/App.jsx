@@ -74,6 +74,9 @@ const ShelfStickersPage = lazy(() =>
 );
 // 番 · Global scanner — shelf lookup first, add flow second.
 const ScanPage = lazy(() => import("./components/ScanPage.jsx"));
+// 棚 · Places and stock-taking — the physical side of the shelf.
+const RangementPage = lazy(() => import("./components/RangementPage.jsx"));
+const InventoryPage = lazy(() => import("./components/InventoryPage.jsx"));
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
 const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
 const AuthorPage = lazy(() => import("./components/AuthorPage.jsx"));
@@ -423,6 +426,26 @@ function AppShell() {
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <DefaultBackground>
                     <ScanPage />
+                  </DefaultBackground>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rangement"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <DefaultBackground>
+                    <RangementPage />
+                  </DefaultBackground>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventaire"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <DefaultBackground>
+                    <InventoryPage />
                   </DefaultBackground>
                 </ProtectedRoute>
               }

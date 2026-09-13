@@ -419,6 +419,32 @@ db.version(16).stores({
   friendsList: "key",
 });
 
+// v17 · 棚 · The places registry, mirrored from /api/user/locations.
+db.version(17).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, isbn, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+  coffrets: "id, mal_id",
+  volumeCoverMaps: "mal_id, ts",
+  outboxCoffrets: "id, mal_id, ts",
+  friendsList: "key",
+  locations: "id, name",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 
@@ -836,4 +862,23 @@ export async function clearAllUserData() {
   } catch {
     // Private/incognito modes may throw — not worth reporting.
   }
+}
+
+/**
+ * 棚 · Replace the cached places registry with the server's rows.
+ * Counts are not cached — the UI derives them from `db.volumes`.
+ */
+export async function cacheLocations(rows) {
+  await db.transaction("rw", db.locations, async () => {
+    await db.locations.clear();
+    const clean = (Array.isArray(rows) ? rows : [])
+      .filter((r) => r && r.id != null && typeof r.name === "string")
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        note: r.note ?? null,
+        position: Number.isFinite(Number(r.position)) ? Number(r.position) : 0,
+      }));
+    if (clean.length) await db.locations.bulkPut(clean);
+  });
 }
