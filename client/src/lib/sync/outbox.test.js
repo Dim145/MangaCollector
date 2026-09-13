@@ -28,9 +28,11 @@ const {
   enqueueLibraryDelete,
   enqueueLibraryPatch,
   enqueueLibraryUpsert,
+  enqueueLibraryVolumesOwned,
   enqueueVolumeUpdate,
   pendingCount,
   refetchLibraryEntry,
+  syncOutbox,
 } = await import("./outbox.js");
 
 /*
@@ -523,5 +525,83 @@ describe("refetchLibraryEntry (scoped realtime refresh)", () => {
     axios.get.mockResolvedValueOnce({ data: manga({ name: "Bare" }) });
     await refetchLibraryEntry(2);
     await expect(db.library.get(2)).resolves.toMatchObject({ name: "Bare" });
+  });
+});
+
+/*
+ * 送 · What actually leaves the device.
+ *
+ * The queue's coalescing (above) decides what ONE op ends up holding;
+ * these cover the other half — that the flusher sends every field that
+ * op is holding. The two halves met badly in `volumes_owned`: the
+ * count is enqueued as the weak `owned` op, any later field edit
+ * rewrites the op to `patch`, and the `patch` branch had no idea the
+ * count was in there. It was dropped on flush and the refetch that
+ * follows pulled the server's stale value back over the local one, so
+ * an owned count set offline survived right up until it synced.
+ */
+describe("flushing the library queue", () => {
+  const ok = (data = {}) => Promise.resolve({ data });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    // `/auth/user` answers the owner check; the rest are the post-flush
+    // refetches, which the writers handle and the assertions ignore.
+    axios.get.mockImplementation((url) =>
+      url === "/auth/user" ? ok({ id: 7 }) : ok([]),
+    );
+    axios.patch.mockImplementation(() => ok());
+    axios.post.mockImplementation(() => ok());
+    axios.delete.mockImplementation(() => ok());
+  });
+
+  const patchedPaths = () => axios.patch.mock.calls.map((c) => c[0]);
+
+  it("sends an owned count that a later field edit folded into a patch", async () => {
+    await db.library.put(manga());
+    await enqueueLibraryVolumesOwned(2, 5);
+    await enqueueLibraryPatch(2, { publisher: "Glénat" });
+    expect((await db.outboxLibrary.get(2)).op).toBe("patch");
+
+    await syncOutbox({ force: true });
+
+    expect(patchedPaths()).toContain("/api/user/library/2/5");
+    expect(axios.patch).toHaveBeenCalledWith(
+      "/api/user/library/2",
+      expect.objectContaining({ publisher: "Glénat" }),
+      expect.anything(),
+    );
+    await expect(db.outboxLibrary.get(2)).resolves.toBeUndefined();
+  });
+
+  it("still sends a plain owned count on its own", async () => {
+    await db.library.put(manga());
+    await enqueueLibraryVolumesOwned(2, 3);
+    await syncOutbox({ force: true });
+    expect(patchedPaths()).toContain("/api/user/library/2/3");
+  });
+
+  it("sends nothing when the session belongs to somebody else", async () => {
+    // A's queue, B's cookie: the flush must not replay A's writes into
+    // B's library. The device is wiped and the pass ends.
+    localStorage.setItem("mc:owner", "42");
+    await db.library.put(manga());
+    await enqueueLibraryVolumesOwned(2, 5);
+
+    await syncOutbox({ force: true });
+
+    expect(axios.patch).not.toHaveBeenCalled();
+    await expect(db.outboxLibrary.count()).resolves.toBe(0);
+    expect(localStorage.getItem("mc:owner")).toBe("7");
+  });
+
+  it("adopts an unstamped device rather than wiping it", async () => {
+    // An install that predates the stamp has a legitimate queue.
+    await db.library.put(manga());
+    await enqueueLibraryVolumesOwned(2, 5);
+    await syncOutbox({ force: true });
+    expect(patchedPaths()).toContain("/api/user/library/2/5");
+    expect(localStorage.getItem("mc:owner")).toBe("7");
   });
 });

@@ -1087,6 +1087,17 @@ async function flushLibrary() {
             await refetchVolumes(op.mal_id).catch(() => {});
           }
         }
+        // 所 · An owned count can be sitting in this payload: `owned` is the
+        // weaker op, so a later field edit rewrites the op to `patch` and
+        // carries `volumes_owned` along. Its endpoint is a path segment, not
+        // a body field, so it rides here the way the poster does — without
+        // this the count the user set offline is dropped at flush and the
+        // refetch pulls the server's stale value back over it.
+        if (op.payload?.volumes_owned != null) {
+          await axios.patch(
+            `/api/user/library/${op.mal_id}/${op.payload.volumes_owned}`,
+          );
+        }
         if (op.payload?.image_url_jpg) {
           await axios.patch(`/api/user/storage/poster/${op.mal_id}`, {
             url: op.payload.image_url_jpg,
