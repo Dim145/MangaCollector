@@ -1,4 +1,6 @@
 import { useWindowGridVirtualizer } from "@/hooks/useWindowGridVirtualizer.js";
+import { gapFor, laneTable } from "@/lib/gridDensity.js";
+import { useGridDensity } from "@/hooks/useGridDensity.js";
 import Manga from "../Manga";
 
 /**
@@ -30,16 +32,6 @@ import Manga from "../Manga";
  * can't drift apart.
  */
 export const VIRTUALIZE_THRESHOLD = 100;
-const LANE_BREAKPOINTS = [
-  // Mirror of the Tailwind classes used in the simple-grid branch:
-  // 2 / sm:3 / md:4 / lg:5 / xl:6.
-  { min: 1280, lanes: 6 },
-  { min: 1024, lanes: 5 },
-  { min: 768, lanes: 4 },
-  { min: 640, lanes: 3 },
-  { min: 0, lanes: 2 },
-];
-
 export default function VirtualMangaGrid({
   filtered,
   adult_content_level,
@@ -52,10 +44,11 @@ export default function VirtualMangaGrid({
   onEnterSelection,
   shelf3d,
 }) {
+  const { density } = useGridDensity();
   const { parentRef, lanes, scrollMargin, virtualizer } =
     useWindowGridVirtualizer({
       itemCount: filtered.length,
-      laneBreakpoints: LANE_BREAKPOINTS,
+      laneBreakpoints: laneTable(density),
       estimateSize: 270,
       // 8 rows * up to 6 cols = 48 cards buffer above/below the
       // viewport. Comfortably covers the "Cmd+K → navigate" race
@@ -97,11 +90,11 @@ export default function VirtualMangaGrid({
               transform: `translateY(${virtualRow.start - scrollMargin}px)`,
               display: "grid",
               gridTemplateColumns: `repeat(${lanes}, minmax(0, 1fr))`,
-              // Match the simple grid's gap (gap-3 mobile, gap-4 sm+).
-              gap: lanes === 2 ? "0.75rem" : "1rem",
+              // Match the simple grid's gap for this density.
+              gap: gapFor(density, lanes),
               // Bottom padding equal to gap so the last row of a row
               // doesn't run flush against the next section.
-              paddingBottom: lanes === 2 ? "0.75rem" : "1rem",
+              paddingBottom: gapFor(density, lanes),
             }}
           >
             {rowItems.map((manga, i) => (

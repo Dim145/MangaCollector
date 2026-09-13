@@ -38,7 +38,8 @@ export default {
     filedWord: "tomes filed",
     unfiledWord: "unfiled",
     unfiled: "No place yet",
-    pickHint: "Pick a place to see what sits there, move tomes, or scan spines straight into it.",
+    pickHint:
+      "Pick a place to see what sits there, move tomes, or scan spines straight into it.",
     newPlace: "NEW PLACE",
     newPlaceName: "Name — shelf B, box 3, bedroom…",
     newPlaceNote: "Note (optional)",
@@ -75,7 +76,8 @@ export default {
   inventory: {
     kicker: "INVENTORY · 棚卸",
     title: "Stock-taking",
-    subtitle: "Scan the spines one by one. What was never scanned is what is missing.",
+    subtitle:
+      "Scan the spines one by one. What was never scanned is what is missing.",
     scopeLegend: "WHAT TO COUNT",
     scope_all: "The whole shelf",
     scope_series: "One series",
@@ -191,6 +193,9 @@ export default {
     statMonths: "months covered",
     searchAria: "Filter by series name",
     searchPlaceholder: "Filter by series…",
+    densityLabel: "Grid density",
+    density_comfortable: "Comfortable — larger covers",
+    density_dense: "Dense — more covers per row",
     windowAria: "Time horizon",
     viewAria: "View mode",
     viewAgenda: "Agenda",
@@ -228,8 +233,7 @@ export default {
   calendarSubscribe: {
     eyebrow: "SUBSCRIBE · 暦",
     heading: "Add the upcoming calendar to your apps",
-    body:
-      "Get every announced volume in Apple Calendar, Google Calendar, Outlook — anywhere that speaks ICS. The feed updates daily after the nightly sweep.",
+    body: "Get every announced volume in Apple Calendar, Google Calendar, Outlook — anywhere that speaks ICS. The feed updates daily after the nightly sweep.",
     urlLabel: "Personal subscription URL",
     errorLabel: "Couldn't load",
     copied: "Copied",
@@ -246,8 +250,7 @@ export default {
   sessions: {
     kicker: "Devices",
     heading: "Where you're signed in",
-    body:
-      "Each device with an active MangaCollector session appears below. Revoke any you don't recognise — that device will be signed out at its next request.",
+    body: "Each device with an active MangaCollector session appears below. Revoke any you don't recognise — that device will be signed out at its next request.",
     fetchError: "Couldn't load your devices.",
     empty: "No active sessions on record yet.",
     thisDevice: "This device",
@@ -280,8 +283,10 @@ export default {
     tabUpcoming: "Upcoming",
     filterTablistLabel: "Filter library by status",
     tabHintWishlist: "series you're tracking but haven't started owning yet",
-    tabHintTsundoku: "the quiet joy of unread piles — series with at least one acquired-but-unread volume",
-    tabHintUpcoming: "series with at least one announced volume that hasn't shipped yet",
+    tabHintTsundoku:
+      "the quiet joy of unread piles — series with at least one acquired-but-unread volume",
+    tabHintUpcoming:
+      "series with at least one announced volume that hasn't shipped yet",
     lensLabel: "Time-based lenses",
     lensRecent: "Recent",
     lensRecentHint: "added in the last 30 days",
@@ -307,8 +312,7 @@ export default {
     sortGapsNote: "Series without a value for this key go last.",
     streakLabel: "Streak",
     streakTooltipCurrent: "{n} consecutive days of activity",
-    streakTooltipBest:
-      "{current} consecutive days — personal best: {best}",
+    streakTooltipBest: "{current} consecutive days — personal best: {best}",
     searchPlaceholder: "Search your library…",
     clearFilter: "Clear",
     addManga: "Add manga",
@@ -377,7 +381,8 @@ export default {
     readingTimesReadOnce: "Read through once",
     readingNeverFinished: "Not finished yet",
     readingRereadCta: "Read again",
-    readingRereadConfirm: "Start over? Every tome goes back to unread and the read-through tally goes up.",
+    readingRereadConfirm:
+      "Start over? Every tome goes back to unread and the read-through tally goes up.",
     readingRereadYes: "Yes, start over",
     readingRereadNo: "Keep as is",
     readingRereadNeedsFinish: "Finish the series once to start a re-read.",
@@ -454,8 +459,7 @@ export default {
     upcomingAddManual: "Add manually · 来",
     upcomingAddManualHint:
       "Pencil in an announced volume yourself — number, release date, optional ISBN and pre-order URL.",
-    upcomingAddManualOfflineHint:
-      "Reconnect to add an upcoming volume.",
+    upcomingAddManualOfflineHint: "Reconnect to add an upcoming volume.",
     upcomingModalEyebrow: "UPCOMING VOLUME · 来",
     upcomingModalTitle: "Pencil in an upcoming volume",
     upcomingModalLead:
@@ -478,7 +482,8 @@ export default {
       "This manual announcement will be removed from your archive. Irreversible — you'll need to recreate the entry if needed.",
     upcomingDeleteConfirm: "Delete permanently",
     upcomingDeleting: "Deleting…",
-    upcomingErrConflict: "A volume with that number already exists for this series.",
+    upcomingErrConflict:
+      "A volume with that number already exists for this series.",
     upcomingErrPastDate: "The date must be strictly in the future.",
     upcomingErrIsbn: "Invalid ISBN — needs 10 or 13 digits.",
     upcomingErrUrl: "URL must start with http:// or https://.",
@@ -496,7 +501,7 @@ export default {
     upcomingOfflineHint: "Reconnect to look up upcoming volumes.",
     upcomingResultChanged: "+{added} added · {updated} updated",
     upcomingResultChangedBody:
-      "Calendar for \"{name}\" updated with the latest releases.",
+      'Calendar for "{name}" updated with the latest releases.',
     upcomingResultNone: "No new announcements",
     upcomingResultNoneBody:
       "The calendar is already up to date — nothing new from the publishers.",
@@ -574,7 +579,8 @@ export default {
     boughtAtLabel: "Bought on",
     doublesTooltip: "{n} copies on the shelf — {x} double(s)",
     isbnLabel: "ISBN",
-    isbnHint: "13 digits as printed on the back cover — set by the scanner when the tome was added that way.",
+    isbnHint:
+      "13 digits as printed on the back cover — set by the scanner when the tome was added that way.",
     isbnInvalid: "Not a valid ISBN — left out of the save.",
     noteCounter: "{n} / {max}",
     noteIndicatorChip: "Note",
@@ -642,8 +648,7 @@ export default {
     notACoffret: "Not a box set? Back to single volume",
     offlineRequired:
       "Box set changes need a connection — the server applies them as one atomic transaction across the box + every volume inside.",
-    offlineQueued:
-      "Offline · the box set will sync once connectivity returns.",
+    offlineQueued: "Offline · the box set will sync once connectivity returns.",
   },
   add: {
     eyebrow: "ADD · 追加",
@@ -864,7 +869,8 @@ export default {
     closestHeading: "Closest to completion",
     closestCount: "Top {n}",
     closestRemaining: "{n} to go",
-    closestEmpty: "No series in flight — every shelf is either complete or untouched.",
+    closestEmpty:
+      "No series in flight — every shelf is either complete or untouched.",
     closestAria: "{title} — {pct}% complete",
     topSpend: "Top spend",
     mostValued: "Most valued series",
@@ -905,177 +911,169 @@ export default {
     sec_mokuji_kicker: "Navigation marks",
     sec_mokuji_title: "Index",
 
-    "states_全_literal": "all, entirety",
-    "states_全_usage":
+    states_全_literal: "all, entirety",
+    states_全_usage:
       "Filter showing every series in your library, regardless of state.",
-    "states_進_literal": "advance, progress",
-    "states_進_usage":
+    states_進_literal: "advance, progress",
+    states_進_usage:
       "Series you're actively collecting — at least one volume owned, but not all.",
-    "states_願_literal": "wish, desire",
-    "states_願_usage":
+    states_願_literal: "wish, desire",
+    states_願_usage:
       "Series you're tracking but haven't started owning yet — the public profile hides them on purpose.",
-    "states_完_literal": "completion, end",
-    "states_完_usage":
-      "Series whose every published volume is on your shelf.",
-    "states_来_literal": "to come, to arrive",
-    "states_来_usage":
+    states_完_literal: "completion, end",
+    states_完_usage: "Series whose every published volume is on your shelf.",
+    states_来_literal: "to come, to arrive",
+    states_来_usage:
       "An announced volume due in the future — the promise of what's next. Surfaces wherever the app references the release calendar: the Calendar page, the dashboard ribbon when you're caught up, the Refresh-upcoming menu.",
-    "states_積読_literal": "the joy of unread piles",
-    "states_積読_usage":
+    states_積読_literal: "the joy of unread piles",
+    states_積読_usage:
       "Series with at least one owned-but-unread volume — the gentle pile you keep meaning to get to.",
-    "states_限_literal": "limit, bound",
-    "states_限_usage":
+    states_限_literal: "limit, bound",
+    states_限_usage:
       "Limited / collector edition. Appears as a small 限 seal pinned to the corner of marked volumes.",
-    "states_連_literal": "link, unbroken sequence",
-    "states_連_usage":
+    states_連_literal: "link, unbroken sequence",
+    states_連_usage:
       "Counter of consecutive days with at least one activity. Appears in the dashboard masthead — quiet while you keep the cadence, glowing once you cross seven days in a row.",
-    "states_新_literal": "new, freshly arrived",
-    "states_新_usage":
+    states_新_literal: "new, freshly arrived",
+    states_新_usage:
       "Time-based lens « Recent » — series added to your library in the last thirty days. A way to recall your most recent enthusiasms.",
-    "states_眠_literal": "sleep, dormancy",
-    "states_眠_usage":
+    states_眠_literal: "sleep, dormancy",
+    states_眠_usage:
       "Lens « Sleeping » — series with no activity for more than six months. The quiet pile you might want to wake up.",
-    "states_慕_literal": "to long for, to yearn from afar",
-    "states_慕_usage":
+    states_慕_literal: "to long for, to yearn from afar",
+    states_慕_usage:
       "Lens « Wishlist > 1y » — series on the wishlist for over a year, never started. The patient longing.",
 
-    "actions_始_literal": "begin, start",
-    "actions_始_usage":
+    actions_始_literal: "begin, start",
+    actions_始_usage:
       "The welcome tour and the first-step prompt for a new archive.",
-    "actions_探_literal": "to seek, to search",
-    "actions_探_usage":
+    actions_探_literal: "to seek, to search",
+    actions_探_usage:
       "The barcode scanner — point a camera at an ISBN, find a match against MAL.",
-    "actions_印_literal": "seal, stamp, mark",
-    "actions_印_usage":
+    actions_印_literal: "seal, stamp, mark",
+    actions_印_usage:
       "Your hanko avatar — the personal seal you imprint across the app.",
-    "actions_追加_literal": "addition, supplement",
-    "actions_追加_usage":
-      "Add a new series or a new volume to your collection.",
-    "actions_編集_literal": "to edit, to compile",
-    "actions_編集_usage": "Edit a series or volume's details.",
-    "actions_選_literal": "to choose, to select",
-    "actions_選_usage":
+    actions_追加_literal: "addition, supplement",
+    actions_追加_usage: "Add a new series or a new volume to your collection.",
+    actions_編集_literal: "to edit, to compile",
+    actions_編集_usage: "Edit a series or volume's details.",
+    actions_選_literal: "to choose, to select",
+    actions_選_usage:
       "Multi-select mode on the dashboard — long-press on mobile, Cmd-click on desktop. The bulk-actions bar slides up from the bottom once at least one card is picked.",
-    "actions_削_literal": "to trim, to remove",
-    "actions_削_usage":
+    actions_削_literal: "to trim, to remove",
+    actions_削_usage:
       "Delete action — available in the bulk-actions bar and on a series' detail surface. Always preceded by a confirmation step.",
-    "actions_鍵_literal": "key, passkey",
-    "actions_鍵_usage":
+    actions_鍵_literal: "key, passkey",
+    actions_鍵_usage:
       "The keyboard-shortcut cheat sheet — open it with « ? » from any page. Lists the « g d / g c / g p » chords and the modal shortcuts.",
-    "actions_解_literal": "to undo, to release",
-    "actions_解_usage":
+    actions_解_literal: "to undo, to release",
+    actions_解_usage:
       "Clear active filters — the « Clear » chip that surfaces when a genre or lens narrows the shelf.",
-    "actions_確_literal": "to confirm, certainty",
-    "actions_確_usage":
+    actions_確_literal: "to confirm, certainty",
+    actions_確_usage:
       "The seal that confirms a volume just landed in the collection — a brief flash over the cover the moment you mark it owned.",
 
-    "places_本棚_literal": "bookshelf",
-    "places_本棚_usage":
+    places_本棚_literal: "bookshelf",
+    places_本棚_usage:
       "Your private library dashboard. Combined 本 (book) + 棚 (shelf).",
-    "places_蔵書_literal": "the held collection",
-    "places_蔵書_usage":
+    places_蔵書_literal: "the held collection",
+    places_蔵書_usage:
       "Your public-profile gallery — what's actually on your shelf, on display.",
-    "places_統計_literal": "statistics",
-    "places_統計_usage":
+    places_統計_literal: "statistics",
+    places_統計_usage:
       "Your profile's analytics — completion, spend, top series, milestones.",
-    "places_設定_literal": "setting, configuration",
-    "places_設定_usage": "The settings page — preferences, themes, account.",
-    "places_読破_literal": "to read all the way through",
-    "places_読破_usage":
+    places_設定_literal: "setting, configuration",
+    places_設定_usage: "The settings page — preferences, themes, account.",
+    places_読破_literal: "to read all the way through",
+    places_読破_usage:
       "Reading log — volumes you've finished, with timestamps and monthly cadence.",
-    "places_人_literal": "person, author",
-    "places_人_usage":
+    places_人_literal: "person, author",
+    places_人_usage:
       "Authors folio of the Stats ledger. Top mangaka who weigh the most on your shelves — by volumes owned and series completed.",
-    "places_版_literal": "edition, imprint",
-    "places_版_usage":
+    places_版_literal: "edition, imprint",
+    places_版_usage:
       "Publishers folio. Which imprint fills the most of your shelf, with completion bars per house.",
-    "places_銭_literal": "coin, value",
-    "places_銭_usage":
+    places_銭_literal: "coin, value",
+    places_銭_usage:
       "Treasure folio. Crown jewel, basket-price evolution, savings made through coffrets.",
-    "places_暦_literal": "calendar, almanac",
-    "places_暦_usage":
+    places_暦_literal: "calendar, almanac",
+    places_暦_usage:
       "Time folio. Favourite quarter, archive tenure, the very first series ever added — the chronological memory of the carnet.",
-    "places_友_literal": "friend, companion",
-    "places_友_usage":
+    places_友_literal: "friend, companion",
+    places_友_usage:
       "Correspondence page and Tomo folio of the ledger. Following fellow archivists, activity feed, latent recommendations.",
 
-    "vessels_巻_literal": "scroll, volume",
-    "vessels_巻_usage":
-      "A single tankōbon (numbered volume) in a series.",
-    "vessels_盒_literal": "small box, casket",
-    "vessels_盒_usage":
+    vessels_巻_literal: "scroll, volume",
+    vessels_巻_usage: "A single tankōbon (numbered volume) in a series.",
+    vessels_盒_literal: "small box, casket",
+    vessels_盒_usage:
       "A coffret — limited box-set that ships several volumes together with collector packaging.",
-    "vessels_印鑑帳_literal": "seal book, register of stamps",
-    "vessels_印鑑帳_usage":
+    vessels_印鑑帳_literal: "seal book, register of stamps",
+    vessels_印鑑帳_usage:
       "Your seal collection — milestone trophies you unlock through volumes, series and reading streaks.",
-    "vessels_あと少し_literal": "a little more to go",
-    "vessels_あと少し_usage":
+    vessels_あと少し_literal: "a little more to go",
+    vessels_あと少し_usage:
       "Near-completion shelf — series only a few volumes away from being finished.",
-    "vessels_棚_literal": "shelf, rack",
-    "vessels_棚_usage":
+    vessels_棚_literal: "shelf, rack",
+    vessels_棚_usage:
       "The shelf as an object — anchors the 3D dashboard mode (perspective + wood grain) and the shareable profile snapshot. Distinct from 本棚 (bookshelf), which names the dashboard surface itself.",
-    "vessels_帳_literal": "ledger, book of accounts",
-    "vessels_帳_usage":
+    vessels_帳_literal: "ledger, book of accounts",
+    vessels_帳_usage:
       "The master ledger book — identity of the StatsPage. Borne as a giant watermark on the hero, and as a small spinning badge on the bridge CTA from /profile. The book the archivist leafs through to understand their own collection.",
-    "vessels_籠_literal": "basket, woven bowl",
-    "vessels_籠_usage":
+    vessels_籠_literal: "basket, woven bowl",
+    vessels_籠_usage:
       "The “average basket” card on the Treasure folio — 12-month sparkline of the average price of volumes you add. Evokes the basket you fill at the bookseller, to gauge whether your buying cadence is getting pricier.",
 
-    "palette_漆黒_literal": "lacquer black, jet ink",
-    "palette_漆黒_usage":
+    palette_漆黒_literal: "lacquer black, jet ink",
+    palette_漆黒_usage:
       "The deep ink background carried by the dark theme — every page sits on this layer.",
-    "palette_印_literal": "stamp red, hanko ink",
-    "palette_印_usage":
+    palette_印_literal: "stamp red, hanko ink",
+    palette_印_usage:
       "The signature accent — CTAs, current-rate stats, every state highlight that needs to feel decisive.",
-    "palette_金_literal": "gold leaf",
-    "palette_金_usage":
+    palette_金_literal: "gold leaf",
+    palette_金_usage:
       "Achievement accent — completed series count, lifetime spend, collector badges.",
-    "palette_萌葱_literal": "spring shoot green",
-    "palette_萌葱_usage":
+    palette_萌葱_literal: "spring shoot green",
+    palette_萌葱_usage:
       "Reading axis and complete-series badges — quiet, alive.",
-    "palette_桜_literal": "cherry blossom",
-    "palette_桜_usage":
-      "Wishlist accent — anticipation without arrival yet.",
+    palette_桜_literal: "cherry blossom",
+    palette_桜_usage: "Wishlist accent — anticipation without arrival yet.",
 
-    "mokuji_目次_literal": "table of contents",
-    "mokuji_目次_usage":
+    mokuji_目次_literal: "table of contents",
+    mokuji_目次_usage:
       "The vertical rail of the Settings page — each kanji jumps to a chapter. Hangs like a kakejiku scroll along the right edge on desktop; condenses to a sticky ribbon at the top on mobile.",
-    "mokuji_章_literal": "chapter",
-    "mokuji_章_usage":
+    mokuji_章_literal: "chapter",
+    mokuji_章_usage:
       "Unit of organisation on the Settings page — four total, each pressed under a vermillion hanko stamp bearing its ordinal 第○章.",
-    "mokuji_字典_literal": "kanji dictionary",
-    "mokuji_字典_usage":
+    mokuji_字典_literal: "kanji dictionary",
+    mokuji_字典_usage:
       "This very page — reached from Settings → Onboarding. The app's open vocabulary reference.",
-    "mokuji_索引_literal": "index, cross-reference table",
-    "mokuji_索引_usage":
+    mokuji_索引_literal: "index, cross-reference table",
+    mokuji_索引_usage:
       "The navigation rail of the Stats ledger — each kanji leads to a folio (人 authors, 版 publishers, 読 reading, 銭 treasure, 暦 time, 印 seals, 友 correspondents). Sticky vertical on large screens, condensed into horizontal chips on mobile. Sibling of 目次 in Settings: same index metaphor, different ledger.",
-    "mokuji_風_literal": "wind, atmosphere",
-    "mokuji_風_usage":
+    mokuji_風_literal: "wind, atmosphere",
+    mokuji_風_usage:
       "Settings chapter 1: theme, seasonal palette, ambient particles. Everything that touches the app's visual breath.",
-    "mokuji_文_literal": "writing, text",
-    "mokuji_文_usage":
+    mokuji_文_literal: "writing, text",
+    mokuji_文_usage:
       "Settings chapter 2: language, currency, title format, adult-content filter, scanner key. How the app speaks to you, and what it calls things.",
-    "mokuji_館_literal": "hall, building",
-    "mokuji_館_usage":
+    mokuji_館_literal: "hall, building",
+    mokuji_館_usage:
       "Settings chapter 3: public profile, archive, shelf labels, welcome tour. Everything tied to your account, or exported with it.",
-    "mokuji_危_literal": "danger, peril",
-    "mokuji_危_usage":
+    mokuji_危_literal: "danger, peril",
+    mokuji_危_usage:
       "Settings chapter 4: restore from server and account deletion. Actions that demand a careful hand — hence the heavier red stamp.",
   },
   season: {
     dismissAria: "Dismiss the season banner",
     poetic_spring: "The archive opens its blossoms.",
-    subtle_spring:
-      "Soft pinks and new growth — pages turn under cherry light.",
+    subtle_spring: "Soft pinks and new growth — pages turn under cherry light.",
     poetic_summer: "The ink drinks the long summer light.",
-    subtle_summer:
-      "Deeper greens, brighter accents — your shelf at noon.",
+    subtle_summer: "Deeper greens, brighter accents — your shelf at noon.",
     poetic_autumn: "The pages take on the gold of leaves.",
-    subtle_autumn:
-      "Amber edges, slower turning — the journal in low sun.",
+    subtle_autumn: "Amber edges, slower turning — the journal in low sun.",
     poetic_winter: "The journal folds quietly inward.",
-    subtle_winter:
-      "Cold ink and bare paper — the archive at rest.",
+    subtle_winter: "Cold ink and bare paper — the archive at rest.",
   },
   tour: {
     kicker: "Welcome",
@@ -1206,9 +1204,11 @@ export default {
       "Dashboard cards take on a light perspective tilt with edge shadows, resting on a wood-grain line — like browsing an actual bookshelf. Disabled in multi-select mode.",
     shelf3dToggleAria: "Toggle 3D shelf view",
     flourishesTitle: "Visual flourishes",
-    flourishesBody: "Optional decorative effects — each adds a detail to the rest of the interface without touching the theme or the accent.",
+    flourishesBody:
+      "Optional decorative effects — each adds a detail to the rest of the interface without touching the theme or the accent.",
     feedbackTitle: "Sensory feedback",
-    feedbackBody: "Interface sounds and haptic vibrations — two independent confirmation channels, each gated by the OS permissions.",
+    feedbackBody:
+      "Interface sounds and haptic vibrations — two independent confirmation channels, each gated by the OS permissions.",
     inkTrailTitle: "Ink trail",
     inkTrailBody:
       "The cursor deposits a hanko brush stroke under large headings — a sumi-e flourish as you hover a page title. Off by default, ignored on touch screens and when reduced motion is requested.",
@@ -1246,7 +1246,8 @@ export default {
     titleEnglish: "English",
     titleJapanese: "Japanese",
     onboardingSection: "Onboarding",
-    onboardingBody: "Replay the three-step welcome tour at any time, or open the kanji glossary.",
+    onboardingBody:
+      "Replay the three-step welcome tour at any time, or open the kanji glossary.",
     replayTour: "Replay welcome tour",
     openGlossary: "Open kanji glossary",
     barcodeScanner: "Barcode scanner",
@@ -1263,7 +1264,7 @@ export default {
       "Tip: restrict the key to your HTTP referrer in Google Cloud Console — it'll be rejected if leaked and used on another domain. The key is stored in your browser only (localStorage), never on the server.",
     seasonTitle: "Season · 季節",
     seasonBody:
-      "Ambient glows tint with the Japanese season. \"Auto\" follows the calendar; \"Neutral\" keeps the base palette.",
+      'Ambient glows tint with the Japanese season. "Auto" follows the calendar; "Neutral" keeps the base palette.',
     seasonBodyAuto:
       "Current season: {current}. Switches automatically by month; pick a season to lock the palette.",
     seasonName: {
@@ -1507,7 +1508,8 @@ export default {
     body: "The archivist walked the corridor twice but couldn't find this volume. Maybe a stale link, or a path typed from memory that no longer matches. The archive is vast — let's retrace our steps.",
     backToDashboard: "Back to dashboard",
     goBack: "Previous page",
-    inscription: "Every misplaced volume finds its shelf eventually — patience.",
+    inscription:
+      "Every misplaced volume finds its shelf eventually — patience.",
   },
   activity: {
     label: "RECENT · 最近",
@@ -1902,7 +1904,8 @@ export default {
       },
       read_500: {
         label: "Five hundred read",
-        description: "Five hundred read. The archive is no longer a pile — it's memory.",
+        description:
+          "Five hundred read. The archive is no longer a pile — it's memory.",
       },
       read_1000: {
         label: "Thousand read",
@@ -1914,7 +1917,8 @@ export default {
       },
       full_read_10: {
         label: "Ten works read",
-        description: "Ten series read cover to cover. Your nightstand is overflowing.",
+        description:
+          "Ten series read cover to cover. Your nightstand is overflowing.",
       },
       full_read_50: {
         label: "Fifty works read",
@@ -1949,18 +1953,18 @@ export default {
     seasonalActiveHint: "Seasonal · available until the end of the month",
     seasonalDormantHint: "Seasonal · returns in {months}",
     seasonalMonths: {
-      "1": "January",
-      "2": "February",
-      "3": "March",
-      "4": "April",
-      "5": "May",
-      "6": "June",
-      "7": "July",
-      "8": "August",
-      "9": "September",
-      "10": "October",
-      "11": "November",
-      "12": "December",
+      1: "January",
+      2: "February",
+      3: "March",
+      4: "April",
+      5: "May",
+      6: "June",
+      7: "July",
+      8: "August",
+      9: "September",
+      10: "October",
+      11: "November",
+      12: "December",
     },
   },
   publicProfile: {
@@ -1990,8 +1994,7 @@ export default {
     adultBannerEyebrow: "ADULT CONTENT · 成人向け",
     adultBannerHidden:
       "This archive contains works intended for a mature audience.",
-    adultBannerRevealed:
-      "Adult content shown. You must be of legal age.",
+    adultBannerRevealed: "Adult content shown. You must be of legal age.",
     adultBannerReveal: "Reveal",
     adultBannerHide: "Hide again",
     compareCta: "Compare our libraries",
@@ -1999,8 +2002,7 @@ export default {
   shelfStickers: {
     eyebrow: "LABELS · 札",
     heading: "Shelf labels",
-    body:
-      "Print small QR labels for your physical shelves. Scan one with your phone and the matching series opens in the app.",
+    body: "Print small QR labels for your physical shelves. Scan one with your phone and the matching series opens in the app.",
     pickerTitle: "Selection",
     pickerHint: "{selected} of {total} selected",
     selectAll: "Select all",
@@ -2008,8 +2010,7 @@ export default {
     searchPlaceholder: "Filter library…",
     noMatch: "No series match.",
     summarySelected: "{n} labels ready to print",
-    summarySheets:
-      "{pages} A4 sheet(s) · {template} (21 labels per sheet)",
+    summarySheets: "{pages} A4 sheet(s) · {template} (21 labels per sheet)",
     printCta: "Print",
     previewLabel: "Sheet preview",
     previewTitle: "Preview",
@@ -2114,8 +2115,7 @@ export default {
     malInputTitle: "Your MyAnimeList username",
     malInputLabel: "Username",
     malPlaceholder: "e.g. Xinil",
-    malHint:
-      "Public MAL username. The Jikan API walks your mangalist.",
+    malHint: "Public MAL username. The Jikan API walks your mangalist.",
     mdInputKind: "By list UUID · public API",
     mdBlurb:
       "Paste a public MangaDex list URL or UUID. Series are fetched via the official API.",
@@ -2220,8 +2220,7 @@ export default {
     aria: "Update available",
     kicker: "UPDATE · 更",
     title: "A new version is ready",
-    body:
-      "A new build of the app is available. Reload to switch over now, or come back to it later.",
+    body: "A new build of the app is available. Reload to switch over now, or come back to it later.",
     reloadAction: "Reload now",
     laterAction: "Later",
   },
@@ -2251,7 +2250,8 @@ export default {
     corpusTitlePublisher: "In the catalogue",
     corpusTitleEdition: "In this edition",
     openSeriesAria: "Open the {name} record",
-    hintTryPublisher: "You can also filter by publisher · click 出版 on any series",
+    hintTryPublisher:
+      "You can also filter by publisher · click 出版 on any series",
     hintTryEdition: "You can also filter by edition · click 版 on any series",
   },
   loans: {
@@ -2316,8 +2316,7 @@ export default {
     captureOffline: "Offline",
     captureOfflineHint:
       "Capturing needs the server — minting the row + uploading the image to storage.",
-    deleteOfflineHint:
-      "Deleting needs a reachable server — no offline queue.",
+    deleteOfflineHint: "Deleting needs a reachable server — no offline queue.",
     servedFromCache:
       "Offline gallery · local view, new captures will arrive once connectivity returns",
     emptyTitleOffline: "Local gallery empty",
@@ -2388,7 +2387,8 @@ export default {
       completion: "Completion",
       volumesShort: "vol.",
       seriesShort: "ser.",
-      empty: "No author tagged yet. Fill the Author field on your series to enable this folio.",
+      empty:
+        "No author tagged yet. Fill the Author field on your series to enable this folio.",
     },
     publishers: {
       eyebrow: "FOLIO · 版",
@@ -2396,7 +2396,8 @@ export default {
       subtitle:
         "Which publisher fills the most of your shelf? Bars scale to the leader.",
       seriesShort: "series",
-      empty: "No publisher information available. Add some on a series page to enable this folio.",
+      empty:
+        "No publisher information available. Add some on a series page to enable this folio.",
     },
     reading: {
       eyebrow: "FOLIO · 読",
@@ -2410,8 +2411,7 @@ export default {
       delayHint: "Average time between adding a volume and reading it.",
       dokuhaEyebrow: "DOKUHA · 読破",
       dokuhaCounts: "{read} of {total}",
-      dokuhaHint:
-        "Share of series you fully own AND fully read.",
+      dokuhaHint: "Share of series you fully own AND fully read.",
     },
     treasure: {
       eyebrow: "FOLIO · 銭",
@@ -2458,12 +2458,10 @@ export default {
       subtitle:
         "What you share with your correspondents, and what they own that you haven't discovered yet.",
       sharedEyebrow: "MOST-SHARED SERIES",
-      sharedHint:
-        "Owned by {n} of your {total} correspondents — you included.",
+      sharedHint: "Owned by {n} of your {total} correspondents — you included.",
       sharedEmpty: "No series in common for now.",
       latentEyebrow: "LATENT RECOMMENDATIONS",
-      latentEmpty:
-        "Your correspondents have nothing to suggest for now.",
+      latentEmpty: "Your correspondents have nothing to suggest for now.",
       latentCount: "{n} series",
       latentMore: "+{n} more",
       latentRowHint: "{n}/{total} correspondents",

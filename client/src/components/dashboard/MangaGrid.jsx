@@ -1,6 +1,8 @@
 import { memo } from "react";
 import Manga from "../Manga";
 import VirtualMangaGrid, { VIRTUALIZE_THRESHOLD } from "./VirtualMangaGrid.jsx";
+import { gridClassFor } from "@/lib/gridDensity.js";
+import { useGridDensity } from "@/hooks/useGridDensity.js";
 
 function MangaGrid({
   filtered,
@@ -14,6 +16,7 @@ function MangaGrid({
   onEnterSelection,
   shelf3d,
 }) {
+  const { density } = useGridDensity();
   const cardProps = {
     adult_content_level,
     allCollectorSet,
@@ -29,7 +32,7 @@ function MangaGrid({
   // wood-grain shadow ribs, layered on top of the existing grid.
   // Selection mode forces flat (the tilt would fight the selection
   // ring + checkbox overlay for visual priority).
-  const gridClass = `grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 ${
+  const gridClass = `${gridClassFor(density)} ${
     shelf3d && !selectionMode ? "shelf-3d" : ""
   }`;
   if (filtered.length <= VIRTUALIZE_THRESHOLD) {

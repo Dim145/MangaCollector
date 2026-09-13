@@ -25,8 +25,10 @@ export default {
        feedback so every successful mutation lands with a consistent
        label rather than a per-feature one-off string. */
     settingsSavedTitle: "Préférence enregistrée",
-    settingsSavedBody: "Vos changements sont synchronisés sur tous vos appareils.",
-    apiKeySavedBody: "Clé API enregistrée localement (jamais transmise au serveur).",
+    settingsSavedBody:
+      "Vos changements sont synchronisés sur tous vos appareils.",
+    apiKeySavedBody:
+      "Clé API enregistrée localement (jamais transmise au serveur).",
     apiKeyClearedBody: "Clé API effacée de cet appareil.",
     restoreDoneTitle: "Archive restaurée",
     restoreDoneBody: "Données rechargées depuis le serveur — fenêtre prête.",
@@ -34,14 +36,16 @@ export default {
   rangement: {
     kicker: "RANGEMENT · 棚",
     title: "Où vivent les tomes",
-    subtitle: "Étagères, cartons, pièces — chaque emplacement sait ce qu'il contient.",
+    subtitle:
+      "Étagères, cartons, pièces — chaque emplacement sait ce qu'il contient.",
     listHeading: "EMPLACEMENTS",
     placesCount: "{n} emplacement(s)",
     placesWord: "emplacements",
     filedWord: "tomes rangés",
     unfiledWord: "sans emplacement",
     unfiled: "Sans emplacement",
-    pickHint: "Choisis un emplacement pour voir ce qu'il contient, déplacer des tomes ou y scanner des dos directement.",
+    pickHint:
+      "Choisis un emplacement pour voir ce qu'il contient, déplacer des tomes ou y scanner des dos directement.",
     newPlace: "NOUVEL EMPLACEMENT",
     newPlaceName: "Nom — étagère B, carton 3, chambre…",
     newPlaceNote: "Note (facultative)",
@@ -49,7 +53,8 @@ export default {
     rename: "Renommer",
     note: "Note",
     delete: "Supprimer",
-    confirmDelete: "Supprimer « {name} » ? Ses tomes restent, simplement sans emplacement.",
+    confirmDelete:
+      "Supprimer « {name} » ? Ses tomes restent, simplement sans emplacement.",
     yes: "Oui, supprimer",
     no: "Garder",
     moveUp: "Monter",
@@ -73,12 +78,14 @@ export default {
     lentTo: "Prêté à {name}",
     labels: "Étiquettes",
     boxLabel: "Étiquette de carton",
-    offline: "Les emplacements s'éditent en ligne — déplacer des tomes fonctionne hors ligne.",
+    offline:
+      "Les emplacements s'éditent en ligne — déplacer des tomes fonctionne hors ligne.",
   },
   inventory: {
     kicker: "INVENTAIRE · 棚卸",
     title: "Récolement",
-    subtitle: "Scanne les dos un à un. Ce qui n'a jamais été scanné, c'est ce qui manque.",
+    subtitle:
+      "Scanne les dos un à un. Ce qui n'a jamais été scanné, c'est ce qui manque.",
     scopeLegend: "QUOI COMPTER",
     scope_all: "Toute l'étagère",
     scope_series: "Une série",
@@ -194,6 +201,9 @@ export default {
     statMonths: "mois couverts",
     searchAria: "Filtrer par nom de série",
     searchPlaceholder: "Filtrer par série…",
+    densityLabel: "Densité de la grille",
+    density_comfortable: "Confortable — jaquettes plus grandes",
+    density_dense: "Dense — plus de jaquettes par ligne",
     windowAria: "Horizon temporel",
     viewAria: "Mode d'affichage",
     viewAgenda: "Agenda",
@@ -223,7 +233,8 @@ export default {
     emptyCta: "Parcourir ma bibliothèque",
     emptySearchEyebrow: "AUCUNE CORRESPONDANCE · 静",
     emptySearchTitle: "Aucune sortie ne correspond au filtre",
-    emptySearchBody: "Essayez une recherche plus courte ou élargissez l'horizon.",
+    emptySearchBody:
+      "Essayez une recherche plus courte ou élargissez l'horizon.",
     chapterMark: "暦帖",
     inscriptionEmpty: "L'agenda est calme cette saison.",
     inscriptionSearched: "Le filtre n'a rien rendu — élargis l'horizon.",
@@ -231,8 +242,7 @@ export default {
   calendarSubscribe: {
     eyebrow: "S'ABONNER · 暦",
     heading: "Ajoutez le calendrier à vos applis",
-    body:
-      "Recevez chaque tome annoncé dans Apple Calendar, Google Calendar, Outlook — partout où ICS est compris. Le flux se met à jour chaque nuit après la synchro.",
+    body: "Recevez chaque tome annoncé dans Apple Calendar, Google Calendar, Outlook — partout où ICS est compris. Le flux se met à jour chaque nuit après la synchro.",
     urlLabel: "URL personnelle d'abonnement",
     errorLabel: "Échec du chargement",
     copied: "Copié",
@@ -249,8 +259,7 @@ export default {
   sessions: {
     kicker: "Appareils",
     heading: "Où vous êtes connecté",
-    body:
-      "Chaque appareil ayant une session MangaCollector active apparaît ci-dessous. Révoquez ceux que vous ne reconnaissez pas — cet appareil sera déconnecté à sa prochaine requête.",
+    body: "Chaque appareil ayant une session MangaCollector active apparaît ci-dessous. Révoquez ceux que vous ne reconnaissez pas — cet appareil sera déconnecté à sa prochaine requête.",
     fetchError: "Impossible de charger vos appareils.",
     empty: "Aucune session active enregistrée pour l'instant.",
     thisDevice: "Cet appareil",
@@ -282,8 +291,10 @@ export default {
     tabTsundoku: "Tsundoku",
     tabUpcoming: "À venir",
     filterTablistLabel: "Filtrer la bibliothèque par statut",
-    tabHintWishlist: "séries que vous suivez sans en posséder encore aucun tome",
-    tabHintTsundoku: "le plaisir tranquille des piles non lues — séries dont au moins un tome est possédé mais non lu",
+    tabHintWishlist:
+      "séries que vous suivez sans en posséder encore aucun tome",
+    tabHintTsundoku:
+      "le plaisir tranquille des piles non lues — séries dont au moins un tome est possédé mais non lu",
     tabHintUpcoming: "séries avec au moins un tome annoncé non encore sorti",
     lensLabel: "Filtres temporels",
     lensRecent: "Récent",
@@ -313,8 +324,7 @@ export default {
     // « Suite » conserve la sémantique « succession ininterrompue ».
     streakLabel: "Suite",
     streakTooltipCurrent: "{n} jours consécutifs d'activité",
-    streakTooltipBest:
-      "{current} jours d'affilée — record personnel : {best}",
+    streakTooltipBest: "{current} jours d'affilée — record personnel : {best}",
     searchPlaceholder: "Rechercher dans votre bibliothèque…",
     clearFilter: "Effacer",
     addManga: "Ajouter un manga",
@@ -384,10 +394,12 @@ export default {
     readingTimesReadOnce: "Lu une fois",
     readingNeverFinished: "Pas encore terminé",
     readingRereadCta: "Relire",
-    readingRereadConfirm: "Tout reprendre ? Chaque tome repasse en non lu et le compteur de lectures augmente.",
+    readingRereadConfirm:
+      "Tout reprendre ? Chaque tome repasse en non lu et le compteur de lectures augmente.",
     readingRereadYes: "Oui, je reprends",
     readingRereadNo: "Laisser ainsi",
-    readingRereadNeedsFinish: "Terminez la série une fois pour lancer une relecture.",
+    readingRereadNeedsFinish:
+      "Terminez la série une fois pour lancer une relecture.",
     reviewPublicMark: "Public",
     authorLabel: "Auteur · 作家",
     authorPlaceholder: "Sui Ishida, Naoki Urasawa…",
@@ -561,7 +573,8 @@ export default {
     collectorBadge: "Collector",
     collectorTitle: "Édition collector — 限定",
     lockedAria: "Géré par le coffret",
-    lockedTitle: "Géré par son coffret — modifiez l'en-tête du coffret pour changer.",
+    lockedTitle:
+      "Géré par son coffret — modifiez l'en-tête du coffret pour changer.",
     noteLabel: "Note personnelle",
     notePlaceholder:
       "Une pensée, un rappel, une citation, le contexte de l'achat…",
@@ -582,7 +595,8 @@ export default {
     boughtAtLabel: "Acheté le",
     doublesTooltip: "{n} exemplaires sur l'étagère — {x} double(s)",
     isbnLabel: "ISBN",
-    isbnHint: "13 chiffres, comme au dos du tome — renseigné par le scanner quand le tome a été ajouté ainsi.",
+    isbnHint:
+      "13 chiffres, comme au dos du tome — renseigné par le scanner quand le tome a été ajouté ainsi.",
     isbnInvalid: "ISBN invalide — non enregistré.",
     noteCounter: "{n} / {max}",
     noteIndicatorChip: "Note",
@@ -882,7 +896,8 @@ export default {
     closestHeading: "Au plus près de la complétion",
     closestCount: "Top {n}",
     closestRemaining: "encore {n}",
-    closestEmpty: "Aucune série en cours — chaque étagère est soit complète, soit intacte.",
+    closestEmpty:
+      "Aucune série en cours — chaque étagère est soit complète, soit intacte.",
     closestAria: "{title} — {pct}% complet",
     topSpend: "Top dépenses",
     mostValued: "Séries les plus précieuses",
@@ -925,161 +940,158 @@ export default {
     sec_mokuji_kicker: "Repères de navigation",
     sec_mokuji_title: "Sommaire",
 
-    "states_全_literal": "tout, intégralité",
-    "states_全_usage":
+    states_全_literal: "tout, intégralité",
+    states_全_usage:
       "Filtre montrant toutes les séries de votre bibliothèque, sans distinction.",
-    "states_進_literal": "avancer, progresser",
-    "states_進_usage":
+    states_進_literal: "avancer, progresser",
+    states_進_usage:
       "Séries en cours de collection — au moins un tome possédé, mais pas tous.",
-    "states_願_literal": "souhait, désir",
-    "states_願_usage":
+    states_願_literal: "souhait, désir",
+    states_願_usage:
       "Séries que vous suivez mais dont vous n'avez encore aucun tome — le profil public les masque volontairement.",
-    "states_完_literal": "complétion, fin",
-    "states_完_usage": "Séries dont chaque tome publié est sur l'étagère.",
-    "states_来_literal": "venir, arriver",
-    "states_来_usage":
+    states_完_literal: "complétion, fin",
+    states_完_usage: "Séries dont chaque tome publié est sur l'étagère.",
+    states_来_literal: "venir, arriver",
+    states_来_usage:
       "Tome annoncé pour une date future — la promesse de la suite. Apparaît partout où l'app surface le calendrier des sorties : page Calendrier, ruban du dashboard quand vous êtes à jour, menu Rafraîchir à venir.",
-    "states_積読_literal": "le plaisir des piles non lues",
-    "states_積読_usage":
+    states_積読_literal: "le plaisir des piles non lues",
+    states_積読_usage:
       "Séries avec au moins un tome possédé mais non lu — la pile tranquille qu'on se promet de finir.",
-    "states_限_literal": "limite, contour",
-    "states_限_usage":
+    states_限_literal: "limite, contour",
+    states_限_usage:
       "Édition limitée / collector. Apparaît en petit sceau 限 dans le coin des tomes marqués.",
-    "states_連_literal": "lien, suite ininterrompue",
-    "states_連_usage":
+    states_連_literal: "lien, suite ininterrompue",
+    states_連_usage:
       "Compteur de jours consécutifs avec au moins une activité. Apparaît dans le ruban du tableau de bord — discret quand vous tenez la cadence, lumineux à partir de sept jours d'affilée.",
-    "states_新_literal": "neuf, fraîchement arrivé",
-    "states_新_usage":
+    states_新_literal: "neuf, fraîchement arrivé",
+    states_新_usage:
       "Lentille temporelle « Récent » — séries ajoutées à la bibliothèque dans les trente derniers jours. Pratique pour rappeler vos coups de cœur les plus frais.",
-    "states_眠_literal": "sommeil, dormance",
-    "states_眠_usage":
+    states_眠_literal: "sommeil, dormance",
+    states_眠_usage:
       "Lentille « En sommeil » — séries sans activité depuis plus de six mois. La pile silencieuse qu'il faudrait peut-être réveiller.",
-    "states_慕_literal": "languir après, désirer de loin",
-    "states_慕_usage":
+    states_慕_literal: "languir après, désirer de loin",
+    states_慕_usage:
       "Lentille « Wishlist > 1 an » — séries dans la liste de souhaits depuis plus d'un an, jamais commencées. L'envie patiente.",
 
-    "actions_始_literal": "commencer, débuter",
-    "actions_始_usage":
+    actions_始_literal: "commencer, débuter",
+    actions_始_usage:
       "Le tour de bienvenue et la première étape d'une nouvelle archive.",
-    "actions_探_literal": "chercher, explorer",
-    "actions_探_usage":
+    actions_探_literal: "chercher, explorer",
+    actions_探_usage:
       "Le scanner de code-barres — pointez l'appareil photo vers un ISBN, trouvez une correspondance MAL.",
-    "actions_印_literal": "sceau, marque",
-    "actions_印_usage":
+    actions_印_literal: "sceau, marque",
+    actions_印_usage:
       "Votre avatar hanko — le sceau personnel apposé partout dans l'app.",
-    "actions_追加_literal": "ajout, supplément",
-    "actions_追加_usage":
+    actions_追加_literal: "ajout, supplément",
+    actions_追加_usage:
       "Ajouter une nouvelle série ou un nouveau tome à la collection.",
-    "actions_編集_literal": "éditer, compiler",
-    "actions_編集_usage": "Modifier les détails d'une série ou d'un tome.",
-    "actions_選_literal": "choisir, sélectionner",
-    "actions_選_usage":
+    actions_編集_literal: "éditer, compiler",
+    actions_編集_usage: "Modifier les détails d'une série ou d'un tome.",
+    actions_選_literal: "choisir, sélectionner",
+    actions_選_usage:
       "Mode sélection multiple sur le tableau de bord — appui long sur mobile, Cmd-clic sur ordinateur. La barre d'actions groupées émerge ensuite par le bas.",
-    "actions_削_literal": "tailler, retrancher",
-    "actions_削_usage":
+    actions_削_literal: "tailler, retrancher",
+    actions_削_usage:
       "Action de suppression — disponible dans la barre d'actions groupées et au sein du détail d'une série. Toujours précédée d'une confirmation.",
-    "actions_鍵_literal": "clé, sésame",
-    "actions_鍵_usage":
+    actions_鍵_literal: "clé, sésame",
+    actions_鍵_usage:
       "Le mémento des raccourcis clavier — ouvert d'un appui sur « ? » depuis n'importe quelle page. Liste les chords « g d / g c / g p » et les raccourcis modaux.",
-    "actions_解_literal": "défaire, libérer",
-    "actions_解_usage":
+    actions_解_literal: "défaire, libérer",
+    actions_解_usage:
       "Effacer les filtres actifs — chip « Effacer » qui apparaît quand un genre ou une lentille restreint l'étagère.",
-    "actions_確_literal": "confirmer, certitude",
-    "actions_確_usage":
+    actions_確_literal: "confirmer, certitude",
+    actions_確_usage:
       "Le sceau qui confirme l'ajout d'un tome à la collection — un flash bref par-dessus la couverture au moment où vous le marquez possédé.",
 
-    "places_本棚_literal": "bibliothèque, étagère à livres",
-    "places_本棚_usage":
+    places_本棚_literal: "bibliothèque, étagère à livres",
+    places_本棚_usage:
       "Votre tableau de bord privé. Composé de 本 (livre) + 棚 (étagère).",
-    "places_蔵書_literal": "la collection détenue",
-    "places_蔵書_usage":
+    places_蔵書_literal: "la collection détenue",
+    places_蔵書_usage:
       "Galerie du profil public — ce qui est réellement sur votre étagère, exposé.",
-    "places_統計_literal": "statistiques",
-    "places_統計_usage":
+    places_統計_literal: "statistiques",
+    places_統計_usage:
       "Les analyses de votre profil — complétion, dépenses, top séries, paliers.",
-    "places_設定_literal": "réglages, configuration",
-    "places_設定_usage":
-      "La page de réglages — préférences, thèmes, compte.",
-    "places_読破_literal": "lire jusqu'au bout",
-    "places_読破_usage":
+    places_設定_literal: "réglages, configuration",
+    places_設定_usage: "La page de réglages — préférences, thèmes, compte.",
+    places_読破_literal: "lire jusqu'au bout",
+    places_読破_usage:
       "Journal de lecture — tomes terminés, avec dates et cadence mensuelle.",
-    "places_人_literal": "personne, auteur",
-    "places_人_usage":
+    places_人_literal: "personne, auteur",
+    places_人_usage:
       "Feuillet Auteurs du registre Statistiques. Top des mangaka qui pèsent le plus dans votre étagère — par tomes possédés et séries achevées.",
-    "places_版_literal": "édition, imprimé",
-    "places_版_usage":
+    places_版_literal: "édition, imprimé",
+    places_版_usage:
       "Feuillet Éditeurs du registre. Quel éditeur fournit le plus votre étagère, avec barres de complétion par maison.",
-    "places_銭_literal": "monnaie ancienne, valeur",
-    "places_銭_usage":
+    places_銭_literal: "monnaie ancienne, valeur",
+    places_銭_usage:
       "Feuillet Trésor. Pièce maîtresse, évolution du panier moyen, économies réalisées via les coffrets.",
-    "places_暦_literal": "calendrier, almanach",
-    "places_暦_usage":
+    places_暦_literal: "calendrier, almanach",
+    places_暦_usage:
       "Feuillet Temps. Saison favorite, ancienneté de l'archive, première série jamais ajoutée — la mémoire chronologique du carnet.",
-    "places_友_literal": "ami, compagnon",
-    "places_友_usage":
+    places_友_literal: "ami, compagnon",
+    places_友_usage:
       "Page Correspondance et feuillet Tomo du registre. Suivi d'archivistes amis, fil d'activité, recommandations latentes.",
 
-    "vessels_巻_literal": "rouleau, tome",
-    "vessels_巻_usage":
-      "Un tankōbon individuel (tome numéroté) d'une série.",
-    "vessels_盒_literal": "petite boîte, écrin",
-    "vessels_盒_usage":
+    vessels_巻_literal: "rouleau, tome",
+    vessels_巻_usage: "Un tankōbon individuel (tome numéroté) d'une série.",
+    vessels_盒_literal: "petite boîte, écrin",
+    vessels_盒_usage:
       "Un coffret — édition limitée regroupant plusieurs tomes dans un emballage collector.",
-    "vessels_印鑑帳_literal": "carnet de sceaux",
-    "vessels_印鑑帳_usage":
+    vessels_印鑑帳_literal: "carnet de sceaux",
+    vessels_印鑑帳_usage:
       "Votre collection de sceaux — trophées de paliers débloqués par tomes, séries et séries de lectures.",
-    "vessels_あと少し_literal": "encore un peu",
-    "vessels_あと少し_usage":
+    vessels_あと少し_literal: "encore un peu",
+    vessels_あと少し_usage:
       "Étagère bientôt complète — séries à seulement quelques tomes de la fin.",
-    "vessels_棚_literal": "étagère, rayon",
-    "vessels_棚_usage":
+    vessels_棚_literal: "étagère, rayon",
+    vessels_棚_usage:
       "L'étagère elle-même — anchor du mode 3D du tableau de bord (perspective + grain de bois) et du snapshot partageable du profil. À distinguer de 本棚 (bibliothèque), qui désigne la page entière.",
-    "vessels_帳_literal": "registre, livre de comptes",
-    "vessels_帳_usage":
+    vessels_帳_literal: "registre, livre de comptes",
+    vessels_帳_usage:
       "Le grand cahier d'archives — la page Statistiques. Sceau d'identité visible en filigrane sur le hero, et en badge tournoyant sur le pont CTA depuis le profil. Le livre que feuillette l'archiviste pour comprendre sa propre collection.",
-    "vessels_籠_literal": "panier, corbeille tressée",
-    "vessels_籠_usage":
+    vessels_籠_literal: "panier, corbeille tressée",
+    vessels_籠_usage:
       "La carte « panier moyen » du feuillet Trésor — courbe sur 12 mois du prix moyen des tomes que vous ajoutez. La forme évoque le panier qu'on remplit chez le libraire, pour mesurer si la cadence d'achat se renchérit.",
 
-    "palette_漆黒_literal": "noir laqué, encre de Chine",
-    "palette_漆黒_usage":
+    palette_漆黒_literal: "noir laqué, encre de Chine",
+    palette_漆黒_usage:
       "Le fond d'encre profonde du thème sombre — chaque page repose sur cette couche.",
-    "palette_印_literal": "rouge hanko, encre de sceau",
-    "palette_印_usage":
+    palette_印_literal: "rouge hanko, encre de sceau",
+    palette_印_usage:
       "L'accent signature — CTA, taux courants, chaque état qui doit être décisif.",
-    "palette_金_literal": "feuille d'or",
-    "palette_金_usage":
+    palette_金_literal: "feuille d'or",
+    palette_金_usage:
       "Accent d'accomplissement — séries terminées, dépense à vie, badges collector.",
-    "palette_萌葱_literal": "vert pousse de printemps",
-    "palette_萌葱_usage":
+    palette_萌葱_literal: "vert pousse de printemps",
+    palette_萌葱_usage:
       "Axe lecture et badges des séries terminées — discret, vivant.",
-    "palette_桜_literal": "fleur de cerisier",
-    "palette_桜_usage":
-      "Accent wishlist — l'anticipation avant l'arrivée.",
+    palette_桜_literal: "fleur de cerisier",
+    palette_桜_usage: "Accent wishlist — l'anticipation avant l'arrivée.",
 
-    "mokuji_目次_literal": "table des matières, sommaire",
-    "mokuji_目次_usage":
+    mokuji_目次_literal: "table des matières, sommaire",
+    mokuji_目次_usage:
       "Le rail vertical des Réglages — chaque kanji conduit à un chapitre. Suspendu comme un kakejiku au bord droit de la page sur grand écran ; condensé en bandeau collant tout en haut sur mobile.",
-    "mokuji_章_literal": "chapitre",
-    "mokuji_章_usage":
+    mokuji_章_literal: "chapitre",
+    mokuji_章_usage:
       "Unité de découpage de la page Réglages — quatre au total, chacun pressé sous un sceau hanko vermillon portant son numéro 第○章.",
-    "mokuji_字典_literal": "dictionnaire de caractères",
-    "mokuji_字典_usage":
+    mokuji_字典_literal: "dictionnaire de caractères",
+    mokuji_字典_usage:
       "Cette page même — accessible depuis Réglages → Découverte. La référence ouverte du vocabulaire de l'app.",
-    "mokuji_索引_literal": "index, table des renvois",
-    "mokuji_索引_usage":
+    mokuji_索引_literal: "index, table des renvois",
+    mokuji_索引_usage:
       "Le rail de navigation du registre Statistiques — chaque kanji conduit à un feuillet (人 auteurs, 版 éditeurs, 読 lecture, 銭 trésor, 暦 temps, 印 sceaux, 友 correspondants). Sticky vertical sur grand écran, condensé en chips horizontales sur mobile. Cousin du 目次 des Réglages : même métaphore d'index, registre différent.",
-    "mokuji_風_literal": "vent, atmosphère",
-    "mokuji_風_usage":
+    mokuji_風_literal: "vent, atmosphère",
+    mokuji_風_usage:
       "Chapitre 1 des Réglages : thème, palette saisonnière, particules d'ambiance. Tout ce qui touche à la respiration visuelle de l'app.",
-    "mokuji_文_literal": "écriture, texte",
-    "mokuji_文_usage":
+    mokuji_文_literal: "écriture, texte",
+    mokuji_文_usage:
       "Chapitre 2 des Réglages : langue, devise, format des titres, contenu adulte, clé de scan. Comment l'app vous parle, et comment elle nomme les choses.",
-    "mokuji_館_literal": "bâtiment, demeure",
-    "mokuji_館_usage":
+    mokuji_館_literal: "bâtiment, demeure",
+    mokuji_館_usage:
       "Chapitre 3 des Réglages : profil public, archive, étiquettes d'étagère, tour de bienvenue. Tout ce qui appartient à votre compte ou s'exporte avec lui.",
-    "mokuji_危_literal": "danger, péril",
-    "mokuji_危_usage":
+    mokuji_危_literal: "danger, péril",
+    mokuji_危_usage:
       "Chapitre 4 des Réglages : restauration depuis le serveur et suppression du compte. Les actions à manier avec précaution — d'où le sceau rouge plus appuyé.",
   },
   season: {
@@ -1094,8 +1106,7 @@ export default {
     subtle_autumn:
       "Bords ambrés, rythme plus lent — le carnet dans la lumière basse.",
     poetic_winter: "Le carnet se replie tranquillement.",
-    subtle_winter:
-      "Encre froide et papier nu — l'archive au repos.",
+    subtle_winter: "Encre froide et papier nu — l'archive au repos.",
   },
   tour: {
     kicker: "Bienvenue",
@@ -1226,9 +1237,11 @@ export default {
       "Les cartes du tableau de bord adoptent une légère perspective avec des ombres de tranche, posées sur une ligne de bois — comme une vraie étagère parcourue à l'œil. Désactivé en mode sélection multiple.",
     shelf3dToggleAria: "Activer la vue étagère 3D",
     flourishesTitle: "Touches visuelles",
-    flourishesBody: "Petits effets décoratifs activables à la carte — chacun ajoute un détail au reste de l'interface sans toucher au thème ou à l'accent.",
+    flourishesBody:
+      "Petits effets décoratifs activables à la carte — chacun ajoute un détail au reste de l'interface sans toucher au thème ou à l'accent.",
     feedbackTitle: "Retours sensoriels",
-    feedbackBody: "Sons d'interface et vibrations — deux canaux de confirmation indépendants, chacun gardé par les permissions de l'OS.",
+    feedbackBody:
+      "Sons d'interface et vibrations — deux canaux de confirmation indépendants, chacun gardé par les permissions de l'OS.",
     inkTrailTitle: "Traînée d'encre",
     inkTrailBody:
       "Le curseur dépose une traînée pinceau hanko sous les grands titres — un clin d'œil sumi-e quand vous survolez un titre de page. Désactivé par défaut, sans effet sur écran tactile ni en mode mouvement réduit.",
@@ -1268,7 +1281,8 @@ export default {
     titleEnglish: "Anglais",
     titleJapanese: "Japonais",
     onboardingSection: "Découverte",
-    onboardingBody: "Rejouez le tour de bienvenue à tout moment, ou ouvrez le glossaire des kanji.",
+    onboardingBody:
+      "Rejouez le tour de bienvenue à tout moment, ou ouvrez le glossaire des kanji.",
     replayTour: "Rejouer le tour de bienvenue",
     openGlossary: "Ouvrir le glossaire des kanji",
     barcodeScanner: "Scanner de code-barres",
@@ -1321,7 +1335,8 @@ export default {
     publicProfileAdultTitle: "Inclure le contenu adulte",
     publicProfileAdultBody:
       "Publie également les séries taguées 18+. Les visiteurs verront un avertissement et les couvertures restent floutées par défaut jusqu'à confirmation explicite.",
-    publicProfileAdultToggleAria: "Activer le contenu adulte sur le profil public",
+    publicProfileAdultToggleAria:
+      "Activer le contenu adulte sur le profil public",
     birthdayHeading: "Mode anniversaire · 祝",
     birthdayBody:
       "Ouvrez votre liste de souhaits sur le profil public pour une durée déterminée. Idéal avant un anniversaire ou un mariage : vos invités choisissent un cadeau sans deviner ce que vous avez déjà.",
@@ -1631,8 +1646,7 @@ export default {
     byline:
       "Une carte 4:5 de votre archive — prête pour Instagram, X ou un partage discret avec un ami.",
     rendering: "Composition…",
-    renderError:
-      "Impossible de générer l'image. Réessayez dans un instant.",
+    renderError: "Impossible de générer l'image. Réessayez dans un instant.",
     helper:
       "Les couvertures qui n'autorisent pas le téléchargement cross-origin retombent sur la teinte LQIP — la composition reste cohérente.",
     previewAlt: "Aperçu de votre étagère sous forme d'image partageable",
@@ -1661,8 +1675,7 @@ export default {
     tabForward: "Élément suivant",
     tabBack: "Élément précédent",
     openCheatSheet: "Afficher cette aide",
-    footer:
-      "Les raccourcis sont désactivés lorsque vous tapez dans un champ.",
+    footer: "Les raccourcis sont désactivés lorsque vous tapez dans un champ.",
   },
   install: {
     cta: "Installer l'app",
@@ -1724,7 +1737,8 @@ export default {
       unit: "exemplaires en plus",
       spread: "{tomes} tomes · {series} séries",
       valueLabel: "Immobilisé dans les doubles",
-      valueHint: "En supposant que chaque exemplaire en plus a coûté le prix du premier.",
+      valueHint:
+        "En supposant que chaque exemplaire en plus a coûté le prix du premier.",
       empty: "Chaque tome n'est là qu'une fois — aucun double pour l'instant.",
     },
     coffret: {
@@ -1919,7 +1933,8 @@ export default {
       },
       first_read: {
         label: "Première lecture",
-        description: "Vous avez clos votre premier tome — l'encre est encore fraîche.",
+        description:
+          "Vous avez clos votre premier tome — l'encre est encore fraîche.",
       },
       read_10: {
         label: "Dix lus",
@@ -1927,11 +1942,13 @@ export default {
       },
       read_100: {
         label: "Cent lus",
-        description: "Cent tomes véritablement lus — un vrai rythme de lecteur.",
+        description:
+          "Cent tomes véritablement lus — un vrai rythme de lecteur.",
       },
       read_500: {
         label: "Cinq cents lus",
-        description: "Cinq cents tomes lus. L'archive n'est plus une pile — c'est une mémoire.",
+        description:
+          "Cinq cents tomes lus. L'archive n'est plus une pile — c'est une mémoire.",
       },
       read_1000: {
         label: "Mille lus",
@@ -1943,11 +1960,13 @@ export default {
       },
       full_read_10: {
         label: "Dix œuvres lues",
-        description: "Dix séries lues de bout en bout. Votre table de chevet déborde.",
+        description:
+          "Dix séries lues de bout en bout. Votre table de chevet déborde.",
       },
       full_read_50: {
         label: "Cinquante œuvres lues",
-        description: "Cinquante séries intégralement lues. Le dokuha véritable.",
+        description:
+          "Cinquante séries intégralement lues. Le dokuha véritable.",
       },
       kisetsu_sakura: {
         label: "桜 · Sakura",
@@ -1978,18 +1997,18 @@ export default {
     seasonalActiveHint: "Saisonnier · disponible jusqu'à la fin du mois",
     seasonalDormantHint: "Saisonnier · revient en {months}",
     seasonalMonths: {
-      "1": "janvier",
-      "2": "février",
-      "3": "mars",
-      "4": "avril",
-      "5": "mai",
-      "6": "juin",
-      "7": "juillet",
-      "8": "août",
-      "9": "septembre",
-      "10": "octobre",
-      "11": "novembre",
-      "12": "décembre",
+      1: "janvier",
+      2: "février",
+      3: "mars",
+      4: "avril",
+      5: "mai",
+      6: "juin",
+      7: "juillet",
+      8: "août",
+      9: "septembre",
+      10: "octobre",
+      11: "novembre",
+      12: "décembre",
     },
   },
   publicProfile: {
@@ -2020,8 +2039,7 @@ export default {
     adultBannerEyebrow: "CONTENU ADULTE · 成人向け",
     adultBannerHidden:
       "Cette archive contient des œuvres destinées à un public averti.",
-    adultBannerRevealed:
-      "Contenu adulte affiché. Vous devez être majeur·e.",
+    adultBannerRevealed: "Contenu adulte affiché. Vous devez être majeur·e.",
     adultBannerReveal: "Afficher",
     adultBannerHide: "Masquer à nouveau",
     compareCta: "Comparer nos bibliothèques",
@@ -2029,8 +2047,7 @@ export default {
   shelfStickers: {
     eyebrow: "ÉTIQUETTES · 札",
     heading: "Étiquettes d'étagère",
-    body:
-      "Imprimez de petites étiquettes QR à coller sur vos étagères. Scannez-les avec votre téléphone pour ouvrir la série dans l'app.",
+    body: "Imprimez de petites étiquettes QR à coller sur vos étagères. Scannez-les avec votre téléphone pour ouvrir la série dans l'app.",
     pickerTitle: "Sélection",
     pickerHint: "{selected} sélectionnées sur {total}",
     selectAll: "Tout cocher",
@@ -2095,8 +2112,7 @@ export default {
     discoverSeriesTitle: "À découvrir : {name}",
     seeProfile: "Voir l'archive de {name}",
     notFoundTitle: "Archive introuvable",
-    notFoundBody:
-      "Aucune archive publique n'existe sous le handle « {slug} ».",
+    notFoundBody: "Aucune archive publique n'existe sous le handle « {slug} ».",
     selfTitle: "Comparer avec soi-même ?",
     selfBody:
       "Pas besoin de diagramme : vous avez tout ! Essayez avec un autre archiviste.",
@@ -2164,8 +2180,7 @@ export default {
     aniInputTitle: "Votre pseudo AniList",
     aniInputLabel: "Pseudo",
     aniPlaceholder: "ex. yoursname",
-    aniHint:
-      "Pseudo AniList publique. La GraphQL API est utilisée.",
+    aniHint: "Pseudo AniList publique. La GraphQL API est utilisée.",
     // Yamtrack
     ymInputKind: "Par CSV d'export · self-hosted",
     ymBlurb:
@@ -2255,8 +2270,7 @@ export default {
     aria: "Mise à jour disponible",
     kicker: "MISE À JOUR · 更",
     title: "Une nouvelle version est prête",
-    body:
-      "Une nouvelle version de l'application est disponible. Recharger pour basculer dessus, ou plus tard à votre convenance.",
+    body: "Une nouvelle version de l'application est disponible. Recharger pour basculer dessus, ou plus tard à votre convenance.",
     reloadAction: "Recharger maintenant",
     laterAction: "Plus tard",
   },
@@ -2286,8 +2300,10 @@ export default {
     corpusTitlePublisher: "Au catalogue",
     corpusTitleEdition: "Dans cette édition",
     openSeriesAria: "Ouvrir la fiche de {name}",
-    hintTryPublisher: "Vous pouvez aussi filtrer par éditeur · cliquez sur 出版 d'une série",
-    hintTryEdition: "Vous pouvez aussi filtrer par édition · cliquez sur 版 d'une série",
+    hintTryPublisher:
+      "Vous pouvez aussi filtrer par éditeur · cliquez sur 出版 d'une série",
+    hintTryEdition:
+      "Vous pouvez aussi filtrer par édition · cliquez sur 版 d'une série",
   },
   loans: {
     aria: "Tomes prêtés",
@@ -2423,7 +2439,8 @@ export default {
       completion: "Complétion",
       volumesShort: "vol.",
       seriesShort: "sér.",
-      empty: "Encore aucun auteur référencé. Renseignez le champ Auteur sur vos séries pour activer ce feuillet.",
+      empty:
+        "Encore aucun auteur référencé. Renseignez le champ Auteur sur vos séries pour activer ce feuillet.",
     },
     publishers: {
       eyebrow: "FEUILLET · 版",
@@ -2431,7 +2448,8 @@ export default {
       subtitle:
         "Quel éditeur fournit le plus de votre étagère ? La barre se remplit en proportion du leader.",
       seriesShort: "séries",
-      empty: "Aucune information éditeur disponible. Ajoutez-en sur la fiche d'une série pour activer ce feuillet.",
+      empty:
+        "Aucune information éditeur disponible. Ajoutez-en sur la fiche d'une série pour activer ce feuillet.",
     },
     reading: {
       eyebrow: "FEUILLET · 読",

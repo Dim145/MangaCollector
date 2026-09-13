@@ -8,6 +8,9 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import MangaGrid from "./dashboard/MangaGrid.jsx";
+import DensityToggle from "./dashboard/DensityToggle.jsx";
+import { gridClassFor } from "@/lib/gridDensity.js";
+import { useGridDensity } from "@/hooks/useGridDensity.js";
 import SortMenu from "./dashboard/SortMenu.jsx";
 import BulkActionsBar from "./BulkActionsBar.jsx";
 import DefaultBackground from "./DefaultBackground";
@@ -145,6 +148,7 @@ export default function Dashboard() {
   // visit. `selectionMode` is the gate (set on first long-press /
   // Cmd-click) and `selectedIds` is the Set<mal_id> of picks. The
   // BulkActionsBar at the bottom of the page reads both.
+  const { density } = useGridDensity();
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
 
@@ -581,6 +585,7 @@ export default function Dashboard() {
                       resultsCount={filtered.length}
                     />
                     <SortMenu sort={sort} onChange={setSort} />
+                    <DensityToggle />
                   </>
                 ) : null
               }
@@ -827,7 +832,7 @@ export default function Dashboard() {
           {/* Grid */}
           <section>
             {isInitialLoad ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              <div className={gridClassFor(density)}>
                 {[...Array(12)].map((_, i) => (
                   <Skeleton.Card key={i} />
                 ))}
