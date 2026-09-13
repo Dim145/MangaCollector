@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { startScan } from "@/lib/barcode.js";
+import { detectFromImage, startScan } from "@/lib/barcode.js";
 import { normalizeISBN } from "@/lib/isbn.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -36,6 +36,11 @@ export default function BarcodeScanner({
   const [error, setError] = useState(null);
   const [state, setState] = useState("requesting");
   const [manualOpen, setManualOpen] = useState(false);
+  // 写 · The still-image path — the way back in when the camera is
+  // refused or simply absent.
+  const fileRef = useRef(null);
+  const [reading, setReading] = useState(false);
+  const [photoMiss, setPhotoMiss] = useState(false);
   const t = useT();
 
   useEffect(() => {
@@ -117,14 +122,32 @@ export default function BarcodeScanner({
           if (stopFnRef.current) await stopFnRef.current();
         } catch {
           /* ignore */
-        }
-        if (stream) stream.getTracks().forEach((t) => t.stop());
+        }        if (stream) stream.getTracks().forEach((t) => t.stop());
       })();
     };
     // manualOpen is read by the Esc handler above; re-attach the
     // listener when it flips so the branching stays correct without
     // a ref dance.
   }, [manualOpen]);
+
+  // 写 · A photo instead of a live camera: the same `onDetect` path, so
+  // nothing downstream knows the difference.
+  const readPhoto = async (file) => {
+    if (!file || firedRef.current) return;
+    setReading(true);
+    setPhotoMiss(false);
+    try {
+      const raw = await detectFromImage(file);
+      if (raw) {
+        firedRef.current = true;
+        onDetectRef.current?.(raw);
+      } else {
+        setPhotoMiss(true);
+      }
+    } finally {
+      setReading(false);
+    }
+  };
 
   // Submit an ISBN typed by the user — routed through the exact same
   // callback the camera uses, so the downstream flow doesn't care
@@ -147,6 +170,19 @@ export default function BarcodeScanner({
       className="fixed inset-0 isolate bg-ink-0"
       style={{ zIndex: 2147483640 }}
     >
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          readPhoto(file);
+        }}
+      />
+
       <video
         ref={videoRef}
         playsInline
@@ -241,7 +277,18 @@ export default function BarcodeScanner({
                   {t("scan.cameraDeniedBody")}
                 </p>
               </div>
-              <ManualEntryCTA variant="primary" onClick={() => setManualOpen(true)} t={t} />
+              <ManualEntryCTA
+                variant="primary"
+                onClick={() => setManualOpen(true)}
+                t={t}
+              />
+              <PhotoCTA
+                variant="primary"
+                onClick={() => fileRef.current?.click()}
+                reading={reading}
+                miss={photoMiss}
+                t={t}
+              />
             </div>
           )}
 
@@ -255,7 +302,18 @@ export default function BarcodeScanner({
                   {t("scan.cameraUnavailableBody")}
                 </p>
               </div>
-              <ManualEntryCTA variant="primary" onClick={() => setManualOpen(true)} t={t} />
+              <ManualEntryCTA
+                variant="primary"
+                onClick={() => setManualOpen(true)}
+                t={t}
+              />
+              <PhotoCTA
+                variant="primary"
+                onClick={() => fileRef.current?.click()}
+                reading={reading}
+                miss={photoMiss}
+                t={t}
+              />
             </div>
           )}
 
@@ -274,7 +332,18 @@ export default function BarcodeScanner({
                   {t("scan.scannedCount", { n: recentCount })}
                 </div>
               )}
-              <ManualEntryCTA variant="ghost" onClick={() => setManualOpen(true)} t={t} />
+              <PhotoCTA
+                variant="ghost"
+                onClick={() => fileRef.current?.click()}
+                reading={reading}
+                miss={photoMiss}
+                t={t}
+              />
+              <ManualEntryCTA
+                variant="ghost"
+                onClick={() => setManualOpen(true)}
+                t={t}
+              />
             </div>
           )}
 
@@ -312,6 +381,48 @@ export default function BarcodeScanner({
  * ghost pill tucked next to the detection count so it never competes
  * with the main scanning affordance.
  */
+/**
+ * 写 · Take or pick a photo. The wording changes with what just
+ * happened, so a miss does not look like a dead button.
+ */
+function PhotoCTA({ variant, onClick, reading, miss, t }) {
+  const label = reading
+    ? t("scan.photoReading")
+    : miss
+      ? t("scan.photoNothing")
+      : t("scan.photoOpen");
+  const kanji = (
+    <span aria-hidden="true" className="font-jp text-[13px] leading-none">
+      写
+    </span>
+  );
+  if (variant === "primary") {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={reading}
+        className="flex w-full items-center justify-center gap-2 rounded-full border border-border bg-ink-1/60 px-5 py-3 font-mono text-[11px] uppercase tracking-[0.22em] text-washi-muted transition hover:border-gold/60 hover:text-washi disabled:opacity-50"
+      >
+        {kanji}
+        <span>{label}</span>
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={reading}
+      title={label}
+      aria-label={label}
+      className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border text-washi-muted transition hover:border-gold/60 hover:text-washi disabled:opacity-50"
+    >
+      {kanji}
+    </button>
+  );
+}
+
 function ManualEntryCTA({ variant, onClick, t }) {
   const kanji = (
     <span

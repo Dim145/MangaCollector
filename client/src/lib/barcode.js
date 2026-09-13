@@ -89,3 +89,66 @@ export async function startScan(video, onDetect) {
     cancelled = true;
   };
 }
+
+/**
+ * 写 · Read a barcode out of a still image — a photo just taken, or a
+ * file picked on a machine with no camera at all. Same detector, same
+ * formats, one shot instead of a loop.
+ *
+ * A 12 MP phone photo is often *too* big for the decoders: the bars end
+ * up thinner than the sampling grid. When the full-size pass finds
+ * nothing we retry once on a downscaled copy, which is what usually
+ * lands.
+ */
+export async function detectFromImage(source) {
+  const Detector = await getDetectorClass();
+  let detector;
+  try {
+    detector = new Detector({ formats: FORMATS });
+  } catch (err) {
+    console.error("[barcode] detector construction failed:", err?.message);
+    return null;
+  }
+
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(source);
+  } catch {
+    return null;
+  }
+
+  const read = async (image) => {
+    try {
+      const codes = await detector.detect(image);
+      return codes?.[0]?.rawValue ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  try {
+    const direct = await read(bitmap);
+    if (direct) return direct;
+    return await read(await downscale(bitmap, 1600));
+  } finally {
+    bitmap.close?.();
+  }
+}
+
+/** A copy no wider or taller than `max`, or the original when it fits. */
+async function downscale(bitmap, max) {
+  const ratio = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  if (ratio === 1) return bitmap;
+  const width = Math.round(bitmap.width * ratio);
+  const height = Math.round(bitmap.height * ratio);
+  try {
+    const canvas =
+      typeof OffscreenCanvas !== "undefined"
+        ? new OffscreenCanvas(width, height)
+        : Object.assign(document.createElement("canvas"), { width, height });
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+    return canvas;
+  } catch {
+    return bitmap;
+  }
+}
