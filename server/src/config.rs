@@ -31,15 +31,21 @@ pub struct Config {
     pub auth_issuer: String,
     pub auth_name: String,
     pub auth_icon: String,
-    /// Reserved. The `PostgresStore` used by tower-sessions generates
-    /// cryptographically-random 128-bit session IDs, which already
-    /// prevents session guessing. Signing cookies with this secret
-    /// (via `SessionManagerLayer::with_signed`) would add HMAC
-    /// verification against cookie tampering / fixation but requires
-    /// the `tower-sessions/signed` feature + `cookie/key-expansion`
-    /// and a ≥32-byte secret. Left optional for now so existing
-    /// deployments don't break, and documented as unused to avoid
-    /// misleading operators who check their env vars.
+    /// Reserved — **read here and used nowhere**. The `PostgresStore`
+    /// used by tower-sessions generates cryptographically-random 128-bit
+    /// session IDs, which already prevents session guessing. Signing
+    /// cookies with this secret (via `SessionManagerLayer::with_signed`)
+    /// would add HMAC verification against cookie tampering / fixation
+    /// but requires the `tower-sessions/signed` feature +
+    /// `cookie/key-expansion` and a ≥32-byte secret, and would invalidate
+    /// every live session on the deploy that turns it on. Left optional
+    /// so existing deployments don't break.
+    ///
+    /// Because it is inert, a weak or placeholder value here is not a
+    /// vulnerability — but it reads like one to anyone auditing the
+    /// deployment, which is its own cost. `main.rs` says so at startup
+    /// when a value is set, so an operator who went to the trouble of
+    /// generating a key learns it isn't doing anything.
     pub session_secret: Option<String>,
     pub frontend_url: String,
     pub postgres_url: String,
@@ -66,6 +72,23 @@ pub struct Config {
     /// to this many requests in quick succession before being throttled
     /// to the sustained rate. Default 30. Must be ≥ 1.
     pub rate_limit_burst_size: u32,
+    /// 信 · Is there a reverse proxy in front of us that we trust to
+    /// have set `X-Forwarded-For`?
+    ///
+    /// The rate limiter buckets by client IP, and the two ways of
+    /// deciding what that is are each catastrophic in the other's
+    /// deployment. Behind a proxy the socket's peer address is the
+    /// proxy — every visitor shares one bucket, so one scraper throttles
+    /// the whole instance and the limiter is a denial-of-service tool.
+    /// Directly exposed, `X-Forwarded-For` is whatever the client typed
+    /// — a fresh value per request mints a fresh bucket, and the limiter
+    /// does nothing at all.
+    ///
+    /// Neither can be guessed from inside the process, so it is the
+    /// operator's to declare. Default `false`: an unconfigured instance
+    /// is over-strict rather than unprotected. The shipped compose
+    /// files put Traefik in front and set it to `true`.
+    pub trust_proxy_headers: bool,
     /// Value served in the `X-Frame-Options` response header for every
     /// response. Default `DENY` (refuse all iframing). Set to
     /// `SAMEORIGIN` if a first-party subdomain legitimately needs to
@@ -207,6 +230,12 @@ impl Config {
                 .and_then(|s| s.parse::<u32>().ok())
                 .map(|n| n.max(1))
                 .unwrap_or(30),
+            // Only an explicit `true` turns on header trust — see the
+            // field doc for why the safe default is the strict one.
+            trust_proxy_headers: std::env::var("TRUST_PROXY_HEADERS")
+                .ok()
+                .map(|s| s.eq_ignore_ascii_case("true"))
+                .unwrap_or(false),
             x_frame_options: std::env::var("X_FRAME_OPTIONS")
                 .ok()
                 .filter(|s| !s.trim().is_empty())

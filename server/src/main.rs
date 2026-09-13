@@ -15,12 +15,16 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
+use axum::Router;
 use axum::extract::Request;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use axum::Router;
 use http::{HeaderValue, Method, StatusCode};
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_governor::{
+    GovernorLayer,
+    governor::GovernorConfigBuilder,
+    key_extractor::{PeerIpKeyExtractor, SmartIpKeyExtractor},
+};
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -76,9 +80,20 @@ async fn main() -> anyhow::Result<()> {
     // moved into `AppState`. Keeping them as named bindings mirrors
     // the `port` / `frontend_url` pattern above and keeps the layer
     // wiring below readable.
+    // 鍵 · Say it out loud rather than letting an operator believe a
+    // generated secret is protecting something. See `config.rs`.
+    if config.session_secret.is_some() {
+        tracing::warn!(
+            "SESSION_SECRET is set but unused: session ids are random and \
+             the cookie is not signed. Nothing is weakened by this — the \
+             variable simply has no effect yet."
+        );
+    }
+
     let rate_limit_enabled = config.rate_limit_enabled;
     let rate_limit_period_seconds = config.rate_limit_period_seconds;
     let rate_limit_burst_size = config.rate_limit_burst_size;
+    let trust_proxy_headers = config.trust_proxy_headers;
     let x_frame_options = config.x_frame_options.clone();
 
     // Database: create sqlx pool, run migrations, then wrap in SeaORM connection
@@ -304,7 +319,6 @@ async fn main() -> anyhow::Result<()> {
             axum::http::header::AUTHORIZATION,
             axum::http::header::ORIGIN,
             axum::http::header::COOKIE,
-            axum::http::header::HeaderName::from_static("x-requested-with"),
             // 鍵 · Offline-sync outbox stamps each replayed write with an
             // `Idempotency-Key`. Must be allow-listed here or the browser
             // preflight rejects every mutating sync request in a
@@ -356,33 +370,71 @@ async fn main() -> anyhow::Result<()> {
     // more precise but require `.route_layer`s per route, which we
     // can layer on later if real traffic shows the global default
     // is too loose for specific endpoints.
-    let governor_conf = if rate_limit_enabled {
+    //
+    // 信 · Which address counts as "the client" is `TRUST_PROXY_HEADERS`.
+    // The socket's peer address is the truth when we're exposed directly,
+    // and is the proxy's own address — one bucket for the entire
+    // internet — when we're not. `X-Forwarded-For` is the truth behind a
+    // proxy that sets it, and is attacker-controlled when there isn't
+    // one. Each extractor is useless-to-harmful in the other's
+    // deployment, so the two configs are built separately and exactly
+    // one is attached. See `config.rs` for why this can't be detected.
+    let (governor_conf, governor_conf_proxied) = if rate_limit_enabled {
         tracing::info!(
             period_seconds = rate_limit_period_seconds,
             burst_size = rate_limit_burst_size,
+            trust_proxy_headers,
             "Rate limiting enabled (per-IP)"
         );
-        let conf = Arc::new(
-            GovernorConfigBuilder::default()
-                .per_second(rate_limit_period_seconds)
-                .burst_size(rate_limit_burst_size)
-                .finish()
-                .expect(
-                    "governor config should be valid (period/burst are clamped ≥ 1 in config.rs)",
-                ),
-        );
+        if !trust_proxy_headers {
+            tracing::info!(
+                "Rate limiter keys on the socket peer address. If this \
+                 instance sits behind a reverse proxy, set \
+                 TRUST_PROXY_HEADERS=true — otherwise every visitor \
+                 shares the proxy's bucket and one client throttles all \
+                 of them."
+            );
+        }
+        let expect_valid =
+            "governor config should be valid (period/burst are clamped ≥ 1 in config.rs)";
         // Background cleanup: periodically evict per-IP state that
         // hasn't been hit recently. Without this, the per-IP map
         // grows unboundedly under scraper load (small leak, but real).
-        let governor_limiter_for_cleanup = conf.limiter().clone();
-        crate::services::jobs::spawn_supervised("governor_cleanup", async move {
-            let interval = std::time::Duration::from_secs(60);
-            loop {
-                tokio::time::sleep(interval).await;
-                governor_limiter_for_cleanup.retain_recent();
-            }
-        });
-        Some(conf)
+        macro_rules! with_cleanup {
+            ($conf:expr) => {{
+                let conf = Arc::new($conf);
+                let governor_limiter_for_cleanup = conf.limiter().clone();
+                crate::services::jobs::spawn_supervised("governor_cleanup", async move {
+                    let interval = std::time::Duration::from_secs(60);
+                    loop {
+                        tokio::time::sleep(interval).await;
+                        governor_limiter_for_cleanup.retain_recent();
+                    }
+                });
+                conf
+            }};
+        }
+        // `GovernorConfigBuilder` is neither `Clone` nor generic over the
+        // extractor after the fact, so the shared settings are repeated
+        // rather than shared — two lines, against a type parameter that
+        // would have to be threaded through everything that follows.
+        if trust_proxy_headers {
+            let conf = GovernorConfigBuilder::default()
+                .per_second(rate_limit_period_seconds)
+                .burst_size(rate_limit_burst_size)
+                .key_extractor(SmartIpKeyExtractor)
+                .finish()
+                .expect(expect_valid);
+            (None, Some(with_cleanup!(conf)))
+        } else {
+            let conf = GovernorConfigBuilder::default()
+                .per_second(rate_limit_period_seconds)
+                .burst_size(rate_limit_burst_size)
+                .key_extractor(PeerIpKeyExtractor)
+                .finish()
+                .expect(expect_valid);
+            (Some(with_cleanup!(conf)), None)
+        }
     } else {
         tracing::warn!(
             "Rate limiting DISABLED via RATE_LIMIT_ENABLED=false. \
@@ -390,7 +442,7 @@ async fn main() -> anyhow::Result<()> {
              /auth, /api/external/*, and /api/user/import/* become \
              easy brute-force + amplification targets."
         );
-        None
+        (None, None)
     };
 
     // CSRF guard applies to every state-changing (POST/PUT/PATCH/DELETE)
@@ -420,6 +472,10 @@ async fn main() -> anyhow::Result<()> {
     // optional error-handler builder we don't use yet). The semantics
     // are identical to the previous `{ config }` form.
     let app = match governor_conf {
+        Some(conf) => app.layer(GovernorLayer::new(conf)),
+        None => app,
+    };
+    let app = match governor_conf_proxied {
         Some(conf) => app.layer(GovernorLayer::new(conf)),
         None => app,
     };
@@ -616,11 +672,16 @@ async fn run_health_check() -> i32 {
 /// No Origin → reject. Wrong Origin → reject. Matches the pattern OWASP
 /// recommends for REST APIs that don't issue explicit CSRF tokens.
 ///
-/// Why NOT apply this to `/auth`: the OAuth callback is a top-level
-/// browser navigation from the identity provider. It has no Origin
-/// header (same-origin top-level loads don't set one in many browsers,
-/// and cross-site top-level loads set it to the IDP, not ours). Forcing
-/// a match would break the login flow.
+/// The layer wraps the whole router, `/auth` included — the heading
+/// above says "the `/api` tree" only because that is where the writes
+/// are. What keeps the login flow working is the method rule, not a
+/// path exemption: the OAuth callback is a top-level browser navigation
+/// from the identity provider and carries either no `Origin` or the
+/// IDP's, but it is a GET, so it never reaches the check. A future
+/// `/auth` route that mutates state over POST WILL be held to the same
+/// Origin rule, which is the intended behaviour — `POST
+/// /auth/oauth2/logout` already is, which is what stops a malicious
+/// page from signing the user out.
 ///
 /// GET/HEAD/OPTIONS always pass — they should never mutate server
 /// state; if they do, that's a separate bug to fix at the route level.
