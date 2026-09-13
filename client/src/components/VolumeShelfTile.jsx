@@ -18,6 +18,8 @@ function VolumeShelfTileImpl({
   // for legacy callers; absence collapses to plain rendering.
   loanedTo = null,
   loanDueAt = null,
+  // 物 · Copies beyond the first — a ×N seal top-left when > 0.
+  extraCopies = 0,
 }) {
   const t = useT();
 
@@ -31,6 +33,8 @@ function VolumeShelfTileImpl({
   const isCollector = Boolean(collector);
   const hasNote = Boolean(note && String(note).trim());
   const isLent = owned && !isUpcoming && Boolean(loanedTo);
+  const doubles = Math.max(0, Math.trunc(Number(extraCopies)) || 0);
+  const hasDoubles = owned && !isUpcoming && doubles > 0;
 
   const altText = t("manga.coverAlt", { n: volNum });
 
@@ -51,9 +55,7 @@ function VolumeShelfTileImpl({
     >
       <div
         className={`absolute inset-0 transition ${
-          owned
-            ? "opacity-100"
-            : "opacity-35 saturate-0 group-hover:opacity-50"
+          owned ? "opacity-100" : "opacity-35 saturate-0 group-hover:opacity-50"
         }`}
         // 預け · Loan-state desaturation. Applied at the wrapper
         // level (vs. the inner img) so it composes cleanly with
@@ -119,14 +121,23 @@ function VolumeShelfTileImpl({
         )
       )}
 
+      {/* 物 · Doubles — copies count, top-left (the volume number
+          owns the bottom-left corner). */}
+      {hasDoubles && (
+        <span
+          aria-label={t("manga.shelfBadgeDoubles", { n: 1 + doubles })}
+          title={t("manga.shelfBadgeDoubles", { n: 1 + doubles })}
+          className="absolute left-1 top-1 rounded-sm bg-ink-0/80 px-1 py-0.5 font-mono text-[9px] font-bold leading-none tabular-nums text-gold shadow-sm ring-1 ring-gold/60"
+          style={{ transform: "rotate(-4deg)" }}
+        >
+          ×{1 + doubles}
+        </span>
+      )}
+
       {/* 預け · Loan stamp — anchored top-right when not upcoming.
           Pairs with the wrapper filter applied above. */}
       {isLent && (
-        <LoanStamp
-          loanedTo={loanedTo}
-          loanDueAt={loanDueAt}
-          size="sm"
-        />
+        <LoanStamp loanedTo={loanedTo} loanDueAt={loanDueAt} size="sm" />
       )}
 
       {/* Locked + note glyphs share the bottom-right corner; offset

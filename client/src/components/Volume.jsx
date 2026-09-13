@@ -381,6 +381,32 @@ function VolumeImpl({
         </span>
       )}
 
+      {/* 物 · Doubles seal — the copies count, top-left so it never
+          fights the collector / upcoming seals on the right. Reads the
+          saved value, not the drawer draft: the shelf shows what is. */}
+      {ownedStatus && !isUpcoming && Number(extraCopies) > 0 && (
+        <span className="absolute -left-2 -top-2 z-20">
+          <Tooltip
+            text={t("volume.doublesTooltip", {
+              n: 1 + Number(extraCopies),
+              x: Number(extraCopies),
+            })}
+            placement="top"
+          >
+            <span
+              aria-label={t("volume.doublesTooltip", {
+                n: 1 + Number(extraCopies),
+                x: Number(extraCopies),
+              })}
+              className="grid h-5 min-w-5 place-items-center rounded-full bg-ink-1 px-1 font-mono text-[9px] font-bold leading-none tabular-nums text-gold shadow-[0_2px_10px_rgba(201,169,97,0.45)] ring-1 ring-gold/70"
+              style={{ transform: "rotate(-6deg)" }}
+            >
+              ×{1 + Number(extraCopies)}
+            </span>
+          </Tooltip>
+        </span>
+      )}
+
       {isUpcoming && (
         <span className="absolute -right-2 -top-2 z-20">
           <Tooltip

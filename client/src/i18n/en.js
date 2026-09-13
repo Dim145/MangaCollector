@@ -316,6 +316,7 @@ export default {
     shelfBadgeCollector: "Collector edition",
     shelfBadgeLocked: "Inside a slipcase",
     shelfBadgeNote: "Personal note inscribed",
+    shelfBadgeDoubles: "{n} copies — doubles on the shelf",
     upcomingAddManual: "Add manually · 来",
     upcomingAddManualHint:
       "Pencil in an announced volume yourself — number, release date, optional ISBN and pre-order URL.",
@@ -437,6 +438,7 @@ export default {
     copiesLabel: "Extra copies",
     copiesHint: "{n} in total — extras beyond the first are your doubles.",
     boughtAtLabel: "Bought on",
+    doublesTooltip: "{n} copies on the shelf — {x} double(s)",
     noteCounter: "{n} / {max}",
     noteIndicatorChip: "Note",
     noteIndicatorTooltip: "A personal note is inscribed on this volume.",

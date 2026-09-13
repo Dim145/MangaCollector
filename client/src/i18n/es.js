@@ -316,6 +316,7 @@ export default {
     shelfBadgeCollector: "Edición coleccionista",
     shelfBadgeLocked: "Incluido en un estuche",
     shelfBadgeNote: "Nota personal inscrita",
+    shelfBadgeDoubles: "{n} ejemplares — duplicados en la estantería",
     upcomingAddManual: "Añadir manualmente · 来",
     upcomingAddManualHint:
       "Apunta a mano un tomo anunciado — número, fecha de salida, ISBN o URL de prepedido opcionales.",
@@ -438,6 +439,7 @@ export default {
     copiesLabel: "Ejemplares extra",
     copiesHint: "{n} en total — más allá del primero son tus duplicados.",
     boughtAtLabel: "Comprado el",
+    doublesTooltip: "{n} ejemplares en la estantería — {x} duplicado(s)",
     noteCounter: "{n} / {max}",
     noteIndicatorChip: "Nota",
     noteIndicatorTooltip: "Hay una nota personal inscrita en este tomo.",

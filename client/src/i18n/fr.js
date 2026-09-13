@@ -323,6 +323,7 @@ export default {
     shelfBadgeCollector: "Édition collector",
     shelfBadgeLocked: "Inclus dans un coffret",
     shelfBadgeNote: "Note personnelle inscrite",
+    shelfBadgeDoubles: "{n} exemplaires — des doubles sur l'étagère",
     upcomingRefresh: "Rafraîchir à venir · 来",
     upcomingRefreshing: "Recherche en cours…",
     upcomingRefreshHint:
@@ -445,6 +446,7 @@ export default {
     copiesLabel: "Exemplaires en plus",
     copiesHint: "{n} au total — au-delà du premier, ce sont vos doubles.",
     boughtAtLabel: "Acheté le",
+    doublesTooltip: "{n} exemplaires sur l'étagère — {x} double(s)",
     noteCounter: "{n} / {max}",
     noteIndicatorChip: "Note",
     noteIndicatorTooltip: "Une note personnelle est inscrite sur ce tome.",

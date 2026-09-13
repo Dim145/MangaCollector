@@ -1388,6 +1388,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           note={vol.notes}
                           loanedTo={vol.loaned_to}
                           loanDueAt={vol.loan_due_at}
+                          extraCopies={vol.extra_copies}
                           locked
                         />
                       ) : (
@@ -1446,6 +1447,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           blurImage={isBlurred}
                           loanedTo={vol.loaned_to}
                           loanDueAt={vol.loan_due_at}
+                          extraCopies={vol.extra_copies}
                         />
                       ) : (
                         <Volume
