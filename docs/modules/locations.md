@@ -323,15 +323,17 @@ accepting either an array or a `Set` and `null` for "unfile".
 covered.
 
 Local stack (`docs/test-stack.md`): with the stack up and seeded,
-`node scripts/verify-archive-roundtrip.mjs` types a place on two tomes
-and a different one on a third, asserts the first registered itself from
-the tomes alone (`GET /api/user/locations`), annotates it and adds a
-second place with a note — then carries all of it through a fresh-account
-merge and a same-account replace, comparing the registry as
-`name|note|position` tuples in both directions and failing on a dropped
-row or a changed count. By hand: open `/rangement`, create a place, drag
-a few tomes into it with DevTools set to Offline (the move queues and
-the grid updates immediately; the registry controls are greyed out with
-"Places are edited online — moving tomes works offline"), then go back
-online and watch the outbox drain. Renaming a place from a second tab
+`node scripts/verify-archive-roundtrip.mjs` types `"Étagère A"` on two
+tomes and `"Carton grenier"` on a third, asserts the first registered
+itself from the tomes alone (`GET /api/user/locations`), PATCHes a note
+and `position: 0` onto it, and POSTs the second — which returns the row
+the tome already created and only adds the note. All of it then travels
+through a fresh-account merge and a same-account replace, the registry
+compared as `name|note|position` tuples in both directions, failing on a
+dropped row or a changed count. By hand: open `/rangement`, create a
+place, then select a few tome chips and move them into it with DevTools
+set to Offline — there is no drag-and-drop, the move is a selection plus
+the "move to" picker. The move queues and the grid updates immediately
+while the registry controls grey out ("Places are edited online — moving
+tomes works offline"); go back online and watch the outbox drain. Renaming a place from a second tab
 shows up in the first on its next websocket frame, and its tomes follow.
