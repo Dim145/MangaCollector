@@ -859,6 +859,15 @@ export async function clearAllUserData() {
   //    safe and cheap.
   try {
     localStorage.removeItem("mc:auth-user");
+    // 鍵 · The user's own Google Books key. It is a credential, and it
+    // has no business outliving the session that typed it in — least
+    // of all on a shared device where the next person signs in.
+    localStorage.removeItem("mc:google-books-key");
+    // 主 · The device's owner stamp. Cleared last: whoever refills
+    // these caches stamps it again (see lib/owner.js), and leaving a
+    // stale id behind would make the next sign-in look like an
+    // account switch and wipe a freshly-populated cache.
+    localStorage.removeItem("mc:owner");
   } catch {
     // Private/incognito modes may throw — not worth reporting.
   }

@@ -1,5 +1,6 @@
 import axios, { resetSessionLostLatch } from "./axios";
 import { clearAllUserData } from "@/lib/db.js";
+import { isForeignOwner, writeOwner } from "@/lib/owner.js";
 
 /*
  * Auth strategy — survive server outages without bouncing the user to login.
@@ -83,7 +84,14 @@ function clearCachedUser() {
  * Safari private mode can throw, and a non-existent bucket is a quiet
  * no-op. We swallow every error rather than failing the logout flow.
  */
-const PRIVATE_CACHE_NAMES = ["user-posters", "public-posters"];
+const PRIVATE_CACHE_NAMES = [
+  "user-posters",
+  "public-posters",
+  // 印 · Shelf prints are served from `/api/user/snapshots/{id}/image`
+  // and cached for a year: the most personal bucket of the three, and
+  // the one that was outliving a logout.
+  "snapshot-images",
+];
 async function purgePrivateCaches() {
   if (typeof caches === "undefined") return;
   await Promise.all(
@@ -157,6 +165,25 @@ export async function flushPendingLogout() {
 }
 
 /**
+ * 主 · Bind the device's local caches to the account the cookie just
+ * resolved to. A different id than the one on record means the previous
+ * account never got a clean logout (it was offline when its session
+ * died, or someone simply signed in as themselves from `/log-in`):
+ * everything resident — shelf, volumes, posters, and above all the
+ * outbox, whose queued writes would otherwise flush under this new
+ * cookie — belongs to somebody else and goes now, before a single
+ * component reads it.
+ */
+async function adoptOwner(id) {
+  if (id == null) return;
+  if (isForeignOwner(id)) {
+    await clearAllUserData();
+    await purgePrivateCaches();
+  }
+  writeOwner(id);
+}
+
+/**
  * Resolve the current auth state. Distinguishes unreachable server from
  * genuine unauthenticated — so transient outages never evict the user.
  */
@@ -173,6 +200,7 @@ export const getAuthStatus = async () => {
   try {
     const response = await axios.get("/auth/user", { timeout: 5000 });
     if (response.status === 200 && response.data) {
+      await adoptOwner(response.data.id);
       writeCachedUser(response.data);
       return { kind: "authenticated", user: response.data };
     }

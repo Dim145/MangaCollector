@@ -155,7 +155,7 @@ http.interceptors.response.use(
     // between axios.js and auth.js (auth.js already depends on axios).
     if (typeof caches !== "undefined") {
       Promise.all(
-        ["user-posters", "public-posters"].map((name) =>
+        ["user-posters", "public-posters", "snapshot-images"].map((name) =>
           caches.delete(name).catch(() => false),
         ),
       ).catch(() => {

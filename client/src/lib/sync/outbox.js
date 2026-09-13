@@ -6,9 +6,11 @@ import {
   cacheLibraryEntry,
   cacheSettings,
   cacheVolumesForManga,
+  clearAllUserData,
   db,
   dropCachedLibraryEntry,
 } from "../db.js";
+import { isForeignOwner, readOwner, writeOwner } from "../owner.js";
 import { isFullyOnline, probeServer } from "../connectivity.js";
 import { queryClient } from "../queryClient.js";
 import { emitSyncError, notifyPendingChanged } from "./events.js";
@@ -1495,6 +1497,51 @@ async function refetchSettings() {
   return data;
 }
 
+/*
+ * 主 · Whose queue is this?
+ *
+ * The auth layer wipes the device when it notices an account switch,
+ * but it learns about the switch from its own `/auth/user` round trip —
+ * and the sync runner is installed by `App`'s first effect, so a flush
+ * can start while that round trip is still in the air. One pass is all
+ * it takes: the previous account's queued writes would land in the new
+ * account's library, permanently. So the first flush of a page load
+ * asks who the cookie belongs to and refuses to send anything until it
+ * gets an answer that matches the device's stamp.
+ *
+ * Asked once per device stamp, not once per process: an id cannot
+ * change without a new session and a new session means a new page, so
+ * in practice this is one extra GET on the first flush — but keying the
+ * latch on the stamp rather than a bare boolean means it re-verifies if
+ * the stamp does move under it (a wipe, another tab) instead of
+ * trusting a yes it gave for a different account.
+ */
+let verifiedOwner = null;
+
+async function ownerMatchesSession() {
+  if (verifiedOwner !== null && verifiedOwner === readOwner()) return true;
+  let id;
+  try {
+    ({ id } = (await axios.get("/auth/user", { timeout: 5000 })).data ?? {});
+  } catch {
+    // Unreachable or unauthenticated — either way the flush that
+    // follows would fail too. Try again on the next trigger.
+    return false;
+  }
+  if (id == null) return false;
+  if (isForeignOwner(id)) {
+    // Someone else's shelf and someone else's queue. Drop both; the
+    // caches refill from the server under the session we actually have.
+    await clearAllUserData();
+    writeOwner(id);
+    verifiedOwner = String(id);
+    return false;
+  }
+  writeOwner(id);
+  verifiedOwner = String(id);
+  return true;
+}
+
 export async function syncOutbox({ force = false } = {}) {
   if (!isFullyOnline() && !force) return;
   if (syncing) {
@@ -1512,6 +1559,8 @@ export async function syncOutbox({ force = false } = {}) {
   // mount / focus). This keeps cold starts from issuing redundant GETs.
   const pending = await pendingCount();
   if (pending === 0 && !force) return;
+
+  if (!(await ownerMatchesSession())) return;
 
   syncing = true;
   let hadRetriable = false;
