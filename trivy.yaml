@@ -1,0 +1,47 @@
+# 走査 · Trivy defaults for this repository, so a scan is one command:
+#
+#     trivy fs .
+#
+# Without them the run is dominated by other people's code — a scan of
+# the tree as-is reports four HIGHs from `jsbarcode`'s own Dockerfile
+# inside `node_modules`, and one more from each Claude worktree under
+# `.claude/`, none of which we build or ship.
+scan:
+  scanners:
+    - misconfig
+    - secret
+  skip-dirs:
+    # Dependencies and build output — vendored or generated, never ours.
+    - "**/node_modules"
+    - "**/target"
+    - "**/dist"
+    - "**/dev-dist"
+    - "**/coverage"
+    # Tooling state: the knowledge graph, the two mutation-testing
+    # workspaces, and the agent worktrees (full copies of the repo,
+    # which would otherwise report every finding N+1 times).
+    - "graphify-out"
+    - "**/.stryker-tmp"
+    - "mutants.out"
+    - ".claude"
+
+misconfiguration:
+  # DS-0002 "image user should not be root" on `client/Dockerfile`.
+  #
+  # Accepted, not overlooked. nginx's master process has to start as
+  # root to bind privileged port 80; it drops its own workers to the
+  # unprivileged `nginx` user immediately afterwards. A `USER nginx`
+  # line would break the bind outright. The compose files pair this
+  # with `cap_drop: ALL` plus only CHOWN / SETUID / SETGID /
+  # NET_BIND_SERVICE, a read-only root filesystem and
+  # `no-new-privileges`, which is where the actual containment lives —
+  # the Dockerfile says the same thing at the line the scanner points
+  # at.
+  #
+  # The server image has no such exception: it is `FROM scratch` and
+  # runs as 65532:65532.
+  exclude-downloaded-modules: true
+
+# `--exit-code 1` is deliberately NOT set here: leave the choice to the
+# caller so an interactive scan prints its findings instead of just
+# failing.

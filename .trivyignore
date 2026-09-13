@@ -1,0 +1,16 @@
+# 例外 · Findings accepted with a reason. Each line is a rule id; the
+# comment above it says why it does not apply here.
+
+# DS-0002 — "Specify at least 1 USER command in Dockerfile".
+#
+# `client/Dockerfile` deliberately has none: nginx's master process must
+# start as root to bind privileged port 80, then drops its own workers
+# to the unprivileged `nginx` user. `USER nginx` would break the bind.
+# Containment comes from the compose contract instead — `cap_drop: ALL`
+# with only CHOWN/SETUID/SETGID/NET_BIND_SERVICE added, a read-only root
+# filesystem, and `no-new-privileges`. The Dockerfile carries the same
+# note at the line the scanner points at.
+#
+# The server image is `FROM scratch` and runs as 65532:65532, so this
+# exception covers exactly one file.
+DS-0002
