@@ -109,6 +109,55 @@ describe("planRealtimeAction", () => {
     });
   });
 
+  /*
+   * The table below is the contract with the server: every kind it can
+   * publish, and the query keys that kind invalidates. Asserting a
+   * couple of rows leaves the rest free to drift — so it is written out
+   * in full, here, and compared wholesale.
+   */
+  it("maps every kind the server can publish to its query keys", () => {
+    expect(KIND_TO_KEYS).toEqual({
+      library: [["library"]],
+      volumes: [["volumes-all"], ["volumes"], ["locations"]],
+      coffrets: [["coffrets"], ["volumes-all"]],
+      settings: [["settings"], ["user-profile"]],
+      seals: [["seals"]],
+      activity: [["activity"]],
+      authors: [["author"]],
+      snapshots: [["snapshots"]],
+      friends: [["friends"]],
+    });
+    for (const kind of Object.keys(KIND_TO_KEYS)) {
+      const plan = planRealtimeAction({ kind }, ME);
+      expect(plan.keys ?? []).toEqual(KIND_TO_KEYS[kind]);
+    }
+  });
+
+  it("takes a frame only from a plain object", () => {
+    // a function carrying a valid `kind` is still not a frame
+    const impostor = () => {};
+    impostor.kind = "volumes";
+    expect(planRealtimeAction(impostor, ME)).toEqual({ type: "ignore" });
+  });
+
+  it("refuses a kind that merely stringifies to a known one", () => {
+    const kind = { toString: () => "volumes" };
+    expect(planRealtimeAction({ kind }, ME)).toEqual({ type: "ignore" });
+  });
+
+  it("acts on a frame with no origin even when this tab has no id", () => {
+    expect(planRealtimeAction({ kind: "seals" }, undefined)).toEqual({
+      type: "invalidate",
+      keys: [["seals"]],
+    });
+    expect(
+      planRealtimeAction({ kind: "seals", origin: undefined }, undefined),
+    ).toEqual({
+      type: "invalidate",
+      keys: [["seals"]],
+    });
+  });
+
   it("exposes a frozen key table so a consumer cannot mutate the contract", () => {
     expect(Object.isFrozen(KIND_TO_KEYS)).toBe(true);
   });

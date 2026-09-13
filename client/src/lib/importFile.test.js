@@ -8,11 +8,21 @@ import { looksGzipped, readImportFile } from "./importFile.js";
  * would. Sniffing is by magic bytes, so the file name is irrelevant.
  */
 
-const XML = '<?xml version="1.0"?><myanimelist><manga><manga_title><![CDATA[Élan &amp; co]]></manga_title></manga></myanimelist>';
+const XML =
+  '<?xml version="1.0"?><myanimelist><manga><manga_title><![CDATA[Élan &amp; co]]></manga_title></manga></myanimelist>';
 
 describe("looksGzipped", () => {
+  /*
+   * Both header bytes, in that order, and two bytes are enough. A file
+   * that carries only one of them is not gzip, which is the case a
+   * test built from "neither byte matches" never reaches.
+   */
   it("recognises the gzip member header only", () => {
     expect(looksGzipped(new Uint8Array([0x1f, 0x8b, 0x08]))).toBe(true);
+    expect(looksGzipped(new Uint8Array([0x1f, 0x8b]))).toBe(true);
+    expect(looksGzipped(new Uint8Array([0x1f, 0x00]))).toBe(false);
+    expect(looksGzipped(new Uint8Array([0x00, 0x8b]))).toBe(false);
+    expect(looksGzipped(new Uint8Array([0x8b, 0x1f]))).toBe(false);
     expect(looksGzipped(new Uint8Array([0x3c, 0x3f]))).toBe(false);
     expect(looksGzipped(new Uint8Array([0x1f]))).toBe(false);
     expect(looksGzipped(new Uint8Array([]))).toBe(false);
@@ -31,6 +41,19 @@ describe("readImportFile", () => {
       type: "application/octet-stream",
     });
     expect(await readImportFile(file)).toBe(XML);
+  });
+
+  it("says so when the platform cannot inflate", async () => {
+    const saved = globalThis.DecompressionStream;
+    delete globalThis.DecompressionStream;
+    try {
+      const gz = gzipSync(Buffer.from(XML, "utf-8"));
+      await expect(readImportFile(new File([gz], "a.gz"))).rejects.toThrow(
+        "gzip-unsupported",
+      );
+    } finally {
+      globalThis.DecompressionStream = saved;
+    }
   });
 
   it("keeps non-ASCII text intact through both paths", async () => {

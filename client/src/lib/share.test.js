@@ -64,7 +64,7 @@ describe("pickShareQuery", () => {
     });
 
     it("strips angle brackets and quotes from the payload", () => {
-      const out = pickShareQuery({ title: '<script>alert(1)</script>Berserk' });
+      const out = pickShareQuery({ title: "<script>alert(1)</script>Berserk" });
       expect(out).not.toContain("<");
       expect(out).not.toContain(">");
       expect(out).not.toContain('"');
@@ -86,11 +86,13 @@ describe("pickShareQuery", () => {
     });
 
     it("returns null when sanitising consumes the whole string", () => {
-      expect(pickShareQuery({ title: '<>"\'' })).toBeNull();
+      expect(pickShareQuery({ title: "<>\"'" })).toBeNull();
     });
 
     it("ignores non-string fields instead of throwing", () => {
-      expect(() => pickShareQuery({ title: 42, text: {}, url: [] })).not.toThrow();
+      expect(() =>
+        pickShareQuery({ title: 42, text: {}, url: [] }),
+      ).not.toThrow();
     });
   });
 });
@@ -109,24 +111,21 @@ describe("extractTitleFromUrl", () => {
       "https://mangadex.org/title/3dd0b814-23f4-4342-b13f-d5f0dd7d4ca6/berserk-deluxe",
       "berserk deluxe",
     ],
-    [
-      "https://mangadex.org/title/abc-def/Chainsaw-Man",
-      "Chainsaw Man",
-    ],
+    ["https://mangadex.org/title/abc-def/Chainsaw-Man", "Chainsaw Man"],
   ])("reads the MangaDex slug in %p", (url, expected) => {
     expect(extractTitleFromUrl(url)).toBe(expected);
   });
 
   it("falls back to the last meaningful path segment", () => {
-    expect(extractTitleFromUrl("https://www.vinted.fr/items/berserk-tome-1")).toBe(
-      "berserk tome 1",
-    );
+    expect(
+      extractTitleFromUrl("https://www.vinted.fr/items/berserk-tome-1"),
+    ).toBe("berserk tome 1");
   });
 
   it("walks back past a purely numeric trailing segment", () => {
-    expect(extractTitleFromUrl("https://example.com/berserk-deluxe/12345")).toBe(
-      "berserk deluxe",
-    );
+    expect(
+      extractTitleFromUrl("https://example.com/berserk-deluxe/12345"),
+    ).toBe("berserk deluxe");
   });
 
   it("stops at the first segment containing a letter, even when it is an id", () => {
@@ -153,7 +152,9 @@ describe("extractTitleFromUrl", () => {
   });
 
   it("collapses separators and whitespace", () => {
-    expect(extractTitleFromUrl("https://example.com/a--b__c++d")).toBe("a b c d");
+    expect(extractTitleFromUrl("https://example.com/a--b__c++d")).toBe(
+      "a b c d",
+    );
   });
 
   it("strips angle brackets out of a crafted slug", () => {
@@ -175,5 +176,93 @@ describe("extractTitleFromUrl", () => {
     ["https://example.com/123/456"],
   ])("returns null for %p", (input) => {
     expect(extractTitleFromUrl(input)).toBeNull();
+  });
+});
+
+/*
+ * 変 · Boundaries the earlier cases never reached. A share target is fed
+ * by other apps' payloads, so the interesting inputs are the ones just
+ * inside and just outside each rule rather than the obvious ones.
+ */
+describe("boundaries", () => {
+  const query = (text) => pickShareQuery({ text });
+
+  it("strips a site-name suffix behind any of its separators", () => {
+    for (const sep of ["—", "-", "|", "·", "•"]) {
+      expect(query(`Tokyo Ghoul ${sep} MyAnimeList`)).toBe("Tokyo Ghoul");
+    }
+  });
+
+  it("strips a suffix of two characters but not of one", () => {
+    // whitespace counts towards the two, so "— A" is a two-character
+    // suffix and "—A" is a one-character one
+    expect(query("Tokyo Ghoul —Ab")).toBe("Tokyo Ghoul");
+    expect(query("Tokyo Ghoul — A")).toBe("Tokyo Ghoul");
+    expect(query("Tokyo Ghoul —A")).toBe("Tokyo Ghoul —A");
+  });
+
+  it("stops stripping past forty characters of suffix", () => {
+    const forty = "a".repeat(40);
+    const fortyOne = "a".repeat(41);
+    expect(query(`Tokyo Ghoul — ${forty}`)).toBe("Tokyo Ghoul");
+    expect(query(`Tokyo Ghoul — ${fortyOne}`)).toBe(
+      `Tokyo Ghoul — ${fortyOne}`,
+    );
+  });
+
+  it("leaves a suffix alone when it is not plain site-name material", () => {
+    expect(query("Tokyo Ghoul — Amazon!")).toBe("Tokyo Ghoul — Amazon!");
+  });
+
+  it("treats only a leading http(s) scheme as a URL", () => {
+    // A slug with a hyphen is not used here on purpose: the site-name
+    // stripper runs first and would eat its last word, which is a wart
+    // of the ordering rather than of the URL rule under test.
+    expect(query("https://myanimelist.net/manga/1/Berserk")).toBe("Berserk");
+    expect(query("HTTPS://myanimelist.net/manga/1/Berserk")).toBe("Berserk");
+    // a scheme in the middle is text, not a URL
+    expect(query("read at https://example.com/x")).toBe(
+      "read at https://example.com/x",
+    );
+    expect(query("ftp://example.com/manga/1/x")).toBe(
+      "ftp://example.com/manga/1/x",
+    );
+  });
+
+  it("requires a numeric id on the MyAnimeList path", () => {
+    expect(
+      extractTitleFromUrl("https://myanimelist.net/manga/12345/Tokyo-Ghoul"),
+    ).toBe("Tokyo Ghoul");
+    // no digits → not the MAL shape, so the generic walk answers instead
+    expect(
+      extractTitleFromUrl("https://myanimelist.net/manga/abc/Tokyo-Ghoul"),
+    ).toBe("Tokyo Ghoul");
+    expect(extractTitleFromUrl("https://MYANIMELIST.net/MANGA/7/Berserk")).toBe(
+      "Berserk",
+    );
+  });
+
+  it("reads a MangaDex title whatever the id looks like", () => {
+    expect(
+      extractTitleFromUrl(
+        "https://mangadex.org/title/8f3e1c2a-0000-4aaa-bbbb-ccccccccdddd/vinland-saga",
+      ),
+    ).toBe("vinland saga");
+    expect(
+      extractTitleFromUrl("https://mangadex.org/TITLE/x/berserk_deluxe"),
+    ).toBe("berserk deluxe");
+  });
+
+  it("gives up on a path with nothing but digits", () => {
+    expect(extractTitleFromUrl("https://example.com/12/34/56")).toBeNull();
+    expect(extractTitleFromUrl("https://example.com/")).toBeNull();
+    expect(extractTitleFromUrl("https://example.com")).toBeNull();
+  });
+
+  it("clamps at exactly two hundred characters", () => {
+    const title = "é".repeat(201);
+    expect(pickShareQuery({ title }).length).toBe(200);
+    const exact = "é".repeat(200);
+    expect(pickShareQuery({ title: exact }).length).toBe(200);
   });
 });
