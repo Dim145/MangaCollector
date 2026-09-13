@@ -6,14 +6,16 @@
 //! deals with data portability.
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
+};
 use std::collections::HashMap;
 
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::archive::{
-    EXPORT_VERSION, ExportBundle, ExportCoffret, ExportSeries, ExportSettings, ExportUser,
-    ExportVolume, ImportAddedSummary, ImportMode, ImportPreview,
+    EXPORT_VERSION, ExportBundle, ExportCoffret, ExportLoan, ExportSeries, ExportSettings,
+    ExportUser, ExportVolume, ImportAddedSummary, ImportMode, ImportPreview,
 };
 use crate::models::coffret::{self, Entity as CoffretEntity};
 use crate::models::follow::{self, Entity as FollowEntity};
@@ -140,6 +142,7 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
                 location: v.location,
                 extra_copies: v.extra_copies,
                 bought_at: v.bought_at,
+                isbn: v.isbn,
                 created_on: Some(v.created_on),
                 modified_on: Some(v.modified_on),
             })
@@ -198,6 +201,23 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
     }
     library.sort_by_key(|a| a.name.to_lowercase());
 
+    // 預け · The loan ledger, oldest first, keyed by the series id the
+    // bundle uses (the importer re-maps it like every volume).
+    let loan_history = crate::services::loan_history::all_for_export(db, user.id)
+        .await?
+        .into_iter()
+        .map(|h| ExportLoan {
+            mal_id: h.mal_id,
+            vol_num: h.vol_num,
+            series_name: h.series_name,
+            borrower: h.borrower,
+            borrower_slug: h.borrower_slug,
+            loaned_at: h.loaned_at,
+            due_at: h.due_at,
+            returned_at: h.returned_at,
+        })
+        .collect();
+
     Ok(ExportBundle {
         version: EXPORT_VERSION,
         exported_at: Utc::now(),
@@ -207,6 +227,7 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
         },
         settings,
         library,
+        loan_history,
     })
 }
 
@@ -293,6 +314,49 @@ fn starts_like_formula(s: &str) -> bool {
         Some('-') => !matches!(chars.next(), Some(c) if c.is_ascii_digit() || c == '.'),
         _ => false,
     }
+}
+
+/// 預け · Import the bundle's ledger rows of one series onto its live id.
+/// A linked borrower is re-attached by slug under the same follow rule as
+/// volumes; `replace` rewrites rows the backup knows, merge only adds.
+async fn import_series_history(
+    txn: &impl ConnectionTrait,
+    user_id: i32,
+    bundle: &ExportBundle,
+    bundle_mal: i32,
+    live_mal: i32,
+    replace: bool,
+    borrower_by_slug: &HashMap<String, i32>,
+) -> Result<(), AppError> {
+    for h in bundle
+        .loan_history
+        .iter()
+        .filter(|h| h.mal_id == bundle_mal)
+    {
+        let borrower_user_id = h
+            .borrower_slug
+            .as_deref()
+            .and_then(|s| borrower_by_slug.get(s).copied());
+        let slug = borrower_user_id.and(h.borrower_slug.clone());
+        crate::services::loan_history::import_row(
+            txn,
+            user_id,
+            &crate::services::loan_history::ImportedLoan {
+                mal_id: live_mal,
+                vol_num: h.vol_num,
+                series_name: &h.series_name,
+                borrower: &h.borrower,
+                borrower_user_id,
+                borrower_slug: slug,
+                loaned_at: h.loaned_at,
+                due_at: h.due_at,
+                returned_at: h.returned_at,
+            },
+            replace,
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 /// 友 · Slug → user id for every linked borrower in the bundle, kept
@@ -446,12 +510,23 @@ pub async fn apply_import_merge(
                 mal_id: series.mal_id,
                 name: series.name.clone(),
                 volumes: series.volumes,
-                owned_volumes: series
-                    .volumes_detail
-                    .iter()
-                    .filter(|v| v.owned)
-                    .count(),
+                owned_volumes: series.volumes_detail.iter().filter(|v| v.owned).count(),
             });
+            // 預け · A skipped series can still bring loans the live one
+            // never recorded (a library kept before the ledger existed):
+            // merge them, never overwrite what is there.
+            if !dry_run && let (Some(bundle_mal), Some(live)) = (series.mal_id, existing_mal) {
+                import_series_history(
+                    &txn,
+                    user.id,
+                    bundle,
+                    bundle_mal,
+                    live,
+                    false,
+                    &borrower_by_slug,
+                )
+                .await?;
+            }
             continue;
         }
         if let Some(live_mal) = existing_mal {
@@ -660,6 +735,10 @@ pub async fn apply_import_merge(
                         .extra_copies
                         .clamp(0, crate::models::volume::EXTRA_COPIES_MAX)),
                     bought_at: Set(v.bought_at),
+                    isbn: Set(v
+                        .isbn
+                        .as_deref()
+                        .and_then(crate::util::isbn::normalize_isbn13)),
                     created_on: Set(v.created_on.unwrap_or(now)),
                     modified_on: Set(v.modified_on.unwrap_or(now)),
                     ..Default::default()
@@ -722,6 +801,53 @@ pub async fn apply_import_merge(
                 .exec(&txn)
                 .await
                 .map_err(AppError::from)?;
+        }
+
+        // 預け · Loans: the bundle's ledger rows for this series (mapped
+        // onto the live id), then every lent volume just written gets
+        // its open row re-attached — or opened, for a bundle that
+        // predates the ledger.
+        let live_mal = assigned_mal.unwrap_or(0);
+        if let Some(bundle_mal) = series.mal_id {
+            import_series_history(
+                &txn,
+                user.id,
+                bundle,
+                bundle_mal,
+                live_mal,
+                mode == ImportMode::Replace,
+                &borrower_by_slug,
+            )
+            .await?;
+        }
+        let lent = VolumeEntity::find()
+            .filter(volume_mod::Column::UserId.eq(user.id))
+            .filter(volume_mod::Column::MalId.eq(live_mal))
+            .filter(volume_mod::Column::LoanedTo.is_not_null())
+            .all(&txn)
+            .await
+            .map_err(AppError::from)?;
+        for v in lent {
+            let relinked = crate::services::loan_history::relink_open(
+                &txn, user.id, live_mal, v.vol_num, v.id,
+            )
+            .await?;
+            if relinked == 0 {
+                crate::services::loan_history::record_lend(
+                    &txn,
+                    &crate::services::loan_history::LendRecord {
+                        user_id: user.id,
+                        volume_id: v.id,
+                        mal_id: v.mal_id,
+                        vol_num: v.vol_num,
+                        borrower: v.loaned_to.as_deref().unwrap_or(""),
+                        borrower_user_id: v.loaned_to_user_id,
+                        loaned_at: v.loan_started_at.unwrap_or(now),
+                        due_at: v.loan_due_at,
+                    },
+                )
+                .await?;
+            }
         }
     }
 

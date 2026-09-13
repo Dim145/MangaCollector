@@ -108,6 +108,11 @@ pub struct Model {
     /// The day the copy was bought, as remembered.
     #[sea_orm(default)]
     pub bought_at: Option<chrono::NaiveDate>,
+    /// 番 · The ISBN of this copy's edition, 13 digits, as scanned. NULL
+    /// when never scanned or typed. Distinct from `release_isbn`, which
+    /// belongs to an announced tome.
+    #[sea_orm(default)]
+    pub isbn: Option<String>,
 }
 
 /// Conditions a copy can be rated, best to worst.
@@ -143,6 +148,8 @@ pub struct PhysicalPatch {
     pub location: Option<Option<String>>,
     pub extra_copies: Option<i32>,
     pub bought_at: Option<Option<chrono::NaiveDate>>,
+    /// Validated and stored as ISBN-13; `Some(None)` clears.
+    pub isbn: Option<Option<String>>,
 }
 
 impl PhysicalPatch {
@@ -151,6 +158,7 @@ impl PhysicalPatch {
             && self.location.is_none()
             && self.extra_copies.is_none()
             && self.bought_at.is_none()
+            && self.isbn.is_none()
     }
 }
 
@@ -199,6 +207,8 @@ pub struct UpdateVolumeRequest {
     pub extra_copies: Option<i32>,
     #[serde(default, deserialize_with = "deserialize_optional_date")]
     pub bought_at: Option<Option<chrono::NaiveDate>>,
+    #[serde(default, deserialize_with = "deserialize_optional_text")]
+    pub isbn: Option<Option<String>>,
 }
 
 impl UpdateVolumeRequest {
@@ -210,6 +220,7 @@ impl UpdateVolumeRequest {
             location: self.location.take(),
             extra_copies: self.extra_copies.take(),
             bought_at: self.bought_at.take(),
+            isbn: self.isbn.take(),
         }
     }
 }

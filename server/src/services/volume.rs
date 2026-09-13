@@ -233,6 +233,12 @@ pub async fn update_by_id(
 
     query.exec(db).await.map_err(AppError::from)?;
 
+    // 預け · An un-owned tome cannot stay on loan (see the auto-clear
+    // above) — the ledger gets its return too.
+    if was_owned && !owned && existing.as_ref().is_some_and(|r| r.loaned_to.is_some()) {
+        crate::services::loan_history::close_open(db, id, now).await?;
+    }
+
     // 読 · A read/unread flip may move the series' reading progression
     // (started, completed, back to reading). Derived here so every
     // path — drawer toggle, offline replay — keeps it honest.
@@ -341,6 +347,17 @@ pub async fn set_physical_details(
     if let Some(date) = patch.bought_at {
         active.bought_at = Set(date);
     }
+    if let Some(raw) = patch.isbn {
+        // 番 · Empty clears; anything else must be a real ISBN-10/13 and
+        // is kept in the 13-digit form the scanner produces.
+        active.isbn =
+            Set(match raw.as_deref().map(str::trim) {
+                None | Some("") => None,
+                Some(text) => Some(crate::util::isbn::normalize_isbn13(text).ok_or_else(|| {
+                    AppError::BadRequest("Not a valid ISBN-10 or ISBN-13.".into())
+                })?),
+            });
+    }
     active.modified_on = Set(Utc::now());
     active.update(db).await.map_err(AppError::from)?;
     Ok(())
@@ -389,6 +406,9 @@ pub async fn set_loan(
             active.loan_started_at = Set(None);
             active.loan_due_at = Set(None);
             active.loaned_to_user_id = Set(None);
+            if existing.loaned_to.is_some() {
+                crate::services::loan_history::close_open(db, id, now).await?;
+            }
         }
         Some(p) => {
             // 預け · Lending requires real ownership. You can't
@@ -421,7 +441,7 @@ pub async fn set_loan(
                 ));
             }
             let name: String = trimmed.chars().take(LOAN_BORROWER_MAX_CHARS).collect();
-            active.loaned_to = Set(Some(name));
+            active.loaned_to = Set(Some(name.clone()));
             // Preserve the existing started_at if the volume was already
             // lent — this is an "edit" path (e.g. updating the due date).
             // Mint a new started_at only on first lend.
@@ -448,6 +468,27 @@ pub async fn set_loan(
             }
             active.loaned_to_user_id = Set(p.to_user_id);
             active.loan_due_at = Set(p.due_at);
+            // 預け · Ledger: a first lend opens a row, an edit of an open
+            // loan (borrower, due date) mirrors it.
+            if existing.loaned_to.is_none() {
+                crate::services::loan_history::record_lend(
+                    db,
+                    &crate::services::loan_history::LendRecord {
+                        user_id,
+                        volume_id: id,
+                        mal_id: existing.mal_id,
+                        vol_num: existing.vol_num,
+                        borrower: &name,
+                        borrower_user_id: p.to_user_id,
+                        loaned_at: existing.loan_started_at.unwrap_or(now),
+                        due_at: p.due_at,
+                    },
+                )
+                .await?;
+            } else {
+                crate::services::loan_history::update_open(db, id, &name, p.to_user_id, p.due_at)
+                    .await?;
+            }
         }
     }
     active.modified_on = Set(now);

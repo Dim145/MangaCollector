@@ -5,8 +5,8 @@ use axum::{
 
 use crate::handlers::{
     activity, archive, auth as auth_handlers, author, calendar, coffret, compare, external,
-    external_import, follow, health, library, public, public_config, realtime, seals, settings,
-    snapshot, storage, user_profile, volume,
+    external_import, follow, health, isbn, library, public, public_config, realtime, seals,
+    settings, snapshot, storage, user_profile, volume,
 };
 use crate::state::AppState;
 
@@ -75,6 +75,8 @@ pub fn api_router() -> Router<AppState> {
 
 fn user_router() -> Router<AppState> {
     Router::new()
+        // 番 · Server-side ISBN resolution with a shared cache.
+        .route("/isbn/{isbn}", get(isbn::lookup))
         // Library routes — note: /library/search and /library/custom must be
         // registered before /library/{mal_id} so Axum's specificity matching
         // correctly prefers literal segments.
@@ -138,6 +140,7 @@ fn user_router() -> Router<AppState> {
         .route("/volume", get(volume::get_all_volumes))
         .route("/volume/loans", get(volume::list_loans))
         .route("/volume/loans/borrowed", get(volume::list_borrowed))
+        .route("/volume/loans/history", get(volume::list_loan_history))
         .route("/volume/{mal_id}", get(volume::get_volumes_by_id))
         .route("/volume", patch(volume::update_volume))
         // 印影 Inei · Snapshot history endpoints. POST creates a new

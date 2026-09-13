@@ -221,6 +221,26 @@ pub async fn list_loans(
     Ok(Json(loans))
 }
 
+/// GET /api/user/volume/loans/history?limit=&mal_id= — the loan ledger,
+/// newest first: every tome ever lent, with who had it and when it came
+/// back. Drives the widget's history tab and the borrower suggestions.
+#[derive(Debug, Deserialize)]
+pub struct LoanHistoryQuery {
+    pub limit: Option<u64>,
+    pub mal_id: Option<i32>,
+}
+
+pub async fn list_loan_history(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    axum::extract::Query(q): axum::extract::Query<LoanHistoryQuery>,
+) -> Result<Json<Vec<crate::models::loan_history::Model>>, AppError> {
+    let rows =
+        crate::services::loan_history::list(&state.db, user.id, q.mal_id, q.limit.unwrap_or(200))
+            .await?;
+    Ok(Json(rows))
+}
+
 /// GET /api/user/volume/loans/borrowed — every volume a friend has
 /// lent to the caller: the other side of `list_loans`. Empty array
 /// when nothing is borrowed — never 404.

@@ -35,6 +35,25 @@ pub struct ExportBundle {
     pub user: ExportUser,
     pub settings: Option<ExportSettings>,
     pub library: Vec<ExportSeries>,
+    /// 預け · The loan ledger (v2). `mal_id` is the bundle's series id;
+    /// the importer maps it to the live series the same way volumes are.
+    #[serde(default)]
+    pub loan_history: Vec<ExportLoan>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportLoan {
+    pub mal_id: i32,
+    pub vol_num: i32,
+    pub series_name: String,
+    pub borrower: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub borrower_slug: Option<String>,
+    pub loaned_at: chrono::DateTime<chrono::Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub due_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub returned_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -148,6 +167,8 @@ pub struct ExportVolume {
     pub extra_copies: i32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bought_at: Option<chrono::NaiveDate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isbn: Option<String>,
     // ── v2 · row timestamps ──
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_on: Option<chrono::DateTime<chrono::Utc>>,

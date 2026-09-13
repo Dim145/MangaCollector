@@ -11,3 +11,5 @@ pub mod snapshot;
 pub mod user;
 pub mod user_seal;
 pub mod volume;
+pub mod isbn_cache;
+pub mod loan_history;

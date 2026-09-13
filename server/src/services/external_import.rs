@@ -1014,6 +1014,7 @@ fn wrap_bundle(source: &str, library: Vec<ExportSeries>) -> ExportBundle {
         user: ExportUser { name: None },
         settings: None,
         library,
+        loan_history: Vec::new(),
     }
 }
 

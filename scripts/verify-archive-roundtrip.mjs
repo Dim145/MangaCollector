@@ -35,6 +35,13 @@ const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o?.[k] ?? null]
 const by = (k) => (a, b) => (a[k] > b[k] ? 1 : a[k] < b[k] ? -1 : 0);
 
 /* ─── 1. enrich the source so every field has data ─────────────────── */
+// Two real barcodes: one typed with hyphens, one as an ISBN-10 — both
+// must come back as the same bare ISBN-13 the scanner would produce.
+const ISBNS = [
+  { typed: "978-0-306-40615-7", stored: "9780306406157" },
+  { typed: "0-8044-2957-X", stored: "9780804429573" },
+];
+
 async function enrich(c) {
   const lib = await c.json("GET", "/api/user/library");
   // deterministic picks: the first MAL series, the first MangaDex series, the biggest
@@ -113,6 +120,8 @@ async function enrich(c) {
       location: i === 2 ? "Carton grenier" : "Étagère A",
       extra_copies: i,
       bought_at: `2024-0${i + 3}-15`,
+      // the barcode — typed with hyphens, or as an old ISBN-10; stored as bare ISBN-13
+      isbn: ISBNS[i]?.typed ?? null,
       loan: {
         to: i === 0 ? "Alex (ami)" : `Ami ${i + 1}`,
         due_at: new Date(Date.now() + (i + 1) * 7 * 86400000).toISOString(),
@@ -121,6 +130,14 @@ async function enrich(c) {
     });
   }
   log.push(`3 loans + notes on ${big.name} (vol ${vols[0].vol_num} linked to ${FRIEND})`);
+  const stored = (await c.json("GET", `/api/user/volume/${big.mal_id}`)).sort(by("vol_num"));
+  for (const [i, want] of ISBNS.entries()) {
+    const got = stored.find((v) => v.id === vols[i].id)?.isbn;
+    if (got !== want.stored) throw new Error(`vol ${vols[i].vol_num}: isbn "${want.typed}" stored as ${JSON.stringify(got)}, expected "${want.stored}"`);
+  }
+  const bad = await c.api("PATCH", "/api/user/volume", { id: vols[2].id, owned: true, isbn: "1234567890123" });
+  if (bad.status !== 400) throw new Error(`a wrong ISBN checksum should be refused with 400, got ${bad.status}`);
+  log.push(`ISBN-13 and ISBN-10 stored normalised on 2 volumes; a wrong checksum is refused (400)`);
   const borrowed = await friend.json("GET", "/api/user/volume/loans/borrowed");
   const mine = borrowed.filter((b) => b.lender_id === c.user.id && b.vol_num === vols[0].vol_num);
   if (mine.length !== 1) throw new Error(`${FRIEND}'s borrowed list should show vol ${vols[0].vol_num} once, got ${mine.length}`);
@@ -159,8 +176,18 @@ const SERIES_FIELDS = ["name", "volumes", "volumes_owned", "image_url_jpg", "gen
 const VOLUME_FIELDS = ["vol_num", "owned", "price", "store", "collector", "read_at", "notes",
   "release_date", "release_isbn", "release_url", "origin", "announced_at",
   "loaned_to", "loaned_to_user_id", "loan_started_at", "loan_due_at", "in_coffret", "created_on", "modified_on",
-  "condition", "location", "extra_copies", "bought_at"];
+  "condition", "location", "extra_copies", "bought_at", "isbn"];
 const COFFRET_FIELDS = ["name", "vol_start", "vol_end", "price", "store", "collector", "created_on", "modified_on"];
+
+// The loan ledger, as comparable tuples. `mal_id` is per-account for
+// custom series, so rows are keyed by series name; `id`/`volume_id` are
+// account-local too. Everything else must survive the round trip.
+async function ledger(c) {
+  const rows = await c.json("GET", "/api/user/volume/loans/history?limit=500");
+  return rows
+    .map((h) => [h.series_name, h.vol_num, h.borrower, h.borrower_slug ?? null, h.loaned_at, h.due_at ?? null, h.returned_at ?? null].join("|"))
+    .sort();
+}
 
 async function snapshot(c) {
   const lib = await c.json("GET", "/api/user/library");
@@ -171,7 +198,7 @@ async function snapshot(c) {
   // negative per-instance numbers), and a keyed map silently hides it —
   // so count rows and duplicates alongside.
   const dupes = [];
-  Object.assign(out, { rows: lib.length, dupes });
+  Object.assign(out, { rows: lib.length, dupes, ledger: await ledger(c) });
   for (const s of lib) {
     const key = s.mal_id > 0 ? `mal:${s.mal_id}` : s.mangadex_id ? `md:${s.mangadex_id}` : `custom:${s.name}`;
     if (out.has(key)) { dupes.push(`${s.name} (${key})`); continue; }
@@ -215,6 +242,10 @@ function diff(a, b) {
       }
     }
   }
+  // the ledger: same rows, same count — a merge must not double them either
+  const lb = new Set(b.ledger ?? []);
+  for (const row of a.ledger ?? []) if (!lb.has(row)) bump("ledger.row");
+  if ((a.ledger?.length ?? 0) !== (b.ledger?.length ?? 0)) bump("ledger.count");
   return { loss, seriesMissing, extraInTarget: [...b.keys()].filter((k) => !a.has(k)).length };
 }
 
@@ -256,7 +287,7 @@ async function damage(c, snap) {
 
 function report(label, { loss, seriesMissing, extraInTarget }, a, b) {
   const dupes = [...(a.dupes ?? []), ...(b.dupes ?? [])];
-  console.log(`\n[${label}] series: ${a.size} expected (${a.rows} rows), ${b.size} found (${b.rows} rows), ${seriesMissing} missing, ${extraInTarget} extra, ${dupes.length} duplicated`);
+  console.log(`\n[${label}] series: ${a.size} expected (${a.rows} rows), ${b.size} found (${b.rows} rows), ${seriesMissing} missing, ${extraInTarget} extra, ${dupes.length} duplicated · ledger: ${a.ledger?.length ?? 0} → ${b.ledger?.length ?? 0} loan(s)`);
   if (loss.size === 0 && seriesMissing === 0 && dupes.length === 0 && a.rows === b.rows) {
     console.log(`✓ ${label}: LOSSLESS`);
     return true;
