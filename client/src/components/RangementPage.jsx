@@ -16,6 +16,7 @@ import {
 import { findLocalByIsbn } from "@/lib/scanLookup.js";
 import { normalizeISBN } from "@/lib/isbn.js";
 import { boxLabel, tomeLabels } from "@/lib/labels.js";
+import haptics from "@/lib/haptics.js";
 
 // 札 · jsPDF + JsBarcode ride in only when a sheet is asked for.
 const LabelSheetModal = lazy(() => import("./LabelSheetModal.jsx"));
@@ -129,11 +130,7 @@ export default function RangementPage() {
       const isbn = normalizeISBN(raw);
       if (!isbn) return;
       busyRef.current = true;
-      try {
-        navigator.vibrate?.(30);
-      } catch {
-        /* ignore */
-      }
+      haptics.bump();
       try {
         const hit = findLocalByIsbn(volumes ?? [], library ?? [], isbn);
         if (!hit) {
@@ -289,14 +286,14 @@ export default function RangementPage() {
                 t={t}
                 onOpen={() => open(place.name)}
                 onSave={async (patch) => {
-                  if (place.id == null) {
-                    await create.mutateAsync({
-                      name: patch.name ?? place.name,
-                      note: patch.note ?? "",
-                    });
-                  } else {
-                    await update.mutateAsync({ id: place.id, ...patch });
-                  }
+                  // A place that lives only on the tomes has no row to
+                  // rename: register it under the name the tomes carry
+                  // first, then rename that row so they follow.
+                  const id =
+                    place.id ??
+                    (await create.mutateAsync({ name: place.name, note: "" }))
+                      .id;
+                  await update.mutateAsync({ id, ...patch });
                   if (patch.name && selected === place.name)
                     setSelected(patch.name);
                 }}

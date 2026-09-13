@@ -742,7 +742,10 @@ pub async fn apply_import_merge(
                         crate::models::volume::normalize_condition(v.condition.clone())
                             .unwrap_or(None),
                     ),
-                    location: Set(v.location.clone()),
+                    location: Set(crate::models::library::sanitize_label(
+                        v.location.clone(),
+                        crate::models::volume::LOCATION_MAX_LEN,
+                    )),
                     extra_copies: Set(v
                         .extra_copies
                         .clamp(0, crate::models::volume::EXTRA_COPIES_MAX)),
