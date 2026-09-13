@@ -496,13 +496,22 @@ async function libraryGuards() {
 
 /** Volume rows the outbox says to keep — by volume id, or by whole series. */
 async function volumeGuards() {
-  const [volOps, bulkOps] = await Promise.all([
+  const [volOps, bulkOps, libOps] = await Promise.all([
     db.outboxVolumes.toArray(),
     db.outboxBulkMark.toArray(),
+    db.outboxLibrary.toArray(),
   ]);
   return {
     ids: new Set(volOps.map((op) => op.id)),
     series: new Set(bulkOps.map((op) => op.mal_id)),
+    // 削 · Series with a pending delete. `cacheLibrary` already refuses
+    // to resurrect the library row; without the same guard here a
+    // `volumes-all` refetch landing before the delete flushes re-inserts
+    // that series' tomes as orphans — counted by the analytics, the
+    // overdue badge and the shelf grouping until the next full rewrite.
+    deleted: new Set(
+      libOps.filter((op) => op.op === "delete").map((op) => op.mal_id),
+    ),
   };
 }
 
@@ -523,6 +532,7 @@ async function guardedVolumeRows(g, mal_id) {
   for (const row of [...byId, ...bySeries]) {
     if (!row || seen.has(row.id)) continue;
     if (mal_id !== undefined && row.mal_id !== mal_id) continue;
+    if (g.deleted.has(row.mal_id)) continue;
     seen.add(row.id);
     rows.push(row);
   }
@@ -609,12 +619,13 @@ export async function cacheVolumesForManga(mal_id, volumes) {
     db.volumes,
     db.outboxVolumes,
     db.outboxBulkMark,
+    db.outboxLibrary,
     async () => {
       const g = await volumeGuards();
       const preserved = await guardedVolumeRows(g, mal_id);
       await db.volumes.where("mal_id").equals(mal_id).delete();
       const fromServer = (volumes ?? []).filter(
-        (row) => !isGuardedVolume(row, g),
+        (row) => !isGuardedVolume(row, g) && !g.deleted.has(row.mal_id),
       );
       if (fromServer.length) await db.volumes.bulkPut(fromServer);
       if (preserved.length) await db.volumes.bulkPut(preserved);
@@ -629,12 +640,13 @@ export async function cacheAllVolumes(volumes) {
     db.volumes,
     db.outboxVolumes,
     db.outboxBulkMark,
+    db.outboxLibrary,
     async () => {
       const g = await volumeGuards();
       const preserved = await guardedVolumeRows(g);
       await db.volumes.clear();
       const fromServer = (volumes ?? []).filter(
-        (row) => !isGuardedVolume(row, g),
+        (row) => !isGuardedVolume(row, g) && !g.deleted.has(row.mal_id),
       );
       if (fromServer.length) await db.volumes.bulkPut(fromServer);
       if (preserved.length) await db.volumes.bulkPut(preserved);

@@ -313,6 +313,46 @@ describe("cacheAllVolumes", () => {
     expect(await db.volumes.get(1)).toBeTruthy();
   });
 
+  /*
+   * 削 · The series is gone locally but the DELETE hasn't flushed, so
+   * the server still has it — and still hands its volumes back on the
+   * next `volumes-all` refetch. `cacheLibrary` already refuses to
+   * resurrect the library row; if the volume writers don't refuse the
+   * tomes, they come back as orphans that nothing on screen can reach
+   * and everything that counts (analytics, overdue badge, shelf
+   * grouping) keeps counting.
+   */
+  it("does not resurrect the tomes of a series with a pending delete", async () => {
+    await db.volumes.bulkPut([volume(1, 2), volume(9, 7)]);
+    await db.outboxLibrary.put({ mal_id: 2, op: "delete", payload: {}, ts: 1 });
+    await cacheAllVolumes([volume(1, 2, { owned: true }), volume(9, 7)]);
+    const local = byKey(await rows(db.volumes), "id");
+    expect(local[1]).toBeUndefined();
+    expect(local[9]).toBeTruthy(); // the other series is untouched
+  });
+
+  it("drops a deleted series' tomes even when they carry their own op", async () => {
+    // The delete cascade queues both; whichever guard runs, the series
+    // is on its way out and must not be preserved by the volume guard.
+    await db.volumes.put(volume(1, 2, { owned: true }));
+    await db.outboxVolumes.put({
+      id: 1,
+      mal_id: 2,
+      op: "update",
+      payload: {},
+      ts: 1,
+    });
+    await db.outboxLibrary.put({ mal_id: 2, op: "delete", payload: {}, ts: 2 });
+    await cacheAllVolumes([volume(1, 2)]);
+    expect(await db.volumes.count()).toBe(0);
+  });
+
+  it("keeps a series with a pending upsert — only deletes are barred", async () => {
+    await db.outboxLibrary.put({ mal_id: 2, op: "upsert", payload: {}, ts: 1 });
+    await cacheAllVolumes([volume(1, 2, { owned: true })]);
+    expect((await db.volumes.get(1)).owned).toBe(true);
+  });
+
   it("does not duplicate a volume covered by both an id op and a bulk-mark", async () => {
     await db.volumes.put(volume(1, 2, { owned: true }));
     await db.outboxVolumes.put({
@@ -353,6 +393,13 @@ describe("cacheVolumesForManga", () => {
     });
     await cacheVolumesForManga(2, [volume(1, 2, { owned: false })]);
     expect((await db.volumes.get(1)).owned).toBe(true);
+  });
+
+  it("does not resurrect one series' tomes when its delete is pending", async () => {
+    await db.volumes.put(volume(1, 2));
+    await db.outboxLibrary.put({ mal_id: 2, op: "delete", payload: {}, ts: 1 });
+    await cacheVolumesForManga(2, [volume(1, 2), volume(2, 2)]);
+    expect(await db.volumes.count()).toBe(0);
   });
 
   it("keeps the whole series under a pending bulk-mark", async () => {
