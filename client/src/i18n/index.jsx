@@ -95,7 +95,19 @@ function resolve(bundle, path) {
   const parts = path.split(".");
   let cur = bundle;
   for (const p of parts) {
-    if (cur == null || typeof cur !== "object") return null;
+    // 鍵 · Own properties only. A dotted key is a path into the bundle,
+    // and nothing on `Object.prototype` is a translation — without this
+    // a key like `constructor.name` or `toString` resolves to a built-in
+    // and the UI renders `function Object() { [native code] }` where a
+    // sentence should be. Reads only, so there was never anything to
+    // pollute here; the cost of the wrong answer is the reason.
+    if (cur == null || typeof cur !== "object" || !Object.hasOwn(cur, p)) {
+      return null;
+    }
+    // The rule below matches `x = x[k]` in a loop on sight. This one
+    // only reads, and the `Object.hasOwn` above already stops it at the
+    // prototype boundary — there is nothing here to assign to.
+    // nosemgrep: javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop
     cur = cur[p];
   }
   return cur;

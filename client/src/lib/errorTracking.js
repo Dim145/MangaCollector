@@ -51,6 +51,20 @@ export async function initErrorTracking(config) {
     replaysSessionSampleRate: config.replay ? 0.1 : 0,
     replaysOnErrorSampleRate: config.replay ? 1.0 : 0,
     sendDefaultPii: false,
+    // 塵 · Breadcrumbs record the full URL of every request the app
+    // makes. That sweeps up the user's Google Books key (it rides in
+    // the query string) and the text they typed into the library
+    // search. `sendDefaultPii: false` does not touch query strings, and
+    // whether the backend scrubs them depends on which backend the
+    // operator chose — so strip them here, where the answer is certain.
+    beforeBreadcrumb(breadcrumb) {
+      const url = breadcrumb?.data?.url;
+      if (typeof url === "string") {
+        const cut = url.indexOf("?");
+        if (cut !== -1) breadcrumb.data.url = url.slice(0, cut);
+      }
+      return breadcrumb;
+    },
   });
 
   // Dev-only — production builds shouldn't litter the user's

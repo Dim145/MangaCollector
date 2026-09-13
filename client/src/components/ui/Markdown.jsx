@@ -31,7 +31,18 @@ function Inline({ tokens }) {
           </code>
         );
       case "link": {
-        const external = /^https?:\/\//.test(token.href);
+        // 印 · The parser accepts any `[text](href)`, and React Router
+        // renders an absolute href verbatim — it is React's own URL
+        // sanitiser that currently stops `javascript:`. Relying on the
+        // framework for that is one upgrade away from being wrong, so
+        // the scheme is checked here: http(s) leaves the app, a path
+        // stays inside it, anything else is rendered as plain text.
+        const href = String(token.href ?? "");
+        const external = /^https?:\/\//i.test(href);
+        const internal = /^\/(?!\/)/.test(href) || /^#/.test(href);
+        if (!external && !internal) {
+          return <span key={i}>{token.value}</span>;
+        }
         const className =
           "text-gold underline-offset-4 hover:underline focus-visible:underline";
         return external ? (
