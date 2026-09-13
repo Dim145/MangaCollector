@@ -76,6 +76,16 @@ export default {
     offline:
       "Los lugares se editan en línea; mover tomos funciona sin conexión.",
   },
+  help: {
+    kicker: "AYUDA · 助",
+    title: "Cómo funciona",
+    subtitle: "Todo lo que hace la aplicación, explicado una vez.",
+    contents: "Índice",
+    loading: "Abriendo el manual…",
+    unavailable: "No se pudo cargar el texto de ayuda.",
+    moreLead: "Los glifos japoneses que sirven de marcas están en el",
+    moreGlossary: "glosario",
+  },
   inventory: {
     kicker: "INVENTARIO · 棚卸",
     title: "Recuento",
@@ -1271,6 +1281,7 @@ export default {
     onboardingBody:
       "Reproduce el tour de bienvenida cuando quieras, o abre el glosario de kanji.",
     replayTour: "Reproducir tour de bienvenida",
+    openHelp: "Ayuda",
     openGlossary: "Abrir el glosario de kanji",
     barcodeScanner: "Escáner de códigos de barras",
     scannerBody:
@@ -1490,6 +1501,7 @@ export default {
     startCollecting: "Empezar a coleccionar",
     footerYear: "© {year} MangaCollector",
     footerGlossary: "Glosario",
+    footerHelp: "Ayuda",
   },
   offline: {
     offline: "Sin conexión",
@@ -1625,6 +1637,7 @@ export default {
     navSeals: "Sellos",
     navSettings: "Ajustes",
     navGlossary: "Glosario",
+    navHelp: "Ayuda",
   },
   snapshot: {
     eyebrow: "Captura · 棚",

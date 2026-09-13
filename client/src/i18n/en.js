@@ -73,6 +73,16 @@ export default {
     boxLabel: "Box label",
     offline: "Places are edited online — moving tomes works offline.",
   },
+  help: {
+    kicker: "HELP · 助",
+    title: "How this works",
+    subtitle: "Everything the app does, explained once.",
+    contents: "Contents",
+    loading: "Opening the manual…",
+    unavailable: "The help text could not be loaded.",
+    moreLead: "The Japanese glyphs used as markers are listed in the",
+    moreGlossary: "glossary",
+  },
   inventory: {
     kicker: "INVENTORY · 棚卸",
     title: "Stock-taking",
@@ -1254,6 +1264,7 @@ export default {
     onboardingBody:
       "Replay the three-step welcome tour at any time, or open the kanji glossary.",
     replayTour: "Replay welcome tour",
+    openHelp: "Help",
     openGlossary: "Open kanji glossary",
     barcodeScanner: "Barcode scanner",
     scannerBody:
@@ -1470,6 +1481,7 @@ export default {
     startCollecting: "Start collecting",
     footerYear: "© {year} MangaCollector",
     footerGlossary: "Glossary",
+    footerHelp: "Help",
   },
   offline: {
     offline: "Offline",
@@ -1604,6 +1616,7 @@ export default {
     navSeals: "Seals",
     navSettings: "Settings",
     navGlossary: "Glossary",
+    navHelp: "Help",
   },
   snapshot: {
     eyebrow: "Snapshot · 棚",

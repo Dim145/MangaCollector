@@ -45,8 +45,8 @@ import MangaPageSkeleton from "@/components/MangaPageSkeleton.jsx";
 // Wrapped in <Suspense fallback={null}> below so the chunk-load is
 // invisible.
 const CommandPalette = lazy(() => import("@/components/CommandPalette.jsx"));
-const ShortcutsCheatSheet = lazy(() =>
-  import("@/components/ShortcutsCheatSheet.jsx"),
+const ShortcutsCheatSheet = lazy(
+  () => import("@/components/ShortcutsCheatSheet.jsx"),
 );
 
 // Lazy routes — each lands in its own JS chunk so first paint ships less.
@@ -64,19 +64,19 @@ const StatsPage = lazy(() => import("./components/StatsPage"));
 const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
 const SealsPage = lazy(() => import("./components/SealsPage"));
 const PublicProfile = lazy(() => import("./components/PublicProfile"));
-const ImportExternalPage = lazy(() =>
-  import("./components/ImportExternalPage"),
+const ImportExternalPage = lazy(
+  () => import("./components/ImportExternalPage"),
 );
 const ComparePage = lazy(() => import("./components/ComparePage"));
 const YearInReviewPage = lazy(() => import("./components/YearInReviewPage"));
-const ShelfStickersPage = lazy(() =>
-  import("./components/ShelfStickersPage"),
-);
+const ShelfStickersPage = lazy(() => import("./components/ShelfStickersPage"));
 // 番 · Global scanner — shelf lookup first, add flow second.
 const ScanPage = lazy(() => import("./components/ScanPage.jsx"));
 // 棚 · Places and stock-taking — the physical side of the shelf.
 const RangementPage = lazy(() => import("./components/RangementPage.jsx"));
 const InventoryPage = lazy(() => import("./components/InventoryPage.jsx"));
+// 助 · The help page — its prose is fetched with it, not bundled.
+const HelpPage = lazy(() => import("./components/HelpPage.jsx"));
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
 const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
 const AuthorPage = lazy(() => import("./components/AuthorPage.jsx"));
@@ -360,122 +360,123 @@ function AppShell() {
         <RouteErrorBoundary>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-            <Route path="/" element={<About googleUser={googleUser} />} />
-            <Route path="/log-in" element={<Login />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <ProfilePage googleUser={googleUser} />
-                </ProtectedRoute>
-              }
-            />
-            {/* 帳 · Deep-dive analytics ledger — sibling of
+              <Route path="/" element={<About googleUser={googleUser} />} />
+              <Route path="/log-in" element={<Login />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <ProfilePage googleUser={googleUser} />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 帳 · Deep-dive analytics ledger — sibling of
                 /profile, opened from the "Voir toutes les
                 statistiques" CTA on the slim profile hero. */}
-            <Route
-              path="/stats"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <StatsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/mangapage"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <MangaPageRoute
-                    stateManga={manga}
-                    adult_content_level={adult_content_level}
-                  />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <DefaultBackground>
-                    <SettingsPage />
-                  </DefaultBackground>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/addmanga"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <DefaultBackground>
-                    <AddPage />
-                  </DefaultBackground>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/scan"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <DefaultBackground>
-                    <ScanPage />
-                  </DefaultBackground>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/rangement"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <DefaultBackground>
-                    <RangementPage />
-                  </DefaultBackground>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/inventaire"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <DefaultBackground>
-                    <InventoryPage />
-                  </DefaultBackground>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/seals"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <SealsPage />
-                </ProtectedRoute>
-              }
-            />
-            {/* 暦 · Upcoming-release calendar — Agenda + Month grid
+              <Route
+                path="/stats"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <StatsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/mangapage"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <MangaPageRoute
+                      stateManga={manga}
+                      adult_content_level={adult_content_level}
+                    />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <DefaultBackground>
+                      <SettingsPage />
+                    </DefaultBackground>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/addmanga"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <DefaultBackground>
+                      <AddPage />
+                    </DefaultBackground>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/scan"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <DefaultBackground>
+                      <ScanPage />
+                    </DefaultBackground>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/rangement"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <DefaultBackground>
+                      <RangementPage />
+                    </DefaultBackground>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/inventaire"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <DefaultBackground>
+                      <InventoryPage />
+                    </DefaultBackground>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/seals"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <SealsPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 暦 · Upcoming-release calendar — Agenda + Month grid
                 fed by `/api/user/calendar/upcoming`. Auth-required
                 because the data is per-user, even though the
                 announcement source itself (MangaUpdates) is public. */}
-            <Route
-              path="/calendrier"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <CalendarPage />
-                </ProtectedRoute>
-              }
-            />
-            {/* Public profile — deliberately outside ProtectedRoute so
+              <Route
+                path="/calendrier"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <CalendarPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* Public profile — deliberately outside ProtectedRoute so
                 anonymous visitors can see the gallery. Server-side
                 filters adult content + sensitive fields. */}
-            <Route path="/u/:slug" element={<PublicProfile />} />
-            <Route path="/glossary" element={<GlossaryPage />} />
-            {/* 作家 · Per-author detail — reverse-lookup of all your
+              <Route path="/u/:slug" element={<PublicProfile />} />
+              <Route path="/glossary" element={<GlossaryPage />} />
+              <Route path="/aide" element={<HelpPage />} />
+              {/* 作家 · Per-author detail — reverse-lookup of all your
                 series by the same mangaka. The slug is the author's
                 mal_id (the synthetic identifier the FK refactor
                 introduced): positive for shared MAL rows, negative
@@ -483,121 +484,121 @@ function AppShell() {
                 URL-encoding and case-folding gotchas, and the page
                 can JOIN the library by `author.mal_id` directly.
                 Authenticated since it reads the personal library. */}
-            <Route
-              path="/author/:malId"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <AuthorPage />
-                </ProtectedRoute>
-              }
-            />
-            {/* 山積 · Backlog audit — owned-but-unread analytics. Pure
+              <Route
+                path="/author/:malId"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <AuthorPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 山積 · Backlog audit — owned-but-unread analytics. Pure
                 client read from Dexie, works offline. */}
-            <Route
-              path="/backlog"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <BacklogPage />
-                </ProtectedRoute>
-              }
-            />
-            {/* 印影 · Snapshot history gallery. */}
-            <Route
-              path="/snapshots"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <SnapshotsPage />
-                </ProtectedRoute>
-              }
-            />
-            {/* 友 · Friends feed — follow other archivists, see their
+              <Route
+                path="/backlog"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <BacklogPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 印影 · Snapshot history gallery. */}
+              <Route
+                path="/snapshots"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <SnapshotsPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 友 · Friends feed — follow other archivists, see their
                 public-profile activity in a chronological correspondence. */}
-            <Route
-              path="/friends"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <FriendsPage />
-                </ProtectedRoute>
-              }
-            />
-            {/* 出版 · Per-publisher filtered library view. The slug
+              <Route
+                path="/friends"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <FriendsPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 出版 · Per-publisher filtered library view. The slug
                 is the URL-encoded publisher string (free-text on
                 user_libraries.publisher); pure client-side filter. */}
-            <Route
-              path="/publisher/:name"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <CollectionPage kind="publisher" />
-                </ProtectedRoute>
-              }
-            />
-            {/* 版 · Per-edition filtered library view. Same shape
+              <Route
+                path="/publisher/:name"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <CollectionPage kind="publisher" />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 版 · Per-edition filtered library view. Same shape
                 as /publisher/:name but filters on the `edition`
                 column (Standard / Kanzenban / Deluxe / etc.). */}
-            <Route
-              path="/edition/:name"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <CollectionPage kind="edition" />
-                </ProtectedRoute>
-              }
-            />
-            {/* External imports — accessed from Settings → Archive. */}
-            <Route
-              path="/settings/import-external"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <ImportExternalPage />
-                </ProtectedRoute>
-              }
-            />
-            {/* 対照 · Compare — authenticated; diffs my library with a
+              <Route
+                path="/edition/:name"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <CollectionPage kind="edition" />
+                  </ProtectedRoute>
+                }
+              />
+              {/* External imports — accessed from Settings → Archive. */}
+              <Route
+                path="/settings/import-external"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <ImportExternalPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 対照 · Compare — authenticated; diffs my library with a
                 public profile slug. */}
-            <Route
-              path="/compare/:slug"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <ComparePage />
-                </ProtectedRoute>
-              }
-            />
-            {/* 収 · Year-in-review poster — authenticated. The :year
+              <Route
+                path="/compare/:slug"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <ComparePage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 収 · Year-in-review poster — authenticated. The :year
                 segment is optional via the second route; default
                 resolution to current year happens in the page. */}
-            <Route
-              path="/year-in-review"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <YearInReviewPage googleUser={googleUser} />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/year-in-review/:year"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <YearInReviewPage googleUser={googleUser} />
-                </ProtectedRoute>
-              }
-            />
-            {/* 札 · Shelf stickers — print sheet of QR-coded series
+              <Route
+                path="/year-in-review"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <YearInReviewPage googleUser={googleUser} />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/year-in-review/:year"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <YearInReviewPage googleUser={googleUser} />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 札 · Shelf stickers — print sheet of QR-coded series
                 labels for the user's physical bookshelf. Authenticated
                 because it lists the user's library. */}
-            <Route
-              path="/settings/shelf-stickers"
-              element={
-                <ProtectedRoute setGoogleUser={setGoogleUser}>
-                  <ShelfStickersPage />
-                </ProtectedRoute>
-              }
-            />
-            {/* 迷子 · Catch-all 404. MUST stay last in the route list
+              <Route
+                path="/settings/shelf-stickers"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <ShelfStickersPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* 迷子 · Catch-all 404. MUST stay last in the route list
                 — React Router matches top-down and `*` matches any
                 pathname that wasn't claimed by a more specific
                 route above. Auth-agnostic on purpose: visitors who
                 mistype a URL while logged out should still see the
                 friendly page rather than a redirect dance. */}
-            <Route path="*" element={<NotFoundPage />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
         </RouteErrorBoundary>

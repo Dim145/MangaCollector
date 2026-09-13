@@ -81,6 +81,17 @@ export default {
     offline:
       "Les emplacements s'éditent en ligne — déplacer des tomes fonctionne hors ligne.",
   },
+  help: {
+    kicker: "AIDE · 助",
+    title: "Comment ça marche",
+    subtitle: "Tout ce que fait l'application, expliqué une fois.",
+    contents: "Sommaire",
+    loading: "Ouverture du manuel…",
+    unavailable: "Le texte d'aide n'a pas pu être chargé.",
+    moreLead:
+      "Les glyphes japonais qui servent de repères sont détaillés dans le",
+    moreGlossary: "glossaire",
+  },
   inventory: {
     kicker: "INVENTAIRE · 棚卸",
     title: "Récolement",
@@ -1289,6 +1300,7 @@ export default {
     onboardingBody:
       "Rejouez le tour de bienvenue à tout moment, ou ouvrez le glossaire des kanji.",
     replayTour: "Rejouer le tour de bienvenue",
+    openHelp: "Aide",
     openGlossary: "Ouvrir le glossaire des kanji",
     barcodeScanner: "Scanner de code-barres",
     scannerBody:
@@ -1508,6 +1520,7 @@ export default {
     startCollecting: "Commencer la collection",
     footerYear: "© {year} MangaCollector",
     footerGlossary: "Glossaire",
+    footerHelp: "Aide",
   },
   offline: {
     offline: "Hors ligne",
@@ -1644,6 +1657,7 @@ export default {
     navSeals: "Sceaux",
     navSettings: "Paramètres",
     navGlossary: "Glossaire",
+    navHelp: "Aide",
   },
   snapshot: {
     eyebrow: "Cliché · 棚",
