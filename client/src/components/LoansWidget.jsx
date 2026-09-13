@@ -6,6 +6,7 @@ import {
   useBorrowedLoans,
   classifyLoan,
 } from "@/hooks/useActiveLoans.js";
+import { useLoanHistory } from "@/hooks/useLoanHistory.js";
 import CoverImage from "./ui/CoverImage.jsx";
 import { formatCompactDate } from "@/utils/date.js";
 
@@ -31,6 +32,7 @@ export default function LoansWidget() {
   const navigate = useNavigate();
   const { data: loans = [], isLoading } = useActiveLoans();
   const { data: borrowed = [] } = useBorrowedLoans();
+  const { data: history = [] } = useLoanHistory({ limit: 60 });
 
   // Sort + classify in one pass so the render path stays cheap.
   // The server already sorts overdue→due_soon→active→open, but we
@@ -44,7 +46,12 @@ export default function LoansWidget() {
   // Hide entirely when nothing is lent — same logic as GapSuggestions
   // self-hide. Loading states show a single skeleton card so the
   // layout doesn't pop in if data arrives late.
-  if (!isLoading && enriched.length === 0 && borrowed.length === 0) {
+  if (
+    !isLoading &&
+    enriched.length === 0 &&
+    borrowed.length === 0 &&
+    history.length === 0
+  ) {
     return null;
   }
 
@@ -148,6 +155,7 @@ export default function LoansWidget() {
       {borrowed.length > 0 && (
         <BorrowedSection rows={borrowed} lang={lang} t={t} />
       )}
+      {history.length > 0 && <LedgerSection rows={history} lang={lang} t={t} />}
     </>
   );
 }
@@ -493,5 +501,67 @@ function BorrowedSection({ rows, lang, t }) {
         })}
       </ul>
     </section>
+  );
+}
+
+/**
+ * 帳 · The ledger — every loan ever made, newest first, folded away by
+ * default: it is a record to consult, not something to act on. Rows
+ * still out read as such; returned ones show both dates.
+ */
+function LedgerSection({ rows, lang, t }) {
+  const shown = rows.slice(0, 40);
+  return (
+    <details className="mt-8 rounded-md border border-border/70 bg-ink-1/30">
+      <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-3 px-4 py-3">
+        <span
+          aria-hidden="true"
+          className="font-jp text-lg font-bold leading-none text-washi-dim"
+        >
+          帳
+        </span>
+        <span className="font-display text-base font-light italic text-washi">
+          {t("loans.historyTitle")}
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-washi-dim">
+          {t("loans.historyKicker")}
+        </span>
+        <span className="ml-auto font-mono text-[11px] tabular-nums uppercase tracking-[0.2em] text-washi-dim">
+          {rows.length}
+        </span>
+      </summary>
+      <ul
+        role="list"
+        className="divide-y divide-border/60 border-t border-border/60"
+      >
+        {shown.map((h) => (
+          <li
+            key={h.id}
+            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2 text-[12px]"
+          >
+            <span className="min-w-0 flex-1 truncate font-display italic text-washi">
+              {h.series_name || t("loans.unknownSeries")}
+              <span className="ml-1.5 font-mono text-[10px] not-italic tabular-nums text-gold">
+                #{h.vol_num}
+              </span>
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-washi-muted">
+              {h.borrower_slug ? `@${h.borrower_slug}` : h.borrower}
+            </span>
+            <span className="font-mono text-[10px] tabular-nums text-washi-dim">
+              {formatCompactDate(h.loaned_at, lang)}
+              {" → "}
+              {h.returned_at ? (
+                formatCompactDate(h.returned_at, lang)
+              ) : (
+                <span className="text-hanko-bright">
+                  {t("loans.historyOpen")}
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

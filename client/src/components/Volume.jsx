@@ -923,6 +923,7 @@ function VolumeImpl({
         open={isEditing && !locked}
         onClose={handleCancel}
         id={id}
+        malId={mal_id}
         volNum={volNum}
         coverUrl={coverUrl}
         blurImage={blurImage}

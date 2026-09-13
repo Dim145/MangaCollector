@@ -3,6 +3,8 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db.js";
 import { useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useFollowList } from "@/hooks/useFriends.js";
+import { useLoanHistory } from "@/hooks/useLoanHistory.js";
+import { knownBorrowers } from "@/lib/loanHistory.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 import Modal from "./ui/Modal.jsx";
 import { formatShortDate } from "@/utils/date.js";
@@ -45,6 +47,11 @@ export default function LoanModal({ open, volumeId, onClose }) {
   const [dueDate, setDueDate] = useState("");
   const [borrowerUserId, setBorrowerUserId] = useState(null);
   const { data: friends = [] } = useFollowList();
+  // 帳 · Names this shelf has lent to before — a datalist, so a repeat
+  // borrower is one keystroke away and typed exactly as last time.
+  const { data: history = [] } = useLoanHistory({ limit: 200 });
+  const suggestions = useMemo(() => knownBorrowers(history), [history]);
+  const suggestionsId = `loan-borrowers-${volumeId ?? "new"}`;
 
   useEffect(() => {
     if (!open) return;
@@ -197,6 +204,7 @@ export default function LoanModal({ open, volumeId, onClose }) {
             <input
               type="text"
               value={borrower}
+              list={suggestionsId}
               onChange={(e) => {
                 setBorrower(e.target.value);
                 // A hand-typed name is a free-text borrower again.
@@ -208,6 +216,11 @@ export default function LoanModal({ open, volumeId, onClose }) {
               autoFocus
               className="w-full rounded-md border border-border bg-ink-0/60 px-3 py-2.5 font-display text-base italic text-washi placeholder:text-washi-dim placeholder:italic transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
             />
+            <datalist id={suggestionsId}>
+              {suggestions.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </label>
 
           <label className="block">

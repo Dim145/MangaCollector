@@ -2191,6 +2191,11 @@ export default {
     borrowedDue: "devolver el {date}",
     borrowedOpen: "sin fecha de devolución",
     borrowedFromUnknown: "un coleccionista sin perfil público",
+    historyTitle: "Registro",
+    historyKicker: "TODOS LOS PRÉSTAMOS · 帳",
+    historyOpen: "aún fuera",
+    lentTimes: "prestado {n} veces",
+    lastBack: "devuelto el {date}",
   },
   snapshots: {
     archivist: "el archivista",

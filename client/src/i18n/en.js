@@ -2180,6 +2180,11 @@ export default {
     borrowedDue: "due {date}",
     borrowedOpen: "no return date",
     borrowedFromUnknown: "a collector without a public profile",
+    historyTitle: "Ledger",
+    historyKicker: "EVERY LOAN · 帳",
+    historyOpen: "still out",
+    lentTimes: "lent {n}×",
+    lastBack: "back {date}",
   },
   snapshots: {
     archivist: "the archivist",

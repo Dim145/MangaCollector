@@ -1,7 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
-import { useT } from "@/i18n/index.jsx";
+import { useT, useLang } from "@/i18n/index.jsx";
+import { useLoanHistory } from "@/hooks/useLoanHistory.js";
+import { historyForVolume } from "@/lib/loanHistory.js";
+import { formatShortDate as formatLocalDate } from "@/utils/date.js";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db.js";
 import { normalizeISBN } from "@/lib/isbn.js";
@@ -31,6 +34,8 @@ export default function VolumeDetailDrawer({
   // Optional because some legacy callers don't pass it; the manual
   // controls below only render when both `id` and `origin === "manual"`.
   id,
+  // Series id — the loan ledger is keyed by (series, tome).
+  malId = null,
   volNum,
   coverUrl,
   blurImage = false,
@@ -622,6 +627,9 @@ export default function VolumeDetailDrawer({
               onChange={setNote}
               t={t}
             />
+
+            <LedgerLine malId={malId} volNum={volNum} t={t} />
+
             {/* 預け · Loan chip. Appears in two states:
               • lent → hanko-tinted band with borrower + due date,
                 clicking opens the LoanModal in edit mode
@@ -1155,5 +1163,34 @@ function PhysicalSection({
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * 帳 · One quiet line from the loan ledger: how often this tome went out
+ * and when it last came back. Nothing when it never did.
+ */
+function LedgerLine({ malId, volNum, t }) {
+  const lang = useLang();
+  const { data: history = [] } = useLoanHistory({
+    malId: malId ?? undefined,
+    limit: 100,
+  });
+  if (malId == null) return null;
+  const { count, lastReturnedAt } = historyForVolume(history, malId, volNum);
+  if (count === 0) return null;
+  return (
+    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-washi-dim">
+      <span
+        aria-hidden="true"
+        className="mr-1.5 font-jp text-[11px] normal-case tracking-normal"
+      >
+        帳
+      </span>
+      {t("loans.lentTimes", { n: count })}
+      {lastReturnedAt
+        ? ` · ${t("loans.lastBack", { date: formatLocalDate(lastReturnedAt, lang) })}`
+        : ""}
+    </p>
   );
 }
