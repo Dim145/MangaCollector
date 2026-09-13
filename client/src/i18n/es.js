@@ -68,6 +68,8 @@ export default {
     inventory: "Hacer inventario",
     openSeries: "Abrir la serie",
     lentTo: "Prestado a {name}",
+    labels: "Etiquetas",
+    boxLabel: "Etiqueta de caja",
     offline: "Los lugares se editan en línea; mover tomos funciona sin conexión.",
   },
   inventory: {
@@ -108,6 +110,36 @@ export default {
     missing: "faltan",
     lent: "prestados",
     again: "Nuevo recuento",
+  },
+  labels: {
+    button: "Etiquetas",
+    kicker: "HOJA DE ETIQUETAS",
+    title: "Imprimir etiquetas",
+    template: "Plantilla de hoja",
+    templateHint:
+      "El código Avery viene impreso en la caja. Los formatos Letter son para hojas americanas.",
+    pageA4: "A4",
+    pageLetter: "Letter (US)",
+    startAt: "Empezar en la posición",
+    startAtHint:
+      "0 es la etiqueta superior izquierda, {max} la inferior derecha — se cuenta fila por fila. Útil para una hoja ya empezada.",
+    preview: "Vista previa de la hoja",
+    previewPage: "Hoja 1 de {pages}",
+    startHere: "Empezar en la posición {n}",
+    summary: "{n} etiquetas · {pages} hoja(s) · {missing} sin código de barras",
+    overflow: "+{n} en las hojas siguientes",
+    noBarcodeHint: "Un tomo sin ISBN conocido recibe una etiqueta solo de texto.",
+    empty: "Nada que imprimir todavía: elige primero algunos tomos.",
+    generate: "Generar PDF",
+    generating: "Generando…",
+    ready:
+      "Tu hoja está lista. Se abrió en una pestaña nueva; si el navegador la bloqueó, usa el enlace.",
+    download: "Descargar labels.pdf",
+    error: "No se pudo generar el PDF.",
+    printHint:
+      "Imprime al 100 % — sin «ajustar a la página» — para que la cuadrícula coincida con la hoja.",
+    tomeWord: "T.",
+    more: "+{n} más",
   },
   scanPage: {
     resultAria: "Resultado del escaneo",

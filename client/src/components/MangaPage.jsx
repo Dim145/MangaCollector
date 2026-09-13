@@ -20,6 +20,8 @@ import VirtualVolumeGrid from "@/components/VirtualVolumeGrid.jsx";
 // builder or the cover picker bundle. Combined ~900 lines of code.
 const AddCoffretModal = lazy(() => import("./AddCoffretModal"));
 const CoverPickerModal = lazy(() => import("./CoverPickerModal.jsx"));
+// 札 · Printable label sheet (jsPDF + JsBarcode load only when opened).
+const LabelSheetModal = lazy(() => import("./LabelSheetModal.jsx"));
 const AddUpcomingVolumeModal = lazy(
   () => import("./AddUpcomingVolumeModal.jsx"),
 );
@@ -45,6 +47,7 @@ import {
 import { useVolumesForManga, useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useCoffretsForManga } from "@/hooks/useCoffrets.js";
 import { useVolumesView } from "@/hooks/useVolumesView.js";
+import { tomeLabels } from "@/lib/labels.js";
 import { useVolumeCovers } from "@/hooks/useVolumeCovers.js";
 import { useVolumePreviewController } from "@/hooks/useVolumePreviewController.js";
 import { useKnownPublishers } from "@/hooks/useKnownPublishers.js";
@@ -71,6 +74,7 @@ export default function MangaPage({ manga, adult_content_level }) {
   const [posterPopUp, setPosterPopUp] = useState(false);
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [labelsOpen, setLabelsOpen] = useState(false);
   // Per-source refresh tracker: null | "mal" | "mangadex". Lets the
   // dropdown spin only the item the user clicked while keeping the
   // other item (and the caret) in their idle state but disabled, so
@@ -1058,7 +1062,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                       {t("manga.reviewHeader")}
                     </span>
                     {reviewPublic && (
-                      <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-hanko-bright">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-hanko-bright">
                         · {t("manga.reviewPublicMark")}
                       </span>
                     )}
@@ -1341,6 +1345,23 @@ export default function MangaPage({ manga, adult_content_level }) {
             <div className="flex flex-wrap items-center gap-2">
               {(volumes?.length ?? 0) > 0 && <VolumesViewToggle />}
 
+              {(volumes ?? []).some((v) => v.owned) && (
+                <button
+                  type="button"
+                  onClick={() => setLabelsOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-sm border border-border/70 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-muted transition hover:border-gold/60 hover:text-washi"
+                  title={t("labels.title")}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="font-jp text-sm normal-case tracking-normal"
+                  >
+                    札
+                  </span>
+                  {t("labels.button")}
+                </button>
+              )}
+
               {manga.mal_id >= 0 && (volumes?.length ?? 0) > 0 && (
                 <button
                   type="button"
@@ -1515,6 +1536,24 @@ export default function MangaPage({ manga, adult_content_level }) {
       {/* 盒 · Coffret builder — lazy chunk. Outer guard ensures the
           chunk fetch only fires on the first time the user opens the
           flow. */}
+      {labelsOpen && (
+        <Suspense fallback={null}>
+          <LabelSheetModal
+            open
+            onClose={() => setLabelsOpen(false)}
+            labels={tomeLabels(
+              manga,
+              (volumes ?? []).filter((v) => v.owned),
+              {
+                tomeWord: t("labels.tomeWord"),
+                line3: (v) => v.location || "",
+              },
+            )}
+            title={t("labels.title")}
+            subtitle={manga.name}
+          />
+        </Suspense>
+      )}
       {coffretModalOpen && (
         <Suspense fallback={null}>
           <AddCoffretModal
@@ -1603,7 +1642,7 @@ export default function MangaPage({ manga, adult_content_level }) {
             }}
             className="min-w-[240px] overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl backdrop-blur animate-fade-up"
           >
-            <p className="border-b border-border/60 px-4 py-2 font-mono text-[9px] uppercase tracking-[0.25em] text-washi-dim">
+            <p className="border-b border-border/60 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim">
               {t("manga.syncMenuHeading")}
             </p>
             {manga.mal_id > 0 && (
@@ -1743,7 +1782,7 @@ export default function MangaPage({ manga, adult_content_level }) {
               </svg>
             </button>
             {!online && (
-              <p className="border-t border-border/60 bg-hanko/5 px-4 py-2 font-mono text-[9px] uppercase tracking-wider text-hanko-bright">
+              <p className="border-t border-border/60 bg-hanko/5 px-4 py-2 font-mono text-[10px] uppercase tracking-wider text-hanko-bright">
                 {t("manga.refreshOffline")}
               </p>
             )}

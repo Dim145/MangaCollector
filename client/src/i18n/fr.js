@@ -71,6 +71,8 @@ export default {
     inventory: "Faire l'inventaire",
     openSeries: "Ouvrir la série",
     lentTo: "Prêté à {name}",
+    labels: "Étiquettes",
+    boxLabel: "Étiquette de carton",
     offline: "Les emplacements s'éditent en ligne — déplacer des tomes fonctionne hors ligne.",
   },
   inventory: {
@@ -111,6 +113,36 @@ export default {
     missing: "manquants",
     lent: "en prêt",
     again: "Nouveau comptage",
+  },
+  labels: {
+    button: "Étiquettes",
+    kicker: "PLANCHE D'ÉTIQUETTES",
+    title: "Imprimer des étiquettes",
+    template: "Modèle de planche",
+    templateHint:
+      "La référence Avery est imprimée sur la boîte. Les formats Letter correspondent aux planches américaines.",
+    pageA4: "A4",
+    pageLetter: "Letter (US)",
+    startAt: "Commencer à la position",
+    startAtHint:
+      "0 est l'étiquette en haut à gauche, {max} celle en bas à droite — on compte ligne par ligne. Pratique pour une planche déjà entamée.",
+    preview: "Aperçu de la planche",
+    previewPage: "Planche 1 sur {pages}",
+    startHere: "Commencer à la position {n}",
+    summary: "{n} étiquettes · {pages} planche(s) · {missing} sans code-barres",
+    overflow: "+{n} sur la ou les planches suivantes",
+    noBarcodeHint: "Un tome sans ISBN connu reçoit une étiquette texte seul.",
+    empty: "Rien à imprimer pour l'instant — choisissez d'abord des tomes.",
+    generate: "Générer le PDF",
+    generating: "Rendu…",
+    ready:
+      "Votre planche est prête. Elle s'est ouverte dans un nouvel onglet — si le navigateur l'a bloqué, utilisez le lien.",
+    download: "Télécharger labels.pdf",
+    error: "Le PDF n'a pas pu être généré.",
+    printHint:
+      "Imprimez à l'échelle 100 % — sans « ajuster à la page » — pour que la grille tombe sur la planche.",
+    tomeWord: "T.",
+    more: "+{n} autres",
   },
   scanPage: {
     resultAria: "Résultat du scan",

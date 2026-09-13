@@ -68,6 +68,8 @@ export default {
     inventory: "Count this place",
     openSeries: "Open the series",
     lentTo: "Out with {name}",
+    labels: "Labels",
+    boxLabel: "Box label",
     offline: "Places are edited online — moving tomes works offline.",
   },
   inventory: {
@@ -108,6 +110,36 @@ export default {
     missing: "missing",
     lent: "on loan",
     again: "New count",
+  },
+  labels: {
+    button: "Labels",
+    kicker: "LABEL SHEET",
+    title: "Print labels",
+    template: "Sheet template",
+    templateHint:
+      "The Avery code is printed on the box of sheets. Letter formats are for US sheets.",
+    pageA4: "A4",
+    pageLetter: "Letter",
+    startAt: "Start at position",
+    startAtHint:
+      "0 is the top-left label, {max} the bottom-right one — counted row by row. Handy for a sheet that is already partly used.",
+    preview: "Sheet preview",
+    previewPage: "Sheet 1 of {pages}",
+    startHere: "Start at position {n}",
+    summary: "{n} labels · {pages} sheet(s) · {missing} without barcode",
+    overflow: "+{n} on the following sheet(s)",
+    noBarcodeHint: "A tome without a known ISBN gets a text-only label.",
+    empty: "Nothing to print yet — pick some tomes first.",
+    generate: "Generate PDF",
+    generating: "Rendering…",
+    ready:
+      "Your sheet is ready. It opened in a new tab — if the browser blocked it, use the link.",
+    download: "Download labels.pdf",
+    error: "The PDF could not be generated.",
+    printHint:
+      "Print at 100% scale — no “fit to page” — so the grid lines up with the sheet.",
+    tomeWord: "T.",
+    more: "+{n} more",
   },
   scanPage: {
     resultAria: "Scan result",

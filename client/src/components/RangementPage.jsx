@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import BarcodeScanner from "./BarcodeScanner.jsx";
 import { useT } from "@/i18n/index.jsx";
@@ -15,6 +15,10 @@ import {
 } from "@/lib/locations.js";
 import { findLocalByIsbn } from "@/lib/scanLookup.js";
 import { normalizeISBN } from "@/lib/isbn.js";
+import { boxLabel, tomeLabels } from "@/lib/labels.js";
+
+// 札 · jsPDF + JsBarcode ride in only when a sheet is asked for.
+const LabelSheetModal = lazy(() => import("./LabelSheetModal.jsx"));
 
 const KICKER =
   "font-mono text-[10px] uppercase tracking-[0.32em] text-washi-dim";
@@ -61,6 +65,7 @@ export default function RangementPage() {
   const [notice, setNotice] = useState(null);
   const [newName, setNewName] = useState("");
   const [newNote, setNewNote] = useState("");
+  const [sheet, setSheet] = useState(null);
 
   const current =
     selected === UNFILED
@@ -161,6 +166,35 @@ export default function RangementPage() {
   const openSeries = (mal_id) => {
     const manga = (library ?? []).find((s) => s.mal_id === mal_id);
     if (manga) navigate("/mangapage", { state: { manga } });
+  };
+
+  // 札 · One label per tome (with the place as third line), or one label
+  // for the box itself listing what is inside.
+  const openTomeLabels = () => {
+    if (!current) return;
+    const placeName = selected === UNFILED ? "" : selected;
+    const labels = current.series.flatMap((s) =>
+      tomeLabels({ name: s.name }, s.tomes, {
+        tomeWord: t("labels.tomeWord"),
+        line3: () => placeName,
+      }),
+    );
+    setSheet({ labels, subtitle: placeName || t("rangement.unfiled") });
+  };
+  const openBoxLabel = () => {
+    if (!current || selected === UNFILED) return;
+    const lines = current.series.map((s) => {
+      const nums = s.tomes.map((v) => v.vol_num);
+      const span =
+        nums.length > 1
+          ? `${nums[0]}–${nums[nums.length - 1]}`
+          : `${nums[0] ?? ""}`;
+      return `${s.name} · ${t("labels.tomeWord")}${span} (${nums.length})`;
+    });
+    setSheet({
+      labels: [boxLabel(selected, lines, { moreLabel: t("labels.more") })],
+      subtitle: selected,
+    });
   };
 
   const targets = [
@@ -369,6 +403,8 @@ export default function RangementPage() {
                 setNotice(null);
                 setScanOpen(true);
               }}
+              onLabels={openTomeLabels}
+              onBoxLabel={selected === UNFILED ? null : openBoxLabel}
               onInventory={() =>
                 navigate("/inventaire", {
                   state: {
@@ -385,6 +421,17 @@ export default function RangementPage() {
         </section>
       </div>
 
+      {sheet && (
+        <Suspense fallback={null}>
+          <LabelSheetModal
+            open
+            onClose={() => setSheet(null)}
+            labels={sheet.labels}
+            title={t("labels.title")}
+            subtitle={sheet.subtitle}
+          />
+        </Suspense>
+      )}
       {scanOpen && selected && selected !== UNFILED && (
         <BarcodeScanner
           onDetect={onDetect}
@@ -603,6 +650,8 @@ function PlaceDetail({
   notice,
   onScan,
   onInventory,
+  onLabels,
+  onBoxLabel,
   onOpenSeries,
 }) {
   const allIds = group.series.flatMap((s) => s.tomes.map((v) => v.id));
@@ -646,6 +695,16 @@ function PlaceDetail({
           <button type="button" onClick={onInventory} className={BTN}>
             {t("rangement.inventory")}
           </button>
+          {group.count > 0 && (
+            <button type="button" onClick={onLabels} className={BTN}>
+              {t("rangement.labels")}
+            </button>
+          )}
+          {onBoxLabel && group.count > 0 && (
+            <button type="button" onClick={onBoxLabel} className={BTN}>
+              {t("rangement.boxLabel")}
+            </button>
+          )}
         </div>
       </header>
 

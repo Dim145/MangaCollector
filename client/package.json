@@ -27,6 +27,8 @@
     "dexie": "^4.4.2",
     "dexie-react-hooks": "^4.4.0",
     "html-to-image": "^1.11.13",
+    "jsbarcode": "^3.12.3",
+    "jspdf": "^4.2.1",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
