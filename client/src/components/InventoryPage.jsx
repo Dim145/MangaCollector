@@ -16,6 +16,7 @@ import {
   toggleSeen,
 } from "@/lib/inventory.js";
 import { formatShortDate } from "@/utils/date.js";
+import haptics from "@/lib/haptics.js";
 
 const KICKER =
   "font-mono text-[10px] uppercase tracking-[0.32em] text-washi-dim";
@@ -114,11 +115,8 @@ export default function InventoryPage() {
       busyRef.current = true;
       const r = applyScan(session, raw, volumes ?? [], library ?? []);
       if (r.outcome !== "invalid") {
-        try {
-          navigator.vibrate?.(r.outcome === "present" ? 30 : [20, 40, 20]);
-        } catch {
-          /* ignore */
-        }
+        if (r.outcome === "present") haptics.bump();
+        else haptics.warning();
       }
       if (r.session !== session) persist(r.session);
       setLast({

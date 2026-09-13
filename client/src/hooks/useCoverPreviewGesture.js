@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import haptics from "@/lib/haptics.js";
 
 /**
  * Gesture handler for triggering the shared cover preview:
@@ -78,11 +79,7 @@ export function useCoverPreviewGesture({
     timerRef.current = setTimeout(() => {
       onShow?.(el.getBoundingClientRect(), true);
       suppressClickRef.current = true;
-      try {
-        navigator.vibrate?.(8);
-      } catch {
-        /* unsupported */
-      }
+      haptics.tap();
     }, longPressDelayMs);
   };
 
@@ -105,7 +102,10 @@ export function useCoverPreviewGesture({
     // intent (page scroll, etc.) — the user has to deliberately move
     // sideways for swipe-to-toggle to engage.
     if (!swipingRef.current) {
-      if (Math.abs(dx) > swipeMoveThresholdPx && Math.abs(dx) > 1.4 * Math.abs(dy)) {
+      if (
+        Math.abs(dx) > swipeMoveThresholdPx &&
+        Math.abs(dx) > 1.4 * Math.abs(dy)
+      ) {
         swipingRef.current = true;
       } else {
         return;

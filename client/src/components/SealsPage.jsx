@@ -5,6 +5,7 @@ import Skeleton from "./ui/Skeleton.jsx";
 import { useSeals } from "@/hooks/useSeals.js";
 import { SEALS_BY_CATEGORY, SEAL_CATALOG, TIERS } from "@/lib/sealsCatalog.js";
 import { sounds } from "@/lib/sounds.js";
+import haptics from "@/lib/haptics.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
@@ -108,11 +109,7 @@ export default function SealsPage() {
         await interruptible(700);
         if (cancelled) return;
         setCeremonyIndex(i);
-        try {
-          navigator.vibrate?.([18, 50, 80]);
-        } catch {
-          /* haptic unsupported — silent */
-        }
+        haptics.success();
         // 印 · Ceremonial chime — tier drives note count + bass so a
         // shikkoku unlock feels meaningfully heavier than a sumi.
         // Fired in the same beat as the haptic so the audio + buzz

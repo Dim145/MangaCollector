@@ -1,4 +1,12 @@
-import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
@@ -13,14 +21,10 @@ import { acquireScrollLock, releaseScrollLock } from "@/lib/scrollLock.js";
 // off the wire until that branch fires. The combined source weight is
 // ~1100 lines that today shipped with every /addmanga visit; lazy
 // imports defer the cost to the click that actually needs it.
-const BarcodeScanner = lazy(() =>
-  import("@/components/BarcodeScanner.jsx"),
-);
-const AddCoffretModal = lazy(() =>
-  import("@/components/AddCoffretModal.jsx"),
-);
-const MangadexPrefillModal = lazy(() =>
-  import("@/components/MangadexPrefillModal.jsx"),
+const BarcodeScanner = lazy(() => import("@/components/BarcodeScanner.jsx"));
+const AddCoffretModal = lazy(() => import("@/components/AddCoffretModal.jsx"));
+const MangadexPrefillModal = lazy(
+  () => import("@/components/MangadexPrefillModal.jsx"),
 );
 import SettingsContext from "@/SettingsContext.js";
 import { useAddManga, useLibrary } from "@/hooks/useLibrary.js";
@@ -41,6 +45,7 @@ import {
 } from "@/utils/user.js";
 import { summarizeRange } from "@/utils/volume.js";
 import { db } from "@/lib/db.js";
+import haptics from "@/lib/haptics.js";
 import {
   detectCoffret,
   lookupISBN,
@@ -367,137 +372,136 @@ export default function AddPage() {
     };
   }, [scannerOpen]);
 
-  const onBarcodeDetected = useCallback(async (raw) => {
-    const isbn = normalizeISBN(raw);
-    if (!isbn) return; // invalid EAN — keep scanning
+  const onBarcodeDetected = useCallback(
+    async (raw) => {
+      const isbn = normalizeISBN(raw);
+      if (!isbn) return; // invalid EAN — keep scanning
 
-    try {
-      navigator.vibrate?.(30);
-    } catch {
-      /* ignore */
-    }
+      haptics.bump();
 
-    // Enter "looking up" — pauses the detection loop
-    setScanPhase("looking-up");
-    setScanStatus(`ISBN ${isbn} — looking up…`);
+      // Enter "looking up" — pauses the detection loop
+      setScanPhase("looking-up");
+      setScanStatus(`ISBN ${isbn} — looking up…`);
 
-    // 待 · Anchor the on-screen-time guarantee. Every state
-    // transition that leaves the "looking-up" phase calls
-    // `holdLoadingView()` first to wait out the remaining slice
-    // of `MIN_LOADING_VIEW_MS` (no-op if the lookup was slow
-    // enough that the threshold is already met). This stops the
-    // scanner from blinking from "camera live" through "loading"
-    // to "result modal" so fast the user can't tell the lookup
-    // happened at all.
-    const lookupStart = Date.now();
-    const holdLoadingView = async () => {
-      const elapsed = Date.now() - lookupStart;
-      if (elapsed < MIN_LOADING_VIEW_MS) {
-        await new Promise((r) =>
-          setTimeout(r, MIN_LOADING_VIEW_MS - elapsed),
-        );
-      }
-    };
+      // 待 · Anchor the on-screen-time guarantee. Every state
+      // transition that leaves the "looking-up" phase calls
+      // `holdLoadingView()` first to wait out the remaining slice
+      // of `MIN_LOADING_VIEW_MS` (no-op if the lookup was slow
+      // enough that the threshold is already met). This stops the
+      // scanner from blinking from "camera live" through "loading"
+      // to "result modal" so fast the user can't tell the lookup
+      // happened at all.
+      const lookupStart = Date.now();
+      const holdLoadingView = async () => {
+        const elapsed = Date.now() - lookupStart;
+        if (elapsed < MIN_LOADING_VIEW_MS) {
+          await new Promise((r) =>
+            setTimeout(r, MIN_LOADING_VIEW_MS - elapsed),
+          );
+        }
+      };
 
-    let book;
-    try {
-      book = await lookupISBN(isbn);
-    } catch (err) {
-      if (err?.code === "RATE_LIMITED") {
-        // Dedicated modal — `err.message` stays English by design (it
-        // doubles as a devtools/stack diagnostic), the UI body uses the
-        // i18n'd key.
+      let book;
+      try {
+        book = await lookupISBN(isbn);
+      } catch (err) {
+        if (err?.code === "RATE_LIMITED") {
+          // Dedicated modal — `err.message` stays English by design (it
+          // doubles as a devtools/stack diagnostic), the UI body uses the
+          // i18n'd key.
+          await holdLoadingView();
+          setRateLimited({ message: t("scan.rateLimitGeneric") });
+          setScannerOpen(false);
+          return;
+        }
+        // Other 5xx / network hiccup → transient, auto-resume. The i18n'd
+        // message is preferred to `err.message` (raw axios/fetch strings
+        // aren't actionable for the user).
         await holdLoadingView();
-        setRateLimited({ message: t("scan.rateLimitGeneric") });
-        setScannerOpen(false);
+        setScanTransientError(t("scan.transientLookupFailed"));
+        setScanPhase("transient");
         return;
       }
-      // Other 5xx / network hiccup → transient, auto-resume. The i18n'd
-      // message is preferred to `err.message` (raw axios/fetch strings
-      // aren't actionable for the user).
-      await holdLoadingView();
-      setScanTransientError(t("scan.transientLookupFailed"));
-      setScanPhase("transient");
-      return;
-    }
 
-    if (!book) {
-      await holdLoadingView();
-      setScanNotFound({ isbn });
-      setScanPhase("not-found");
-      return;
-    }
+      if (!book) {
+        await holdLoadingView();
+        setScanNotFound({ isbn });
+        setScanPhase("not-found");
+        return;
+      }
 
-    // Try to pair the title with a MAL entry
-    setScanStatus(
-      `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`,
-    );
+      // Try to pair the title with a MAL entry
+      setScanStatus(
+        `Found "${book.title}"${book.volume ? ` · Vol ${book.volume}` : ""} — matching on MAL…`,
+      );
 
-    let candidates;
-    try {
-      candidates = await searchExternal(book.title);
-    } catch (err) {
-      // Reachable when our /api/external/search returns 502 (both MAL
-      // and MangaDex down) or the client itself can't reach our server.
-      // Logging `err?.message` rather than the whole AxiosError avoids
-      // dumping request config (URL, headers, params) into devtools.
-      console.error("[scan] external search failed:", err?.message ?? err);
-      await holdLoadingView();
-      setScanTransientError(t("scan.transientExternalFailed"));
-      setScanPhase("transient");
-      return;
-    }
+      let candidates;
+      try {
+        candidates = await searchExternal(book.title);
+      } catch (err) {
+        // Reachable when our /api/external/search returns 502 (both MAL
+        // and MangaDex down) or the client itself can't reach our server.
+        // Logging `err?.message` rather than the whole AxiosError avoids
+        // dumping request config (URL, headers, params) into devtools.
+        console.error("[scan] external search failed:", err?.message ?? err);
+        await holdLoadingView();
+        setScanTransientError(t("scan.transientExternalFailed"));
+        setScanPhase("transient");
+        return;
+      }
 
-    if (!candidates.length) {
-      await holdLoadingView();
-      setScanNotFound({ isbn, bookTitle: book.title });
-      setScanPhase("not-found");
-      return;
-    }
+      if (!candidates.length) {
+        await holdLoadingView();
+        setScanNotFound({ isbn, bookTitle: book.title });
+        setScanPhase("not-found");
+        return;
+      }
 
-    // Coffret detection — routed before the regular single-volume flow.
-    // Google Books has no structured box-set flag; we lean on title text.
-    // Coffrets rely on a server-side MAL id (the commit flow posts to
-    // /library/{mal_id}/coffrets), so we only handle candidates that carry
-    // one. MangaDex-only matches fall through to the single-volume flow.
-    const coffretHint = detectCoffret(book);
-    const coffretCandidate = candidates.find((c) => c.mal_id != null);
-    if (coffretHint.isCoffret && coffretCandidate) {
-      // Close the scanner overlay — the coffret modal takes over the screen.
+      // Coffret detection — routed before the regular single-volume flow.
+      // Google Books has no structured box-set flag; we lean on title text.
+      // Coffrets rely on a server-side MAL id (the commit flow posts to
+      // /library/{mal_id}/coffrets), so we only handle candidates that carry
+      // one. MangaDex-only matches fall through to the single-volume flow.
+      const coffretHint = detectCoffret(book);
+      const coffretCandidate = candidates.find((c) => c.mal_id != null);
+      if (coffretHint.isCoffret && coffretCandidate) {
+        // Close the scanner overlay — the coffret modal takes over the screen.
+        await holdLoadingView();
+        setScannerOpen(false);
+        const prefilledPrice = pickDefaultPrice(book, currencyCodeRef.current);
+        setScanCoffret({
+          isbn,
+          book,
+          candidates,
+          candidate: coffretCandidate,
+          mal_id: coffretCandidate.mal_id,
+          totalVolumes: coffretCandidate.volumes ?? 0,
+          prefill: {
+            name: coffretHint.name,
+            volStart: coffretHint.volStart,
+            volEnd: coffretHint.volEnd,
+            price: prefilledPrice > 0 ? prefilledPrice : null,
+          },
+        });
+        return;
+      }
+
       await holdLoadingView();
-      setScannerOpen(false);
-      const prefilledPrice = pickDefaultPrice(book, currencyCodeRef.current);
-      setScanCoffret({
+      setScanResult({
         isbn,
         book,
         candidates,
-        candidate: coffretCandidate,
-        mal_id: coffretCandidate.mal_id,
-        totalVolumes: coffretCandidate.volumes ?? 0,
-        prefill: {
-          name: coffretHint.name,
-          volStart: coffretHint.volStart,
-          volEnd: coffretHint.volEnd,
-          price: prefilledPrice > 0 ? prefilledPrice : null,
-        },
+        volume: book.volume ?? 1,
+        // Prefill price only when Google Books gave us one in the same currency
+        // as the user's settings — otherwise leave at 0 (they can type it).
+        price: pickDefaultPrice(book, currencyCodeRef.current),
       });
-      return;
-    }
-
-    await holdLoadingView();
-    setScanResult({
-      isbn,
-      book,
-      candidates,
-      volume: book.volume ?? 1,
-      // Prefill price only when Google Books gave us one in the same currency
-      // as the user's settings — otherwise leave at 0 (they can type it).
-      price: pickDefaultPrice(book, currencyCodeRef.current),
-    });
-    setScanCandidateIdx(0);
-    setScanPhase("positive");
-    setScanStatus("");
-  }, [t]);
+      setScanCandidateIdx(0);
+      setScanPhase("positive");
+      setScanStatus("");
+    },
+    [t],
+  );
 
   // 番 · Arrived from the global scanner with a barcode in hand (a tome
   // that is not on the shelf yet): run the lookup the camera would have
@@ -552,11 +556,7 @@ export default function AddPage() {
           ...prev,
         ].slice(0, 8),
       );
-      try {
-        navigator.vibrate?.([30, 40, 30]);
-      } catch {
-        /* ignore */
-      }
+      haptics.success();
       resumeScanning();
     } catch (err) {
       console.error("[scan] commit failed:", err?.message ?? err);
@@ -1150,7 +1150,8 @@ function ScanMatchCard({
 
       <div className="flex gap-3 p-4">
         {(candidate.image_url || candidate.images?.jpg?.image_url) && (
-          <img referrerPolicy="no-referrer"
+          <img
+            referrerPolicy="no-referrer"
             src={candidate.image_url ?? candidate.images?.jpg?.image_url}
             alt=""
             className="h-32 w-24 shrink-0 rounded-md border border-border object-cover shadow-lg"

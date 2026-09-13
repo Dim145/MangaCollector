@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import haptics from "@/lib/haptics.js";
 
 const PULL_THRESHOLD = 70; // px of pull before commit
 const MAX_PULL = 120; // px cap so the indicator doesn't fly off
@@ -87,11 +88,7 @@ export default function PullToRefresh({ onRefresh, children }) {
       // Brief tactile feedback when commit fires — same `vibrate(15)`
       // pattern the seal ceremony uses. iOS Safari ignores it; nobody
       // notices on devices that lack the API.
-      try {
-        navigator.vibrate?.(15);
-      } catch {
-        /* unsupported — silent */
-      }
+      haptics.tap();
       setRefreshing(true);
       try {
         await onRefreshRef.current?.();
@@ -132,7 +129,9 @@ export default function PullToRefresh({ onRefresh, children }) {
           className="pointer-events-none fixed left-1/2 top-3 z-[60] -translate-x-1/2"
           style={{
             transform: `translate(-50%, ${refreshing ? 0 : Math.max(0, pullDistance - 40)}px)`,
-            opacity: refreshing ? 1 : Math.min(1, pullDistance / PULL_THRESHOLD),
+            opacity: refreshing
+              ? 1
+              : Math.min(1, pullDistance / PULL_THRESHOLD),
             transition: refreshing
               ? "transform 200ms cubic-bezier(0.16, 1, 0.3, 1)"
               : "none",

@@ -8,6 +8,7 @@ import { useAllVolumes, useUpdateVolume } from "@/hooks/useVolumes.js";
 import { useT } from "@/i18n/index.jsx";
 import { lookupISBN, normalizeISBN } from "@/lib/isbn.js";
 import { findLocalByIsbn } from "@/lib/scanLookup.js";
+import haptics from "@/lib/haptics.js";
 
 /**
  * 番 · The global scanner — "is this on my shelf?" before "add it".
@@ -34,11 +35,7 @@ export default function ScanPage() {
       const isbn = normalizeISBN(raw);
       if (!isbn) return;
       busyRef.current = true;
-      try {
-        navigator.vibrate?.(30);
-      } catch {
-        /* ignore */
-      }
+      haptics.bump();
       const local = findLocalByIsbn(volumes ?? [], library ?? [], isbn);
       if (local) {
         setResult({ isbn, phase: "found", local });
