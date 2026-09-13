@@ -72,6 +72,8 @@ const YearInReviewPage = lazy(() => import("./components/YearInReviewPage"));
 const ShelfStickersPage = lazy(() =>
   import("./components/ShelfStickersPage"),
 );
+// 番 · Global scanner — shelf lookup first, add flow second.
+const ScanPage = lazy(() => import("./components/ScanPage.jsx"));
 const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
 const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
 const AuthorPage = lazy(() => import("./components/AuthorPage.jsx"));
@@ -411,6 +413,16 @@ function AppShell() {
                 <ProtectedRoute setGoogleUser={setGoogleUser}>
                   <DefaultBackground>
                     <AddPage />
+                  </DefaultBackground>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/scan"
+              element={
+                <ProtectedRoute setGoogleUser={setGoogleUser}>
+                  <DefaultBackground>
+                    <ScanPage />
                   </DefaultBackground>
                 </ProtectedRoute>
               }

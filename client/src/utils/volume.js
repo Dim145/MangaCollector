@@ -10,8 +10,9 @@ async function getAllVolumesByID(mal_id) {
   return response.data;
 }
 
-async function updateVolumeByID(id, owned, price, store) {
-  await axios.patch(`/api/user/volume`, { id, owned, price, store });
+// `extra` carries optional physical-copy fields (e.g. the scanned `isbn`).
+async function updateVolumeByID(id, owned, price, store, extra = {}) {
+  await axios.patch(`/api/user/volume`, { id, owned, price, store, ...extra });
 }
 
 /**

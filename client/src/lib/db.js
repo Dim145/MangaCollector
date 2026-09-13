@@ -393,6 +393,32 @@ db.version(15).stores({
   friendsList: "key",
 });
 
+// 番 · v16: `isbn` index on volumes — the global scanner looks a
+// barcode up on the shelf before asking any catalogue.
+db.version(16).stores({
+  library: "mal_id, name",
+  volumes: "id, mal_id, vol_num, isbn, [mal_id+vol_num]",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+  coffrets: "id, mal_id",
+  volumeCoverMaps: "mal_id, ts",
+  outboxCoffrets: "id, mal_id, ts",
+  friendsList: "key",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 

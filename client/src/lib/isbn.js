@@ -2,9 +2,10 @@ import { db } from "./db.js";
 import axios from "@/utils/axios.js";
 
 /*
- * ISBN → manga resolution via Google Books.
+ * ISBN → manga resolution. Server first (shared cache, four catalogues),
+ * direct catalogues when the server cannot be reached — see `lookupISBN`.
  *
- * Rate-limit safety, top to bottom:
+ * Rate-limit safety on the direct Google Books path, top to bottom:
  *   1. Dexie cache (30 days) — same ISBN never re-queried
  *   2. Negative cache (10 min for "no match", longer for 429)
  *   3. Client-side throttle — min 600 ms between two Google Books calls
@@ -136,6 +137,23 @@ function isValidIsbnChecksum(digits) {
   return false;
 }
 
+/**
+ * The 13-digit form of a valid ISBN-10/13 (what an EAN-13 scan yields and
+ * what the server stores), or `null`. Use it wherever two ISBNs are
+ * compared; `normalizeISBN` only validates and strips separators.
+ */
+export function isbn13Of(raw) {
+  const clean = normalizeISBN(raw);
+  if (!clean) return null;
+  if (clean.length === 13) return clean;
+  const base = `978${clean.slice(0, 9)}`;
+  let sum = 0;
+  for (let i = 0; i < 12; i += 1) {
+    sum += Number(base[i]) * (i % 2 === 0 ? 1 : 3);
+  }
+  return `${base}${(10 - (sum % 10)) % 10}`;
+}
+
 export function normalizeISBN(raw) {
   const clean = String(raw || "").replace(/[-\s]/g, "");
   if (!/^(\d{10}|\d{13}|\d{9}[Xx])$/.test(clean)) return null;
@@ -199,47 +217,143 @@ function clearCooldown() {
 
 /* ─── Public API ─────────────────────────────────────────────────── */
 
+/**
+ * Resolve a scanned ISBN to a book.
+ *
+ *   1. Dexie cache — same ISBN never re-queried on this device
+ *   2. The server (`GET /api/user/isbn/{isbn}`) — one shared cache for
+ *      the whole instance and a chain of catalogues (Google Books →
+ *      Open Library → BnF → openBD), see `services/isbn_resolver.rs`
+ *   3. When the server itself is unreachable (self-hosted box asleep,
+ *      captive network, outage) the browser asks the CORS-friendly
+ *      catalogues directly — Google Books, Open Library, openBD — so a
+ *      scan still names the tome. BnF has no CORS and stays server-only.
+ *
+ * A server answer of "nobody knows this barcode" is final (no direct
+ * retry); only a transport failure falls through. Quota problems on the
+ * direct Google path still surface as `RATE_LIMITED` when no other
+ * catalogue rescued the lookup.
+ */
 export async function lookupISBN(rawIsbn) {
   const isbn = normalizeISBN(rawIsbn);
   if (!isbn) throw new Error("Invalid ISBN");
-
   const cached = await readCached(isbn);
   if (cached !== undefined) return cached;
 
-  await throttle();
+  const viaServer = await lookupViaServer(isbn);
+  if (viaServer !== undefined) {
+    await writeCached(isbn, viaServer);
+    return viaServer;
+  }
 
+  const direct = await lookupDirect(isbn);
+  await writeCached(isbn, direct);
+  return direct;
+}
+
+const SERVER_LOOKUP_TIMEOUT_MS = 10_000;
+
+/**
+ * `undefined` = the server could not be reached (fall back), `null` =
+ * it answered and knows nothing, an object = the book.
+ */
+async function lookupViaServer(isbn) {
+  try {
+    const { data } = await axios.get(`/api/user/isbn/${isbn}`, {
+      timeout: SERVER_LOOKUP_TIMEOUT_MS,
+    });
+    if (!data?.found || !data.book) return null;
+    return fromCatalogueBook(data.book, isbn);
+  } catch (err) {
+    if (err?.response?.status === 400) {
+      throw new Error("Invalid ISBN", { cause: err });
+    }
+    // No response (network, timeout), a 5xx, or a 401 on a box that
+    // lost its session: none of these say anything about the book.
+    return undefined;
+  }
+}
+
+/** Direct chain, used only when the server is unreachable. */
+async function lookupDirect(isbn) {
+  let rateLimited = null;
+  try {
+    const google = await lookupGoogleDirect(isbn);
+    if (google) return google;
+  } catch (err) {
+    if (err?.code === "RATE_LIMITED") rateLimited = err;
+    else throw err;
+  }
+  const openLibrary = await lookupOpenLibraryDirect(isbn).catch(() => null);
+  if (openLibrary) return openLibrary;
+  const openBd = await lookupOpenBdDirect(isbn).catch(() => null);
+  if (openBd) return openBd;
+  if (rateLimited) throw rateLimited;
+  return null;
+}
+
+/**
+ * Map a catalogue book — the server's `IsbnBook` or a direct Open
+ * Library / openBD hit shaped the same way — onto the result the scan
+ * flow consumes (series title + volume parsed out of the raw title,
+ * edition sniffed, cover, price).
+ */
+function fromCatalogueBook(book, isbn) {
+  const fullTitle = [book.title, book.subtitle].filter(Boolean).join(" ");
+  const { title, volume } = parseTitleVolume(fullTitle);
+  return {
+    isbn,
+    rawTitle: fullTitle,
+    title,
+    volume,
+    authors: Array.isArray(book.authors) ? book.authors : [],
+    publisher: book.publisher ?? undefined,
+    edition: detectEditionFromTitle(fullTitle),
+    pageCount: typeof book.page_count === "number" ? book.page_count : null,
+    thumbnail: book.cover ?? null,
+    description: book.description ?? undefined,
+    language: book.language ?? undefined,
+    price:
+      book.price && typeof book.price.amount === "number"
+        ? {
+            amount: book.price.amount,
+            currency: book.price.currency,
+            source: book.source ?? "catalogue",
+          }
+        : null,
+    source: book.source ?? "catalogue",
+  };
+}
+
+function withTimeout(ms) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms);
+  return { signal: ac.signal, done: () => clearTimeout(timer) };
+}
+
+async function lookupGoogleDirect(isbn) {
+  await throttle();
   const apiKey = getApiKey();
   const params = new URLSearchParams({
     q: `isbn:${isbn}`,
     maxResults: "1",
   });
   if (apiKey) params.set("key", apiKey);
-
   // 鍵 · `referrerPolicy: "no-referrer"` keeps the API key out of the
   // `Referer` header travelling to Google. The key is already in the
-  // URL query string (Google's own contract — they support both this
-  // and the `key=` query approach), so the Referer would otherwise
-  // round-trip the same secret to any redirect target Google might
-  // bounce us through. The cover-image elements separately set
-  // `referrerPolicy="no-referrer"` on `<img>`; this aligns the JS
-  // fetch with the same policy.
-  // Bound the request — `fetch` has no built-in timeout, so abort it
-  // after SCAN_LOOKUP_TIMEOUT_MS to avoid hanging the scanner forever on
-  // a stalled connection. The AbortError surfaces as a thrown error the
-  // caller routes to the transient/retry phase.
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), SCAN_LOOKUP_TIMEOUT_MS);
+  // URL query string (Google's own contract), so the Referer would
+  // otherwise round-trip the same secret to any redirect target.
+  const t = withTimeout(SCAN_LOOKUP_TIMEOUT_MS);
   let res;
   try {
     res = await fetch(`${GOOGLE_BOOKS}?${params.toString()}`, {
       headers: { Accept: "application/json" },
       referrerPolicy: "no-referrer",
-      signal: ac.signal,
+      signal: t.signal,
     });
   } finally {
-    clearTimeout(timer);
+    t.done();
   }
-
   if (res.status === 429) {
     triggerCooldown();
     const err = new Error(
@@ -248,64 +362,114 @@ export async function lookupISBN(rawIsbn) {
     err.code = "RATE_LIMITED";
     throw err;
   }
-
   if (!res.ok) {
     throw new Error(`Google Books error: ${res.status}`);
   }
-
   clearCooldown();
-
   const data = await res.json();
   const item = data.items?.[0];
-  if (!item) {
-    await writeCached(isbn, null);
-    return null;
-  }
-
+  if (!item) return null;
   const info = item.volumeInfo || {};
-  const fullTitle = [info.title, info.subtitle].filter(Boolean).join(" ");
-  const { title, volume } = parseTitleVolume(fullTitle);
-
-  // Price — Google Books exposes it on `saleInfo`. `retailPrice` is what
-  // they actually sell it for (after discounts); `listPrice` is the
-  // publisher-declared MSRP. Prefer retail, fall back to list. Often
-  // absent for manga, especially outside US/UK/JP markets.
   const sale = item.saleInfo || {};
-  let price = null;
   const picked = sale.retailPrice ?? sale.listPrice;
-  if (picked && typeof picked.amount === "number") {
-    price = {
-      amount: picked.amount,
-      currency: picked.currencyCode,
-      source: sale.retailPrice ? "retail" : "list",
-    };
-  }
-
-  const result = {
+  return fromCatalogueBook(
+    {
+      title: info.title,
+      subtitle: info.subtitle,
+      authors: info.authors ?? [],
+      publisher: info.publisher,
+      page_count: typeof info.pageCount === "number" ? info.pageCount : null,
+      cover:
+        info.imageLinks?.extraLarge ??
+        info.imageLinks?.large ??
+        info.imageLinks?.thumbnail ??
+        info.imageLinks?.smallThumbnail ??
+        null,
+      description: info.description,
+      language: info.language,
+      price:
+        picked && typeof picked.amount === "number"
+          ? { amount: picked.amount, currency: picked.currencyCode }
+          : null,
+      source: "google_books",
+    },
     isbn,
-    rawTitle: fullTitle,
-    title,
-    volume,
-    authors: info.authors ?? [],
-    publisher: info.publisher,
-    // Best-effort guess at the edition variant — Google Books has no
-    // structured field for it, so we read the raw title for marker
-    // words. Non-matches stay null and the user fills them in later.
-    edition: detectEditionFromTitle(fullTitle),
-    pageCount: typeof info.pageCount === "number" ? info.pageCount : null,
-    thumbnail:
-      info.imageLinks?.extraLarge ??
-      info.imageLinks?.large ??
-      info.imageLinks?.thumbnail ??
-      info.imageLinks?.smallThumbnail ??
-      null,
-    description: info.description,
-    language: info.language,
-    price,
-  };
+  );
+}
 
-  await writeCached(isbn, result);
-  return result;
+const OPEN_LIBRARY_SEARCH = "https://openlibrary.org/search.json";
+const OPENBD_GET = "https://api.openbd.jp/v1/get";
+const DIRECT_TIMEOUT_MS = 8_000;
+
+async function lookupOpenLibraryDirect(isbn) {
+  const params = new URLSearchParams({
+    isbn,
+    fields:
+      "title,subtitle,author_name,publisher,first_publish_year,number_of_pages_median,language,cover_i",
+    limit: "1",
+  });
+  const t = withTimeout(DIRECT_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`${OPEN_LIBRARY_SEARCH}?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+      signal: t.signal,
+    });
+  } finally {
+    t.done();
+  }
+  if (!res.ok) return null;
+  const doc = (await res.json())?.docs?.[0];
+  if (!doc?.title) return null;
+  return fromCatalogueBook(
+    {
+      title: doc.title,
+      subtitle: doc.subtitle,
+      authors: doc.author_name ?? [],
+      publisher: doc.publisher?.[0],
+      page_count: doc.number_of_pages_median ?? null,
+      language: doc.language?.[0],
+      cover: doc.cover_i
+        ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
+        : null,
+      source: "open_library",
+    },
+    isbn,
+  );
+}
+
+async function lookupOpenBdDirect(isbn) {
+  const t = withTimeout(DIRECT_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`${OPENBD_GET}?isbn=${encodeURIComponent(isbn)}`, {
+      headers: { Accept: "application/json" },
+      signal: t.signal,
+    });
+  } finally {
+    t.done();
+  }
+  if (!res.ok) return null;
+  const summary = (await res.json())?.[0]?.summary;
+  if (!summary?.title) return null;
+  const authors = String(summary.author ?? "")
+    .split(/[／/]/)
+    .map((s) => s.trim())
+    .filter((s) => s && !["著", "作", "原作", "画"].includes(s));
+  return fromCatalogueBook(
+    {
+      title: summary.title,
+      subtitle: summary.volume,
+      authors,
+      publisher: summary.publisher,
+      language: "ja",
+      cover: summary.cover
+        ? String(summary.cover).replace(/^http:\/\//, "https://")
+        : null,
+      source: "openbd",
+    },
+    isbn,
+  );
 }
 
 /**

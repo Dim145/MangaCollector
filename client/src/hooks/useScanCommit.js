@@ -136,7 +136,19 @@ export function useScanCommit() {
           continue;
         }
         const volPrice = priceMode === "all" || num === scanned ? priceNum : 0;
-        await updateVolumeByID(target.id, true, volPrice, target.store ?? "");
+        // 番 · The barcode that was actually scanned belongs to this one
+        // copy; gap-filled volumes were never in hand.
+        const extra =
+          num === scanned && typeof book?.isbn === "string"
+            ? { isbn: book.isbn }
+            : {};
+        await updateVolumeByID(
+          target.id,
+          true,
+          volPrice,
+          target.store ?? "",
+          extra,
+        );
         newlyOwned.push(num);
       }
 

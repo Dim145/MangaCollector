@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import Tooltip from "./ui/Tooltip.jsx";
 import VolumeDetailDrawer from "./VolumeDetailDrawer.jsx";
+import { normalizeISBN } from "@/lib/isbn.js";
 import LoanModal from "./LoanModal.jsx";
 import LoanStamp, {
   LOAN_STATUS_KANJI,
@@ -44,6 +45,7 @@ function VolumeImpl({
   location = null,
   extraCopies = 0,
   boughtAt = null,
+  isbn = null,
   locked = false,
   onUpdate,
   // 来 · Optional callback fired when the user requests "edit announce"
@@ -71,6 +73,7 @@ function VolumeImpl({
   const [locationDraft, setLocationDraft] = useState(location ?? "");
   const [extraCopiesDraft, setExtraCopiesDraft] = useState(extraCopies ?? 0);
   const [boughtAtDraft, setBoughtAtDraft] = useState(boughtAt ?? "");
+  const [isbnDraft, setIsbnDraft] = useState(isbn ?? "");
 
   // 確 · Confirmation feedback for Volume toggleOwned.
   //   - tickKey: monotonic counter that increments on each owned-flip
@@ -236,6 +239,11 @@ function VolumeImpl({
       locationDraft.trim() !== (location ?? "").trim() ||
       (Number(extraCopiesDraft) || 0) !== (extraCopies ?? 0) ||
       (boughtAtDraft || null) !== (boughtAt ?? null);
+    // 番 · An ISBN is only sent when it is one; a half-typed number is
+    // flagged in the drawer and left out of the save.
+    const isbnClean = isbnDraft.trim() === "" ? "" : normalizeISBN(isbnDraft);
+    const isbnChanged =
+      isbnClean !== null && (isbnClean || null) !== (isbn ?? null);
     await persist(
       ownedStatus,
       price,
@@ -244,12 +252,13 @@ function VolumeImpl({
       ownedChanged,
       readChanged ? readStatus : undefined,
       noteChanged ? draftNote : undefined,
-      physicalChanged
+      physicalChanged || isbnChanged
         ? {
             condition: conditionDraft || null,
             location: locationDraft.trim(),
             extra_copies: Number(extraCopiesDraft) || 0,
             bought_at: boughtAtDraft || null,
+            ...(isbnChanged ? { isbn: isbnClean } : {}),
           }
         : undefined,
     );
@@ -267,6 +276,7 @@ function VolumeImpl({
     setLocationDraft(location ?? "");
     setExtraCopiesDraft(extraCopies ?? 0);
     setBoughtAtDraft(boughtAt ?? "");
+    setIsbnDraft(isbn ?? "");
   };
 
   // Seed local state from props ONLY when not editing — protects mid-edit
@@ -283,7 +293,9 @@ function VolumeImpl({
     setLocationDraft(location ?? "");
     setExtraCopiesDraft(extraCopies ?? 0);
     setBoughtAtDraft(boughtAt ?? "");
+    setIsbnDraft(isbn ?? "");
   }, [
+    isbn,
     owned,
     paid,
     store,
@@ -936,6 +948,8 @@ function VolumeImpl({
         setExtraCopies={setExtraCopiesDraft}
         boughtAt={boughtAtDraft}
         setBoughtAt={setBoughtAtDraft}
+        isbn={isbnDraft}
+        setIsbn={setIsbnDraft}
         isLoading={isLoading}
         onSave={handleSave}
         onCancel={handleCancel}

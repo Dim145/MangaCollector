@@ -4,6 +4,7 @@ import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useT } from "@/i18n/index.jsx";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db.js";
+import { normalizeISBN } from "@/lib/isbn.js";
 import { formatCurrency } from "@/utils/price.js";
 import { formatShortDate } from "@/utils/volume.js";
 import { useDeleteUpcomingVolume } from "@/hooks/useVolumes.js";
@@ -56,6 +57,8 @@ export default function VolumeDetailDrawer({
   setExtraCopies = () => {},
   boughtAt = "",
   setBoughtAt = () => {},
+  isbn = "",
+  setIsbn = () => {},
   isLoading,
   onSave,
   onCancel,
@@ -607,6 +610,8 @@ export default function VolumeDetailDrawer({
                 setExtraCopies={setExtraCopies}
                 boughtAt={boughtAt}
                 setBoughtAt={setBoughtAt}
+                isbn={isbn}
+                setIsbn={setIsbn}
                 t={t}
               />
             )}
@@ -617,7 +622,6 @@ export default function VolumeDetailDrawer({
               onChange={setNote}
               t={t}
             />
-
             {/* 預け · Loan chip. Appears in two states:
               • lent → hanko-tinted band with borrower + due date,
                 clicking opens the LoanModal in edit mode
@@ -988,8 +992,16 @@ function PhysicalSection({
   setExtraCopies,
   boughtAt,
   setBoughtAt,
+  isbn,
+  setIsbn,
   t,
 }) {
+  const isbnState =
+    !isbn || String(isbn).trim() === ""
+      ? "empty"
+      : normalizeISBN(isbn)
+        ? "valid"
+        : "invalid";
   const knownLocations = useLiveQuery(async () => {
     const rows = await db.volumes.toArray();
     const seen = new Set();
@@ -1104,6 +1116,43 @@ function PhysicalSection({
             className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 font-mono text-sm tabular-nums text-washi transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
           />
         </div>
+      </div>
+
+      {/* 番 · The copy's own barcode — 13 digits as printed on the back.
+          Set by the scanner when the tome was added that way; typed here
+          otherwise. Anything that is not an ISBN is flagged and skipped. */}
+      <div className="mt-3">
+        <label
+          htmlFor={`${fieldId}-isbn`}
+          className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+        >
+          {t("volume.isbnLabel")}
+        </label>
+        <input
+          id={`${fieldId}-isbn`}
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={isbn ?? ""}
+          maxLength={17}
+          onChange={(e) => setIsbn(e.target.value)}
+          placeholder="978…"
+          aria-invalid={isbnState === "invalid"}
+          className={`w-full rounded-lg border bg-ink-1 px-3 py-2 font-mono text-sm tabular-nums text-washi transition focus:outline-none focus:ring-2 ${
+            isbnState === "invalid"
+              ? "border-hanko/60 focus:border-hanko focus:ring-hanko/20"
+              : "border-border focus:border-hanko/50 focus:ring-hanko/20"
+          }`}
+        />
+        <p
+          className={`mt-1 font-mono text-[9px] uppercase tracking-[0.16em] ${
+            isbnState === "invalid" ? "text-hanko-bright" : "text-washi-dim"
+          }`}
+        >
+          {isbnState === "invalid"
+            ? t("volume.isbnInvalid")
+            : t("volume.isbnHint")}
+        </p>
       </div>
     </div>
   );

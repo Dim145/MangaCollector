@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import MangaSearchBar from "@/components/MangaSearchBar.jsx";
 import MangaSearchResults from "@/components/MangaSearchResults.jsx";
@@ -104,6 +104,7 @@ export default function AddPage() {
   const { adult_content_level, currency: currencySetting } =
     useContext(SettingsContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const online = useOnline();
   const t = useT();
 
@@ -497,6 +498,19 @@ export default function AddPage() {
     setScanPhase("positive");
     setScanStatus("");
   }, [t]);
+
+  // 番 · Arrived from the global scanner with a barcode in hand (a tome
+  // that is not on the shelf yet): run the lookup the camera would have
+  // triggered, once, then forget the hand-over so Back does not replay it.
+  useEffect(() => {
+    const handed = location.state?.isbn;
+    if (!handed) return;
+    navigate(location.pathname, { replace: true, state: null });
+    setScannerOpen(true);
+    const id = setTimeout(() => onBarcodeDetected(handed), 300);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const commitCurrentScan = async ({ missingVolumes = [] } = {}) => {
     if (!scanResult) return;

@@ -113,6 +113,22 @@ const ICON_SETTINGS = (
 //     appears in the top header on mobile), so the slot is freed
 //     for /stats — the chart icon there earns its keep by giving
 //     mobile users a one-tap path into the analytics ledger.
+// 番 · Barcode glyph for the global scanner entry.
+const ICON_SCAN = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-5 w-5"
+  >
+    <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+    <path d="M7 8v8M11 8v8M14 8v8M17 8v8" />
+  </svg>
+);
+
 const TOP_NAV_ITEMS_BASE = [
   { to: "/dashboard", key: "library", icon: ICON_LIBRARY },
   { to: "/addmanga", key: "add", icon: ICON_ADD, featured: true },
@@ -237,6 +253,22 @@ export default function Header() {
 
           {/* Right cluster */}
           <div className="flex items-center gap-2">
+            {isAuthenticated && (
+              <NavLink
+                to="/scan"
+                aria-label={t("nav.scan")}
+                title={t("nav.scan")}
+                className={({ isActive }) =>
+                  `grid h-9 w-9 place-items-center rounded-full border transition ${
+                    isActive
+                      ? "border-hanko/60 bg-hanko/15 text-washi"
+                      : "border-border bg-ink-1/50 text-washi-muted hover:border-hanko/40 hover:text-washi"
+                  }`
+                }
+              >
+                {ICON_SCAN}
+              </NavLink>
+            )}
             <InstallPrompt />
             <ProfileButton />
           </div>

@@ -1426,6 +1426,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           location={vol.location}
                           extraCopies={vol.extra_copies}
                           boughtAt={vol.bought_at}
+                          isbn={vol.isbn}
                           locked
                           onUpdate={volumeUpdateCallback}
                           onEditUpcoming={(volData) => {
@@ -1484,6 +1485,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           location={vol.location}
                           extraCopies={vol.extra_copies}
                           boughtAt={vol.bought_at}
+                          isbn={vol.isbn}
                           onUpdate={volumeUpdateCallback}
                           onEditUpcoming={(volData) => {
                             setEditingUpcoming(volData);

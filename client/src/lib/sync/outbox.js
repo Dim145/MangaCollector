@@ -1,4 +1,5 @@
 import axios from "@/utils/axios.js";
+import { isbn13Of } from "../isbn.js";
 import {
   cacheCoffretsForManga,
   cacheLibrary,
@@ -343,7 +344,13 @@ export async function enqueueLibraryVolumesOwned(mal_id, nbOwned) {
  */
 
 /** Volume columns that describe the physical copy (see `set_physical_details`). */
-const PHYSICAL_KEYS = ["condition", "location", "extra_copies", "bought_at"];
+const PHYSICAL_KEYS = [
+  "condition",
+  "location",
+  "extra_copies",
+  "bought_at",
+  "isbn",
+];
 
 export async function enqueueVolumeUpdate(volume) {
   // Translate the `read: boolean` flag from the call site into the
@@ -374,6 +381,12 @@ export async function enqueueVolumeUpdate(volume) {
     local.bought_at = rest.bought_at
       ? String(rest.bought_at).slice(0, 10)
       : null;
+  }
+  if ("isbn" in rest) {
+    // 13-digit form (the server converts too); junk stays as typed so
+    // the server can reject it rather than silently dropping it.
+    const raw = String(rest.isbn ?? "").trim();
+    local.isbn = raw === "" ? null : (isbn13Of(raw) ?? raw);
   }
   // Reflect the loan mutation onto the local row so live-query
   // consumers (volume drawer, dashboard widget) update without
