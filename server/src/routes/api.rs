@@ -86,13 +86,20 @@ fn user_router() -> Router<AppState> {
         .route("/library/mangadex", post(library::add_from_mangadex))
         .route("/library", post(library::add_to_library))
         .route("/library/{mal_id}", get(library::get_user_manga))
+        // 更 · Both rewrite the series (name, genres, author, poster) and
+        // `update-from-mal` deletes volume rows when MAL reports a lower
+        // total — taking prices, notes, loans and ISBNs with them. They
+        // were GETs, which the CSRF origin guard skips and which
+        // SameSite=Lax happily sends on a top-level navigation: any page
+        // the user visited could fire one at a guessable mal_id. POST is
+        // both the honest verb and the one the guard covers.
         .route(
             "/library/{mal_id}/update-from-mal",
-            get(library::update_from_mal),
+            post(library::update_from_mal),
         )
         .route(
             "/library/{mal_id}/refresh-from-mangadex",
-            get(library::refresh_from_mangadex),
+            post(library::refresh_from_mangadex),
         )
         // 来 · Discover & reconcile announced upcoming volumes for
         // this series. POST because the call mutates state (inserts

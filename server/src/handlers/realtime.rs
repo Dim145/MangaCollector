@@ -36,12 +36,30 @@ const PING_INTERVAL: Duration = Duration::from_secs(30);
 /// peer dead and close the socket.
 const PONG_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// 源 · The handshake is a GET, so the CSRF origin guard skips it and
+/// only `SameSite=Lax` stands between a foreign page and an open socket.
+/// The frame payload is just invalidation signals, but "this account is
+/// active, and series N changed" is still the user's business alone.
+fn origin_allowed(headers: &axum::http::HeaderMap, expected: &str) -> bool {
+    match headers.get(axum::http::header::ORIGIN).and_then(|v| v.to_str().ok()) {
+        // A same-origin WebSocket from a non-browser client sends none.
+        None => true,
+        Some(origin) => {
+            origin.trim_end_matches('/') == expected.trim_end_matches('/')
+        }
+    }
+}
+
 pub async fn ws_handler(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     ClientId(client_id): ClientId,
+    headers: axum::http::HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
+    if !origin_allowed(&headers, &state.config.frontend_url) {
+        return Err(AppError::Unauthorized);
+    }
     let broker = state.broker.clone();
     let user_id = user.id;
     Ok(ws.on_upgrade(move |socket| {

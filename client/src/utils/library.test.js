@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/utils/axios.js", () => ({
   default: {
     get: vi.fn(() => Promise.resolve({ data: {} })),
+    post: vi.fn(() => Promise.resolve({ data: {} })),
     patch: vi.fn(() => Promise.resolve({ data: {} })),
   },
 }));
@@ -51,7 +52,9 @@ describe("hasToBlurImage", () => {
   });
 
   it("blurs when an adult genre sits among non-adult ones", () => {
-    expect(hasToBlurImage({ genres: ["Action", "Comedy", "Adult"] }, 0)).toBe(true);
+    expect(hasToBlurImage({ genres: ["Action", "Comedy", "Adult"] }, 0)).toBe(
+      true,
+    );
   });
 
   it("leaves an all-ages series alone", () => {
@@ -82,7 +85,9 @@ describe("filterAdultGenreIfNeeded", () => {
   ];
 
   it("removes every adult series at level 1", () => {
-    expect(filterAdultGenreIfNeeded(1, mangas).map((m) => m.id)).toEqual([1, 4, 5]);
+    expect(filterAdultGenreIfNeeded(1, mangas).map((m) => m.id)).toEqual([
+      1, 4, 5,
+    ]);
   });
 
   it("returns the list untouched at level 0", () => {
@@ -113,10 +118,12 @@ describe("HTTP wrappers", () => {
     vi.clearAllMocks();
   });
 
-  it("updateLibFromMal targets the refresh endpoint and unwraps data", async () => {
-    axios.get.mockResolvedValueOnce({ data: { name: "Berserk" } });
+  it("updateLibFromMal POSTs the refresh endpoint and unwraps data", async () => {
+    axios.post.mockResolvedValueOnce({ data: { name: "Berserk" } });
     await expect(updateLibFromMal(2)).resolves.toEqual({ name: "Berserk" });
-    expect(axios.get).toHaveBeenCalledWith("/api/user/library/2/update-from-mal");
+    expect(axios.post).toHaveBeenCalledWith(
+      "/api/user/library/2/update-from-mal",
+    );
   });
 
   it("updateVolumeOwned encodes the count in the path", async () => {

@@ -221,7 +221,16 @@ where
         // get_by_id` already crashes the request on DB errors, so
         // the user-visible behaviour is identical either way —
         // closed is just safer.
-        if let Some(session_id) = session.id().map(|id| id.to_string()) {
+        // Fail closed: every check below lives behind this id, so a
+        // `None` would authenticate on the user row alone and silently
+        // re-authorise a revoked session. Reaching here with a user id
+        // in the session implies the record was loaded from the store,
+        // hence an id exists — but the failure mode is severe enough
+        // that it should not rest on an implication.
+        let Some(session_id) = session.id().map(|id| id.to_string()) else {
+            return Err(AppError::Unauthorized);
+        };
+        {
             let meta_exists = crate::models::session_meta::Entity::find_by_id(
                 session_id.clone(),
             )

@@ -39,9 +39,8 @@ async function addFromMangadexToUserLibrary(mangaData) {
 }
 
 async function refreshFromMangadex(mal_id) {
-  return (
-    await axios.get(`/api/user/library/${mal_id}/refresh-from-mangadex`)
-  ).data;
+  return (await axios.post(`/api/user/library/${mal_id}/refresh-from-mangadex`))
+    .data;
 }
 
 /**
@@ -57,9 +56,8 @@ async function refreshFromMangadex(mal_id) {
  * mal_id in the URL is the entire input.
  */
 async function refreshUpcoming(mal_id) {
-  return (
-    await axios.post(`/api/user/library/${mal_id}/refresh-upcoming`)
-  ).data;
+  return (await axios.post(`/api/user/library/${mal_id}/refresh-upcoming`))
+    .data;
 }
 
 export {

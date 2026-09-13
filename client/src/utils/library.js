@@ -15,7 +15,7 @@ const filterAdultGenreIfNeeded = (adult_content_level = 0, mangas) => {
 };
 
 const updateLibFromMal = async (malId) =>
-  (await axios.get(`/api/user/library/${malId}/update-from-mal`)).data;
+  (await axios.post(`/api/user/library/${malId}/update-from-mal`)).data;
 
 const updateVolumeOwned = async (malId, nbOwned) => {
   await axios.patch(`/api/user/library/${malId}/${nbOwned}`);

@@ -1,6 +1,9 @@
 use chrono::Utc;
 use sea_orm::{sea_query::OnConflict, ColumnTrait, EntityTrait, QueryFilter, Set};
 
+/// A cover URL that does not fit in this is not a cover URL.
+const AVATAR_URL_MAX_LEN: usize = 512;
+
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::setting::{self, ActiveModel, CurrencyInfo, Entity as SettingEntity, SettingRow, UpdateSettingsRequest};
@@ -133,9 +136,27 @@ pub async fn update_user_settings(
     // front-end signals "clear" via an explicit empty string, which
     // the handler translates to `Some("")` and we normalise to None
     // here (empty URL is never a valid value).
+    // Every sibling field is allow-listed; this one took any string of
+    // any length, which a client could use to park megabytes in the row
+    // and have them re-sent on every settings read. `allowed_cover_url`
+    // already encodes the rule we want: https only, a host we serve,
+    // no embedded credentials — and it returns `None` for anything else.
     let avatar_url = match req.avatar_url.as_deref() {
         Some("") => None,
-        Some(u) => Some(u.to_string()),
+        Some(u) if u.len() > AVATAR_URL_MAX_LEN => {
+            return Err(AppError::BadRequest(
+                "Avatar URL is too long.".into(),
+            ));
+        }
+        Some(u) => match crate::services::cover_pool::allowed_cover_url(Some(u)) {
+            Some(clean) => Some(clean),
+            None => {
+                return Err(AppError::BadRequest(
+                    "Avatar URL must be https and point at a host we serve."
+                        .into(),
+                ));
+            }
+        },
         None => existing.avatar_url,
     };
 

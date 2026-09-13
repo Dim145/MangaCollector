@@ -59,7 +59,9 @@ describe("uploadPoster", () => {
 
 describe("removePoster", () => {
   it("DELETEs and returns the restored MAL poster url", async () => {
-    axios.delete.mockResolvedValueOnce({ data: { malPoster: "https://cdn/x.jpg" } });
+    axios.delete.mockResolvedValueOnce({
+      data: { malPoster: "https://cdn/x.jpg" },
+    });
     await expect(removePoster(42)).resolves.toBe("https://cdn/x.jpg");
     expect(axios.delete).toHaveBeenCalledWith("/api/user/storage/poster/42");
   });
@@ -78,7 +80,9 @@ describe("removePoster", () => {
 describe("addCustomEntryToUserLibrary", () => {
   it("POSTs to the custom endpoint and unwraps the created entry", async () => {
     axios.post.mockResolvedValueOnce({ data: { mal_id: -1 } });
-    await expect(addCustomEntryToUserLibrary({ name: "Doujin" })).resolves.toEqual({
+    await expect(
+      addCustomEntryToUserLibrary({ name: "Doujin" }),
+    ).resolves.toEqual({
       mal_id: -1,
     });
     expect(axios.post).toHaveBeenCalledWith("/api/user/library/custom", {
@@ -90,7 +94,9 @@ describe("addCustomEntryToUserLibrary", () => {
 describe("addFromMangadexToUserLibrary", () => {
   it("POSTs to the mangadex endpoint and unwraps the entry", async () => {
     axios.post.mockResolvedValueOnce({ data: { mal_id: 5 } });
-    await expect(addFromMangadexToUserLibrary({ mangadex_id: "u" })).resolves.toEqual({
+    await expect(
+      addFromMangadexToUserLibrary({ mangadex_id: "u" }),
+    ).resolves.toEqual({
       mal_id: 5,
     });
     expect(axios.post).toHaveBeenCalledWith("/api/user/library/mangadex", {
@@ -100,10 +106,12 @@ describe("addFromMangadexToUserLibrary", () => {
 });
 
 describe("refreshFromMangadex", () => {
-  it("GETs the per-series refresh endpoint", async () => {
-    axios.get.mockResolvedValueOnce({ data: { updated: true } });
+  it("POSTs the per-series refresh endpoint", async () => {
+    axios.post.mockResolvedValueOnce({ data: { updated: true } });
     await expect(refreshFromMangadex(2)).resolves.toEqual({ updated: true });
-    expect(axios.get).toHaveBeenCalledWith("/api/user/library/2/refresh-from-mangadex");
+    expect(axios.post).toHaveBeenCalledWith(
+      "/api/user/library/2/refresh-from-mangadex",
+    );
   });
 });
 
@@ -111,7 +119,9 @@ describe("refreshUpcoming", () => {
   it("POSTs — the sweep mutates server state", async () => {
     axios.post.mockResolvedValueOnce({ data: { success: true, added: [] } });
     await refreshUpcoming(2);
-    expect(axios.post).toHaveBeenCalledWith("/api/user/library/2/refresh-upcoming");
+    expect(axios.post).toHaveBeenCalledWith(
+      "/api/user/library/2/refresh-upcoming",
+    );
   });
 
   it("sends no request body — the id in the path is the whole input", async () => {
@@ -120,13 +130,21 @@ describe("refreshUpcoming", () => {
   });
 
   it("unwraps the discovery report", async () => {
-    const report = { success: true, added: [3, 4], updated: [], skipped: 1, discovered_count: 3 };
+    const report = {
+      success: true,
+      added: [3, 4],
+      updated: [],
+      skipped: 1,
+      discovered_count: 3,
+    };
     axios.post.mockResolvedValueOnce({ data: report });
     await expect(refreshUpcoming(2)).resolves.toEqual(report);
   });
 
   it("keeps a negative custom-series id intact", async () => {
     await refreshUpcoming(-3);
-    expect(axios.post).toHaveBeenCalledWith("/api/user/library/-3/refresh-upcoming");
+    expect(axios.post).toHaveBeenCalledWith(
+      "/api/user/library/-3/refresh-upcoming",
+    );
   });
 });
