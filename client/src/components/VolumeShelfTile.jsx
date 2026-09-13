@@ -121,19 +121,6 @@ function VolumeShelfTileImpl({
         )
       )}
 
-      {/* 物 · Doubles — copies count, top-left (the volume number
-          owns the bottom-left corner). */}
-      {hasDoubles && (
-        <span
-          aria-label={t("manga.shelfBadgeDoubles", { n: 1 + doubles })}
-          title={t("manga.shelfBadgeDoubles", { n: 1 + doubles })}
-          className="absolute left-1 top-1 rounded-sm bg-ink-0/80 px-1 py-0.5 font-mono text-[9px] font-bold leading-none tabular-nums text-gold shadow-sm ring-1 ring-gold/60"
-          style={{ transform: "rotate(-4deg)" }}
-        >
-          ×{1 + doubles}
-        </span>
-      )}
-
       {/* 預け · Loan stamp — anchored top-right when not upcoming.
           Pairs with the wrapper filter applied above. */}
       {isLent && (
@@ -164,8 +151,21 @@ function VolumeShelfTileImpl({
         </span>
       )}
 
-      <span className="absolute bottom-1 left-1 rounded-sm bg-ink-0/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-washi backdrop-blur-sm">
+      {/* Volume number chip — bottom-left. 物 · The doubles count rides
+          inside it ("2 ×2") rather than taking a corner: 読 owns the
+          top-left, 来/限 and the loan stamp the top-right, 盒/記 the
+          bottom-right, so a fifth corner seal always collided with one. */}
+      <span className="absolute bottom-1 left-1 inline-flex items-baseline gap-1 rounded-sm bg-ink-0/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-washi backdrop-blur-sm">
         {volNum}
+        {hasDoubles && (
+          <span
+            aria-label={t("manga.shelfBadgeDoubles", { n: 1 + doubles })}
+            title={t("manga.shelfBadgeDoubles", { n: 1 + doubles })}
+            className="font-bold tabular-nums text-gold"
+          >
+            ×{1 + doubles}
+          </span>
+        )}
       </span>
     </div>
   );

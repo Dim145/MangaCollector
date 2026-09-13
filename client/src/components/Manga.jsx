@@ -243,8 +243,10 @@ function Manga({
         {/* Bottom gradient overlay */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-ink-0 via-ink-0/60 to-transparent" />
 
-        {/* Collector seal (top-left) — every owned volume is collector */}
-        {allCollector && (
+        {/* Collector seal (top-left) — every owned volume is collector.
+            Hidden while selecting: the selection ring owns that corner
+            and would otherwise sit on top of the seal. */}
+        {allCollector && !selectionMode && (
           <div
             className="absolute top-2 left-2 z-10 grid h-4 w-4 place-items-center rounded-sm bg-gold/85 text-ink-0 shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 transition group-hover:opacity-100"
             style={{ transform: "rotate(-6deg)" }}
@@ -263,7 +265,7 @@ function Manga({
             occupy the primary top-left slot. This keeps the right-hand
             corner free for the completion badge so the two visual
             languages (reading axis vs. collection axis) stop colliding. */}
-        {tsundokuCount > 0 && (
+        {tsundokuCount > 0 && !selectionMode && (
           <div
             className={`absolute top-2 z-10 inline-flex items-center gap-0.5 rounded-sm border border-moegi/50 bg-ink-0/70 px-1 py-0.5 text-moegi shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 transition group-hover:opacity-100 ${
               allCollector ? "left-8" : "left-2"

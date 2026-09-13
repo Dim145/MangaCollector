@@ -625,10 +625,22 @@ export default function MangaPage({ manga, adult_content_level }) {
 
         {/* Hero */}
         <section className="relative mb-12 animate-fade-up">
+          {/* 靄 · Cover-tinted glow behind the hero. It used to be clipped
+              to a rounded box (`overflow-hidden rounded-3xl`), which drew
+              a hard, lighter-than-the-page rectangle around the poster.
+              The layer now bleeds above and below the section and is
+              faded out by a radial mask well before any of its edges, so
+              there is no line for the eye to find — only a soft halo. */}
           {displayPoster && !isBlurred && (
             <div
-              className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
+              className="pointer-events-none absolute inset-x-0 -top-20 -bottom-12 -z-10 overflow-hidden"
               aria-hidden="true"
+              style={{
+                maskImage:
+                  "radial-gradient(ellipse 72% 70% at 50% 42%, #000 28%, transparent 80%)",
+                WebkitMaskImage:
+                  "radial-gradient(ellipse 72% 70% at 50% 42%, #000 28%, transparent 80%)",
+              }}
             >
               <img
                 referrerPolicy="no-referrer"
@@ -636,7 +648,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 alt=""
                 className="h-full w-full scale-150 object-cover opacity-30 blur-3xl"
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-ink-0/60 via-ink-0/80 to-ink-0" />
+              <div className="absolute inset-0 bg-gradient-to-b from-ink-0/30 via-ink-0/60 to-ink-0/90" />
             </div>
           )}
 

@@ -62,8 +62,7 @@ export default function SealsPage() {
   const [ceremonyIndex, setCeremonyIndex] = useState(-1);
   const skipRef = useRef(null);
   const newlyList = useMemo(
-    () =>
-      Array.isArray(data?.newly_granted) ? data.newly_granted : [],
+    () => (Array.isArray(data?.newly_granted) ? data.newly_granted : []),
     [data?.newly_granted],
   );
   const currentCode = ceremonyIndex >= 0 ? newlyList[ceremonyIndex] : null;
@@ -190,10 +189,19 @@ export default function SealsPage() {
       <div className="relative mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
         {/* ───── HERO ───── */}
         <header className="relative mb-14 animate-fade-up">
-          {/* watermark + atmospheric blooms in their own clip-layer */}
+          {/* watermark + atmospheric blooms in their own clip-layer.
+              The layer is faded out by a radial mask before its edges:
+              a bloom cut by the rounded box used to draw a hard line
+              along the header's invisible rectangle. */}
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-3xl"
+            className="pointer-events-none absolute -inset-x-4 -inset-y-10 -z-10 overflow-hidden"
+            style={{
+              maskImage:
+                "radial-gradient(ellipse 80% 78% at 50% 45%, #000 40%, transparent 88%)",
+              WebkitMaskImage:
+                "radial-gradient(ellipse 80% 78% at 50% 45%, #000 40%, transparent 88%)",
+            }}
           >
             <span
               className="absolute -top-4 right-2 select-none font-jp text-[26rem] font-bold leading-none text-gold/[0.07]"
@@ -312,7 +320,8 @@ export default function SealsPage() {
                     className="h-full rounded-full bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright transition-all duration-1000 ease-out"
                     style={{
                       width: `${percent}%`,
-                      boxShadow: percent > 0 ? "0 0 12px var(--hanko-glow)" : "none",
+                      boxShadow:
+                        percent > 0 ? "0 0 12px var(--hanko-glow)" : "none",
                     }}
                   />
                   {percent > 0 && percent < 100 && (
@@ -325,12 +334,18 @@ export default function SealsPage() {
                 </div>
                 <div className="mt-2 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
                   <span>{t("seals.progressLabel")}</span>
-                  <span className="text-washi-muted tabular-nums">{percent}%</span>
+                  <span className="text-washi-muted tabular-nums">
+                    {percent}%
+                  </span>
                 </div>
               </div>
 
               {/* TIER LANTERNS — 5 vertical bars, one per ink rank */}
-              <TierLanterns tierStats={tierStats} highestTier={highestTier} t={t} />
+              <TierLanterns
+                tierStats={tierStats}
+                highestTier={highestTier}
+                t={t}
+              />
             </div>
 
             {/* RIGHT: rank badge — only on lg+, where there's horizontal
@@ -397,12 +412,60 @@ function FloatingPetals() {
   // different cadences instead of marching in lockstep. Mobile gets
   // fewer petals (the smaller canvas would otherwise feel cluttered).
   const petals = [
-    { left: "8%",  size: 14, dur: 22, delay: 0,    drift: 60,  rot: 320, opacity: 0.55 },
-    { left: "22%", size: 12, dur: 28, delay: 6,    drift: -40, rot: -280, opacity: 0.45 },
-    { left: "38%", size: 18, dur: 19, delay: 11,   drift: 90,  rot: 360, opacity: 0.5 },
-    { left: "55%", size: 11, dur: 25, delay: 3,    drift: -70, rot: -340, opacity: 0.4 },
-    { left: "72%", size: 16, dur: 21, delay: 14,   drift: 50,  rot: 400, opacity: 0.55 },
-    { left: "88%", size: 13, dur: 26, delay: 8,    drift: -30, rot: -360, opacity: 0.45 },
+    {
+      left: "8%",
+      size: 14,
+      dur: 22,
+      delay: 0,
+      drift: 60,
+      rot: 320,
+      opacity: 0.55,
+    },
+    {
+      left: "22%",
+      size: 12,
+      dur: 28,
+      delay: 6,
+      drift: -40,
+      rot: -280,
+      opacity: 0.45,
+    },
+    {
+      left: "38%",
+      size: 18,
+      dur: 19,
+      delay: 11,
+      drift: 90,
+      rot: 360,
+      opacity: 0.5,
+    },
+    {
+      left: "55%",
+      size: 11,
+      dur: 25,
+      delay: 3,
+      drift: -70,
+      rot: -340,
+      opacity: 0.4,
+    },
+    {
+      left: "72%",
+      size: 16,
+      dur: 21,
+      delay: 14,
+      drift: 50,
+      rot: 400,
+      opacity: 0.55,
+    },
+    {
+      left: "88%",
+      size: 13,
+      dur: 26,
+      delay: 8,
+      drift: -30,
+      rot: -360,
+      opacity: 0.45,
+    },
   ];
   return (
     <div
@@ -449,7 +512,7 @@ function RankBadge({ tier, t }) {
   const tierFullLabel = tier > 0 ? t(`seals.tiers.${tierMeta.name}`) : null;
   const rankName =
     tier > 0
-      ? tierFullLabel.split("·")[1]?.trim() ?? tierMeta.label
+      ? (tierFullLabel.split("·")[1]?.trim() ?? tierMeta.label)
       : t("seals.rankNone");
   return (
     <div
@@ -768,10 +831,7 @@ function CategorySection({
           sweeps a diagonal gold sheen across the banner every ~3.6s. */}
       {categoryComplete && (
         <div className="relative mb-5 overflow-hidden rounded-xl border border-gold/40 bg-gradient-to-r from-gold/10 via-gold/15 to-gold/10 px-4 py-2.5 backdrop-blur">
-          <span
-            aria-hidden="true"
-            className="seal-chapter-shimmer-track"
-          />
+          <span aria-hidden="true" className="seal-chapter-shimmer-track" />
           <div className="relative flex items-center gap-3">
             <span
               aria-hidden="true"
