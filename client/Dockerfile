@@ -36,6 +36,7 @@ RUN apk add --no-cache gettext
 
 COPY --from=build /client/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
+COPY security-headers.conf /etc/nginx/security-headers.conf
 COPY docker-entrypoint.sh /mc-entrypoint.sh
 RUN chmod +x /mc-entrypoint.sh
 

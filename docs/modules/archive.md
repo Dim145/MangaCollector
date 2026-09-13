@@ -274,7 +274,7 @@ bundle to `/api/user/import`.
   — matched exactly or as a `.suffix`, plus server-relative `/…` paths
   without `//` or `..`; userinfo, other schemes and unknown hosts become
   `None` (the series is kept, the cover lost). The client CSP `img-src`
-  in `client/nginx.conf` names specific hosts (`cdn.myanimelist.net`,
+  in `client/security-headers.conf` names specific hosts (`cdn.myanimelist.net`,
   `uploads.mangadex.org`, `mangadex.org`, `s4.anilist.co`,
   `*.googleusercontent.com`, `covers.openlibrary.org`, …), so the server
   list is a superset: a URL on another subdomain of an allowed domain is
@@ -336,7 +336,7 @@ bundle to `/api/user/import`.
 | `server/src/services/library.rs`, `services/author.rs`, `util/uuid.rs`, `util/isbn.rs` | `clamp_volumes`, `mint_next_custom_mal_id`; `resolve_author_from_text_tx`; `is_canonical_uuid`; `normalize_isbn13` |
 | `server/src/routes/api.rs` | `/export.json`, `/export.csv`, `/import`, `/import/external/*` |
 | `server/src/main.rs` | `MAX_BODY_SIZE_MB` → `DefaultBodyLimit` |
-| `client/nginx.conf` | The CSP `img-src` the cover allowlist mirrors |
+| `client/security-headers.conf` | The CSP `img-src` the cover allowlist mirrors |
 | `client/src/components/ArchiveSection.jsx`, `components/settings/ChapterAccount.jsx` | Export buttons, import modal, mount point |
 | `client/src/hooks/useArchive.js` | Blob downloads, `importPayload`, preview / commit mutations |
 | `client/src/components/ImportExternalPage.jsx`, `hooks/useExternalImport.js`, `lib/importFile.js` | External-import wizard, per-service mutations, gzip unpacking |

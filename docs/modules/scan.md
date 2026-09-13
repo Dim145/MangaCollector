@@ -266,17 +266,18 @@ online-only: volume ids are server-generated.
   response, a 5xx, a 401 on a box that lost its session); only
   `undefined` falls through. That `null` is cached for 10 minutes
   client-side and 1 day server-side.
-- **The direct fallback is mostly blocked in production.** The CSP in
-  `client/nginx.conf` allows `connect-src … https://www.googleapis.com`
-  but names neither `https://openlibrary.org` nor
-  `https://api.openbd.jp`, so behind the shipped nginx only the Google
-  Books leg of the browser fallback can run; the other two are refused
-  by the browser and land in `.catch(() => null)`, reading as an honest
-  miss. Likewise `img-src` covers `books.google.com` and
-  `covers.openlibrary.org` but not `cover.openbd.jp`, so a Japanese
-  cover the *server* resolved through openBD will not render. The Vite
-  dev server sets no CSP, which is why this does not show up locally.
-  Adding a source to either chain means adding its host here too.
+- **The CSP is what makes the direct fallback work — or not.** All
+  three browser-side legs are named in `connect-src` in
+  `client/security-headers.conf` (`https://www.googleapis.com`,
+  `https://openlibrary.org`, `https://api.openbd.jp`), and the three
+  cover hosts in `img-src` (`books.google.com`,
+  `covers.openlibrary.org`, `cover.openbd.jp`). They were not always:
+  until the headers moved into that file, two of the three were missing
+  and the browser refused those requests, which landed in
+  `.catch(() => null)` and read as an honest miss. The Vite dev server
+  sets no CSP, which is why a gap like that never shows up locally —
+  adding a source to either chain means adding its host to that file,
+  and checking it against a built container rather than `pnpm dev`.
 - **Quota state is per tab and in memory** (`lastCallAt`,
   `cooldownUntil`, `consecutive429` are module-level in `isbn.js`): a
   reload resets it and a second tab has its own budget. `setApiKey`
@@ -340,7 +341,7 @@ online-only: volume ids are server-generated.
 | `client/src/lib/labels.js`, `components/LabelSheetModal.jsx` | Templates, sheet arithmetic, EAN-13, builders, `buildLabelPdf`; the picker, preview and PDF UI |
 | `client/src/components/MangaPage.jsx`, `RangementPage.jsx`, `VolumeDetailDrawer.jsx` | The two label entry points; the per-tome ISBN field |
 | `client/src/lib/db.js`, `lib/sync/outbox.js` | `isbnCache` store and the `isbn` index on `volumes` (v16); `PHYSICAL_KEYS` |
-| `client/nginx.conf` | The CSP `img-src` / `connect-src` the direct fallback lives inside |
+| `client/security-headers.conf` | The CSP `img-src` / `connect-src` the direct fallback lives inside |
 | `server/src/services/isbn_resolver.rs` | `SOURCE_TIMEOUT`, `HIT_TTL`, `MISS_TTL`, `cache_is_fresh`, `resolve`, the four sources and their pure parsers |
 | `server/src/handlers/isbn.rs`, `routes/api.rs` | `GET /api/user/isbn/{isbn}`, inside the `/user` nest |
 | `server/src/util/isbn.rs`, `models/isbn_cache.rs`, `models/volume.rs` | `normalize_isbn13` and the two checksums; entities; `PhysicalPatch.isbn` |
