@@ -152,7 +152,9 @@ docker compose build
   - Not covered yet: the other 111 components, the 50 hooks, and the
     canvas/Web-Audio modules (`shelfSnapshot`, `sounds`, `barcode`).
 - **Formatting caveat:** the Rust tree is not clean under `rustfmt` 1.9 — a
-  blind `cargo fmt` reflows ~54 files. Format only the hunks you touch.
+  blind `cargo fmt` reflows ~54 files. Format only the hunks you touch:
+  `python3 scripts/rustfmt-touched.py server/src/<file>.rs …` applies
+  rustfmt's layout to the lines changed since HEAD (±2) and nothing else.
 
 ## Local test stack
 
