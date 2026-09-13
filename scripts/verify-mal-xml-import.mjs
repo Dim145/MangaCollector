@@ -15,7 +15,9 @@
  *
  * Usage: node scripts/verify-mal-xml-import.mjs   (stack up, server on :3000)
  */
-import { login } from "./lib/stack-client.mjs";
+import { assertLocalTarget, login } from "./lib/stack-client.mjs";
+
+assertLocalTarget();
 
 const USER = `xml-check-${Date.now().toString(36)}`;
 

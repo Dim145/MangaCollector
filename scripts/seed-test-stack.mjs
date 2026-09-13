@@ -35,6 +35,9 @@
  * time while the same URL through `fetch` is 504 every time.
  */
 import https from "node:https";
+import { assertLocalTarget } from "./lib/stack-client.mjs";
+
+assertLocalTarget();
 
 const SERVER = process.env.SEED_SERVER ?? "http://localhost:3000";
 const ORIGIN = process.env.SEED_ORIGIN ?? "http://localhost:5173"; // must equal FRONTEND_URL

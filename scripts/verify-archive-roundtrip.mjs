@@ -25,7 +25,9 @@
  * export" is the point: the bundle cannot fail to round-trip a field it
  * never carried.
  */
-import { login } from "./lib/stack-client.mjs";
+import { assertLocalTarget, login } from "./lib/stack-client.mjs";
+
+assertLocalTarget();
 
 const SOURCE = process.env.SEED_USER ?? "test-collector";
 const TARGET = process.env.RESTORE_USER ?? `restore-check-${Date.now().toString(36)}`;

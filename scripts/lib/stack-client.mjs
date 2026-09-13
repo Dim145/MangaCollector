@@ -14,6 +14,34 @@
 export const SERVER = process.env.SEED_SERVER ?? "http://localhost:3000";
 export const ORIGIN = process.env.SEED_ORIGIN ?? "http://localhost:5173"; // must equal FRONTEND_URL
 
+/**
+ * 地 · Refuse to run against anything but a local stack.
+ *
+ * These scripts seed accounts and — in the round-trip verifier — delete
+ * a user's coffrets, clear their publishers and wipe their notes on
+ * purpose, to prove the backup puts them back. That is exactly the
+ * wrong thing to do to a real instance, and the only thing standing
+ * between the two is one environment variable someone exported in
+ * another terminal. So a non-local `SEED_SERVER` has to be said out
+ * loud: `SEED_ALLOW_REMOTE=1`, deliberately, per run.
+ */
+export function assertLocalTarget() {
+  const host = new URL(SERVER).hostname;
+  const local =
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host === "[::1]" ||
+    host.endsWith(".localhost");
+  if (local || process.env.SEED_ALLOW_REMOTE === "1") return;
+  console.error(
+    `Refusing to run against ${SERVER}: these scripts create accounts and ` +
+      `destroy data on purpose.\nIf that really is a throwaway instance, ` +
+      `re-run with SEED_ALLOW_REMOTE=1.`,
+  );
+  process.exit(1);
+}
+
 /** Minimal cookie jar — one host, the way a browser would keep it. */
 class Jar {
   constructor() {
