@@ -81,6 +81,15 @@ pub struct ExportSeries {
     pub created_on: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modified_on: Option<chrono::DateTime<chrono::Utc>>,
+    // ── v2 · reading progression ──
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reading_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_reading_at: Option<chrono::NaiveDate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finished_reading_at: Option<chrono::NaiveDate>,
+    #[serde(default)]
+    pub times_read: i32,
     pub volumes_detail: Vec<ExportVolume>,
     pub coffrets: Vec<ExportCoffret>,
 }

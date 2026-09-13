@@ -1,7 +1,8 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { cacheLibrary, db } from "@/lib/db.js";
+import { refetchLibraryEntry, refetchVolumes } from "@/lib/sync/outbox.js";
 import { deriveListState } from "@/lib/queryState.js";
 import {
   enqueueLibraryDelete,
@@ -125,6 +126,10 @@ export function useUpdateMangaMeta() {
       review,
       review_public,
       author,
+      reading_status,
+      started_reading_at,
+      finished_reading_at,
+      times_read,
     }) => {
       const fields = {};
       if (publisher !== undefined) fields.publisher = publisher;
@@ -143,6 +148,13 @@ export function useUpdateMangaMeta() {
       if (review !== undefined) fields.review = review;
       if (review_public !== undefined) fields.review_public = review_public;
       if (author !== undefined) fields.author = author;
+      // 読 · Reading progression — same offline-first path.
+      if (reading_status !== undefined) fields.reading_status = reading_status;
+      if (started_reading_at !== undefined)
+        fields.started_reading_at = started_reading_at;
+      if (finished_reading_at !== undefined)
+        fields.finished_reading_at = finished_reading_at;
+      if (times_read !== undefined) fields.times_read = times_read;
       await enqueueLibraryPatch(mal_id, fields);
       return { mal_id, ...fields };
     },
@@ -158,6 +170,29 @@ export function useSetPoster() {
     mutationFn: async ({ mal_id, url }) => {
       await enqueueLibraryPoster(mal_id, url);
       return { mal_id, url };
+    },
+  });
+}
+
+/**
+ * 再読 · Start reading a series over. Online-only on purpose: the
+ * server resets every tome's `read_at`, bumps the read-through tally
+ * and restarts the dates in one transaction — replaying that from an
+ * outbox after the fact would race the per-volume read flips the
+ * user makes in the meantime. Both caches are refreshed right after.
+ */
+export function useStartReread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (mal_id) => {
+      await axios.post(`/api/user/library/${mal_id}/reread`);
+      await Promise.all([
+        refetchVolumes(mal_id).catch(() => {}),
+        refetchLibraryEntry(mal_id).catch(() => {}),
+      ]);
+      qc.invalidateQueries({ queryKey: ["library"] });
+      qc.invalidateQueries({ queryKey: ["volumes-all"] });
+      return mal_id;
     },
   });
 }

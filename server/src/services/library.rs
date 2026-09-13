@@ -11,8 +11,10 @@ use crate::models::activity::event_types;
 use crate::models::library::{
     self, ActiveModel, AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, AuthorRef,
     EDITION_MAX_LEN, Entity as LibraryEntity, LibraryEntry, PUBLISHER_MAX_LEN, REVIEW_MAX_LEN,
-    UpdateLibraryRequest, entry_with_author, sanitize_genres, sanitize_label,
+    UpdateLibraryRequest, entry_with_author, normalize_reading_status, sanitize_genres,
+    sanitize_label,
 };
+use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
 use crate::services::cache::CacheStore;
 use crate::services::{activity, author, mangadex_api, settings, volume};
 use crate::services::mal_api::get_manga_from_mal;
@@ -849,6 +851,10 @@ pub async fn apply_library_patch(
         && body.review.is_none()
         && body.review_public.is_none()
         && body.author.is_none()
+        && body.reading_status.is_none()
+        && body.started_reading_at.is_none()
+        && body.finished_reading_at.is_none()
+        && body.times_read.is_none()
     {
         txn.commit().await.map_err(AppError::from)?;
         return Ok(());
@@ -939,6 +945,29 @@ pub async fn apply_library_patch(
             None => None,
         };
         active.author_id = Set(resolved_id);
+    }
+    // 読 · Reading progression, set by hand. A validated status; dates
+    // as given (clearing allowed); the read-through count never below 0.
+    // Marking a series completed by hand stamps today as the finish date
+    // when none is set, so the shelf's history stays populated.
+    if let Some(raw_status) = body.reading_status {
+        let status = normalize_reading_status(raw_status)?;
+        if status.as_deref() == Some("completed")
+            && body.finished_reading_at.is_none()
+            && let sea_orm::ActiveValue::Unchanged(None) = active.finished_reading_at
+        {
+            active.finished_reading_at = Set(Some(Utc::now().date_naive()));
+        }
+        active.reading_status = Set(status);
+    }
+    if let Some(date) = body.started_reading_at {
+        active.started_reading_at = Set(date);
+    }
+    if let Some(date) = body.finished_reading_at {
+        active.finished_reading_at = Set(date);
+    }
+    if let Some(n) = body.times_read {
+        active.times_read = Set(n.max(0));
     }
 
     active.modified_on = Set(Utc::now());
@@ -1270,4 +1299,267 @@ fn flip_author_name(raw: &str) -> String {
         }
     }
     trimmed.to_string()
+}
+
+/* ══════════════════════════════════════════════════════════════════
+ *  読 · Reading progression — derived from the volume rows, overridable.
+ * ══════════════════════════════════════════════════════════════════ */
+
+/// The series-level reading fields, as a plain value the pure rule below
+/// can reason about without a database.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadingState {
+    pub status: Option<String>,
+    pub started: Option<chrono::NaiveDate>,
+    pub finished: Option<chrono::NaiveDate>,
+}
+
+/// What the series' reading state should become once `read_count` of
+/// its `total` tracked volumes are read, on `today`.
+///
+///   • every tracked tome read (total known) → `completed`, dates filled
+///     if missing — the finish date is never overwritten;
+///   • some read → `reading`, unless the user parked the series as
+///     `paused` or `dropped` (their call stands); a `completed` series
+///     with a tome un-read goes back to `reading` and loses its finish;
+///   • nothing read → `reading`/`completed` become "never started" and
+///     the dates go with them; `planned`/`paused`/`dropped` stand.
+pub fn next_reading_state(
+    current: &ReadingState,
+    read_count: i32,
+    total: i32,
+    today: chrono::NaiveDate,
+) -> ReadingState {
+    let status = current.status.as_deref();
+    let parked = matches!(status, Some("paused") | Some("dropped"));
+    if read_count <= 0 {
+        return if matches!(status, Some("reading") | Some("completed")) {
+            ReadingState {
+                status: None,
+                started: None,
+                finished: None,
+            }
+        } else {
+            current.clone()
+        };
+    }
+    let started = current.started.or(Some(today));
+    if total > 0 && read_count >= total {
+        return ReadingState {
+            status: Some("completed".into()),
+            started,
+            finished: current.finished.or(Some(today)),
+        };
+    }
+    if parked {
+        return ReadingState {
+            started,
+            ..current.clone()
+        };
+    }
+    ReadingState {
+        status: Some("reading".into()),
+        started,
+        finished: None,
+    }
+}
+
+/// Recompute the reading progression of one series from its volume
+/// rows and persist it when it moved. Returns whether the library row
+/// changed, so the caller can fan out a `Library` realtime event.
+pub async fn refresh_reading_progress(
+    db: &impl sea_orm::ConnectionTrait,
+    user_id: i32,
+    mal_id: i32,
+) -> Result<bool, AppError> {
+    use sea_orm::PaginatorTrait;
+    let Some(row) = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+    else {
+        return Ok(false);
+    };
+    let read_count = VolumeEntity::find()
+        .filter(volume_mod::Column::UserId.eq(user_id))
+        .filter(volume_mod::Column::MalId.eq(mal_id))
+        .filter(volume_mod::Column::ReadAt.is_not_null())
+        .count(db)
+        .await
+        .map_err(AppError::from)? as i32;
+    let current = ReadingState {
+        status: row.reading_status.clone(),
+        started: row.started_reading_at,
+        finished: row.finished_reading_at,
+    };
+    let next = next_reading_state(&current, read_count, row.volumes, Utc::now().date_naive());
+    if next == current {
+        return Ok(false);
+    }
+    let mut active: ActiveModel = row.into();
+    active.reading_status = Set(next.status);
+    active.started_reading_at = Set(next.started);
+    active.finished_reading_at = Set(next.finished);
+    active.modified_on = Set(Utc::now());
+    active.update(db).await.map_err(AppError::from)?;
+    Ok(true)
+}
+
+/// 再読 · Start reading the series again: one more read-through on the
+/// tally, every released tome back to unread so the emaki starts over,
+/// status `reading` from today. Only meaningful once the series has
+/// been finished at least once (or has read tomes to reset).
+pub async fn start_reread(db: &Db, user_id: i32, mal_id: i32) -> Result<(), AppError> {
+    use sea_orm::{Condition, PaginatorTrait, sea_query::Expr};
+    let now = Utc::now();
+    let Some(row) = LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+    else {
+        return Err(AppError::NotFound("Series not in library".into()));
+    };
+    let read_count = VolumeEntity::find()
+        .filter(volume_mod::Column::UserId.eq(user_id))
+        .filter(volume_mod::Column::MalId.eq(mal_id))
+        .filter(volume_mod::Column::ReadAt.is_not_null())
+        .count(db)
+        .await
+        .map_err(AppError::from)?;
+    let finished_once =
+        row.reading_status.as_deref() == Some("completed") || row.finished_reading_at.is_some();
+    if !finished_once && read_count == 0 {
+        return Err(AppError::BadRequest(
+            "Nothing to read again yet — finish the series first.".into(),
+        ));
+    }
+    let txn = db.begin().await.map_err(AppError::from)?;
+    VolumeEntity::update_many()
+        .filter(volume_mod::Column::UserId.eq(user_id))
+        .filter(volume_mod::Column::MalId.eq(mal_id))
+        .filter(
+            Condition::any()
+                .add(volume_mod::Column::ReleaseDate.is_null())
+                .add(volume_mod::Column::ReleaseDate.lte(now)),
+        )
+        .col_expr(
+            volume_mod::Column::ReadAt,
+            Expr::value(Option::<chrono::DateTime<Utc>>::None),
+        )
+        .col_expr(volume_mod::Column::ModifiedOn, Expr::value(now))
+        .exec(&txn)
+        .await
+        .map_err(AppError::from)?;
+    let series_name = row.name.clone();
+    let times = row.times_read;
+    let mut active: ActiveModel = row.into();
+    // A finished read-through counts even when the user never flipped
+    // the last tome to read; an unfinished one is a restart, not a lap.
+    active.times_read = Set(if finished_once { times + 1 } else { times });
+    active.reading_status = Set(Some("reading".into()));
+    active.started_reading_at = Set(Some(now.date_naive()));
+    active.finished_reading_at = Set(None);
+    active.modified_on = Set(now);
+    active.update(&txn).await.map_err(AppError::from)?;
+    txn.commit().await.map_err(AppError::from)?;
+    if finished_once {
+        activity::record(
+            db,
+            user_id,
+            event_types::SERIES_REREAD,
+            Some(mal_id),
+            None,
+            Some(series_name),
+            Some(times + 1),
+        )
+        .await;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod reading_tests {
+    use super::*;
+
+    fn d(s: &str) -> chrono::NaiveDate {
+        chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
+    }
+    fn st(status: Option<&str>, started: Option<&str>, finished: Option<&str>) -> ReadingState {
+        ReadingState {
+            status: status.map(String::from),
+            started: started.map(d),
+            finished: finished.map(d),
+        }
+    }
+    const TODAY: &str = "2026-09-13";
+
+    #[test]
+    fn first_read_tome_starts_the_series_today() {
+        let next = next_reading_state(&st(None, None, None), 1, 12, d(TODAY));
+        assert_eq!(next, st(Some("reading"), Some(TODAY), None));
+    }
+
+    #[test]
+    fn last_tome_completes_and_keeps_the_original_start() {
+        let next = next_reading_state(
+            &st(Some("reading"), Some("2025-01-05"), None),
+            12,
+            12,
+            d(TODAY),
+        );
+        assert_eq!(next, st(Some("completed"), Some("2025-01-05"), Some(TODAY)));
+    }
+
+    #[test]
+    fn an_existing_finish_date_is_never_overwritten() {
+        let cur = st(Some("completed"), Some("2025-01-05"), Some("2025-06-01"));
+        assert_eq!(next_reading_state(&cur, 12, 12, d(TODAY)), cur);
+    }
+
+    #[test]
+    fn unreading_a_tome_of_a_completed_series_reopens_it() {
+        let cur = st(Some("completed"), Some("2025-01-05"), Some("2025-06-01"));
+        assert_eq!(
+            next_reading_state(&cur, 11, 12, d(TODAY)),
+            st(Some("reading"), Some("2025-01-05"), None)
+        );
+    }
+
+    #[test]
+    fn unknown_total_never_completes() {
+        let next = next_reading_state(&st(None, None, None), 40, 0, d(TODAY));
+        assert_eq!(next.status.as_deref(), Some("reading"));
+    }
+
+    #[test]
+    fn paused_and_dropped_stand_while_tomes_are_read() {
+        for parked in ["paused", "dropped"] {
+            let cur = st(Some(parked), Some("2025-01-05"), None);
+            assert_eq!(next_reading_state(&cur, 3, 12, d(TODAY)), cur);
+            // …until every tome is read: that is a completion whatever the label
+            assert_eq!(
+                next_reading_state(&cur, 12, 12, d(TODAY)).status.as_deref(),
+                Some("completed")
+            );
+        }
+    }
+
+    #[test]
+    fn unreading_everything_returns_to_never_started_but_keeps_a_plan() {
+        assert_eq!(
+            next_reading_state(
+                &st(Some("reading"), Some("2025-01-05"), None),
+                0,
+                12,
+                d(TODAY)
+            ),
+            st(None, None, None)
+        );
+        let planned = st(Some("planned"), None, None);
+        assert_eq!(next_reading_state(&planned, 0, 12, d(TODAY)), planned);
+    }
 }

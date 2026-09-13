@@ -106,6 +106,7 @@ fn user_router() -> Router<AppState> {
             get(library::list_volume_covers),
         )
         .route("/library/{mal_id}", patch(library::update_manga))
+        .route("/library/{mal_id}/reread", post(library::start_reread))
         .route(
             "/library/{mal_id}/{owned}",
             patch(library::update_manga_owned),

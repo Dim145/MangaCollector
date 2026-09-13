@@ -82,6 +82,10 @@ normalised API snapshots of both sides:
   fields, return a loan, delete a coffret), re-import the bundle over
   it and expect the damage undone.
 
+It also drives the derived reading progression end to end (bulk-read a
+small series → `completed` with dates, `POST …/reread` → one more lap,
+every tome unread again) and sets the progression by hand on another
+series, so the bundle has to carry those fields too.
 Any field that comes back different is listed by series/volume and the
 process exits 1. Re-running is safe: the enrichment tolerates what a
 previous run already created, and each run restores into a new

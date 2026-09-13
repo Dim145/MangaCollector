@@ -338,7 +338,15 @@ pub async fn update_manga(
     // no reason.
     let is_noop = body.volumes.is_none()
         && body.publisher.is_none()
-        && body.edition.is_none();
+        && body.edition.is_none()
+        && body.genres.is_none()
+        && body.review.is_none()
+        && body.review_public.is_none()
+        && body.author.is_none()
+        && body.reading_status.is_none()
+        && body.started_reading_at.is_none()
+        && body.finished_reading_at.is_none()
+        && body.times_read.is_none();
     library::apply_library_patch(&state.db, mal_id, user.id, body).await?;
     if !is_noop {
         state
@@ -355,6 +363,30 @@ pub async fn update_manga(
     Ok(Json(json!({
         "success": true,
         "message": "Updated manga in library successfully"
+    })))
+}
+
+/// POST /api/user/library/:mal_id/reread — 再読 · start the series over:
+/// one more read-through on the tally, every tome back to unread,
+/// status `reading` from today.
+pub async fn start_reread(
+    State(state): State<AppState>,
+    AuthenticatedUser(user): AuthenticatedUser,
+    ClientId(client_id): ClientId,
+    Path(mal_id): Path<i32>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    library::start_reread(&state.db, user.id, mal_id).await?;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Library, Some(mal_id), client_id.clone())
+        .await;
+    state
+        .broker
+        .publish_scoped(user.id, SyncKind::Volumes, Some(mal_id), client_id.clone())
+        .await;
+    Ok(Json(json!({
+        "success": true,
+        "message": "Reading the series again"
     })))
 }
 

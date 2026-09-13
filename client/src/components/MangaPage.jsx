@@ -1071,6 +1071,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                   totalVolumes={totalVolumes}
                   isEditing={isEditing}
                   setTotalVolumes={setTotalVolumes}
+                  series={liveLibraryRow}
                 />
               )}
 

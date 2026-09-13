@@ -540,6 +540,7 @@ const eventKanji = {
   series_added: "入",
   series_removed: "去",
   series_completed: "完",
+  series_reread: "再",
   volume_owned: "得",
   volume_unowned: "離",
   // Match the server's `event_types::MILESTONE_VOLUMES` /

@@ -35,6 +35,15 @@ const EVENT_VISUAL = {
       </>
     ),
   },
+  series_reread: {
+    tone: "moegi",
+    path: (
+      <>
+        <path d="M21 12a9 9 0 1 1-3-6.7" />
+        <polyline points="21 3 21 9 15 9" />
+      </>
+    ),
+  },
   volume_owned: {
     tone: "hanko",
     path: <polyline points="20 6 9 17 4 12" />,
@@ -236,6 +245,11 @@ function buildLabel(entry, t) {
       return t("activity.seriesRemoved", { title });
     case "series_completed":
       return t("activity.seriesCompleted", {
+        title,
+        n: entry.count_value ?? 0,
+      });
+    case "series_reread":
+      return t("activity.seriesReread", {
         title,
         n: entry.count_value ?? 0,
       });

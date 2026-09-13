@@ -159,6 +159,30 @@ describe("enqueueLibraryDelete", () => {
 });
 
 describe("enqueueLibraryPatch", () => {
+  it("carries the reading progression, normalised", async () => {
+    await enqueueLibraryUpsert({ mal_id: 5, name: "Pluto", volumes: 8 });
+    await enqueueLibraryPatch(5, {
+      reading_status: "paused",
+      started_reading_at: "2025-01-05T10:00:00.000Z",
+      finished_reading_at: null,
+      times_read: 2.7,
+    });
+    const row = await db.library.get(5);
+    expect(row.reading_status).toBe("paused");
+    expect(row.started_reading_at).toBe("2025-01-05");
+    expect(row.finished_reading_at).toBeNull();
+    expect(row.times_read).toBe(2);
+    const op = await db.outboxLibrary.get(5);
+    expect(op.payload).toMatchObject({
+      reading_status: "paused",
+      started_reading_at: "2025-01-05",
+      finished_reading_at: null,
+      times_read: 2,
+    });
+    await enqueueLibraryPatch(5, { reading_status: "" });
+    expect((await db.library.get(5)).reading_status).toBeNull();
+  });
+
   beforeEach(async () => {
     await enqueueLibraryUpsert(manga());
   });

@@ -35,6 +35,9 @@ const XML = `<?xml version="1.0" encoding="UTF-8" ?>
     <my_read_volumes>10</my_read_volumes>
     <my_retail_volumes>12</my_retail_volumes>
     <my_status>Reading</my_status>
+    <my_start_date>2024-02-10</my_start_date>
+    <my_finish_date>0000-00-00</my_finish_date>
+    <my_times_read>2</my_times_read>
     <my_score>9</my_score>
     <my_comments><![CDATA[Relu trois fois — édition & co.]]></my_comments>
     <my_times_read>2</my_times_read>
@@ -47,6 +50,8 @@ const XML = `<?xml version="1.0" encoding="UTF-8" ?>
     <my_read_volumes>0</my_read_volumes>
     <my_retail_volumes>0</my_retail_volumes>
     <my_status>Completed</my_status>
+    <my_start_date>2020-01-01</my_start_date>
+    <my_finish_date>2020-03-15</my_finish_date>
     <my_comments><![CDATA[]]></my_comments>
   </manga>
   <manga>
@@ -73,10 +78,10 @@ const XML = `<?xml version="1.0" encoding="UTF-8" ?>
 </myanimelist>`;
 
 const EXPECT = {
-  13: { name: "One Piece", volumes: 12, owned: 12, review: "Relu trois fois — édition & co." },
-  656: { name: "Vagabond", volumes: 37, owned: 37, review: null },
-  21: { name: "Death Note & extras", volumes: 12, owned: 7, review: null },
-  1: { name: "Monster", volumes: 18, owned: 0, review: null },
+  13: { name: "One Piece", volumes: 12, owned: 12, review: "Relu trois fois — édition & co.", status: "reading", started: "2024-02-10", finished: null, times: 2 },
+  656: { name: "Vagabond", volumes: 37, owned: 37, review: null, status: "completed", started: "2020-01-01", finished: "2020-03-15", times: 0 },
+  21: { name: "Death Note & extras", volumes: 12, owned: 7, review: null, status: "reading", started: null, finished: null, times: 0 },
+  1: { name: "Monster", volumes: 18, owned: 0, review: null, status: "planned", started: null, finished: null, times: 0 },
 };
 
 let failures = 0;
@@ -116,6 +121,8 @@ for (const [id, e] of Object.entries(EXPECT)) {
     `${e.name}: ${owned}/${vols.length} volume rows owned, library says ${row?.volumes_owned}/${row?.volumes}`);
   check((row?.review ?? null) === e.review && row?.review_public === false,
     `${e.name}: review ${JSON.stringify(row?.review ?? null)}, private`);
+  check(row?.reading_status === e.status && (row?.started_reading_at ?? null) === e.started && (row?.finished_reading_at ?? null) === e.finished && row?.times_read === e.times,
+    `${e.name}: reading ${row?.reading_status} · ${row?.started_reading_at ?? "—"} → ${row?.finished_reading_at ?? "—"} · ${row?.times_read}× (expected ${e.status} · ${e.started ?? "—"} → ${e.finished ?? "—"} · ${e.times}×)`);
 }
 
 console.log(failures === 0 ? "\n✓ MAL XML import: ALL GOOD" : `\n✗ MAL XML import: ${failures} check(s) failed`);

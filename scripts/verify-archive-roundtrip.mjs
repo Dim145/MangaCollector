@@ -55,6 +55,38 @@ async function enrich(c) {
     log.push(`series fields on ${s.name}`);
   }
 
+  // reading progression set by hand on the second MAL series
+  const handRead = mal[1] ?? mal[0];
+  await c.json("PATCH", `/api/user/library/${handRead.mal_id}`, {
+    reading_status: "paused",
+    started_reading_at: "2025-01-15",
+    finished_reading_at: null,
+    times_read: 1,
+  });
+  log.push(`reading fields by hand on ${handRead.name}`);
+
+  // derived progression: mark a small series fully read → completed with
+  // dates, then start a re-read → tally +1, everything unread again
+  const small = [...lib].filter((s) => s.volumes >= 3 && s.volumes <= 12 && s.mal_id !== handRead.mal_id && s.mal_id !== big.mal_id)
+    .sort((a, b) => a.volumes - b.volumes)[0];
+  if (small) {
+    await c.json("POST", `/api/user/library/${small.mal_id}/volumes/bulk-mark`, { read: true });
+    const done = await c.json("GET", `/api/user/library/${small.mal_id}`);
+    const doneRow = Array.isArray(done) ? done[0] : done;
+    if (doneRow.reading_status !== "completed" || !doneRow.finished_reading_at || !doneRow.started_reading_at) {
+      throw new Error(`${small.name}: expected completed with dates after bulk read, got ${JSON.stringify([doneRow.reading_status, doneRow.started_reading_at, doneRow.finished_reading_at])}`);
+    }
+    const before = doneRow.times_read;
+    await c.json("POST", `/api/user/library/${small.mal_id}/reread`);
+    const again = await c.json("GET", `/api/user/library/${small.mal_id}`);
+    const againRow = Array.isArray(again) ? again[0] : again;
+    const stillRead = (await c.json("GET", `/api/user/volume/${small.mal_id}`)).filter((v) => v.read_at).length;
+    if (againRow.times_read !== before + 1 || againRow.reading_status !== "reading" || againRow.finished_reading_at || stillRead !== 0) {
+      throw new Error(`${small.name}: re-read expected times_read ${before + 1}/reading/no finish/0 read, got ${JSON.stringify([againRow.times_read, againRow.reading_status, againRow.finished_reading_at, stillRead])}`);
+    }
+    log.push(`${small.name}: bulk read → completed, re-read → lap ${againRow.times_read}, ${small.volumes} tomes unread again`);
+  }
+
   // a friend account the source follows — the first loan is linked to it,
   // so the bundle carries a borrower slug and the friend's "borrowed"
   // list has to show the volume
@@ -117,7 +149,8 @@ async function enrich(c) {
 
 /* ─── 4. normalised views ──────────────────────────────────────────── */
 const SERIES_FIELDS = ["name", "volumes", "volumes_owned", "image_url_jpg", "genres", "mangadex_id",
-  "publisher", "edition", "review", "review_public", "author_name", "created_on", "modified_on"];
+  "publisher", "edition", "review", "review_public", "author_name", "created_on", "modified_on",
+  "reading_status", "started_reading_at", "finished_reading_at", "times_read"];
 const VOLUME_FIELDS = ["vol_num", "owned", "price", "store", "collector", "read_at", "notes",
   "release_date", "release_isbn", "release_url", "origin", "announced_at",
   "loaned_to", "loaned_to_user_id", "loan_started_at", "loan_due_at", "in_coffret", "created_on", "modified_on"];

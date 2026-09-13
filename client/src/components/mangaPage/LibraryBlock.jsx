@@ -1,4 +1,5 @@
 import { useT } from "@/i18n/index.jsx";
+import ReadingProgress from "./ReadingProgress.jsx";
 
 /**
  * LibraryBlock — 蔵書 (zōsho, "books conserved").
@@ -25,6 +26,8 @@ export default function LibraryBlock({
   totalVolumes,
   isEditing,
   setTotalVolumes,
+  // 読 · The live library row — reading status, dates, read-throughs.
+  series,
 }) {
   const t = useT();
   const byNum = new Map();
@@ -267,6 +270,10 @@ export default function LibraryBlock({
         </div>
       </div>
       )}
+
+      {/* 読 · Series-level reading progression — status, dates and the
+          read-again action, directly editable (no edit mode). */}
+      <ReadingProgress series={series} />
 
       {/* Total-volumes editor — moved here from the old Collection block
           now that the two blocks are merged. Only rendered in edit mode;

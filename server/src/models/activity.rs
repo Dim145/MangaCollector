@@ -30,6 +30,8 @@ pub mod event_types {
     pub const SERIES_ADDED: &str = "series_added";
     pub const SERIES_REMOVED: &str = "series_removed";
     pub const SERIES_COMPLETED: &str = "series_completed";
+    /// 再読 · The user started reading a finished series again.
+    pub const SERIES_REREAD: &str = "series_reread";
     pub const VOLUME_OWNED: &str = "volume_owned";
     pub const VOLUME_UNOWNED: &str = "volume_unowned";
     pub const MILESTONE_VOLUMES: &str = "milestone_volumes";

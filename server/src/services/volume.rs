@@ -161,7 +161,7 @@ pub async fn update_by_id(
     read: Option<bool>,
     // `None` leaves the note column untouched.
     notes: Option<String>,
-) -> Result<Option<i32>, AppError> {
+) -> Result<VolumeUpdateOutcome, AppError> {
     // Idempotent on two axes — a row that no longer exists (offline
     // outbox replay after deletion) and a row that exists under
     // another user (IDOR attempt or stale client state). Both paths
@@ -232,6 +232,17 @@ pub async fn update_by_id(
 
     query.exec(db).await.map_err(AppError::from)?;
 
+    // 読 · A read/unread flip may move the series' reading progression
+    // (started, completed, back to reading). Derived here so every
+    // path — drawer toggle, offline replay — keeps it honest.
+    let mut library_changed = false;
+    if read.is_some()
+        && let Some(mal) = series_id
+    {
+        library_changed =
+            crate::services::library::refresh_reading_progress(db, user_id, mal).await?;
+    }
+
     // Log ownership transitions only — price/store edits alone don't produce
     // an activity entry.
     if let Some(prev) = existing
@@ -279,7 +290,19 @@ pub async fn update_by_id(
                 .await;
         }
 
-    Ok(series_id)
+    Ok(VolumeUpdateOutcome {
+        series_id,
+        library_changed,
+    })
+}
+
+/// What `update_by_id` touched, so the handler can scope its realtime
+/// events: the series the volume belongs to, and whether the library
+/// row itself moved (reading progression).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct VolumeUpdateOutcome {
+    pub series_id: Option<i32>,
+    pub library_changed: bool,
 }
 
 /// 預け · Apply a loan-state mutation to a single volume.
@@ -523,6 +546,12 @@ pub async fn bulk_mark_for_series(
     }
     updater = updater.col_expr(volume::Column::ModifiedOn, Expr::value(now));
     updater.exec(db).await.map_err(AppError::from)?;
+
+    // 読 · Marking a whole series read (or unread) is the most common
+    // way a series gets completed — keep the progression in step.
+    if read.is_some() {
+        crate::services::library::refresh_reading_progress(db, user_id, mal_id).await?;
+    }
 
     // Recompute the library counter when ownership was the lever
     // changed — a true cascade should reflect on the dashboard's

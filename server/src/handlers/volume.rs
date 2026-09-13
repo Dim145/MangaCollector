@@ -166,7 +166,7 @@ pub async fn update_volume(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let id = body.id;
     let loan_change = body.loan;
-    let series_id = volume::update_by_id(
+    let outcome = volume::update_by_id(
         &state.db,
         &state.activity,
         id,
@@ -187,10 +187,19 @@ pub async fn update_volume(
     if let Some(loan_patch) = loan_change {
         volume::set_loan(&state.db, id, user.id, loan_patch).await?;
     }
+    let series_id = outcome.series_id;
     state
         .broker
         .publish_scoped(user.id, SyncKind::Volumes, series_id, client_id.clone())
         .await;
+    // 読 · The read flip moved the series' reading progression: other
+    // sessions need the library row too, not just the volume rows.
+    if outcome.library_changed {
+        state
+            .broker
+            .publish_scoped(user.id, SyncKind::Library, series_id, client_id.clone())
+            .await;
+    }
     Ok(Json(json!({
         "success": true,
         "message": "Volume updated successfully"

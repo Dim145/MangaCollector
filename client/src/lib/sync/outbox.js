@@ -195,6 +195,21 @@ export async function enqueueLibraryPatch(mal_id, fields) {
   if ("review_public" in fields) {
     next.review_public = Boolean(fields.review_public);
   }
+  // 読 · Reading progression. Status is one of the server's five words
+  // or null (never started); dates travel as YYYY-MM-DD or null; the
+  // read-through tally is a non-negative integer.
+  if ("reading_status" in fields) {
+    next.reading_status = fields.reading_status
+      ? String(fields.reading_status)
+      : null;
+  }
+  for (const key of ["started_reading_at", "finished_reading_at"]) {
+    if (!(key in fields)) continue;
+    next[key] = fields[key] ? String(fields[key]).slice(0, 10) : null;
+  }
+  if ("times_read" in fields) {
+    next.times_read = Math.max(0, Math.trunc(Number(fields.times_read)) || 0);
+  }
   // Genres ride as an array (not a comma-string). Server-side sanitize
   // (trim / dedup / cap) is the authoritative pass; we only do the
   // bare minimum here so the optimistic Dexie write reflects the same
@@ -1002,6 +1017,14 @@ async function flushLibrary() {
           meta.review_public = op.payload.review_public;
         }
         if ("author" in (op.payload ?? {})) meta.author = op.payload.author;
+        for (const key of [
+          "reading_status",
+          "started_reading_at",
+          "finished_reading_at",
+          "times_read",
+        ]) {
+          if (key in (op.payload ?? {})) meta[key] = op.payload[key];
+        }
         // Genres ship as an array; server gates the write to custom-only
         // rows (mal_id < 0 AND mangadex_id IS NULL) and silently drops
         // the field on any other row. The frontend already only opens

@@ -56,6 +56,30 @@ struct JikanListEntry {
     manga: JikanManga,
     #[serde(default)]
     read_volumes: Option<i32>,
+    /// "Reading" / "Completed" / … as text, or MAL's numeric code on
+    /// older gateways — both accepted, neither required.
+    #[serde(default)]
+    reading_status: Option<JikanStatus>,
+    #[serde(default)]
+    start_date: Option<String>,
+    #[serde(default)]
+    end_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum JikanStatus {
+    Text(String),
+    Code(i64),
+}
+
+impl JikanStatus {
+    fn to_reading(&self) -> Option<&'static str> {
+        match self {
+            JikanStatus::Text(t) => mal_status_to_reading(t),
+            JikanStatus::Code(c) => mal_status_to_reading(&c.to_string()),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,6 +224,13 @@ pub async fn fetch_mal_by_username(
                 .images
                 .and_then(|i| i.jpg)
                 .and_then(|j| j.image_url);
+            let reading_status = entry
+                .reading_status
+                .as_ref()
+                .and_then(|s| s.to_reading())
+                .map(String::from);
+            let started_reading_at = entry.start_date.as_deref().and_then(parse_loose_date);
+            let finished_reading_at = entry.end_date.as_deref().and_then(parse_loose_date);
             series.push(ExportSeries {
                 mal_id: Some(entry.manga.mal_id),
                 mangadex_id: None,
@@ -215,6 +246,10 @@ pub async fn fetch_mal_by_username(
                 author: None,
                 created_on: None,
                 modified_on: None,
+                reading_status,
+                started_reading_at,
+                finished_reading_at,
+                times_read: 0,
                 volumes_detail: Vec::new(),
                 coffrets: Vec::new(),
             });
@@ -425,6 +460,10 @@ pub async fn fetch_anilist_by_username(
                 author: None,
                 created_on: None,
                 modified_on: None,
+                reading_status: None,
+                started_reading_at: None,
+                finished_reading_at: None,
+                times_read: 0,
                 volumes_detail: Vec::new(),
                 coffrets: Vec::new(),
             });
@@ -550,6 +589,10 @@ pub async fn fetch_mangadex_by_input(
                     author: None,
                     created_on: None,
                     modified_on: None,
+                    reading_status: None,
+                    started_reading_at: None,
+                    finished_reading_at: None,
+                    times_read: 0,
                     volumes_detail: Vec::new(),
                     coffrets: Vec::new(),
                 });
@@ -723,6 +766,10 @@ pub fn parse_yamtrack_csv(csv_text: &str) -> Result<ExportBundle, AppError> {
             author: None,
             created_on: None,
             modified_on: None,
+            reading_status: None,
+            started_reading_at: None,
+            finished_reading_at: None,
+            times_read: 0,
             volumes_detail: Vec::new(),
             coffrets: Vec::new(),
         });
@@ -758,6 +805,29 @@ struct MalXmlEntry {
     retail_volumes: Option<i32>,
     status: String,
     comments: String,
+    start_date: Option<chrono::NaiveDate>,
+    finish_date: Option<chrono::NaiveDate>,
+    times_read: Option<i32>,
+}
+
+/// MAL's list states → ours. `Some(None)` is not needed: an unknown or
+/// empty status just leaves the series "never started".
+fn mal_status_to_reading(raw: &str) -> Option<&'static str> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "reading" | "1" => Some("reading"),
+        "completed" | "2" => Some("completed"),
+        "on-hold" | "on hold" | "3" => Some("paused"),
+        "dropped" | "4" => Some("dropped"),
+        "plan to read" | "plan_to_read" | "6" => Some("planned"),
+        _ => None,
+    }
+}
+
+/// `2021-03-05`, `2021-03-05T00:00:00+00:00` and MAL's `0000-00-00`
+/// placeholder (→ None).
+fn parse_loose_date(raw: &str) -> Option<chrono::NaiveDate> {
+    let head = raw.trim().get(..10)?;
+    chrono::NaiveDate::parse_from_str(head, "%Y-%m-%d").ok()
 }
 
 /// Cap on the private review carried over from `my_comments`.
@@ -775,6 +845,9 @@ impl MalXmlEntry {
             "my_retail_volumes" => self.retail_volumes = value.parse().ok(),
             "my_status" => self.status = value.to_string(),
             "my_comments" => self.comments = value.to_string(),
+            "my_start_date" => self.start_date = parse_loose_date(value),
+            "my_finish_date" => self.finish_date = parse_loose_date(value),
+            "my_times_read" => self.times_read = value.parse().ok(),
             _ => {}
         }
     }
@@ -795,6 +868,7 @@ impl MalXmlEntry {
         if let Some(t) = total {
             owned = owned.min(t);
         }
+        let reading_status = mal_status_to_reading(&self.status).map(String::from);
         let comments = self.comments.trim();
         let review = (!comments.is_empty()).then(|| {
             comments
@@ -819,6 +893,10 @@ impl MalXmlEntry {
             author: None,
             created_on: None,
             modified_on: None,
+            reading_status,
+            started_reading_at: self.start_date,
+            finished_reading_at: self.finish_date,
+            times_read: self.times_read.unwrap_or(0).max(0),
             volumes_detail: Vec::new(),
             coffrets: Vec::new(),
         })
@@ -958,6 +1036,9 @@ mod mal_xml_tests {
     <my_retail_volumes>12</my_retail_volumes>
     <my_status>Reading</my_status>
     <my_comments><![CDATA[Relu trois fois.]]></my_comments>
+    <my_start_date>2024-02-10</my_start_date>
+    <my_finish_date>0000-00-00</my_finish_date>
+    <my_times_read>2</my_times_read>
   </manga>
   <manga>
     <manga_mangadb_id>2</manga_mangadb_id>
@@ -975,6 +1056,8 @@ mod mal_xml_tests {
     <my_read_volumes>0</my_read_volumes>
     <my_retail_volumes>0</my_retail_volumes>
     <my_status>Completed</my_status>
+    <my_start_date>2020-01-01</my_start_date>
+    <my_finish_date>2020-03-15</my_finish_date>
   </manga>
   <manga>
     <manga_mangadb_id>1</manga_mangadb_id>
@@ -1087,5 +1170,39 @@ mod mal_xml_tests {
         let b = parse_mal_xml("<myanimelist><myinfo><user_id>1</user_id></myinfo></myanimelist>")
             .unwrap();
         assert!(b.library.is_empty());
+    }
+
+    #[test]
+    fn list_state_dates_and_rereads_come_through() {
+        let b = parse_mal_xml(SAMPLE).unwrap();
+        let op = by_id(&b, 13);
+        assert_eq!(op.reading_status.as_deref(), Some("reading"));
+        assert_eq!(
+            op.started_reading_at.map(|d| d.to_string()),
+            Some("2024-02-10".into())
+        );
+        assert_eq!(op.finished_reading_at, None, "0000-00-00 is MAL's unset");
+        assert_eq!(op.times_read, 2);
+        let dn = by_id(&b, 21);
+        assert_eq!(dn.reading_status.as_deref(), Some("completed"));
+        assert_eq!(
+            dn.finished_reading_at.map(|d| d.to_string()),
+            Some("2020-03-15".into())
+        );
+        assert_eq!(by_id(&b, 656).reading_status.as_deref(), Some("planned"));
+    }
+
+    #[test]
+    fn mal_statuses_map_by_name_or_code() {
+        assert_eq!(mal_status_to_reading("On-Hold"), Some("paused"));
+        assert_eq!(mal_status_to_reading("6"), Some("planned"));
+        assert_eq!(mal_status_to_reading("Dropped"), Some("dropped"));
+        assert_eq!(mal_status_to_reading("weird"), None);
+        assert_eq!(
+            parse_loose_date("2021-03-05T00:00:00+00:00").map(|d| d.to_string()),
+            Some("2021-03-05".into())
+        );
+        assert_eq!(parse_loose_date("0000-00-00"), None);
+        assert_eq!(parse_loose_date(""), None);
     }
 }

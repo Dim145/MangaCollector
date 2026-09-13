@@ -42,6 +42,42 @@ pub struct Model {
     /// schema had both `author` (text) and `author_mal_id` (soft FK)
     /// duplicated on every library row; this column replaces both.
     pub author_id: Option<i32>,
+    /// 読 · Where the reader stands with the series as a whole:
+    /// `planned` / `reading` / `paused` / `completed` / `dropped`, or
+    /// NULL for "never started". Kept in step with the volume rows by
+    /// `services::library::refresh_reading_progress` on every read flip;
+    /// the user can override it by hand.
+    pub reading_status: Option<String>,
+    pub started_reading_at: Option<chrono::NaiveDate>,
+    pub finished_reading_at: Option<chrono::NaiveDate>,
+    /// Complete read-throughs so far. A re-read (`start_reread`) bumps
+    /// it and clears every `read_at` so the emaki starts over.
+    pub times_read: i32,
+}
+
+/// The five reading states a series can be in, by hand or derived.
+pub const READING_STATUSES: [&str; 5] = ["planned", "reading", "paused", "completed", "dropped"];
+
+/// Trim + lowercase + validate a reading status coming off the wire.
+/// `None`, empty and whitespace-only mean "clear"; anything that is not
+/// one of `READING_STATUSES` is a 400 rather than a silently ignored
+/// field, so a typo in a client or a bundle is visible.
+pub fn normalize_reading_status(
+    raw: Option<String>,
+) -> Result<Option<String>, crate::errors::AppError> {
+    let Some(raw) = raw else { return Ok(None) };
+    let value = raw.trim().to_ascii_lowercase();
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if READING_STATUSES.contains(&value.as_str()) {
+        Ok(Some(value))
+    } else {
+        Err(crate::errors::AppError::BadRequest(format!(
+            "Unknown reading status '{raw}' (expected one of {}).",
+            READING_STATUSES.join(", ")
+        )))
+    }
 }
 
 /// Maximum byte length (after trim) for `publisher` / `edition`. Picked
@@ -151,6 +187,11 @@ pub struct LibraryEntry {
     pub edition: Option<String>,
     pub review: Option<String>,
     pub review_public: bool,
+    /// 読 · Reading progression — see `Model`.
+    pub reading_status: Option<String>,
+    pub started_reading_at: Option<chrono::NaiveDate>,
+    pub finished_reading_at: Option<chrono::NaiveDate>,
+    pub times_read: i32,
     /// Embedded author summary — None when the row has no recorded
     /// author OR when the FK target was deleted. Constructed by the
     /// service layer's enrichment pass (single batched lookup over
@@ -187,6 +228,10 @@ impl From<Model> for LibraryEntry {
             edition: row.edition,
             review: row.review,
             review_public: row.review_public,
+            reading_status: row.reading_status,
+            started_reading_at: row.started_reading_at,
+            finished_reading_at: row.finished_reading_at,
+            times_read: row.times_read,
             // Author is filled in by the service layer's enrichment
             // pass — `From<Model>` alone can't JOIN. Default None
             // here; the listing services collect distinct author_ids,
@@ -319,6 +364,26 @@ pub struct UpdateLibraryRequest {
     /// resolver.
     #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub author: Option<Option<String>>,
+    /// 読 · Reading progression, three-state like `publisher`:
+    /// omitted → leave, `null`/"" → clear, value → validate + set.
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub reading_status: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_optional_date")]
+    pub started_reading_at: Option<Option<chrono::NaiveDate>>,
+    #[serde(default, deserialize_with = "deserialize_optional_date")]
+    pub finished_reading_at: Option<Option<chrono::NaiveDate>>,
+    /// Plain `Option<i32>` — a count has no "clear" state, 0 is it.
+    pub times_read: Option<i32>,
+}
+
+/// Three-state deserializer for `YYYY-MM-DD` dates.
+fn deserialize_optional_date<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<chrono::NaiveDate>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<chrono::NaiveDate>::deserialize(deserializer).map(Some)
 }
 
 /// Three-state deserializer: omitted / null / value. Lets the handler
@@ -345,3 +410,32 @@ where
     Option::<Vec<String>>::deserialize(deserializer).map(Some)
 }
 
+#[cfg(test)]
+mod reading_status_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_the_five_states_whatever_the_case_or_padding() {
+        for raw in ["reading", " Completed ", "PAUSED", "dropped", "planned"] {
+            let out = normalize_reading_status(Some(raw.to_string()))
+                .unwrap()
+                .unwrap();
+            assert!(READING_STATUSES.contains(&out.as_str()), "{raw} → {out}");
+        }
+    }
+
+    #[test]
+    fn empty_means_clear() {
+        assert_eq!(normalize_reading_status(None).unwrap(), None);
+        assert_eq!(normalize_reading_status(Some("".into())).unwrap(), None);
+        assert_eq!(normalize_reading_status(Some("   ".into())).unwrap(), None);
+    }
+
+    #[test]
+    fn anything_else_is_a_bad_request() {
+        assert!(matches!(
+            normalize_reading_status(Some("binge".into())),
+            Err(crate::errors::AppError::BadRequest(_))
+        ));
+    }
+}

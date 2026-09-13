@@ -179,6 +179,10 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
             review_public: row.review_public,
             created_on: Some(row.created_on),
             modified_on: Some(row.modified_on),
+            reading_status: row.reading_status,
+            started_reading_at: row.started_reading_at,
+            finished_reading_at: row.finished_reading_at,
+            times_read: row.times_read,
             author: row
                 .author_id
                 .and_then(|id| author_names.get(&id))
@@ -568,6 +572,15 @@ pub async fn apply_import_merge(
             // series into "added today". v1 bundles have none → now.
             created_on: Set(series.created_on.unwrap_or(now)),
             modified_on: Set(series.modified_on.unwrap_or(now)),
+            // A bundle is attacker-authored: an unknown status is
+            // dropped rather than failing the whole import.
+            reading_status: Set(crate::models::library::normalize_reading_status(
+                series.reading_status.clone(),
+            )
+            .unwrap_or(None)),
+            started_reading_at: Set(series.started_reading_at),
+            finished_reading_at: Set(series.finished_reading_at),
+            times_read: Set(series.times_read.max(0)),
             ..Default::default()
         };
         lib_active.insert(&txn).await.map_err(AppError::from)?;
