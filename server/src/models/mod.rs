@@ -13,3 +13,4 @@ pub mod user_seal;
 pub mod volume;
 pub mod isbn_cache;
 pub mod loan_history;
+pub mod location;

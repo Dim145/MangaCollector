@@ -339,7 +339,12 @@ pub async fn set_physical_details(
         active.condition = Set(normalize_condition(raw)?);
     }
     if let Some(raw) = patch.location {
-        active.location = Set(sanitize_label(raw, LOCATION_MAX_LEN));
+        // 棚 · A place typed on a tome is a place — register it.
+        let clean = sanitize_label(raw, LOCATION_MAX_LEN);
+        if let Some(name) = clean.as_deref() {
+            crate::services::locations::ensure(db, user_id, name).await?;
+        }
+        active.location = Set(clean);
     }
     if let Some(n) = patch.extra_copies {
         active.extra_copies = Set(n.clamp(0, EXTRA_COPIES_MAX));

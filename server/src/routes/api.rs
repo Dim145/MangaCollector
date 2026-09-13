@@ -5,8 +5,8 @@ use axum::{
 
 use crate::handlers::{
     activity, archive, auth as auth_handlers, author, calendar, coffret, compare, external,
-    external_import, follow, health, isbn, library, public, public_config, realtime, seals,
-    settings, snapshot, storage, user_profile, volume,
+    external_import, follow, health, isbn, library, locations, public, public_config, realtime,
+    seals, settings, snapshot, storage, user_profile, volume,
 };
 use crate::state::AppState;
 
@@ -141,6 +141,11 @@ fn user_router() -> Router<AppState> {
         .route("/volume/loans", get(volume::list_loans))
         .route("/volume/loans/borrowed", get(volume::list_borrowed))
         .route("/volume/loans/history", get(volume::list_loan_history))
+        .route("/locations", get(locations::list).post(locations::create))
+        .route(
+            "/locations/{id}",
+            patch(locations::update).delete(locations::remove),
+        )
         .route("/volume/{mal_id}", get(volume::get_volumes_by_id))
         .route("/volume", patch(volume::update_volume))
         // 印影 Inei · Snapshot history endpoints. POST creates a new

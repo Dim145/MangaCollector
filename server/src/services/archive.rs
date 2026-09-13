@@ -14,8 +14,8 @@ use std::collections::HashMap;
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::archive::{
-    EXPORT_VERSION, ExportBundle, ExportCoffret, ExportLoan, ExportSeries, ExportSettings,
-    ExportUser, ExportVolume, ImportAddedSummary, ImportMode, ImportPreview,
+    EXPORT_VERSION, ExportBundle, ExportCoffret, ExportLoan, ExportLocation, ExportSeries,
+    ExportSettings, ExportUser, ExportVolume, ImportAddedSummary, ImportMode, ImportPreview,
 };
 use crate::models::coffret::{self, Entity as CoffretEntity};
 use crate::models::follow::{self, Entity as FollowEntity};
@@ -203,6 +203,15 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
 
     // 預け · The loan ledger, oldest first, keyed by the series id the
     // bundle uses (the importer re-maps it like every volume).
+    let locations = crate::services::locations::all_for_export(db, user.id)
+        .await?
+        .into_iter()
+        .map(|l| ExportLocation {
+            name: l.name,
+            note: l.note,
+            position: l.position,
+        })
+        .collect();
     let loan_history = crate::services::loan_history::all_for_export(db, user.id)
         .await?
         .into_iter()
@@ -228,6 +237,7 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
         settings,
         library,
         loan_history,
+        locations,
     })
 }
 
@@ -859,6 +869,17 @@ pub async fn apply_import_merge(
     if dry_run {
         txn.rollback().await.map_err(AppError::from)?;
     } else {
+        // 棚 · The registry: the bundle's rows first (note, order), then
+        // every name a tome carries that no row names yet — a bundle
+        // older than the registry only knows places through its tomes.
+        crate::services::locations::import_rows(
+            &txn,
+            user.id,
+            &bundle.locations,
+            mode == ImportMode::Replace,
+        )
+        .await?;
+        crate::services::locations::ensure_all_from_volumes(&txn, user.id).await?;
         txn.commit().await.map_err(AppError::from)?;
     }
 

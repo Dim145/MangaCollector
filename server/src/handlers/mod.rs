@@ -20,3 +20,4 @@ pub mod storage;
 pub mod user_profile;
 pub mod volume;
 pub mod isbn;
+pub mod locations;

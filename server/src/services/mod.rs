@@ -28,3 +28,4 @@ pub mod users;
 pub mod volume;
 pub mod isbn_resolver;
 pub mod loan_history;
+pub mod locations;

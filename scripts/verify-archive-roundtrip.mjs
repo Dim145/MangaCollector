@@ -138,6 +138,15 @@ async function enrich(c) {
   const bad = await c.api("PATCH", "/api/user/volume", { id: vols[2].id, owned: true, isbn: "1234567890123" });
   if (bad.status !== 400) throw new Error(`a wrong ISBN checksum should be refused with 400, got ${bad.status}`);
   log.push(`ISBN-13 and ISBN-10 stored normalised on 2 volumes; a wrong checksum is refused (400)`);
+  // 棚 · the places registry: a place typed on a tome registered itself;
+  // give it a note (what a bare name cannot carry) so the bundle must too
+  const reg = await c.json("GET", "/api/user/locations");
+  const shelf = reg.locations.find((l) => l.name === "Étagère A");
+  if (!shelf) throw new Error(`"Étagère A" should have registered itself from the tomes, got ${reg.locations.map((l) => l.name).join(", ")}`);
+  await c.json("PATCH", `/api/user/locations/${shelf.id}`, { note: "Salon, deuxième planche", position: 0 });
+  const box = await c.json("POST", "/api/user/locations", { name: "Carton grenier", note: "Sous la fenêtre" });
+  if (!box.id) throw new Error("POST /locations should return the row");
+  log.push(`places registry: ${reg.locations.length} place(s) registered from the tomes, note set on "Étagère A", "Carton grenier" annotated`);
   const borrowed = await friend.json("GET", "/api/user/volume/loans/borrowed");
   const mine = borrowed.filter((b) => b.lender_id === c.user.id && b.vol_num === vols[0].vol_num);
   if (mine.length !== 1) throw new Error(`${FRIEND}'s borrowed list should show vol ${vols[0].vol_num} once, got ${mine.length}`);
@@ -182,6 +191,12 @@ const COFFRET_FIELDS = ["name", "vol_start", "vol_end", "price", "store", "colle
 // The loan ledger, as comparable tuples. `mal_id` is per-account for
 // custom series, so rows are keyed by series name; `id`/`volume_id` are
 // account-local too. Everything else must survive the round trip.
+// 棚 · The places registry as comparable tuples (name|note|position).
+async function registry(c) {
+  const res = await c.json("GET", "/api/user/locations");
+  return res.locations.map((l) => [l.name, l.note ?? "", l.position].join("|")).sort();
+}
+
 async function ledger(c) {
   const rows = await c.json("GET", "/api/user/volume/loans/history?limit=500");
   return rows
@@ -198,7 +213,7 @@ async function snapshot(c) {
   // negative per-instance numbers), and a keyed map silently hides it —
   // so count rows and duplicates alongside.
   const dupes = [];
-  Object.assign(out, { rows: lib.length, dupes, ledger: await ledger(c) });
+  Object.assign(out, { rows: lib.length, dupes, ledger: await ledger(c), registry: await registry(c) });
   for (const s of lib) {
     const key = s.mal_id > 0 ? `mal:${s.mal_id}` : s.mangadex_id ? `md:${s.mangadex_id}` : `custom:${s.name}`;
     if (out.has(key)) { dupes.push(`${s.name} (${key})`); continue; }
@@ -246,6 +261,10 @@ function diff(a, b) {
   const lb = new Set(b.ledger ?? []);
   for (const row of a.ledger ?? []) if (!lb.has(row)) bump("ledger.row");
   if ((a.ledger?.length ?? 0) !== (b.ledger?.length ?? 0)) bump("ledger.count");
+  // the places registry: names, notes and order must all come back
+  const rb = new Set(b.registry ?? []);
+  for (const row of a.registry ?? []) if (!rb.has(row)) bump("registry.row");
+  if ((a.registry?.length ?? 0) !== (b.registry?.length ?? 0)) bump("registry.count");
   return { loss, seriesMissing, extraInTarget: [...b.keys()].filter((k) => !a.has(k)).length };
 }
 
@@ -276,6 +295,12 @@ async function damage(c, snap) {
       log.push(`returned the loan and wiped the note on vol ${lent.vol_num} of ${withLoan[1].series.name}`);
     }
   }
+  const reg = await c.json("GET", "/api/user/locations");
+  const shelf = reg.locations.find((l) => l.name === "Étagère A");
+  if (shelf) {
+    await c.json("PATCH", `/api/user/locations/${shelf.id}`, { note: "" });
+    log.push(`wiped the note on the place "Étagère A"`);
+  }
   if (withCoffret) {
     const id = idOf(withCoffret[0]);
     const cofs = await c.json("GET", `/api/user/library/${id}/coffrets`);
@@ -287,7 +312,7 @@ async function damage(c, snap) {
 
 function report(label, { loss, seriesMissing, extraInTarget }, a, b) {
   const dupes = [...(a.dupes ?? []), ...(b.dupes ?? [])];
-  console.log(`\n[${label}] series: ${a.size} expected (${a.rows} rows), ${b.size} found (${b.rows} rows), ${seriesMissing} missing, ${extraInTarget} extra, ${dupes.length} duplicated · ledger: ${a.ledger?.length ?? 0} → ${b.ledger?.length ?? 0} loan(s)`);
+  console.log(`\n[${label}] series: ${a.size} expected (${a.rows} rows), ${b.size} found (${b.rows} rows), ${seriesMissing} missing, ${extraInTarget} extra, ${dupes.length} duplicated · ledger: ${a.ledger?.length ?? 0} → ${b.ledger?.length ?? 0} loan(s) · places: ${a.registry?.length ?? 0} → ${b.registry?.length ?? 0}`);
   if (loss.size === 0 && seriesMissing === 0 && dupes.length === 0 && a.rows === b.rows) {
     console.log(`✓ ${label}: LOSSLESS`);
     return true;

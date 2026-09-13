@@ -39,6 +39,19 @@ pub struct ExportBundle {
     /// the importer maps it to the live series the same way volumes are.
     #[serde(default)]
     pub loan_history: Vec<ExportLoan>,
+    /// 棚 · The places registry (v2): what a name on a tome cannot
+    /// carry — a note and an order. Names are the join key.
+    #[serde(default)]
+    pub locations: Vec<ExportLocation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportLocation {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(default)]
+    pub position: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
