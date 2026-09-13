@@ -84,7 +84,11 @@ pub struct ExportSettings {
     pub language: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+// `Default` is for fixtures — a bundle has ~20 optional fields per
+// volume and spelling them all out in a test says nothing. It does
+// not change the wire format: there is no `#[serde(default)]` on
+// the struct itself, so a missing required field is still an error.
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ExportSeries {
     pub mal_id: Option<i32>,
     pub mangadex_id: Option<String>,
@@ -126,7 +130,11 @@ pub struct ExportSeries {
     pub coffrets: Vec<ExportCoffret>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+// `Default` is for fixtures — a bundle has ~20 optional fields per
+// volume and spelling them all out in a test says nothing. It does
+// not change the wire format: there is no `#[serde(default)]` on
+// the struct itself, so a missing required field is still an error.
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ExportVolume {
     pub vol_num: i32,
     pub owned: bool,

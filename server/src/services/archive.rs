@@ -326,23 +326,77 @@ fn starts_like_formula(s: &str) -> bool {
     }
 }
 
+/// Ceilings on what one import may contain. See `check_import_size`.
+const MAX_IMPORT_SERIES: usize = 20_000;
+const MAX_IMPORT_VOLUMES: usize = 400_000;
+const MAX_IMPORT_LOANS: usize = 200_000;
+const MAX_IMPORT_LOCATIONS: usize = 5_000;
+
+/// Refuse a bundle whose row counts are out of proportion with a real
+/// library, before any of it reaches a transaction.
+fn check_import_size(bundle: &ExportBundle) -> Result<(), AppError> {
+    let too_big = |what: &str, n: usize, max: usize| {
+        AppError::BadRequest(format!(
+            "This backup holds {n} {what}, more than the {max} an import accepts. \
+             It is far larger than any real collection — if it is genuinely yours, \
+             split it and import the parts."
+        ))
+    };
+    if bundle.library.len() > MAX_IMPORT_SERIES {
+        return Err(too_big("series", bundle.library.len(), MAX_IMPORT_SERIES));
+    }
+    let volumes: usize = bundle.library.iter().map(|s| s.volumes_detail.len()).sum();
+    if volumes > MAX_IMPORT_VOLUMES {
+        return Err(too_big("volumes", volumes, MAX_IMPORT_VOLUMES));
+    }
+    if bundle.loan_history.len() > MAX_IMPORT_LOANS {
+        return Err(too_big(
+            "loan records",
+            bundle.loan_history.len(),
+            MAX_IMPORT_LOANS,
+        ));
+    }
+    if bundle.locations.len() > MAX_IMPORT_LOCATIONS {
+        return Err(too_big(
+            "places",
+            bundle.locations.len(),
+            MAX_IMPORT_LOCATIONS,
+        ));
+    }
+    Ok(())
+}
+
+/// 預け · The bundle's ledger, bucketed by the series id it belongs to.
+///
+/// Built once per import. `import_series_history` used to re-scan the
+/// whole `loan_history` vector for every series in the bundle, so a
+/// backup with 2 000 series and 20 000 loans walked 40 million rows
+/// inside the import transaction — quadratic in the size of the file
+/// the user uploads, which is the shape a caller controls.
+fn history_by_series(bundle: &ExportBundle) -> HashMap<i32, Vec<&ExportLoan>> {
+    let mut by_series: HashMap<i32, Vec<&ExportLoan>> = HashMap::new();
+    for h in &bundle.loan_history {
+        by_series.entry(h.mal_id).or_default().push(h);
+    }
+    by_series
+}
+
 /// 預け · Import the bundle's ledger rows of one series onto its live id.
 /// A linked borrower is re-attached by slug under the same follow rule as
 /// volumes; `replace` rewrites rows the backup knows, merge only adds.
 async fn import_series_history(
     txn: &impl ConnectionTrait,
     user_id: i32,
-    bundle: &ExportBundle,
+    history_by_series: &HashMap<i32, Vec<&ExportLoan>>,
     bundle_mal: i32,
     live_mal: i32,
     replace: bool,
     borrower_by_slug: &HashMap<String, i32>,
 ) -> Result<(), AppError> {
-    for h in bundle
-        .loan_history
-        .iter()
-        .filter(|h| h.mal_id == bundle_mal)
-    {
+    let Some(rows) = history_by_series.get(&bundle_mal) else {
+        return Ok(());
+    };
+    for h in rows {
         let borrower_user_id = h
             .borrower_slug
             .as_deref()
@@ -462,6 +516,19 @@ pub async fn apply_import_merge(
         )));
     }
 
+    // 量 · Size gate, before the transaction opens.
+    //
+    // Everything below runs inside one transaction, row by row, so the
+    // work is linear in whatever the uploader put in the file and the
+    // locks are held for the whole of it. The body limit
+    // (`MAX_BODY_SIZE_MB`, 10 by default) bounds the bytes but not the
+    // row count: a hand-written bundle of minimal rows fits far more
+    // series in 10 MB than any real export does. These ceilings sit an
+    // order of magnitude above the largest plausible collection, so a
+    // genuine backup never meets them, and reject the pathological ones
+    // with a 400 instead of a transaction that runs for minutes.
+    check_import_size(bundle)?;
+
     // Pre-fetch the current library once and index it by identity so
     // conflicts are detected without a query per series. The value is
     // the LIVE row's mal_id — for a custom series that is the negative
@@ -484,6 +551,8 @@ pub async fn apply_import_merge(
         total_in_file: bundle.library.len(),
         ..Default::default()
     };
+
+    let history_by_series = history_by_series(bundle);
 
     // 友 · Re-link borrowers by public slug — only users who exist here
     // AND whom the importer follows, the rule the live lend path applies,
@@ -529,7 +598,7 @@ pub async fn apply_import_merge(
                 import_series_history(
                     &txn,
                     user.id,
-                    bundle,
+                    &history_by_series,
                     bundle_mal,
                     live,
                     false,
@@ -706,10 +775,19 @@ pub async fn apply_import_merge(
         // each statement's plan cache hot.
         const BULK_INSERT_CHUNK: usize = 500;
 
+        // 番 · One row per tome number, first occurrence wins.
+        // `(user_id, mal_id, vol_num)` is unique in the database, so a
+        // bundle listing the same tome twice — hand-edited, merged from
+        // two exports, or simply corrupt — used to abort the INSERT and
+        // roll the whole import back with a 500, telling the user
+        // nothing about which file was at fault. A duplicate is a defect
+        // in the file, not a reason to refuse the other 400 series in it.
+        let mut seen_vol_nums = std::collections::HashSet::new();
         let volume_models: Vec<volume_mod::ActiveModel> = if !series.volumes_detail.is_empty() {
             series
                 .volumes_detail
                 .iter()
+                .filter(|v| seen_vol_nums.insert(v.vol_num))
                 .map(|v| volume_mod::ActiveModel {
                     user_id: Set(user.id),
                     mal_id: Set(assigned_mal),
@@ -827,7 +905,7 @@ pub async fn apply_import_merge(
             import_series_history(
                 &txn,
                 user.id,
-                bundle,
+                &history_by_series,
                 bundle_mal,
                 live_mal,
                 mode == ImportMode::Replace,
@@ -937,5 +1015,121 @@ mod identity_tests {
             series_key(None, None, "Mon Manga"),
             series_key(None, None, "Mon Manga 2")
         );
+    }
+}
+
+#[cfg(test)]
+mod import_guard_tests {
+    use super::*;
+
+    /*
+     * 量 · An import is linear in whatever the uploader put in the
+     * file, inside one transaction, holding locks for the whole of it.
+     * The body limit bounds the bytes, not the rows — a bundle of
+     * minimal hand-written rows fits far more series in 10 MB than any
+     * real export does. These pin that the gate says no to the
+     * pathological shapes and yes to everything a genuine backup is,
+     * because a ceiling a real collection can reach is a bug of its own.
+     */
+    fn bundle_of(series: usize, volumes_each: usize, loans: usize) -> ExportBundle {
+        let vol = |n: usize| crate::models::archive::ExportVolume {
+            vol_num: n as i32,
+            ..Default::default()
+        };
+        ExportBundle {
+            version: EXPORT_VERSION,
+            exported_at: chrono::Utc::now(),
+            source: "test".into(),
+            user: crate::models::archive::ExportUser { name: None },
+            settings: None,
+            library: (0..series)
+                .map(|i| ExportSeries {
+                    mal_id: Some(i as i32 + 1),
+                    mangadex_id: None,
+                    name: format!("Series {i}"),
+                    volumes: volumes_each as i32,
+                    volumes_owned: 0,
+                    image_url_jpg: None,
+                    genres: Vec::new(),
+                    volumes_detail: (1..=volumes_each).map(vol).collect(),
+                    ..Default::default()
+                })
+                .collect(),
+            loan_history: (0..loans)
+                .map(|i| ExportLoan {
+                    mal_id: 1,
+                    vol_num: i as i32,
+                    series_name: "Series 0".into(),
+                    borrower: "Alex".into(),
+                    borrower_slug: None,
+                    loaned_at: chrono::Utc::now(),
+                    due_at: None,
+                    returned_at: None,
+                })
+                .collect(),
+            locations: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_large_but_believable_collection_is_accepted() {
+        // 500 series averaging 40 tomes — a serious collector's shelf.
+        assert!(check_import_size(&bundle_of(500, 40, 5_000)).is_ok());
+    }
+
+    #[test]
+    fn too_many_series_is_refused() {
+        let err = check_import_size(&bundle_of(MAX_IMPORT_SERIES + 1, 0, 0)).unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)));
+    }
+
+    #[test]
+    fn too_many_volumes_is_refused_even_across_few_series() {
+        // The volume ceiling is a total, not a per-series one: 100
+        // series of 5 000 tomes is 500 000 rows in one transaction.
+        let b = bundle_of(100, 5_000, 0);
+        assert!(b.library.len() < MAX_IMPORT_SERIES);
+        assert!(check_import_size(&b).is_err());
+    }
+
+    #[test]
+    fn too_many_loan_records_is_refused() {
+        assert!(check_import_size(&bundle_of(1, 0, MAX_IMPORT_LOANS + 1)).is_err());
+    }
+
+    #[test]
+    fn the_message_names_the_limit_it_hit() {
+        let AppError::BadRequest(msg) =
+            check_import_size(&bundle_of(1, 0, MAX_IMPORT_LOANS + 1)).unwrap_err()
+        else {
+            panic!("expected a 400");
+        };
+        assert!(msg.contains("loan records"), "{msg}");
+        assert!(msg.contains(&MAX_IMPORT_LOANS.to_string()), "{msg}");
+    }
+
+    /*
+     * 預け · The ledger index the import walks. It replaced a filter
+     * over the whole `loan_history` vector per series — quadratic in
+     * the size of the file a caller uploads.
+     */
+    #[test]
+    fn the_ledger_index_buckets_by_series_and_keeps_every_row() {
+        let mut b = bundle_of(2, 0, 0);
+        let loan = |mal_id, vol_num| ExportLoan {
+            mal_id,
+            vol_num,
+            series_name: "S".into(),
+            borrower: "Alex".into(),
+            borrower_slug: None,
+            loaned_at: chrono::Utc::now(),
+            due_at: None,
+            returned_at: None,
+        };
+        b.loan_history = vec![loan(1, 1), loan(2, 1), loan(1, 2)];
+        let idx = history_by_series(&b);
+        assert_eq!(idx[&1].len(), 2);
+        assert_eq!(idx[&2].len(), 1);
+        assert!(!idx.contains_key(&3));
     }
 }
