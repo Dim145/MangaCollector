@@ -270,7 +270,7 @@ pub async fn add_to_user_library(
     .await
     {
         Some(new_url) => Some(new_url),
-        None => req.image_url_jpg.clone(),
+        None => crate::services::cover_pool::allowed_cover_url(req.image_url_jpg.as_deref()),
     };
 
     let txn = db.begin().await.map_err(AppError::from)?;

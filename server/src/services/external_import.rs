@@ -17,9 +17,8 @@ use serde::Deserialize;
 use std::time::Duration;
 
 use crate::errors::AppError;
-use crate::models::archive::{
-    ExportBundle, ExportSeries, ExportUser, EXPORT_VERSION,
-};
+use crate::models::archive::{EXPORT_VERSION, ExportBundle, ExportSeries, ExportUser};
+use crate::services::cover_pool::allowed_cover_url;
 
 /// Hard cap to keep external imports sane and stay well inside rate
 /// limits. Any list longer is truncated and the client is informed via
@@ -237,7 +236,7 @@ pub async fn fetch_mal_by_username(
                 name: entry.manga.title,
                 volumes: total,
                 volumes_owned: owned,
-                image_url_jpg: image,
+                image_url_jpg: allowed_cover_url(image.as_deref()),
                 genres,
                 publisher: None,
                 edition: None,
@@ -448,10 +447,9 @@ pub async fn fetch_anilist_by_username(
                 name,
                 volumes: total,
                 volumes_owned: owned,
-                image_url_jpg: entry
-                    .media
-                    .cover_image
-                    .and_then(|c| c.large),
+                image_url_jpg: allowed_cover_url(
+                    entry.media.cover_image.and_then(|c| c.large).as_deref(),
+                ),
                 genres: entry.media.genres,
                 publisher: None,
                 edition: None,
@@ -580,7 +578,7 @@ pub async fn fetch_mangadex_by_input(
                     name: m.name,
                     volumes: m.volumes.unwrap_or(0),
                     volumes_owned: 0,
-                    image_url_jpg: m.image_url,
+                    image_url_jpg: allowed_cover_url(m.image_url.as_deref()),
                     genres: m.genres,
                     publisher: None,
                     edition: None,
@@ -757,7 +755,7 @@ pub fn parse_yamtrack_csv(csv_text: &str) -> Result<ExportBundle, AppError> {
             name: title,
             volumes: 0,
             volumes_owned: 0,
-            image_url_jpg: image,
+            image_url_jpg: allowed_cover_url(image.as_deref()),
             genres: Vec::new(),
             publisher: None,
             edition: None,
@@ -1015,6 +1013,7 @@ fn wrap_bundle(source: &str, library: Vec<ExportSeries>) -> ExportBundle {
         settings: None,
         library,
         loan_history: Vec::new(),
+        locations: Vec::new(),
     }
 }
 

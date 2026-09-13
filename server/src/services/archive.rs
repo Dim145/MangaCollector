@@ -634,7 +634,9 @@ pub async fn apply_import_merge(
             name: Set(series.name.clone()),
             volumes: Set(series_volumes),
             volumes_owned: Set(series_volumes_owned),
-            image_url_jpg: Set(series.image_url_jpg.clone()),
+            image_url_jpg: Set(crate::services::cover_pool::allowed_cover_url(
+                series.image_url_jpg.as_deref(),
+            )),
             publisher: Set(series.publisher.clone()),
             edition: Set(series.edition.clone()),
             review: Set(series.review.clone()),

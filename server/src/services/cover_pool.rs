@@ -117,6 +117,54 @@ pub async fn fetch_volume_covers(
 /// legitimate picks will match. Rejecting anything else closes the door on
 /// a user crafting a request with a URL pointing to a tracking pixel or
 /// arbitrary host.
+/// Hosts a stored cover URL may point at — the same list the client's
+/// CSP `img-src` allows (client/nginx.conf), so what passes here also
+/// renders. Applied wherever a cover URL enters the database from
+/// outside: archive import, external imports, a client-supplied cover on
+/// add. Own posters are server-relative paths and pass untouched.
+pub const COVER_HOSTS: [&str; 8] = [
+    "myanimelist.net",
+    "mangadex.org",
+    "images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com",
+    "anilist.co",
+    "books.google.com",
+    "googleusercontent.com",
+    "covers.openlibrary.org",
+    "openlibrary.org",
+];
+
+fn host_allowed(host: &str, allowed: &[&str]) -> bool {
+    let host = host.to_ascii_lowercase();
+    allowed
+        .iter()
+        .any(|s| host == *s || host.ends_with(&format!(".{s}")))
+}
+
+/// A cover URL as it may be stored: `None` when blank or from a host we
+/// do not serve. `http://` on an allowed host is upgraded to `https://`
+/// (Google Books thumbnails still come as http). Server-relative paths
+/// (`/api/user/storage/...`) are kept as they are.
+pub fn allowed_cover_url(raw: Option<&str>) -> Option<String> {
+    let text = raw?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    if text.starts_with('/') && !text.starts_with("//") && !text.contains("..") {
+        return Some(text.to_string());
+    }
+    let mut url = url::Url::parse(text).ok()?;
+    match url.scheme() {
+        "https" => {}
+        "http" => url.set_scheme("https").ok()?,
+        _ => return None,
+    }
+    if url.username() != "" || url.password().is_some() {
+        return None;
+    }
+    let host = url.host_str()?;
+    host_allowed(host, &COVER_HOSTS).then(|| url.to_string())
+}
+
 pub fn is_whitelisted_poster_url(url: &str) -> bool {
     const ALLOWED_SUFFIXES: [&str; 3] = [
         ".myanimelist.net",
@@ -133,4 +181,55 @@ pub fn is_whitelisted_poster_url(url: &str) -> bool {
                     .any(|s| host == *s || host.ends_with(&format!(".{}", s.trim_start_matches('.'))))
             })
             .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod allowlist_tests {
+    use super::allowed_cover_url;
+
+    #[test]
+    fn keeps_known_hosts_and_own_paths() {
+        assert_eq!(
+            allowed_cover_url(Some("https://cdn.myanimelist.net/images/manga/1/1.jpg")),
+            Some("https://cdn.myanimelist.net/images/manga/1/1.jpg".into())
+        );
+        assert_eq!(
+            allowed_cover_url(Some(" https://uploads.mangadex.org/covers/x/y.jpg ")),
+            Some("https://uploads.mangadex.org/covers/x/y.jpg".into())
+        );
+        assert_eq!(
+            allowed_cover_url(Some("/api/user/storage/poster/13")),
+            Some("/api/user/storage/poster/13".into())
+        );
+    }
+
+    #[test]
+    fn upgrades_http_on_allowed_hosts_only() {
+        assert_eq!(
+            allowed_cover_url(Some("http://books.google.com/books/content?id=1&zoom=1")),
+            Some("https://books.google.com/books/content?id=1&zoom=1".into())
+        );
+        assert_eq!(allowed_cover_url(Some("http://evil.example/x.jpg")), None);
+    }
+
+    #[test]
+    fn drops_unknown_hosts_lookalikes_and_junk() {
+        assert_eq!(
+            allowed_cover_url(Some("https://evil.example/mal.jpg")),
+            None
+        );
+        assert_eq!(
+            allowed_cover_url(Some("https://myanimelist.net.evil.example/a.jpg")),
+            None
+        );
+        assert_eq!(
+            allowed_cover_url(Some("https://cdn.myanimelist.net@evil.example/a.jpg")),
+            None
+        );
+        assert_eq!(allowed_cover_url(Some("//cdn.myanimelist.net/a.jpg")), None);
+        assert_eq!(allowed_cover_url(Some("/api/../etc/passwd")), None);
+        assert_eq!(allowed_cover_url(Some("javascript:alert(1)")), None);
+        assert_eq!(allowed_cover_url(Some("   ")), None);
+        assert_eq!(allowed_cover_url(None), None);
+    }
 }
