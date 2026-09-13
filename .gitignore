@@ -159,3 +159,7 @@ graphify-out/
 
 # Local test stack (docs/test-stack.md): filesystem storage backend
 server/.test-stack-storage/
+
+# cargo-mutants campaign output (rotates into .old on the next run)
+mutants.out/
+mutants.out.old/
