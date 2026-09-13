@@ -2,12 +2,20 @@
 # ↑ BuildKit cache mounts. Without this directive `--mount=type=cache` is
 # silently ignored and only the classic Docker layer cache applies.
 
-# Build profile (`release` = full LTO/opt for prod, `release-fast` = quicker
-# compile for dev). Override at build time:  --build-arg CARGO_PROFILE=release
-ARG CARGO_PROFILE=release-fast
+# Build profile. `release` is full LTO/opt and is what a published image
+# should carry; `release-fast` (opt-level 2, no LTO) trades ~20% runtime
+# for a much shorter compile and is for iterating locally:
+#   docker compose build --build-arg CARGO_PROFILE=release-fast server
+# The default used to be `release-fast`, so every image built without an
+# explicit argument — including the ones this repo publishes — shipped
+# the development profile.
+ARG CARGO_PROFILE=release
 
 # ── Stage 0: chef base — Rust + musl + mold + cargo-chef ──────────────────────
-FROM rust:alpine AS chef
+# Pinned to the toolchain in `rust-toolchain.toml`; a floating
+# `rust:alpine` follows stable and can change the compiler under an
+# unchanged tree.
+FROM rust:1.94-alpine AS chef
 # `musl-dev` for the static link, `pkgconfig` + `ca-certificates` so we can
 # copy the CA bundle into the scratch runtime stage. `mold` + `clang` are
 # enabled by .cargo/config.toml; mold replaces the linker (~30-90s → few s

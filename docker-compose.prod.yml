@@ -1,5 +1,3 @@
-version: '3.9'
-
 networks:
   ip6net:
     driver: bridge
@@ -14,6 +12,7 @@ services:
       - "3000:3000"
     env_file:
       - ./server/.env
+    restart: unless-stopped
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -26,8 +25,12 @@ services:
 
   client:
     build: ./client
+    # nginx listens on :80 inside the container (see client/nginx.conf).
+    # This was `5173:5173` — the container port nothing binds — so the
+    # published port answered nothing at all.
     ports:
-      - "5173:5173"
+      - "5173:80"
+    restart: unless-stopped
     read_only: true
     security_opt:
       - no-new-privileges:true

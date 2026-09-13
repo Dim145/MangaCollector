@@ -17,6 +17,19 @@ services:
       - db_data:/var/lib/postgresql/data
     networks:
       - internal
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    # `pg_isready` as the database's own user — the default probes
+    # `root`, which does not exist here and logs a failed connection
+    # every ten seconds. `server` waits on this instead of racing the
+    # first migration against a socket that isn't listening yet.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mangacollector -d mangacollector"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   redis:
     image: redis:8.4-alpine
@@ -48,18 +61,26 @@ services:
   traefik:
     image: traefik:v2
     command:
+      # 開 · The dashboard is unauthenticated by construction — that is
+      # what `insecure` means. It lists every router, service and
+      # middleware, so it maps the whole deployment for anyone who
+      # reaches it. Bound to the loopback below rather than turned off,
+      # because it is genuinely useful while developing; if you need it
+      # from another machine, tunnel to it (`ssh -L 8080:localhost:8080`)
+      # instead of widening the binding.
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
       - "--providers.docker.exposedbydefault=false"
     ports:
       - "12000:80"
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - default
       - internal
+    restart: unless-stopped
     depends_on:
         client:
             condition: service_healthy
@@ -67,14 +88,27 @@ services:
           condition: service_healthy
 
   server:
-    build: ./server
+    build:
+      context: ./server
+      args:
+        # The dev stack builds for iteration speed, not runtime speed:
+        # `release-fast` is opt-level 2 without LTO and compiles in a
+        # fraction of the time. The Dockerfile defaults to full `release`
+        # so a published image never accidentally ships this.
+        CARGO_PROFILE: release-fast
     image: dim145/mangacollector-back:latest
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.server.rule=PathPrefix(`/api/`) || PathPrefix(`/auth/`)"
       - "traefik.http.services.server.loadbalancer.server.port=3000"
+    # 直 · Loopback only. Traefik is the way in (`:12000`); this mapping
+    # is here so you can curl the API without going through the proxy.
+    # Published on 0.0.0.0 it was a second front door on every interface
+    # of the host — one that skips the proxy, and with it the forwarded
+    # headers the rate limiter now keys on.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
     # Hardening — binary runs as uid 65532, needs no capabilities and writes
     # only to /data (mounted volume) + /tmp (tmpfs). Root FS stays read-only.
     read_only: true
@@ -88,6 +122,12 @@ services:
       RATE_LIMIT_ENABLED: true
       RATE_LIMIT_PERIOD_SECONDS: 1
       RATE_LIMIT_BURST_SIZE: 60
+      # 信 · Traefik terminates the connection, so the socket's peer
+      # address is Traefik's for every request. Without this the rate
+      # limiter buckets the entire instance together and one noisy
+      # client throttles everyone. Only ever set this where a proxy you
+      # control really does set X-Forwarded-For.
+      TRUST_PROXY_HEADERS: true
       X_FRAME_OPTIONS: DENY
       APP_ENABLE_DOTENV: false
       MAX_BODY_SIZE_MB: 50
@@ -99,8 +139,16 @@ services:
       AUTH_ISSUER: https://xxx/
       AUTH_ISSUER_BASE_PATH: /api/v1/oauth/
       AUTH_CLIENT_ID: xxx
-      AUTH_CLIENT_SECRET: xxx
-      SESSION_SECRET: "xxx"
+      AUTH_CLIENT_SECRET: ${AUTH_CLIENT_SECRET:?set AUTH_CLIENT_SECRET in .env}
+      # 鍵 · Read by the config loader and used by nothing — session ids
+      # come from the Postgres store, which mints them at random, and the
+      # cookie is not signed (`SessionManagerLayer::new`, not
+      # `with_signed`). The `xxx` that sat here looked like a live
+      # signing key left in a tracked file; it was neither live nor a
+      # key. Left in place, empty and labelled, because the variable is
+      # still documented as an input — see `config.rs` for what it would
+      # take to make it mean something.
+      SESSION_SECRET: ${SESSION_SECRET:-}
       FRONTEND_URL: http://localhost:12000
       POSTGRES_URL: postgres://mangacollector:mangacollectormangacollector@db:5432/mangacollector?sslmode=disable
       STORAGE_DIR: /data
@@ -120,6 +168,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.client.rule=PathPrefix(`/`)"
       - "traefik.http.services.client.loadbalancer.server.port=80"
+    restart: unless-stopped
     # Hardening — nginx pid + temp paths are redirected to /tmp in nginx.conf,
     # so the root FS can be read-only. Keep NET_BIND_SERVICE so the master
     # process can still bind port 80 inside the container.
@@ -147,5 +196,7 @@ services:
       # FRONTEND_UMAMI_ORIGIN: https://umami.example.com
       # FRONTEND_SENTRY_DSN: https://xxx@o0.ingest.sentry.io/000
       # FRONTEND_BUGSINK_DSN: https://xxx@bugsink.example.com/0
+    # Same reasoning as the server's mapping: Traefik serves the SPA on
+    # :12000, this is the direct-to-nginx shortcut for debugging.
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"

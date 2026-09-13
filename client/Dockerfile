@@ -1,3 +1,5 @@
+# Pinned to the major in `client/.nvmrc`, and to a stable nginx line
+# below — a floating tag changes the runtime under an unchanged tree.
 FROM node:24-alpine AS build
 
 WORKDIR /client
@@ -12,7 +14,7 @@ COPY . .
 
 RUN pnpm run build
 
-FROM nginx:alpine
+FROM nginx:1.29-alpine
 
 # OCI labels document the read-only deploy contract for scanners + humans.
 # These don't enforce runtime — flags must still be passed by the launcher.

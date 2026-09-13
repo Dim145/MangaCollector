@@ -1,2 +1,30 @@
+# Build artefacts and installed deps — the two biggest sources of
+# useless bytes shipped to the daemon, and both are rebuilt inside the
+# image anyway.
 node_modules
 dist
+dev-dist
+coverage
+.stryker-tmp
+
+# Editor / IDE state
+.idea/
+.vscode/
+*.swp
+
+# Local env & secrets — never bake into an image, even by accident.
+.env
+.env.*
+!.env.example
+
+# VCS metadata
+.git/
+.gitignore
+
+# Documentation isn't needed at build time
+README.md
+*.md
+
+# CI / Claude worktrees / agent state
+.github/
+.claude/
