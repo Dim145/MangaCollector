@@ -16,8 +16,12 @@ export function knownBorrowers(history, currentLoans = []) {
   };
   for (const l of Array.isArray(currentLoans) ? currentLoans : [])
     push(l?.loaned_to);
+  // The rest of this function guards every row with `?.` because the
+  // cached ledger can hold a hole; the comparator did not, and threw on
+  // the first `null` as soon as there were two rows to compare.
+  const lentAt = (row) => new Date(row?.loaned_at ?? 0).getTime() || 0;
   const rows = (Array.isArray(history) ? [...history] : []).sort(
-    (a, b) => new Date(b.loaned_at) - new Date(a.loaned_at),
+    (a, b) => lentAt(b) - lentAt(a),
   );
   for (const h of rows) push(h?.borrower);
   return out;
