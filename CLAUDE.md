@@ -128,7 +128,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 947 tests across 44 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 963 tests across 47 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -141,8 +141,11 @@ docker compose build
     `scanLookup` (a scanned barcode against the cached shelf),
     `loanHistory` and `navCounters` (pure read-side helpers),
     `locations` (grouping tomes by place, move payloads), `inventory`
-    (the stock-taking state machine) and `labels` (Avery sheet geometry,
-    EAN-13 checksums, label text fitting).
+    (the stock-taking state machine), `labels` (Avery sheet geometry,
+    EAN-13 checksums, label text fitting), `gridDensity` (the two grid
+    shapes — a test parses the Tailwind class string against the lane
+    table so the plain and windowed paths cannot drift), `markdown` (the
+    help pages' reader) and `barcode` (what a camera says it can do).
     `lib/isbnResolve.test.js` pins the lookup order — Dexie cache, then
     the server's resolver, then the browser's own direct fallback only
     when the server is unreachable.
@@ -208,7 +211,7 @@ subsystem; they are written against the code, not the intent.
 ## Code Style
 
 - Frontend: ESLint 10 + Prettier 3 (`client/eslint.config.js`). Currently
-  clean — 0 errors, 0 warnings across 276 files. Keep it that way.
+  clean — 0 errors, 0 warnings across 285 files. Keep it that way.
 - Backend: `cargo fmt` + `cargo clippy`. Currently clippy-clean; the one
   `#[allow(clippy::too_many_arguments)]` in `services/library.rs` is
   deliberate and documented at the call site.
@@ -264,7 +267,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 
 ## Frontend (`client/src/`)
 
-119 components in `components/`, 53 hooks in `hooks/`, plus `lib/`
+122 components in `components/`, 54 hooks in `hooks/`, plus `lib/`
 (Dexie `db.js`, outbox `sync.js`, `connectivity.js`, `theme.js`,
 `barcode.js`, `isbn.js`, `scanLookup.js`, `locations.js`, `inventory.js`,
 `labels.js`), `i18n/` (en/fr/es, lazy-loaded per language) and `styles/`.
@@ -274,6 +277,12 @@ catalogue lookup needs a network. `/rangement` is the places view (move
 tomes by selection or by scanning into a place), `/inventaire` the
 stock-taking count, and both the series page and a place can print an
 Avery label sheet with each tome's EAN-13 (jsPDF + JsBarcode, lazy).
+The barcode scanner also reads a still photo (the way in when the camera
+is refused or absent) and offers torch and zoom when the device reports
+them. `/aide` is the help page: its prose lives in
+`client/src/content/help.{en,fr,es}.md` and is fetched with the page, not
+bundled — a small in-house reader parses it to plain objects that the
+renderer turns into React nodes, so nothing is ever set as HTML.
 
 Server state via TanStack Query 5 with WebSocket-driven invalidation;
 local cache in Dexie (IndexedDB) with an offline outbox that replays
