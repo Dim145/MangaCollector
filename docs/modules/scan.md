@@ -130,7 +130,10 @@ flowchart TD
   C -- "found: true" --> D[fromCatalogueBook → cache → return]
   C -- "found: false" --> E[cache null → return null · final]
   C -- "no response / 5xx / 401" --> F[Google Books · throttle, cooldown, key, 12 s]
-  F -- miss or 429 --> I[Open Library, 8 s] --> J[openBD, 8 s]
+  F -- hit --> D
+  F -- miss or 429 --> I[Open Library, 8 s] -- miss --> J[openBD, 8 s]
+  I -- hit --> D
+  J -- hit --> D
   J -- miss --> K[throw RATE_LIMITED if Google was limited, else cache null]
   C --> S[server: fresh cache row → return it, cached true]
   S --> T[google_books → open_library → bnf → openbd<br/>7 s each, first Some wins, failures logged and skipped]
