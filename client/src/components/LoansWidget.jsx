@@ -234,7 +234,7 @@ function DueCard({ loan, index, lang, t, onOpen }) {
       {/* Header row — borrower handle + volume number */}
       <div className="relative flex items-start justify-between gap-2 px-4 pt-4">
         <div className="min-w-0">
-          <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-washi-dim">
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim">
             {t("loans.borrowerLabel")}
           </p>
           <p
@@ -245,7 +245,7 @@ function DueCard({ loan, index, lang, t, onOpen }) {
           </p>
           {loan.loaned_to_user_id != null && (
             <p
-              className="mt-0.5 flex items-center gap-1 truncate font-mono text-[9px] uppercase tracking-[0.2em] text-gold"
+              className="mt-0.5 flex items-center gap-1 truncate font-mono text-[10px] uppercase tracking-[0.2em] text-gold"
               title={t("loans.linkedFriend")}
             >
               <span
@@ -261,7 +261,7 @@ function DueCard({ loan, index, lang, t, onOpen }) {
           )}
         </div>
         <div className="shrink-0 text-right">
-          <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-washi-dim">
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim">
             {t("loans.volNumLabel")}
           </p>
           <p className="mt-0.5 font-display text-lg font-light italic tabular-nums text-hanko-bright">
@@ -299,7 +299,7 @@ function DueCard({ loan, index, lang, t, onOpen }) {
           stamp dual-line. Mono caps, gentle gold rule between. */}
       <div className="relative mt-4 grid grid-cols-2 gap-3 border-t border-border/60 px-4 py-3">
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-washi-dim">
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim">
             {t("loans.lentOn")}
           </p>
           <p className="mt-0.5 font-mono text-[11px] tabular-nums text-washi">
@@ -307,7 +307,7 @@ function DueCard({ loan, index, lang, t, onOpen }) {
           </p>
         </div>
         <div className="text-right">
-          <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-washi-dim">
+          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim">
             {t("loans.dueOn")}
           </p>
           <p
@@ -328,14 +328,14 @@ function DueCard({ loan, index, lang, t, onOpen }) {
       <div
         className={`relative flex items-center justify-between gap-2 border-t px-4 py-2 ${statusToken.classes}`}
       >
-        <span className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.22em]">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em]">
           <span aria-hidden="true" className="font-jp text-[11px] not-italic">
             {statusToken.kanji}
           </span>
           {statusToken.label}
         </span>
         {loan.status === "overdue" && dueLabel && (
-          <span className="font-mono text-[9px] uppercase tracking-[0.22em] tabular-nums">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] tabular-nums">
             {daysOverdueLabel(loan.loan_due_at, t)}
           </span>
         )}
@@ -530,6 +530,15 @@ function LedgerSection({ rows, lang, t }) {
           {rows.length}
         </span>
       </summary>
+      <div className="flex items-center justify-end gap-3 border-t border-border/60 px-4 py-2">
+        <a
+          href="/api/user/volume/loans/export.csv"
+          download
+          className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold underline-offset-4 hover:underline"
+        >
+          {t("loans.exportCsv")}
+        </a>
+      </div>
       <ul
         role="list"
         className="divide-y divide-border/60 border-t border-border/60"

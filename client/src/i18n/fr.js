@@ -112,6 +112,7 @@ export default {
     present: "présents",
     missing: "manquants",
     lent: "en prêt",
+    exportCsv: "Liste des manquants (CSV)",
     again: "Nouveau comptage",
   },
   labels: {

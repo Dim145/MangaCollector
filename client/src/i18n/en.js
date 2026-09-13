@@ -109,6 +109,7 @@ export default {
     present: "present",
     missing: "missing",
     lent: "on loan",
+    exportCsv: "Missing list (CSV)",
     again: "New count",
   },
   labels: {

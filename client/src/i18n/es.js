@@ -109,6 +109,7 @@ export default {
     present: "presentes",
     missing: "faltan",
     lent: "prestados",
+    exportCsv: "Lista de faltantes (CSV)",
     again: "Nuevo recuento",
   },
   labels: {
