@@ -168,7 +168,7 @@ export default function BarcodeScanner({
         type="button"
         onClick={() => onCloseRef.current?.()}
         aria-label={t("scan.closeScanner")}
-        className="absolute grid h-12 w-12 place-items-center rounded-full border border-border bg-ink-0/80 text-on-hanko backdrop-blur-md transition hover:bg-hanko hover:border-hanko active:scale-95"
+        className="absolute grid h-12 w-12 place-items-center rounded-full border border-border bg-ink-0/80 text-washi hover:text-on-hanko backdrop-blur-md transition hover:bg-hanko hover:border-hanko active:scale-95"
         style={{
           top: `calc(0.75rem + env(safe-area-inset-top))`,
           left: `calc(0.75rem + env(safe-area-inset-left))`,

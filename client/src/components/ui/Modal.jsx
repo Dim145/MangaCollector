@@ -123,7 +123,7 @@ export default function Modal({
         <button
           onClick={handleClose}
           aria-label="Close"
-          className="absolute top-4 right-4 grid h-10 w-10 place-items-center rounded-full border border-border bg-ink-1/80 text-on-hanko backdrop-blur transition hover:bg-hanko hover:border-hanko"
+          className="absolute top-4 right-4 grid h-10 w-10 place-items-center rounded-full border border-border bg-ink-1/80 text-washi hover:text-on-hanko backdrop-blur transition hover:bg-hanko hover:border-hanko"
         >
           <svg
             viewBox="0 0 24 24"

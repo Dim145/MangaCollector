@@ -91,7 +91,7 @@ export default class RouteErrorBoundary extends Component {
         <button
           type="button"
           onClick={this.reset}
-          className="mt-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:border-hanko hover:bg-hanko hover:text-on-hanko"
+          className="mt-2 rounded-full border border-hanko/40 bg-hanko/10 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-washi hover:text-on-hanko transition hover:border-hanko hover:bg-hanko hover:text-on-hanko"
         >
           Reload
         </button>

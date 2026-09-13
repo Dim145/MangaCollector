@@ -862,7 +862,7 @@ function ErrorState({ onRetry, t }) {
       <button
         type="button"
         onClick={() => onRetry()}
-        className="mt-4 inline-flex items-center gap-2 rounded-full border border-hanko/50 bg-hanko/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-on-hanko transition hover:border-hanko hover:bg-hanko hover:text-on-hanko"
+        className="mt-4 inline-flex items-center gap-2 rounded-full border border-hanko/50 bg-hanko/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-washi hover:text-on-hanko transition hover:border-hanko hover:bg-hanko hover:text-on-hanko"
       >
         {t("common.retryNow")}
       </button>
