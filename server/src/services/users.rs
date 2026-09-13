@@ -205,12 +205,43 @@ pub(crate) fn entry_publicly_visible(
     entry: &LibraryEntry,
     now: chrono::DateTime<chrono::Utc>,
 ) -> bool {
-    let adult_ok = owner.public_show_adult || !entry_is_adult(&entry.genres);
-    let wishlist_open = owner
-        .wishlist_public_until
-        .map(|t| t > now)
-        .unwrap_or(false);
-    let wishlist_ok = wishlist_open || entry.volumes_owned > 0;
+    row_publicly_visible(&owner.into(), &entry.genres, entry.volumes_owned, now)
+}
+
+/// The two owner columns the gate above reads, detached from the row
+/// they came from. `follow::feed` reads them off a join projection and
+/// never materialises a `User`.
+pub(crate) struct OwnerVisibility {
+    pub show_adult: bool,
+    pub wishlist_until: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl From<&User> for OwnerVisibility {
+    fn from(u: &User) -> Self {
+        Self {
+            show_adult: u.public_show_adult,
+            wishlist_until: u.wishlist_public_until,
+        }
+    }
+}
+
+/// The same rule, over the four values it actually reads.
+///
+/// The social surfaces (`follow::feed`, `follow::compute_overlap`) walk
+/// raw `library` rows in bulk and have no `LibraryEntry` to hand —
+/// building one per row just to ask this question would mean splitting
+/// genres and cloning strings for every series of every followed user.
+/// They call this instead, which is the same predicate, so a change to
+/// the rule still lands everywhere at once.
+pub(crate) fn row_publicly_visible(
+    owner: &OwnerVisibility,
+    genres: &[String],
+    volumes_owned: i32,
+    now: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    let adult_ok = owner.show_adult || !entry_is_adult(genres);
+    let wishlist_open = owner.wishlist_until.map(|t| t > now).unwrap_or(false);
+    let wishlist_ok = wishlist_open || volumes_owned > 0;
     adult_ok && wishlist_ok
 }
 
@@ -778,4 +809,75 @@ pub async fn delete_account(
         "account deleted"
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /*
+     * 公開 · One predicate answers "may somebody else see this row?"
+     * for every cross-user surface there is: the public profile, the
+     * compare view, the copy-a-series path, the friends overlap rail
+     * and the activity feed. They each used to answer it themselves
+     * and each drifted in its own direction — the overlap rail counted
+     * series its owner had opted out of showing, and the feed
+     * announced tomes from a wishlist whose horizon had lapsed.
+     *
+     * The two gates are independent and both must pass, which is what
+     * the cases below pin: an adult series needs the opt-in, a
+     * wishlist row (nothing owned) needs an open horizon, and a row
+     * that is both needs both.
+     */
+    fn owner(show_adult: bool, until: Option<i64>) -> OwnerVisibility {
+        OwnerVisibility {
+            show_adult,
+            wishlist_until: until.map(|days| now() + chrono::Duration::days(days)),
+        }
+    }
+
+    fn now() -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::from_timestamp(1_760_000_000, 0).expect("fixed instant")
+    }
+
+    fn visible(o: &OwnerVisibility, genres: &[&str], owned: i32) -> bool {
+        let genres: Vec<String> = genres.iter().map(|g| g.to_string()).collect();
+        row_publicly_visible(o, &genres, owned, now())
+    }
+
+    #[test]
+    fn an_owned_all_ages_series_is_visible_to_anyone() {
+        assert!(visible(&owner(false, None), &["Action"], 3));
+    }
+
+    #[test]
+    fn an_adult_series_needs_the_owners_opt_in() {
+        assert!(!visible(&owner(false, None), &["Hentai"], 3));
+        assert!(visible(&owner(true, None), &["Hentai"], 3));
+    }
+
+    #[test]
+    fn a_wishlist_row_needs_an_open_horizon() {
+        // 0 owned is the wishlist marker; hidden unless birthday mode
+        // is on AND still in the future.
+        assert!(!visible(&owner(false, None), &["Action"], 0));
+        assert!(visible(&owner(false, Some(7)), &["Action"], 0));
+        assert!(!visible(&owner(false, Some(-1)), &["Action"], 0));
+    }
+
+    #[test]
+    fn the_two_gates_are_independent() {
+        // Adult AND wishlisted: opening one door is not enough.
+        assert!(!visible(&owner(true, None), &["Hentai"], 0));
+        assert!(!visible(&owner(false, Some(7)), &["Hentai"], 0));
+        assert!(visible(&owner(true, Some(7)), &["Hentai"], 0));
+    }
+
+    #[test]
+    fn an_expired_horizon_reads_as_off_not_as_never_set() {
+        let lapsed = owner(false, Some(-30));
+        assert!(!visible(&lapsed, &["Action"], 0));
+        // …but it never hid a series the user actually owns.
+        assert!(visible(&lapsed, &["Action"], 1));
+    }
 }

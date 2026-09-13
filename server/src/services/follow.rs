@@ -174,6 +174,11 @@ pub async fn list_following(
 /// `created_on DESC` so newest events surface first.
 pub async fn feed(db: &Db, follower_id: i32, limit: u64) -> Result<Vec<FeedEntry>, AppError> {
     let limit = limit.clamp(1, FEED_LIMIT_MAX);
+    // 公開 · The visibility gate below runs in Rust (the adult test reads
+    // genre strings, which SQL can't do), so it prunes rows the LIMIT has
+    // already picked. Over-fetch so a feed full of hidden series still
+    // fills a page; the cap keeps the worst case bounded.
+    let fetch = (limit * 4).min(FEED_LIMIT_MAX * 4);
 
     use sea_orm::FromQueryResult;
     #[derive(FromQueryResult)]
@@ -188,6 +193,10 @@ pub async fn feed(db: &Db, follower_id: i32, limit: u64) -> Result<Vec<FeedEntry
         series_name: Option<String>,
         volume_count: Option<i32>,
         created_at: chrono::DateTime<chrono::Utc>,
+        actor_show_adult: bool,
+        actor_wishlist_until: Option<chrono::DateTime<chrono::Utc>>,
+        entry_genres: Option<String>,
+        entry_volumes_owned: Option<i32>,
     }
 
     let stmt = Query::select()
@@ -224,6 +233,22 @@ pub async fn feed(db: &Db, follower_id: i32, limit: u64) -> Result<Vec<FeedEntry
             Expr::col((activity::Entity, activity::Column::CreatedOn)),
             Alias::new("created_at"),
         )
+        .expr_as(
+            Expr::col((user::Entity, user::Column::PublicShowAdult)),
+            Alias::new("actor_show_adult"),
+        )
+        .expr_as(
+            Expr::col((user::Entity, user::Column::WishlistPublicUntil)),
+            Alias::new("actor_wishlist_until"),
+        )
+        .expr_as(
+            Expr::col((library_mod::Entity, library_mod::Column::Genres)),
+            Alias::new("entry_genres"),
+        )
+        .expr_as(
+            Expr::col((library_mod::Entity, library_mod::Column::VolumesOwned)),
+            Alias::new("entry_volumes_owned"),
+        )
         .from(activity::Entity)
         .inner_join(
             follow::Entity,
@@ -235,13 +260,28 @@ pub async fn feed(db: &Db, follower_id: i32, limit: u64) -> Result<Vec<FeedEntry
             Expr::col((user::Entity, user::Column::Id))
                 .equals((activity::Entity, activity::Column::UserId)),
         )
+        // The series the event is about, in the ACTOR's library — that
+        // is where its genres and owned count live, and both decide
+        // whether this event may be shown at all. LEFT so an event with
+        // no series (or one the actor has since deleted) still arrives
+        // and is judged on its own below.
+        .join(
+            sea_orm::JoinType::LeftJoin,
+            library_mod::Entity,
+            Expr::col((library_mod::Entity, library_mod::Column::UserId))
+                .equals((activity::Entity, activity::Column::UserId))
+                .and(
+                    Expr::col((library_mod::Entity, library_mod::Column::MalId))
+                        .equals((activity::Entity, activity::Column::MalId)),
+                ),
+        )
         .and_where(Expr::col((follow::Entity, follow::Column::FollowerId)).eq(follower_id))
         .and_where(Expr::col((user::Entity, user::Column::PublicSlug)).is_not_null())
         .order_by(
             (activity::Entity, activity::Column::CreatedOn),
             sea_orm::Order::Desc,
         )
-        .limit(limit)
+        .limit(fetch)
         .to_owned();
 
     let rows: Vec<Row> = Row::find_by_statement(db.get_database_backend().build(&stmt))
@@ -249,8 +289,39 @@ pub async fn feed(db: &Db, follower_id: i32, limit: u64) -> Result<Vec<FeedEntry
         .await
         .map_err(AppError::from)?;
 
+    let now = chrono::Utc::now();
     Ok(rows
         .into_iter()
+        // An event about a series the actor keeps off their public
+        // surface stays off their followers' feeds too: the adult
+        // opt-out and the Birthday-mode wishlist horizon, the same two
+        // gates `build_public_profile` applies. An event whose series
+        // isn't in their library any more has nothing left to hide.
+        .filter(|r| {
+            let Some(owned) = r.entry_volumes_owned else {
+                return true;
+            };
+            let genres: Vec<String> = r
+                .entry_genres
+                .as_deref()
+                .map(|g| {
+                    g.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect()
+                })
+                .unwrap_or_default();
+            crate::services::users::row_publicly_visible(
+                &crate::services::users::OwnerVisibility {
+                    show_adult: r.actor_show_adult,
+                    wishlist_until: r.actor_wishlist_until,
+                },
+                &genres,
+                owned,
+                now,
+            )
+        })
+        .take(limit as usize)
         .map(|r| FeedEntry {
             event_id: r.event_id,
             actor_user_id: r.actor_user_id,
@@ -361,6 +432,23 @@ pub async fn compute_overlap(db: &Db, user_id: i32) -> Result<OverlapResponse, A
         .await
         .map_err(AppError::from)?;
 
+    // 公開 · The owners, keyed by id. A followed user's library is NOT
+    // wholesale public: the adult opt-out and the Birthday-mode wishlist
+    // horizon apply here exactly as they do on their profile page. This
+    // rail used to read the rows raw, which meant a friend's `shared`
+    // count confirmed they own a series they had opted out of showing,
+    // and their wishlist — the whole point of the horizon — was visible
+    // year-round to anyone following them.
+    let owners: HashMap<i32, crate::models::user::Model> = UserEntity::find()
+        .filter(user::Column::Id.is_in(following.clone()))
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .map(|u| (u.id, u))
+        .collect();
+    let now = chrono::Utc::now();
+
     type Bucket = (i64, String, Option<String>, Vec<String>);
     let mut tally: HashMap<i32, Bucket> = HashMap::new();
     for row in &friend_rows {
@@ -381,9 +469,25 @@ pub async fn compute_overlap(db: &Db, user_id: i32) -> Result<OverlapResponse, A
                     .collect()
             })
             .unwrap_or_default();
-        let entry = tally
-            .entry(mal_id)
-            .or_insert_with(|| (0, row.name.clone(), row.image_url_jpg.clone(), genres.clone()));
+        let Some(owner) = owners.get(&row.user_id) else {
+            continue;
+        };
+        if !crate::services::users::row_publicly_visible(
+            &owner.into(),
+            &genres,
+            row.volumes_owned,
+            now,
+        ) {
+            continue;
+        }
+        let entry = tally.entry(mal_id).or_insert_with(|| {
+            (
+                0,
+                row.name.clone(),
+                row.image_url_jpg.clone(),
+                genres.clone(),
+            )
+        });
         entry.0 += 1;
         // Keep the first non-empty image_url we see — bookkeeping
         // detail, the rail just needs *a* cover.
