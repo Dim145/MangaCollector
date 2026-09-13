@@ -72,9 +72,13 @@ node scripts/verify-archive-roundtrip.mjs
 Exercises `GET /api/user/export.json` → `POST /api/user/import` with
 real data instead of unit fixtures. The script first *enriches* the
 seeded library with every field the v1 bundle used to drop (publisher,
-edition, review, author, three loans with notes, the physical copy — condition, shelf, doubles, purchase day —,
-a hand-pencilled upcoming volume, a box set), then runs two scenarios and diffs
-normalised API snapshots of both sides:
+edition, review, author, three loans with notes, the physical copy — condition, shelf, doubles, purchase day,
+ISBN —, a hand-pencilled upcoming volume, a box set), then runs two scenarios and diffs
+normalised API snapshots of both sides. The ISBN step also proves the
+server's normalisation on real input (a hyphenated ISBN-13 and an ISBN-10
+both come back as the bare ISBN-13; a wrong checksum is refused with 400),
+and the snapshot carries the loan ledger (`GET /api/user/volume/loans/history`)
+so a bundle that dropped or doubled a past loan fails the run:
 
 - **fresh account, `mode: "merge"`** — import into a brand-new user and
   expect the two libraries to read back identically;

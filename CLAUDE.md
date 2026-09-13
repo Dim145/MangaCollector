@@ -14,7 +14,7 @@ server/   → Rust 2024 + Axum 0.8 + SeaORM 1.1 (over sqlx 0.8)
 ```
 
 **Backend pattern:** `routes/` → `handlers/` → `services/` → `models/`
-(SeaORM entities). 22 handler modules, 29 service modules, 14 entity modules.
+(SeaORM entities). 22 handler modules, 30 service modules, 15 entity modules.
 
 **Auth:** `openidconnect` 4 — Google OAuth 2.0 or generic OpenID Connect,
 selected by `AUTH_MODE`. Sessions are PostgreSQL-backed via `tower-sessions`
@@ -112,15 +112,19 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 76 tests across 17 `#[cfg(test)]` modules
-  (`storage.rs`, `errors.rs`, `util/{url,uuid,image}.rs`,
-  `services/{genres,proxy_client,google_books_api,activity_coalescer,realtime,archive,external_import,library}.rs`,
-  `handlers/realtime.rs`, `models/{archive,library,volume}.rs`). `services/library.rs`
+- **Server:** `cargo test` — 84 tests across 19 `#[cfg(test)]` modules
+  (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
+  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library}.rs`,
+  `handlers/realtime.rs`, `models/{archive,library,volume}.rs`). `util/isbn.rs`
+  pins ISBN normalisation (10 → 13, checksums); `services/isbn_resolver.rs`
+  pins the four catalogue parsers on real fixtures (Google Books, Open
+  Library, BnF SRU Dublin Core, openBD) and the cache freshness rule
+  (a hit lives 30 days, a miss 1 day). `services/library.rs`
   pins the reading-progression rule (`next_reading_state`): what a series'
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 885 tests across 37 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 903 tests across 41 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -129,7 +133,12 @@ docker compose build
     `user`, `auth` (~76% overall).
   - `lib/`: `isbn`, `season`, `queryState`, `share`, `pasteDetect`,
     `coverPalette`, `sealsCatalog`, `accent`, `theme`, `tour`,
-    `deepLinks`, `scrollLock`, `haptics`, `connectivity`, `dailyTexts`.
+    `deepLinks`, `scrollLock`, `haptics`, `connectivity`, `dailyTexts`,
+    `scanLookup` (a scanned barcode against the cached shelf),
+    `loanHistory` and `navCounters` (pure read-side helpers).
+    `lib/isbnResolve.test.js` pins the lookup order — Dexie cache, then
+    the server's resolver, then the browser's own direct fallback only
+    when the server is unreachable.
   - `lib/sync/`: `events`, and `outbox` — the offline queue runs against
     a real in-memory IndexedDB (`fake-indexeddb`), so coalescing and the
     delete cascade are exercised rather than mocked. `lib/db.test.js`
@@ -188,9 +197,9 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 |---|---|
 | `/auth` | OAuth callbacks & session lifecycle |
 | `/api/library` | Manga library CRUD, reading progression (`reading_status`, dates, `times_read`; `POST /{mal_id}/reread`) |
-| `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`), physical copy (condition, location, extra copies, bought on) |
+| `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`), physical copy (condition, location, extra copies, bought on, `isbn`) |
 | `/api/authors` | Author records, photos, refresh |
-| `/api/user`, `/api/account` | Profile, deletion, public slug |
+| `/api/user`, `/api/account` | Profile, deletion, public slug; `GET /api/user/isbn/{isbn}` resolves a barcode through the server-side chain (see External Integrations) |
 | `/api/settings` | User preferences |
 | `/api/seals` | Milestone trophies |
 | `/api/activity`, `/api/streak` | Activity feed & streak |
@@ -204,20 +213,28 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 
 ## Database
 
-- Migrations: **`server/migrations/`** — 47 raw `.sql` files, embedded at
+- Migrations: **`server/migrations/`** — 49 raw `.sql` files, embedded at
   compile time via `sqlx::migrate!("./migrations")` in `server/src/db.rs`
   and applied automatically on startup. There is no separate migrate script.
 - Entities (`server/src/models/`): `activity`, `archive`, `author`,
-  `coffret`, `compare`, `follow`, `library`, `session_meta`, `setting`,
-  `snapshot`, `user`, `user_seal`, `volume`.
+  `coffret`, `compare`, `follow`, `isbn_cache`, `library`, `loan_history`,
+  `session_meta`, `setting`, `snapshot`, `user`, `user_seal`, `volume`.
+- `loan_history` is an **append-only ledger**: a row per lend, closed by
+  `returned_at` when the tome comes back (or is un-owned), never deleted
+  with the volume (`volume_id` goes `NULL`). It travels in the archive
+  bundle and is what "already lent N times" and the borrower suggestions
+  read from.
 - Custom (non-MAL) series use a **negative `mal_id`**, allocated from a
   sequence to stay race-free.
 
 ## Frontend (`client/src/`)
 
-112 components in `components/`, 50 hooks in `hooks/`, plus `lib/`
+116 components in `components/`, 52 hooks in `hooks/`, plus `lib/`
 (Dexie `db.js`, outbox `sync.js`, `connectivity.js`, `theme.js`,
-`barcode.js`), `i18n/` (en/fr/es, lazy-loaded per language) and `styles/`.
+`barcode.js`, `isbn.js`, `scanLookup.js`), `i18n/` (en/fr/es, lazy-loaded
+per language) and `styles/`. The barcode scanner is fully client-side
+(`/scan` finds a tome on the shelf, adds a double, or hands the ISBN to
+the add flow); only the catalogue lookup needs a network.
 
 Server state via TanStack Query 5 with WebSocket-driven invalidation;
 local cache in Dexie (IndexedDB) with an offline outbox that replays
@@ -241,7 +258,12 @@ chronologically on reconnect. Routing via React Router 7.
 
 - **MyAnimeList** (via Jikan) — primary metadata source
 - **MangaDex** — fallback search and enrichment
-- **Google Books** — ISBN lookups for the barcode scanner
+- **ISBN resolvers** — `services/isbn_resolver.rs` walks Google Books →
+  Open Library → BnF SRU → openBD (7 s each) and stores the outcome in
+  `isbn_cache`, hit or miss, so a barcode costs one upstream round per
+  month at most. When the server itself is unreachable the browser asks
+  Google Books, Open Library and openBD directly (they send CORS headers;
+  the BnF does not, so it stays server-only)
 - **Release-calendar proxy** — optional, see `docs/release-calendar-proxy.md`
 - **Google OAuth / generic OIDC** — authentication
 - **Sentry / Bugsink** — optional, mutually exclusive error tracking
