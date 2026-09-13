@@ -139,6 +139,15 @@ pub struct ExportVolume {
     /// here and is followed, and keeps the text handle otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loaned_to_slug: Option<String>,
+    // ── v2 · physical copy ──
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub condition: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    #[serde(default)]
+    pub extra_copies: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bought_at: Option<chrono::NaiveDate>,
     // ── v2 · row timestamps ──
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_on: Option<chrono::DateTime<chrono::Utc>>,

@@ -93,6 +93,65 @@ pub struct Model {
     /// same whether or not Alex has an account here.
     #[sea_orm(default)]
     pub loaned_to_user_id: Option<i32>,
+
+    // ── 物 · The physical copy ───────────────────────────────────────
+    /// Shelf condition — one of `VOLUME_CONDITIONS`, NULL = not rated.
+    #[sea_orm(default)]
+    pub condition: Option<String>,
+    /// Where the copy lives (shelf, box, room). Free text, clamped to
+    /// `LOCATION_MAX_LEN`; empty folds to NULL.
+    #[sea_orm(default)]
+    pub location: Option<String>,
+    /// Copies beyond the first — the collector's doubles. 0 = one copy.
+    #[sea_orm(default)]
+    pub extra_copies: i32,
+    /// The day the copy was bought, as remembered.
+    #[sea_orm(default)]
+    pub bought_at: Option<chrono::NaiveDate>,
+}
+
+/// Conditions a copy can be rated, best to worst.
+pub const VOLUME_CONDITIONS: [&str; 5] = ["new", "like_new", "good", "fair", "poor"];
+pub const LOCATION_MAX_LEN: usize = 80;
+/// Nobody owns a hundred copies of one tome; anything above is a typo.
+pub const EXTRA_COPIES_MAX: i32 = 99;
+
+/// Trim + lowercase + validate a condition off the wire. `None` / empty
+/// mean "not rated"; anything else outside the five words is a 400.
+pub fn normalize_condition(raw: Option<String>) -> Result<Option<String>, crate::errors::AppError> {
+    let Some(raw) = raw else { return Ok(None) };
+    let value = raw.trim().to_ascii_lowercase().replace([' ', '-'], "_");
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if VOLUME_CONDITIONS.contains(&value.as_str()) {
+        Ok(Some(value))
+    } else {
+        Err(crate::errors::AppError::BadRequest(format!(
+            "Unknown condition '{raw}' (expected one of {}).",
+            VOLUME_CONDITIONS.join(", ")
+        )))
+    }
+}
+
+/// 物 · The physical-copy fields of a volume PATCH, three-state each
+/// (omitted / null / value) except the copies count, which has no
+/// "clear" — 0 is it.
+#[derive(Debug, Default)]
+pub struct PhysicalPatch {
+    pub condition: Option<Option<String>>,
+    pub location: Option<Option<String>>,
+    pub extra_copies: Option<i32>,
+    pub bought_at: Option<Option<chrono::NaiveDate>>,
+}
+
+impl PhysicalPatch {
+    pub fn is_empty(&self) -> bool {
+        self.condition.is_none()
+            && self.location.is_none()
+            && self.extra_copies.is_none()
+            && self.bought_at.is_none()
+    }
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -131,6 +190,44 @@ pub struct UpdateVolumeRequest {
     ///   - `Some(Some(LoanPatch { ... }))` → mark as lent / update due date
     #[serde(default, deserialize_with = "deserialize_optional_loan")]
     pub loan: Option<Option<LoanPatch>>,
+    // ── 物 · Physical copy — omitted / null / value, like `loan` ──
+    #[serde(default, deserialize_with = "deserialize_optional_text")]
+    pub condition: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_optional_text")]
+    pub location: Option<Option<String>>,
+    #[serde(default)]
+    pub extra_copies: Option<i32>,
+    #[serde(default, deserialize_with = "deserialize_optional_date")]
+    pub bought_at: Option<Option<chrono::NaiveDate>>,
+}
+
+impl UpdateVolumeRequest {
+    /// Split the physical-copy fields off the request, leaving the
+    /// ownership / reading / loan fields for `update_by_id`.
+    pub fn take_physical(&mut self) -> PhysicalPatch {
+        PhysicalPatch {
+            condition: self.condition.take(),
+            location: self.location.take(),
+            extra_copies: self.extra_copies.take(),
+            bought_at: self.bought_at.take(),
+        }
+    }
+}
+
+fn deserialize_optional_text<'de, D>(deserializer: D) -> Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<String>::deserialize(deserializer).map(Some)
+}
+
+fn deserialize_optional_date<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<chrono::NaiveDate>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<chrono::NaiveDate>::deserialize(deserializer).map(Some)
 }
 
 #[derive(Debug, Deserialize)]
@@ -202,4 +299,54 @@ pub struct BorrowedVolume {
     pub lender_name: Option<String>,
     pub loan_started_at: chrono::DateTime<chrono::Utc>,
     pub loan_due_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[cfg(test)]
+mod condition_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_the_five_grades_loosely_spelled() {
+        for (raw, want) in [
+            ("New", "new"),
+            (" like-new ", "like_new"),
+            ("Like New", "like_new"),
+            ("GOOD", "good"),
+            ("fair", "fair"),
+            ("poor", "poor"),
+        ] {
+            assert_eq!(
+                normalize_condition(Some(raw.into())).unwrap().as_deref(),
+                Some(want),
+                "{raw}"
+            );
+        }
+    }
+
+    #[test]
+    fn empty_means_not_rated_and_junk_is_a_bad_request() {
+        assert_eq!(normalize_condition(None).unwrap(), None);
+        assert_eq!(normalize_condition(Some("  ".into())).unwrap(), None);
+        assert!(matches!(
+            normalize_condition(Some("mint".into())),
+            Err(crate::errors::AppError::BadRequest(_))
+        ));
+    }
+
+    #[test]
+    fn a_request_splits_its_physical_fields_off() {
+        let mut req: UpdateVolumeRequest = serde_json::from_str(
+            r#"{"id":1,"owned":true,"condition":"good","location":null,"extra_copies":2}"#,
+        )
+        .unwrap();
+        let physical = req.take_physical();
+        assert!(!physical.is_empty());
+        assert_eq!(physical.condition, Some(Some("good".into())));
+        assert_eq!(physical.location, Some(None), "explicit null clears");
+        assert_eq!(physical.extra_copies, Some(2));
+        assert_eq!(physical.bought_at, None, "omitted leaves alone");
+        assert!(req.take_physical().is_empty(), "taken once");
+        let bare: UpdateVolumeRequest = serde_json::from_str(r#"{"id":1,"owned":true}"#).unwrap();
+        assert!(bare.condition.is_none() && bare.extra_copies.is_none());
+    }
 }

@@ -291,6 +291,45 @@ describe("enqueueLibraryPatch", () => {
 });
 
 describe("enqueueVolumeUpdate", () => {
+  it("carries the physical copy, normalised, and never resets it on an unrelated edit", async () => {
+    await enqueueVolumeUpdate({
+      id: 31,
+      mal_id: 2,
+      owned: true,
+      condition: "good",
+      location: "  Étagère B ",
+      extra_copies: 1.9,
+      bought_at: "2024-05-01T12:00:00.000Z",
+    });
+    const row = await db.volumes.get(31);
+    expect(row).toMatchObject({
+      condition: "good",
+      location: "Étagère B",
+      extra_copies: 1,
+      bought_at: "2024-05-01",
+    });
+    // a later price-only edit keeps the pending physical fields
+    await enqueueVolumeUpdate({ id: 31, mal_id: 2, owned: true, price: 9 });
+    const op = await db.outboxVolumes.get(31);
+    expect(op.payload).toMatchObject({
+      price: 9,
+      condition: "good",
+      extra_copies: 1,
+    });
+    // clearing is explicit
+    await enqueueVolumeUpdate({
+      id: 31,
+      mal_id: 2,
+      owned: true,
+      condition: "",
+      location: "",
+    });
+    expect(await db.volumes.get(31)).toMatchObject({
+      condition: null,
+      location: null,
+    });
+  });
+
   const op = async (id) => db.outboxVolumes.get(id);
   const row = async (id) => db.volumes.get(id);
 
@@ -368,11 +407,19 @@ describe("enqueueVolumeUpdate", () => {
 
   describe("loans", () => {
     it("mirrors the linked friend on lend and drops it on a free-text re-lend", async () => {
-      await enqueueVolumeUpdate({ id: 12, mal_id: 2, loan: { to: "Alex", to_user_id: 7 } });
+      await enqueueVolumeUpdate({
+        id: 12,
+        mal_id: 2,
+        loan: { to: "Alex", to_user_id: 7 },
+      });
       expect((await row(12)).loaned_to_user_id).toBe(7);
       await enqueueVolumeUpdate({ id: 12, mal_id: 2, loan: { to: "Alex" } });
       expect((await row(12)).loaned_to_user_id).toBeNull();
-      await enqueueVolumeUpdate({ id: 12, mal_id: 2, loan: { to: "Sam", to_user_id: 9 } });
+      await enqueueVolumeUpdate({
+        id: 12,
+        mal_id: 2,
+        loan: { to: "Sam", to_user_id: 9 },
+      });
       await enqueueVolumeUpdate({ id: 12, mal_id: 2, loan: null });
       expect((await row(12)).loaned_to_user_id).toBeNull();
       expect((await row(12)).loaned_to).toBeNull();

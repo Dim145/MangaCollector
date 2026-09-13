@@ -1409,6 +1409,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                           announcedAt={vol.announced_at}
                           loanedTo={vol.loaned_to}
                           loanDueAt={vol.loan_due_at}
+                          condition={vol.condition}
+                          location={vol.location}
+                          extraCopies={vol.extra_copies}
+                          boughtAt={vol.bought_at}
                           locked
                           onUpdate={volumeUpdateCallback}
                           onEditUpcoming={(volData) => {
@@ -1462,6 +1466,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                           announcedAt={vol.announced_at}
                           loanedTo={vol.loaned_to}
                           loanDueAt={vol.loan_due_at}
+                          condition={vol.condition}
+                          location={vol.location}
+                          extraCopies={vol.extra_copies}
+                          boughtAt={vol.bought_at}
                           onUpdate={volumeUpdateCallback}
                           onEditUpcoming={(volData) => {
                             setEditingUpcoming(volData);

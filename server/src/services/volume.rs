@@ -13,8 +13,9 @@ use crate::models::follow::{self, Entity as FollowEntity};
 use crate::models::library::{self as library_mod, Entity as LibraryEntity, sanitize_label};
 use crate::models::user::{self as user_mod, Entity as UserEntity};
 use crate::models::volume::{
-    self, ActiveLoan, ActiveModel, BorrowedVolume, Entity as VolumeEntity, LOAN_BORROWER_MAX_CHARS,
-    LoanPatch, NOTE_MAX_CHARS, Volume,
+    self, ActiveLoan, ActiveModel, BorrowedVolume, EXTRA_COPIES_MAX, Entity as VolumeEntity,
+    LOAN_BORROWER_MAX_CHARS, LOCATION_MAX_LEN, LoanPatch, NOTE_MAX_CHARS, PhysicalPatch, Volume,
+    normalize_condition,
 };
 use crate::services::activity;
 
@@ -303,6 +304,46 @@ pub async fn update_by_id(
 pub struct VolumeUpdateOutcome {
     pub series_id: Option<i32>,
     pub library_changed: bool,
+}
+
+/// 物 · Apply the physical-copy fields of a PATCH: condition (validated),
+/// location (trimmed / clamped / empty → NULL), extra copies (0..=99)
+/// and the purchase date, each only when present. Same (id, user_id)
+/// gate as every other volume write; a missing row is a silent Ok.
+pub async fn set_physical_details(
+    db: &Db,
+    id: i32,
+    user_id: i32,
+    patch: PhysicalPatch,
+) -> Result<(), AppError> {
+    if patch.is_empty() {
+        return Ok(());
+    }
+    let Some(existing) = VolumeEntity::find()
+        .filter(volume::Column::Id.eq(id))
+        .filter(volume::Column::UserId.eq(user_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+    else {
+        return Ok(());
+    };
+    let mut active: ActiveModel = existing.into();
+    if let Some(raw) = patch.condition {
+        active.condition = Set(normalize_condition(raw)?);
+    }
+    if let Some(raw) = patch.location {
+        active.location = Set(sanitize_label(raw, LOCATION_MAX_LEN));
+    }
+    if let Some(n) = patch.extra_copies {
+        active.extra_copies = Set(n.clamp(0, EXTRA_COPIES_MAX));
+    }
+    if let Some(date) = patch.bought_at {
+        active.bought_at = Set(date);
+    }
+    active.modified_on = Set(Utc::now());
+    active.update(db).await.map_err(AppError::from)?;
+    Ok(())
 }
 
 /// 預け · Apply a loan-state mutation to a single volume.

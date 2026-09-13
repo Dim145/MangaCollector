@@ -108,6 +108,11 @@ async function enrich(c) {
       collector: i === 0,
       read: true,
       notes: `Note de test ${i + 1}`,
+      // the physical copy — grade, shelf, doubles, purchase day
+      condition: ["new", "good", "fair"][i],
+      location: i === 2 ? "Carton grenier" : "Étagère A",
+      extra_copies: i,
+      bought_at: `2024-0${i + 3}-15`,
       loan: {
         to: i === 0 ? "Alex (ami)" : `Ami ${i + 1}`,
         due_at: new Date(Date.now() + (i + 1) * 7 * 86400000).toISOString(),
@@ -153,7 +158,8 @@ const SERIES_FIELDS = ["name", "volumes", "volumes_owned", "image_url_jpg", "gen
   "reading_status", "started_reading_at", "finished_reading_at", "times_read"];
 const VOLUME_FIELDS = ["vol_num", "owned", "price", "store", "collector", "read_at", "notes",
   "release_date", "release_isbn", "release_url", "origin", "announced_at",
-  "loaned_to", "loaned_to_user_id", "loan_started_at", "loan_due_at", "in_coffret", "created_on", "modified_on"];
+  "loaned_to", "loaned_to_user_id", "loan_started_at", "loan_due_at", "in_coffret", "created_on", "modified_on",
+  "condition", "location", "extra_copies", "bought_at"];
 const COFFRET_FIELDS = ["name", "vol_start", "vol_end", "price", "store", "collector", "created_on", "modified_on"];
 
 async function snapshot(c) {

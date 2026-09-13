@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import { useT } from "@/i18n/index.jsx";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "@/lib/db.js";
 import { formatCurrency } from "@/utils/price.js";
 import { formatShortDate } from "@/utils/volume.js";
 import { useDeleteUpcomingVolume } from "@/hooks/useVolumes.js";
@@ -45,6 +47,15 @@ export default function VolumeDetailDrawer({
   setPurchaseLocation,
   note = "",
   setNote = () => {},
+  // 物 · Physical copy — condition / location / extra copies / bought on.
+  condition = null,
+  setCondition = () => {},
+  location = "",
+  setLocation = () => {},
+  extraCopies = 0,
+  setExtraCopies = () => {},
+  boughtAt = "",
+  setBoughtAt = () => {},
   isLoading,
   onSave,
   onCancel,
@@ -384,213 +395,230 @@ export default function VolumeDetailDrawer({
           </div>
         ) : (
           <div className="relative z-10 flex-1 space-y-5 overflow-y-auto p-5">
-          <div>
-            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              {t("volume.statusLabel")}
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { v: true, label: t("volume.ownedOption") },
-                { v: false, label: t("volume.missingOption") },
-              ].map((opt) => (
-                <button
-                  key={String(opt.v)}
-                  type="button"
-                  onClick={() => setOwnedStatus(opt.v)}
-                  // Autofocus the selected option so reflex-Space doesn't flip state.
-                  data-autofocus={ownedStatus === opt.v ? true : undefined}
-                  className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition ${
-                    ownedStatus === opt.v
-                      ? opt.v
-                        ? "border-hanko bg-hanko text-washi"
-                        : "border-border bg-ink-2 text-washi"
-                      : "border-border bg-transparent text-washi-dim hover:text-washi"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div>
+              <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                {t("volume.statusLabel")}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { v: true, label: t("volume.ownedOption") },
+                  { v: false, label: t("volume.missingOption") },
+                ].map((opt) => (
+                  <button
+                    key={String(opt.v)}
+                    type="button"
+                    onClick={() => setOwnedStatus(opt.v)}
+                    // Autofocus the selected option so reflex-Space doesn't flip state.
+                    data-autofocus={ownedStatus === opt.v ? true : undefined}
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition ${
+                      ownedStatus === opt.v
+                        ? opt.v
+                          ? "border-hanko bg-hanko text-washi"
+                          : "border-border bg-ink-2 text-washi"
+                        : "border-border bg-transparent text-washi-dim hover:text-washi"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              {t("volume.readingLabel")}
-            </label>
-            <button
-              type="button"
-              onClick={() => setReadStatus((r) => !r)}
-              aria-pressed={readStatus}
-              className={`group flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
-                readStatus
-                  ? "border-moegi/60 bg-gradient-to-br from-moegi/10 to-transparent"
-                  : "border-border bg-ink-1 hover:border-moegi/40"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  className={`grid h-6 w-6 place-items-center rounded-full font-jp text-[12px] font-bold leading-none transition ${
-                    readStatus
-                      ? "bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow-[0_0_10px_rgba(163,201,97,0.4)]"
-                      : "bg-ink-2 text-washi-dim"
-                  }`}
-                  style={
-                    readStatus ? { transform: "rotate(5deg)" } : undefined
-                  }
-                >
-                  {readStatus ? "読" : "未"}
-                </span>
-                <span>
-                  <span
-                    className={`block text-sm font-semibold ${
-                      readStatus ? "text-moegi" : "text-washi"
-                    }`}
-                  >
-                    {readStatus
-                      ? t("volume.readOption")
-                      : t("volume.unreadOption")}
-                  </span>
-                  <span className="block text-[11px] text-washi-muted">
-                    {readStatus && readAt
-                      ? t("volume.readSince", {
-                          date: formatShortDate(readAt),
-                        })
-                      : t("volume.readingHint")}
-                  </span>
-                </span>
-              </span>
-              <span
-                className={`relative h-6 w-11 rounded-full border transition ${
+            <div>
+              <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                {t("volume.readingLabel")}
+              </label>
+              <button
+                type="button"
+                onClick={() => setReadStatus((r) => !r)}
+                aria-pressed={readStatus}
+                className={`group flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
                   readStatus
-                    ? "border-moegi bg-moegi/90"
-                    : "border-border bg-ink-2"
+                    ? "border-moegi/60 bg-gradient-to-br from-moegi/10 to-transparent"
+                    : "border-border bg-ink-1 hover:border-moegi/40"
                 }`}
               >
-                <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
-                    readStatus
-                      ? "right-0.5 bg-ink-0 shadow-md"
-                      : "left-0.5 bg-washi-dim"
-                  }`}
-                />
-              </span>
-            </button>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-              {t("volume.editionLabel")}
-            </label>
-            <button
-              type="button"
-              onClick={() => setCollectorStatus((c) => !c)}
-              aria-pressed={collectorStatus}
-              className={`group flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
-                collectorStatus
-                  ? "border-gold/70 bg-gradient-to-br from-gold/10 to-transparent"
-                  : "border-border bg-ink-1 hover:border-gold/40"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  className={`grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold transition ${
-                    collectorStatus
-                      ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_0_10px_rgba(201,169,97,0.5)]"
-                      : "bg-ink-2 text-washi-dim"
-                  }`}
-                  style={
-                    collectorStatus
-                      ? { transform: "rotate(-6deg)" }
-                      : undefined
-                  }
-                  title={t("badges.collector")}
-                >
-                  限
-                </span>
-                <span>
+                <span className="flex items-center gap-2">
                   <span
-                    className={`block text-sm font-semibold ${
-                      collectorStatus ? "text-gold" : "text-washi"
+                    className={`grid h-6 w-6 place-items-center rounded-full font-jp text-[12px] font-bold leading-none transition ${
+                      readStatus
+                        ? "bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow-[0_0_10px_rgba(163,201,97,0.4)]"
+                        : "bg-ink-2 text-washi-dim"
                     }`}
+                    style={
+                      readStatus ? { transform: "rotate(5deg)" } : undefined
+                    }
                   >
-                    {t("volume.collectorOption")}
+                    {readStatus ? "読" : "未"}
                   </span>
-                  <span className="block text-[11px] text-washi-muted">
-                    {t("volume.collectorHint")}
+                  <span>
+                    <span
+                      className={`block text-sm font-semibold ${
+                        readStatus ? "text-moegi" : "text-washi"
+                      }`}
+                    >
+                      {readStatus
+                        ? t("volume.readOption")
+                        : t("volume.unreadOption")}
+                    </span>
+                    <span className="block text-[11px] text-washi-muted">
+                      {readStatus && readAt
+                        ? t("volume.readSince", {
+                            date: formatShortDate(readAt),
+                          })
+                        : t("volume.readingHint")}
+                    </span>
                   </span>
                 </span>
-              </span>
-              <span
-                className={`relative h-6 w-11 rounded-full border transition ${
+                <span
+                  className={`relative h-6 w-11 rounded-full border transition ${
+                    readStatus
+                      ? "border-moegi bg-moegi/90"
+                      : "border-border bg-ink-2"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
+                      readStatus
+                        ? "right-0.5 bg-ink-0 shadow-md"
+                        : "left-0.5 bg-washi-dim"
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                {t("volume.editionLabel")}
+              </label>
+              <button
+                type="button"
+                onClick={() => setCollectorStatus((c) => !c)}
+                aria-pressed={collectorStatus}
+                className={`group flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
                   collectorStatus
-                    ? "border-gold bg-gold/90"
-                    : "border-border bg-ink-2"
+                    ? "border-gold/70 bg-gradient-to-br from-gold/10 to-transparent"
+                    : "border-border bg-ink-1 hover:border-gold/40"
                 }`}
               >
+                <span className="flex items-center gap-2">
+                  <span
+                    className={`grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold transition ${
+                      collectorStatus
+                        ? "bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_0_10px_rgba(201,169,97,0.5)]"
+                        : "bg-ink-2 text-washi-dim"
+                    }`}
+                    style={
+                      collectorStatus
+                        ? { transform: "rotate(-6deg)" }
+                        : undefined
+                    }
+                    title={t("badges.collector")}
+                  >
+                    限
+                  </span>
+                  <span>
+                    <span
+                      className={`block text-sm font-semibold ${
+                        collectorStatus ? "text-gold" : "text-washi"
+                      }`}
+                    >
+                      {t("volume.collectorOption")}
+                    </span>
+                    <span className="block text-[11px] text-washi-muted">
+                      {t("volume.collectorHint")}
+                    </span>
+                  </span>
+                </span>
                 <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
+                  className={`relative h-6 w-11 rounded-full border transition ${
                     collectorStatus
-                      ? "right-0.5 bg-ink-0 shadow-md"
-                      : "left-0.5 bg-washi-dim"
+                      ? "border-gold bg-gold/90"
+                      : "border-border bg-ink-2"
                   }`}
-                />
-              </span>
-            </button>
-          </div>
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full transition-all ${
+                      collectorStatus
+                        ? "right-0.5 bg-ink-0 shadow-md"
+                        : "left-0.5 bg-washi-dim"
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
 
-          <div>
-            <label
-              htmlFor={`${fieldId}-price`}
-              className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
-            >
-              {t("volume.priceLabel", {
-                symbol: currencySetting?.symbol || "$",
-              })}
-            </label>
-            <input
-              id={`${fieldId}-price`}
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              onFocus={(e) => {
-                if (Number(e.target.value) === 0) e.target.select();
-              }}
-              placeholder="0"
-              step="0.01"
-              min="0"
-              className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
-            />
-            {ownedStatus && Number(price) > 0 && (
-              <p className="mt-1.5 font-mono text-[11px] text-washi-muted">
-                {formatCurrency(Number(price), currencySetting)}
-              </p>
+            <div>
+              <label
+                htmlFor={`${fieldId}-price`}
+                className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+              >
+                {t("volume.priceLabel", {
+                  symbol: currencySetting?.symbol || "$",
+                })}
+              </label>
+              <input
+                id={`${fieldId}-price`}
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                onFocus={(e) => {
+                  if (Number(e.target.value) === 0) e.target.select();
+                }}
+                placeholder="0"
+                step="0.01"
+                min="0"
+                className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+              />
+              {ownedStatus && Number(price) > 0 && (
+                <p className="mt-1.5 font-mono text-[11px] text-washi-muted">
+                  {formatCurrency(Number(price), currencySetting)}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor={`${fieldId}-store`}
+                className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+              >
+                {t("volume.storeLabel")}
+              </label>
+              <StoreAutocomplete
+                id={`${fieldId}-store`}
+                value={purchaseLocation ?? ""}
+                onChange={(e) => setPurchaseLocation(e.target.value)}
+                placeholder={t("volume.storePlaceholder")}
+                className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+              />
+            </div>
+
+            {/* 物 · The physical copy — only for a copy that exists on the
+              shelf: owned, and already released. */}
+            {ownedStatus && !isUpcoming && (
+              <PhysicalSection
+                fieldId={fieldId}
+                condition={condition}
+                setCondition={setCondition}
+                location={location}
+                setLocation={setLocation}
+                extraCopies={extraCopies}
+                setExtraCopies={setExtraCopies}
+                boughtAt={boughtAt}
+                setBoughtAt={setBoughtAt}
+                t={t}
+              />
             )}
-          </div>
 
-          <div>
-            <label
-              htmlFor={`${fieldId}-store`}
-              className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
-            >
-              {t("volume.storeLabel")}
-            </label>
-            <StoreAutocomplete
-              id={`${fieldId}-store`}
-              value={purchaseLocation ?? ""}
-              onChange={(e) => setPurchaseLocation(e.target.value)}
-              placeholder={t("volume.storePlaceholder")}
-              className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+            <NoteField
+              fieldId={fieldId}
+              value={note ?? ""}
+              onChange={setNote}
+              t={t}
             />
-          </div>
 
-          <NoteField
-            fieldId={fieldId}
-            value={note ?? ""}
-            onChange={setNote}
-            t={t}
-          />
-
-          {/* 預け · Loan chip. Appears in two states:
+            {/* 預け · Loan chip. Appears in two states:
               • lent → hanko-tinted band with borrower + due date,
                 clicking opens the LoanModal in edit mode
               • not lent → muted "lend" CTA that opens the modal
@@ -600,14 +628,14 @@ export default function VolumeDetailDrawer({
                 user doesn't currently own the tome (you can't lend
                 what isn't yours). The owned gate is symmetric with
                 the server's `set_loan` BadRequest. */}
-          {onOpenLoanModal && !isUpcoming && ownedStatus && (
-            <LoanChip
-              loanedTo={loanedTo}
-              loanDueAt={loanDueAt}
-              onOpen={onOpenLoanModal}
-              t={t}
-            />
-          )}
+            {onOpenLoanModal && !isUpcoming && ownedStatus && (
+              <LoanChip
+                loanedTo={loanedTo}
+                loanDueAt={loanDueAt}
+                onOpen={onOpenLoanModal}
+                t={t}
+              />
+            )}
           </div>
         )}
 
@@ -670,7 +698,10 @@ function NoteField({ fieldId, value, onChange, t }) {
           htmlFor={`${fieldId}-note`}
           className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim"
         >
-          <span aria-hidden="true" className="font-jp text-base font-bold leading-none text-hanko-bright/70">
+          <span
+            aria-hidden="true"
+            className="font-jp text-base font-bold leading-none text-hanko-bright/70"
+          >
             記
           </span>
           {t("volume.noteLabel")}
@@ -724,8 +755,7 @@ function LoanChip({ loanedTo, loanDueAt, onOpen, t }) {
         year: "2-digit",
       })
     : null;
-  const overdue =
-    loanDueAt && new Date(loanDueAt).getTime() < Date.now();
+  const overdue = loanDueAt && new Date(loanDueAt).getTime() < Date.now();
   return (
     <button
       type="button"
@@ -882,7 +912,10 @@ function ManualUpcomingControls({ id, volNum, onEdit, onAfterDelete, t }) {
             onClick={() => setConfirming(true)}
             className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-transparent px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/10 active:scale-95"
           >
-            <span aria-hidden="true" className="font-jp text-[12px] leading-none">
+            <span
+              aria-hidden="true"
+              className="font-jp text-[12px] leading-none"
+            >
               消
             </span>
             {t("manga.upcomingDeleteCta")}
@@ -925,6 +958,153 @@ function ManualUpcomingControls({ id, volNum, onEdit, onAfterDelete, t }) {
           {t("manga.upcomingDeleteConfirmBody")}
         </p>
       )}
+    </div>
+  );
+}
+
+/* ══════════════ 物 · Physical copy ══════════════ */
+
+const CONDITIONS = [
+  { id: "new", glyph: "新", key: "volume.conditionNew" },
+  { id: "like_new", glyph: "美", key: "volume.conditionLikeNew" },
+  { id: "good", glyph: "良", key: "volume.conditionGood" },
+  { id: "fair", glyph: "可", key: "volume.conditionFair" },
+  { id: "poor", glyph: "痛", key: "volume.conditionPoor" },
+];
+
+/**
+ * Condition grade, where the copy lives, how many copies, bought on.
+ * Everything is draft state owned by the tile and saved with the rest
+ * of the drawer. The location input suggests every place the user
+ * already shelved something (a Dexie scan — the library is small).
+ */
+function PhysicalSection({
+  fieldId,
+  condition,
+  setCondition,
+  location,
+  setLocation,
+  extraCopies,
+  setExtraCopies,
+  boughtAt,
+  setBoughtAt,
+  t,
+}) {
+  const knownLocations = useLiveQuery(async () => {
+    const rows = await db.volumes.toArray();
+    const seen = new Set();
+    for (const r of rows) {
+      const loc = typeof r.location === "string" ? r.location.trim() : "";
+      if (loc) seen.add(loc);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, []);
+  const copies = 1 + (Math.max(0, Math.trunc(Number(extraCopies))) || 0);
+
+  return (
+    <div className="rounded-lg border border-border/70 bg-ink-0/30 p-3">
+      <p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+        {t("volume.physicalLabel")}
+      </p>
+
+      <div
+        role="radiogroup"
+        aria-label={t("volume.conditionLabel")}
+        className="flex flex-wrap gap-1.5"
+      >
+        {CONDITIONS.map((c) => {
+          const active = c.id === condition;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setCondition(active ? null : c.id)}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition ${
+                active
+                  ? "border-gold/60 bg-gold/10 text-gold"
+                  : "border-border text-washi-muted hover:border-washi-dim hover:text-washi"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className="font-jp text-[12px] leading-none"
+              >
+                {c.glyph}
+              </span>
+              <span>{t(c.key)}</span>
+            </button>
+          );
+        })}
+        {!condition && (
+          <span className="self-center font-display text-[11px] italic text-washi-dim">
+            {t("volume.conditionUnrated")}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="sm:col-span-1">
+          <label
+            htmlFor={`${fieldId}-location`}
+            className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+          >
+            {t("volume.locationLabel")}
+          </label>
+          <input
+            id={`${fieldId}-location`}
+            type="text"
+            list={`${fieldId}-locations`}
+            value={location ?? ""}
+            maxLength={80}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder={t("volume.locationPlaceholder")}
+            className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+          />
+          <datalist id={`${fieldId}-locations`}>
+            {(knownLocations ?? []).map((loc) => (
+              <option key={loc} value={loc} />
+            ))}
+          </datalist>
+        </div>
+        <div>
+          <label
+            htmlFor={`${fieldId}-copies`}
+            className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+          >
+            {t("volume.copiesLabel")}
+          </label>
+          <input
+            id={`${fieldId}-copies`}
+            type="number"
+            min="0"
+            max="99"
+            step="1"
+            value={extraCopies ?? 0}
+            onChange={(e) => setExtraCopies(e.target.value)}
+            className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 font-mono text-sm tabular-nums text-washi transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+          />
+          <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.16em] text-washi-dim">
+            {t("volume.copiesHint", { n: copies })}
+          </p>
+        </div>
+        <div>
+          <label
+            htmlFor={`${fieldId}-bought`}
+            className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+          >
+            {t("volume.boughtAtLabel")}
+          </label>
+          <input
+            id={`${fieldId}-bought`}
+            type="date"
+            value={boughtAt ?? ""}
+            onChange={(e) => setBoughtAt(e.target.value)}
+            className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 font-mono text-sm tabular-nums text-washi transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+          />
+        </div>
+      </div>
     </div>
   );
 }

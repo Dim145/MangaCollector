@@ -112,15 +112,15 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 73 tests across 16 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 76 tests across 17 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image}.rs`,
   `services/{genres,proxy_client,google_books_api,activity_coalescer,realtime,archive,external_import,library}.rs`,
-  `handlers/realtime.rs`, `models/{archive,library}.rs`). `services/library.rs`
+  `handlers/realtime.rs`, `models/{archive,library,volume}.rs`). `services/library.rs`
   pins the reading-progression rule (`next_reading_state`): what a series'
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 877 tests across 36 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 878 tests across 36 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -186,7 +186,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 |---|---|
 | `/auth` | OAuth callbacks & session lifecycle |
 | `/api/library` | Manga library CRUD, reading progression (`reading_status`, dates, `times_read`; `POST /{mal_id}/reread`) |
-| `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`) |
+| `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`), physical copy (condition, location, extra copies, bought on) |
 | `/api/authors` | Author records, photos, refresh |
 | `/api/user`, `/api/account` | Profile, deletion, public slug |
 | `/api/settings` | User preferences |
@@ -202,7 +202,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 
 ## Database
 
-- Migrations: **`server/migrations/`** — 46 raw `.sql` files, embedded at
+- Migrations: **`server/migrations/`** — 47 raw `.sql` files, embedded at
   compile time via `sqlx::migrate!("./migrations")` in `server/src/db.rs`
   and applied automatically on startup. There is no separate migrate script.
 - Entities (`server/src/models/`): `activity`, `archive`, `author`,

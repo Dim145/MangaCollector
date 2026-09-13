@@ -136,6 +136,10 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
                 loaned_to_slug: v
                     .loaned_to_user_id
                     .and_then(|id| borrower_slugs.get(&id).cloned()),
+                condition: v.condition,
+                location: v.location,
+                extra_copies: v.extra_copies,
+                bought_at: v.bought_at,
                 created_on: Some(v.created_on),
                 modified_on: Some(v.modified_on),
             })
@@ -645,6 +649,17 @@ pub async fn apply_import_merge(
                         .loaned_to_slug
                         .as_deref()
                         .and_then(|s| borrower_by_slug.get(s).copied())),
+                    // Attacker-authored bundle: an unknown grade is dropped,
+                    // the copies count is clamped like the live path.
+                    condition: Set(
+                        crate::models::volume::normalize_condition(v.condition.clone())
+                            .unwrap_or(None),
+                    ),
+                    location: Set(v.location.clone()),
+                    extra_copies: Set(v
+                        .extra_copies
+                        .clamp(0, crate::models::volume::EXTRA_COPIES_MAX)),
+                    bought_at: Set(v.bought_at),
                     created_on: Set(v.created_on.unwrap_or(now)),
                     modified_on: Set(v.modified_on.unwrap_or(now)),
                     ..Default::default()

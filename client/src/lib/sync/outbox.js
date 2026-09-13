@@ -342,6 +342,9 @@ export async function enqueueLibraryVolumesOwned(mal_id, nbOwned) {
  * ─── Volume outbox operations ─────────────────────────────────────────────
  */
 
+/** Volume columns that describe the physical copy (see `set_physical_details`). */
+const PHYSICAL_KEYS = ["condition", "location", "extra_copies", "bought_at"];
+
 export async function enqueueVolumeUpdate(volume) {
   // Translate the `read: boolean` flag from the call site into the
   // `read_at: iso|null` shape Dexie's live-query readers expect; the
@@ -353,6 +356,24 @@ export async function enqueueVolumeUpdate(volume) {
   const local = { ...rest };
   if (read !== undefined) {
     local.read_at = read ? new Date().toISOString() : null;
+  }
+  // 物 · Physical-copy fields, normalised the way the server stores
+  // them so the optimistic row reads like the eventual server row.
+  if ("condition" in rest) local.condition = rest.condition || null;
+  if ("location" in rest) {
+    const trimmed = String(rest.location ?? "").trim();
+    local.location = trimmed === "" ? null : trimmed;
+  }
+  if ("extra_copies" in rest) {
+    local.extra_copies = Math.max(
+      0,
+      Math.trunc(Number(rest.extra_copies)) || 0,
+    );
+  }
+  if ("bought_at" in rest) {
+    local.bought_at = rest.bought_at
+      ? String(rest.bought_at).slice(0, 10)
+      : null;
   }
   // Reflect the loan mutation onto the local row so live-query
   // consumers (volume drawer, dashboard widget) update without
@@ -424,6 +445,13 @@ export async function enqueueVolumeUpdate(volume) {
         : "loan" in prev
           ? { loan: prev.loan }
           : {}),
+      // 物 · Physical copy — specified fields win, the rest carries over.
+      ...Object.fromEntries(
+        PHYSICAL_KEYS.map((k) => [
+          k,
+          local[k] !== undefined ? local[k] : prev[k],
+        ]),
+      ),
     };
 
     await db.outboxVolumes.put({
@@ -1093,6 +1121,13 @@ async function flushVolumes() {
           ...(op.payload.notes !== undefined
             ? { notes: String(op.payload.notes ?? "") }
             : {}),
+          // 物 · Physical copy — each field only when it was set, so a
+          // replayed price edit never resets a condition or location.
+          ...Object.fromEntries(
+            PHYSICAL_KEYS.filter((k) => op.payload[k] !== undefined).map(
+              (k) => [k, op.payload[k]],
+            ),
+          ),
           // 預け · Loan mutation. Three-state in the payload mirrors
           // the server's `Option<Option<LoanPatch>>`:
           //   - omitted → leave loan triplet alone

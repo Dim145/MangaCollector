@@ -39,6 +39,11 @@ function VolumeImpl({
   // edited via the LoanModal mounted at the bottom of this component.
   loanedTo = null,
   loanDueAt = null,
+  // 物 · The physical copy — edited in the drawer, saved with the rest.
+  condition = null,
+  location = null,
+  extraCopies = 0,
+  boughtAt = null,
   locked = false,
   onUpdate,
   // 来 · Optional callback fired when the user requests "edit announce"
@@ -62,6 +67,10 @@ function VolumeImpl({
   const [collectorStatus, setCollectorStatus] = useState(Boolean(collector));
   const [readStatus, setReadStatus] = useState(Boolean(readAt));
   const [noteDraft, setNoteDraft] = useState(note ?? "");
+  const [conditionDraft, setConditionDraft] = useState(condition ?? null);
+  const [locationDraft, setLocationDraft] = useState(location ?? "");
+  const [extraCopiesDraft, setExtraCopiesDraft] = useState(extraCopies ?? 0);
+  const [boughtAtDraft, setBoughtAtDraft] = useState(boughtAt ?? "");
 
   // 確 · Confirmation feedback for Volume toggleOwned.
   //   - tickKey: monotonic counter that increments on each owned-flip
@@ -131,7 +140,9 @@ function VolumeImpl({
     },
   });
 
-  // `nextRead`/`nextNote === undefined` → leave that field untouched on save.
+  // `nextRead`/`nextNote === undefined` → leave that field untouched on
+  // save; `physical` (condition / location / extra_copies / bought_at)
+  // rides along only when the drawer changed one of them.
   async function persist(
     nextOwned,
     nextPrice,
@@ -140,6 +151,7 @@ function VolumeImpl({
     ownedChanged,
     nextRead,
     nextNote,
+    physical,
   ) {
     await updateVolume.mutateAsync({
       id,
@@ -151,6 +163,7 @@ function VolumeImpl({
       collector: Boolean(nextCollector),
       ...(nextRead !== undefined ? { read: Boolean(nextRead) } : {}),
       ...(nextNote !== undefined ? { notes: String(nextNote) } : {}),
+      ...(physical ?? {}),
     });
     onUpdate?.({ ownedChanged });
   }
@@ -217,6 +230,12 @@ function VolumeImpl({
     const savedNote = note ?? "";
     const draftNote = noteDraft ?? "";
     const noteChanged = draftNote.trim() !== savedNote.trim();
+    // 物 · Only ship the physical fields when one of them moved.
+    const physicalChanged =
+      (conditionDraft ?? null) !== (condition ?? null) ||
+      locationDraft.trim() !== (location ?? "").trim() ||
+      (Number(extraCopiesDraft) || 0) !== (extraCopies ?? 0) ||
+      (boughtAtDraft || null) !== (boughtAt ?? null);
     await persist(
       ownedStatus,
       price,
@@ -225,6 +244,14 @@ function VolumeImpl({
       ownedChanged,
       readChanged ? readStatus : undefined,
       noteChanged ? draftNote : undefined,
+      physicalChanged
+        ? {
+            condition: conditionDraft || null,
+            location: locationDraft.trim(),
+            extra_copies: Number(extraCopiesDraft) || 0,
+            bought_at: boughtAtDraft || null,
+          }
+        : undefined,
     );
   };
 
@@ -236,6 +263,10 @@ function VolumeImpl({
     setCollectorStatus(Boolean(collector));
     setReadStatus(Boolean(readAt));
     setNoteDraft(note ?? "");
+    setConditionDraft(condition ?? null);
+    setLocationDraft(location ?? "");
+    setExtraCopiesDraft(extraCopies ?? 0);
+    setBoughtAtDraft(boughtAt ?? "");
   };
 
   // Seed local state from props ONLY when not editing — protects mid-edit
@@ -248,7 +279,23 @@ function VolumeImpl({
     setCollectorStatus(Boolean(collector));
     setReadStatus(Boolean(readAt));
     setNoteDraft(note ?? "");
-  }, [owned, paid, store, collector, readAt, note, isEditing]);
+    setConditionDraft(condition ?? null);
+    setLocationDraft(location ?? "");
+    setExtraCopiesDraft(extraCopies ?? 0);
+    setBoughtAtDraft(boughtAt ?? "");
+  }, [
+    owned,
+    paid,
+    store,
+    collector,
+    readAt,
+    note,
+    condition,
+    location,
+    extraCopies,
+    boughtAt,
+    isEditing,
+  ]);
 
   useEffect(() => {
     if (locked && isEditing) setIsEditing(false);
@@ -855,6 +902,14 @@ function VolumeImpl({
         setPurchaseLocation={setPurchaseLocation}
         note={noteDraft}
         setNote={setNoteDraft}
+        condition={conditionDraft}
+        setCondition={setConditionDraft}
+        location={locationDraft}
+        setLocation={setLocationDraft}
+        extraCopies={extraCopiesDraft}
+        setExtraCopies={setExtraCopiesDraft}
+        boughtAt={boughtAtDraft}
+        setBoughtAt={setBoughtAtDraft}
         isLoading={isLoading}
         onSave={handleSave}
         onCancel={handleCancel}

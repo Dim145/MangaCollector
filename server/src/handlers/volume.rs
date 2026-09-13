@@ -162,9 +162,12 @@ pub async fn update_volume(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     ClientId(client_id): ClientId,
-    Json(body): Json<UpdateVolumeRequest>,
+    Json(mut body): Json<UpdateVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let id = body.id;
+    // 物 · Physical-copy fields ride on the same PATCH, applied after the
+    // main update like the loan so one round-trip covers the drawer.
+    let physical = body.take_physical();
     let loan_change = body.loan;
     let outcome = volume::update_by_id(
         &state.db,
@@ -187,6 +190,7 @@ pub async fn update_volume(
     if let Some(loan_patch) = loan_change {
         volume::set_loan(&state.db, id, user.id, loan_patch).await?;
     }
+    volume::set_physical_details(&state.db, id, user.id, physical).await?;
     let series_id = outcome.series_id;
     state
         .broker
