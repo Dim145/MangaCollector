@@ -50,13 +50,14 @@ cache invalidations for cross-device sync.
 | `AUTH_CLIENT_ID` / `AUTH_CLIENT_SECRET` | OAuth credentials |
 | `AUTH_ISSUER` | OIDC issuer URL (generic mode) |
 | `AUTH_NAME` / `AUTH_ICON` | Login-page display name and icon |
-| `SESSION_SECRET` | Session cookie signing key |
+| `SESSION_SECRET` | **Inert.** Read into the config and used nowhere — session ids come from the Postgres store and the cookie is not signed. Startup says so when it is set. |
 | `FRONTEND_URL` | CORS origin + OAuth redirect URI |
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET_NAME`, `S3_REGION`, `S3_USE_SSL`, `S3_USE_PATH_STYLE` | S3/MinIO storage backend |
 | `STORAGE_DIR` | Local-filesystem storage backend instead of S3 |
 | `REDIS_URL` | Optional response cache; unset = cache-less |
 | `CACHE_PREFIX` | Key prefix for the Redis cache |
 | `RATE_LIMIT_ENABLED`, `RATE_LIMIT_PERIOD_SECONDS`, `RATE_LIMIT_BURST_SIZE` | `tower_governor` tuning |
+| `TRUST_PROXY_HEADERS` | `true` behind a reverse proxy you control, so the rate limiter keys on `X-Forwarded-For` instead of the socket's peer address. Default `false`. Wrong either way is bad: unset behind a proxy, everyone shares one bucket; set without one, the header is forged and the limiter does nothing. |
 | `MAX_BODY_SIZE_MB` | Optional, default 10, clamped to [1, 1024] |
 | `X_FRAME_OPTIONS` | Frame-ancestors header value |
 | `APP_UNSECURE_HEALTHCHECK` | `true` allows non-loopback `/api/health` |
@@ -112,10 +113,14 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 90 tests across 22 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 106 tests across 24 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
-  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations}.rs`,
+  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
+  `services/users.rs` pins `row_publicly_visible` — the one predicate
+  every cross-user surface asks before showing a row (adult opt-out AND
+  the Birthday-mode wishlist horizon, independently); `archive.rs` also
+  pins the import ceilings and the ledger index.
   `services/cover_pool.rs` pins the cover-URL allowlist (host match,
   `http`→`https`, no credentials, own posters pass); `loan_history.rs`
   the loans CSV (statuses, BOM, date bounds); `locations.rs` the note
@@ -128,7 +133,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 995 tests across 47 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 012 tests across 48 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -151,8 +156,11 @@ docker compose build
     when the server is unreachable.
   - `lib/sync/`: `events`, and `outbox` — the offline queue runs against
     a real in-memory IndexedDB (`fake-indexeddb`), so coalescing and the
-    delete cascade are exercised rather than mocked. `lib/db.test.js`
-    covers the outbox-aware cache writers the same way; `clientId` and
+    delete cascade are exercised rather than mocked, and a second block
+    covers what actually *leaves* the device on a flush. `lib/db.test.js`
+    covers the outbox-aware cache writers the same way; `lib/owner.js`
+    (which account the local caches belong to) pins the asymmetry that
+    matters — a foreign stamp wipes, an absent one adopts; `clientId` and
     `realtimePlan` (the websocket decision table) are pure and tested.
   - `components/ui/CoverImage.test.jsx`, `components/VirtualVolumeGrid.test.jsx`
     and `components/ArchiveSection.test.jsx` (the import modal's merge /
@@ -170,10 +178,16 @@ docker compose build
     `TZ=UTC` and clears web storage between cases.
   - Not covered yet: the other 111 components, the 50 hooks, and the
     canvas/Web-Audio modules (`shelfSnapshot`, `sounds`, `barcode`).
-- **Formatting caveat:** the Rust tree is not clean under `rustfmt` 1.9 — a
-  blind `cargo fmt` reflows ~54 files. Format only the hunks you touch:
-  `python3 scripts/rustfmt-touched.py server/src/<file>.rs …` applies
-  rustfmt's layout to the lines changed since HEAD (±2) and nothing else.
+- **Formatting caveat:** neither tree is clean under its formatter — a
+  blind `cargo fmt` reflows ~54 Rust files, and `prettier --write .`
+  rewrites 199 of 209 client files (including `lib/season.js`, whose
+  hand-aligned astronomical coefficients it would make worse). Format
+  only the hunks you touch: `python3 scripts/rustfmt-touched.py
+  server/src/<file>.rs …` applies rustfmt's layout to the lines changed
+  since HEAD (±2) and nothing else. CI runs the same script with
+  `RUSTFMT_TOUCHED_BASE`. It refuses to write a file when rustfmt's
+  re-sorting of the `use` block would drop an import out of the touched
+  hunks — if it says so, reformat the import block by hand.
 - **Mutation testing:** `node scripts/stryker-module.mjs <lib/foo>` runs a
   Stryker campaign over one module against its own test file (a minute);
   `--all` sweeps every paired module; `pnpm test:mutants` mutates the
@@ -206,6 +220,11 @@ and fails on any dropped field or duplicated series. It also compares the
 loan ledger and the places registry row by row, and checks ISBN
 normalisation on real input. Run it whenever a column is added to the
 library, volume or coffret tables — the bundle must carry it.
+
+These scripts create accounts and, in the round-trip verifier's case,
+damage data on purpose to prove the backup restores it. They refuse to
+run against anything but localhost; a deliberate `SEED_ALLOW_REMOTE=1`
+is the only way past that, per run.
 
 ## Module guides
 
@@ -301,16 +320,32 @@ chronologically on reconnect. Routing via React Router 7.
 ## Docker / Infrastructure
 
 - `docker-compose.yml` — dev stack: Traefik, PostgreSQL 15, Redis 8,
-  server, client.
+  server, client. Traefik on `:12000` is the way in; the dashboard
+  (`:8080`) and the direct server/client mappings are bound to loopback.
+  `AUTH_CLIENT_SECRET` and the other real secrets come from the
+  environment — compose refuses to start without them.
 - `docker-compose.prod.yml` — prod: server + client only.
 - Backend image: multi-stage `rust:alpine` → static musl binary in
   `FROM scratch`, running as `USER 65532:65532`.
 - Frontend image: `node:24-alpine` build → `nginx:alpine`. The nginx master
   intentionally stays root to bind :80 and drops its workers to `nginx`.
 - Both run read-only with `cap_drop: ALL` and `no-new-privileges`.
-- CI: `.github/workflows/docker-images.yaml.yml` builds and pushes both
-  images on GitHub **release publish**. Actions are pinned to commit SHAs —
-  keep new ones pinned too.
+- CI: `.github/workflows/ci.yml` runs the gates on every push and PR —
+  client (install `--frozen-lockfile`, lint, tests, build), server
+  (rustfmt on touched lines, clippy `-D warnings`, tests) and `cargo
+  audit`. `.github/workflows/docker-images.yaml.yml` builds and pushes
+  both images on GitHub **release publish**. Actions are pinned to commit
+  SHAs — keep new ones pinned too.
+  - Neither formatter runs as a blanket check: `cargo fmt --check` fails
+    on ~54 files and `prettier --check .` on 199 of 209, one of which
+    (`client/src/lib/season.js`) Prettier would make worse. CI checks
+    that the lines a commit *touched* are formatted, via
+    `RUSTFMT_TOUCHED_BASE=<base> python3 scripts/rustfmt-touched.py`.
+- Security scanners, each with its exceptions recorded next to it:
+  `semgrep --config=auto .` (`.semgrepignore`), `gitleaks detect`
+  (`.gitleaks.toml`), `cargo audit` (`server/.cargo/audit.toml`) and
+  `trivy fs .` (`trivy.yaml` + `.trivyignore`). All four are clean; an
+  ignore without a written reason is a bug.
 
 ## External Integrations
 
