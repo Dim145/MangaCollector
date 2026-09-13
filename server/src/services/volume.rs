@@ -3,6 +3,7 @@ use rust_decimal::Decimal;
 use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
+    TransactionTrait,
 };
 
 use crate::db::Db;
@@ -388,10 +389,19 @@ pub async fn set_loan(
     patch: Option<LoanPatch>,
 ) -> Result<(), AppError> {
     let now = Utc::now();
+    // 一括 · The ledger row and the volume row are one fact written in
+    // two places, so they go in one transaction. They used to be two
+    // bare statements with the ledger first: a failure in between — a
+    // dropped connection, a 500 the client retries — left a lend
+    // recorded against a volume that was never marked as lent, and the
+    // retry, seeing `loaned_to` still NULL, opened a second row for the
+    // same loan. "Lent 3×" for a tome that went out once, permanently,
+    // in an append-only ledger.
+    let txn = db.begin().await.map_err(AppError::from)?;
     let existing = VolumeEntity::find()
         .filter(volume::Column::Id.eq(id))
         .filter(volume::Column::UserId.eq(user_id))
-        .one(db)
+        .one(&txn)
         .await
         .map_err(AppError::from)?;
     let Some(existing) = existing else {
@@ -412,7 +422,7 @@ pub async fn set_loan(
             active.loan_due_at = Set(None);
             active.loaned_to_user_id = Set(None);
             if existing.loaned_to.is_some() {
-                crate::services::loan_history::close_open(db, id, now).await?;
+                crate::services::loan_history::close_open(&txn, id, now).await?;
             }
         }
         Some(p) => {
@@ -461,7 +471,7 @@ pub async fn set_loan(
                 let follows = FollowEntity::find()
                     .filter(follow::Column::FollowerId.eq(user_id))
                     .filter(follow::Column::FollowingId.eq(friend))
-                    .one(db)
+                    .one(&txn)
                     .await
                     .map_err(AppError::from)?
                     .is_some();
@@ -477,7 +487,7 @@ pub async fn set_loan(
             // loan (borrower, due date) mirrors it.
             if existing.loaned_to.is_none() {
                 crate::services::loan_history::record_lend(
-                    db,
+                    &txn,
                     &crate::services::loan_history::LendRecord {
                         user_id,
                         volume_id: id,
@@ -491,13 +501,14 @@ pub async fn set_loan(
                 )
                 .await?;
             } else {
-                crate::services::loan_history::update_open(db, id, &name, p.to_user_id, p.due_at)
+                crate::services::loan_history::update_open(&txn, id, &name, p.to_user_id, p.due_at)
                     .await?;
             }
         }
     }
     active.modified_on = Set(now);
-    active.update(db).await.map_err(AppError::from)?;
+    active.update(&txn).await.map_err(AppError::from)?;
+    txn.commit().await.map_err(AppError::from)?;
     Ok(())
 }
 
@@ -624,8 +635,33 @@ pub async fn bulk_mark_for_series(
         .filter(volume::Column::MalId.eq(mal_id))
         .filter(released_filter);
 
+    // 預け · Un-owning in bulk has to return the loans too. The
+    // single-volume path clears the triplet and closes the ledger row
+    // precisely because the loan chip is gated on ownership: a lent
+    // tome marked unowned keeps showing in the loans widget and in the
+    // overdue badge, keeps counting as out in the borrower's list, and
+    // there is no longer any control in the UI to mark it returned.
+    // Collect the ids first — after the UPDATE the predicate no longer
+    // matches anything.
+    let returning: Vec<i32> = if owned == Some(false) {
+        VolumeEntity::find()
+            .filter(volume::Column::UserId.eq(user_id))
+            .filter(volume::Column::MalId.eq(mal_id))
+            .filter(volume::Column::Owned.eq(true))
+            .filter(volume::Column::LoanedTo.is_not_null())
+            .all(db)
+            .await
+            .map_err(AppError::from)?
+            .into_iter()
+            .map(|v| v.id)
+            .collect()
+    } else {
+        Vec::new()
+    };
+
     if let Some(o) = owned {
         updater = updater.col_expr(volume::Column::Owned, Expr::value(o));
+        updater = auto_clear_loan_if_unown(updater, true, o);
     }
     if let Some(r) = read {
         let value: Option<chrono::DateTime<chrono::Utc>> = if r { Some(now) } else { None };
@@ -633,6 +669,12 @@ pub async fn bulk_mark_for_series(
     }
     updater = updater.col_expr(volume::Column::ModifiedOn, Expr::value(now));
     updater.exec(db).await.map_err(AppError::from)?;
+
+    // Close the ledger rows the clear above just orphaned, so the
+    // history stops reading "still out" forever.
+    for volume_id in returning {
+        crate::services::loan_history::close_open(db, volume_id, now).await?;
+    }
 
     // 読 · Marking a whole series read (or unread) is the most common
     // way a series gets completed — keep the progression in step.

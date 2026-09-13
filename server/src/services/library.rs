@@ -771,6 +771,18 @@ pub async fn delete_manga(
 
     let txn = db.begin().await.map_err(AppError::from)?;
     volume::delete_all_for_user_by_mal_id_tx(&txn, user_id, mal_id).await?;
+    // 盒 · `coffrets.mal_id` carries no foreign key to the library, so
+    // nothing cascades here. Left behind, the rows outlive the series and
+    // reattach themselves the moment it is added back — a ghost box set
+    // with the price and store of a series the user deleted. The archive
+    // importer's replace path already deletes them; this is the same rule
+    // on the same transaction.
+    crate::models::coffret::Entity::delete_many()
+        .filter(crate::models::coffret::Column::UserId.eq(user_id))
+        .filter(crate::models::coffret::Column::MalId.eq(mal_id))
+        .exec(&txn)
+        .await
+        .map_err(AppError::from)?;
     LibraryEntity::delete_many()
         .filter(library::Column::UserId.eq(user_id))
         .filter(library::Column::MalId.eq(mal_id))
@@ -1033,8 +1045,18 @@ pub async fn update_manga_volumes_tx(
         .map_err(AppError::from)?;
 
     if let Some(existing) = row {
+        // 冊 · The rows above `new_volumes` were just deleted, so an
+        // owned count that still counts them is a lie the whole app
+        // reads: "12 / 5" on the card, a completion ring clamped to
+        // 100 %, a series counted as complete for its seal, and a
+        // collection total that is permanently too high. Nothing
+        // recomputes it on the per-volume path, so it has to be
+        // clamped here — including on the MAL refresh, which shrinks
+        // totals without the user doing anything.
+        let owned = existing.volumes_owned.min(new_volumes);
         let mut active: ActiveModel = existing.into();
         active.volumes = Set(new_volumes);
+        active.volumes_owned = Set(owned);
         active.modified_on = Set(now);
         active.update(conn).await.map_err(AppError::from)?;
     }
