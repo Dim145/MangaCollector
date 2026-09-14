@@ -259,6 +259,16 @@ accepted as a fallback for those that cannot set `Authorization`.
   wrong twice, and an agent that sends a refused value has no way to tell
   the schema lied rather than its own argument being wrong. A test pins
   them.
+- **An optional argument publishes a single `type`.** `schemars` renders
+  `Option<T>` as `"type": ["T", "null"]`, which is legal JSON Schema and
+  which several MCP clients mishandle — some reject the whole tool, some
+  drop the constraint, and neither failure reaches the server. Every DTO
+  carries `#[schemars(transform = Recurse(plain_optional))]`, which
+  collapses that shape and drops the `default: null` beside it. It is not
+  a white lie: absent is the only "not given" this module has, since the
+  arguments that need a third state say it with an empty string. The
+  official MCP inspector found 25 of these across 11 tools; a test now
+  pins it.
 - **The scope says "may", `confirm` says "meant to".** Destructive tools
   need both. They are different questions, and an agent that arrived by
   accident fails the second.
@@ -325,8 +335,10 @@ command the settings panel prints works verbatim under `pnpm dev`.
   but layout survives, oversized payloads say they were truncated, and a
   5xx stays opaque while a 4xx does not.
 - `routes/mcp/dto.rs` — limits clamp, `has_more` is honest at every
-  boundary, dates parse or name the field they wanted, and tri-state
-  folds absent / empty / value apart.
+  boundary, dates parse or name the field they wanted, tri-state folds
+  absent / empty / value apart, no argument schema publishes a nullable
+  `type`, and a genuine two-type union survives the transform that
+  collapses `T | null`.
 - `routes/mcp/prompts.rs` — every tool a prompt names exists, and every
   prompt is advertised with a description.
 - `routes/mcp/server.rs` — the router and `TOOL_SCOPES` describe the same

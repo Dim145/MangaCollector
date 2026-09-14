@@ -126,7 +126,7 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 147 tests across 30 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 149 tests across 30 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).

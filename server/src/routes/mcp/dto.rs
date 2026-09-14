@@ -7,6 +7,53 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// 型 · Render an optional argument as a plain optional property rather
+/// than a nullable one.
+///
+/// `schemars` turns `Option<T>` into `"type": ["T", "null"]`. That is
+/// legal JSON Schema, and the official MCP inspector flags it anyway:
+/// several clients read `type` as a single string and either reject the
+/// whole tool or silently drop the constraint. Neither failure is one a
+/// server would hear about — the tool just stops working for that
+/// client.
+///
+/// Collapsing it is not a white lie. Every optional argument in this
+/// module means "leave it alone", never "pass an explicit null" — the
+/// fields that genuinely need a third state say it with an empty string
+/// (see `tri_state`). So "absent is allowed, and when present it is a
+/// `T`" is exactly the contract, and `required` already carries the
+/// optionality.
+///
+/// The `default: null` schemars emits alongside goes too: it is noise
+/// that reads as "the default is the null value" rather than "there
+/// isn't one".
+fn plain_optional(schema: &mut schemars::Schema) {
+    if schema
+        .get("default")
+        .is_some_and(serde_json::Value::is_null)
+    {
+        schema.remove("default");
+    }
+    let Some(ty) = schema.get_mut("type") else {
+        return;
+    };
+    let Some(kinds) = ty.as_array() else { return };
+    let mut concrete: Vec<serde_json::Value> = kinds
+        .iter()
+        .filter(|k| k.as_str() != Some("null"))
+        .cloned()
+        .collect();
+    // Only collapse the `T | null` shape. A genuine union of two real
+    // types is left alone — rewriting that would change the contract.
+    if concrete.len() == 1 {
+        *ty = concrete.remove(0);
+    }
+}
+
+/// Applied to every argument struct below, so nested objects get the
+/// same treatment as the top level.
+use schemars::transform::RecursiveTransform as Recurse;
+
 /// Largest page any tool will return. A caller that wants more pages on
 /// with `offset`; a caller that asks for 10 000 rows gets 200 and a
 /// `has_more` telling it the truth.
@@ -78,6 +125,7 @@ impl<T> Page<T> {
 // ── Arguments ────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct SearchLibrary {
     /// Text to look for in the series title. Matching is
     /// case-insensitive and partial; an empty query returns the whole
@@ -93,6 +141,7 @@ pub struct SearchLibrary {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct ListSeries {
     /// Only series with this reading status. One of `planned`,
     /// `reading`, `paused`, `completed`, `dropped` — the vocabulary in
@@ -108,6 +157,7 @@ pub struct ListSeries {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct SeriesRef {
     /// The series' MyAnimeList id. Negative ids are this account's own
     /// custom or MangaDex-sourced entries and are equally valid.
@@ -115,6 +165,7 @@ pub struct SeriesRef {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct LoanHistory {
     /// Restrict to one series. Omit for the whole ledger.
     #[serde(default)]
@@ -127,6 +178,7 @@ pub struct LoanHistory {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct UpcomingVolumes {
     /// How many months ahead to look. 1-24, defaults to 6.
     #[serde(default)]
@@ -134,6 +186,7 @@ pub struct UpcomingVolumes {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct ResolveIsbn {
     /// An ISBN-10 or ISBN-13, with or without separators. Normalised to
     /// ISBN-13 before the lookup.
@@ -141,6 +194,7 @@ pub struct ResolveIsbn {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct MarkVolumes {
     /// The series to act on.
     pub mal_id: i32,
@@ -157,6 +211,7 @@ pub struct MarkVolumes {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct CreateLocation {
     /// The place's name, as it will read on a tome ("bibliothèque du
     /// salon", "carton B"). Naming an existing place returns that one
@@ -168,6 +223,7 @@ pub struct CreateLocation {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct DeleteSeries {
     /// The series to remove.
     pub mal_id: i32,
@@ -180,6 +236,7 @@ pub struct DeleteSeries {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct AddCustomSeries {
     /// The series' title, as the owner wants to see it on the shelf.
     pub name: String,
@@ -197,6 +254,7 @@ pub struct AddCustomSeries {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct CompareWith {
     /// The other collector's public slug — the last segment of their
     /// `/u/{slug}` profile URL.
@@ -231,6 +289,7 @@ pub fn tri_state(value: Option<String>) -> Option<Option<String>> {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct SetReadingState {
     /// The series to move.
     pub mal_id: i32,
@@ -247,6 +306,7 @@ pub struct SetReadingState {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct SetPhysicalCopy {
     /// The tome's own id, from `get_volumes` — not its number in the
     /// series.
@@ -275,6 +335,7 @@ pub struct SetPhysicalCopy {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct LendVolume {
     /// The tome's own id, from `get_volumes`.
     pub volume_id: i32,
@@ -286,12 +347,14 @@ pub struct LendVolume {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct VolumeRef {
     /// The tome's own id, from `get_volumes`.
     pub volume_id: i32,
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[schemars(transform = Recurse(plain_optional))]
 pub struct RecentActivity {
     /// How many entries, 1-100. Defaults to 30.
     #[serde(default)]
@@ -334,6 +397,88 @@ mod tests {
         let page = Page::slice((0..4).collect::<Vec<u32>>(), 4, 0);
         assert_eq!(page.count, 4);
         assert!(!page.has_more);
+    }
+
+    /// Walk a generated schema and collect anything that would make a
+    /// strict client unhappy.
+    fn portability_complaints(value: &serde_json::Value, path: &str, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::Object(map) => {
+                if map.get("type").is_some_and(|t| {
+                    t.as_array()
+                        .is_some_and(|k| k.iter().any(|v| v.as_str() == Some("null")))
+                }) {
+                    out.push(format!("{path}: `type` is an array containing \"null\""));
+                }
+                if map.get("default").is_some_and(serde_json::Value::is_null) {
+                    out.push(format!("{path}: `default` is null"));
+                }
+                for (key, child) in map {
+                    portability_complaints(child, &format!("{path}.{key}"), out);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for (i, child) in items.iter().enumerate() {
+                    portability_complaints(child, &format!("{path}[{i}]"), out);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// An optional argument must publish a single `type`, not `["T",
+    /// "null"]`.
+    ///
+    /// The array form is legal JSON Schema and several MCP clients
+    /// mishandle it — some reject the whole tool, some drop the
+    /// constraint — and neither failure is one this server would ever
+    /// hear about. The official inspector flagged 25 of these across 11
+    /// tools before `plain_optional` was applied; this is what stops the
+    /// twenty-sixth.
+    #[test]
+    fn no_argument_schema_publishes_a_nullable_type() {
+        let mut complaints = Vec::new();
+        // One struct per shape that exists here: plain options, options
+        // beside required fields, a Vec option, and a bool.
+        for (name, schema) in [
+            ("SearchLibrary", schemars::schema_for!(SearchLibrary)),
+            ("ListSeries", schemars::schema_for!(ListSeries)),
+            ("MarkVolumes", schemars::schema_for!(MarkVolumes)),
+            ("SetPhysicalCopy", schemars::schema_for!(SetPhysicalCopy)),
+            ("SetReadingState", schemars::schema_for!(SetReadingState)),
+            ("LendVolume", schemars::schema_for!(LendVolume)),
+            ("AddCustomSeries", schemars::schema_for!(AddCustomSeries)),
+            ("DeleteSeries", schemars::schema_for!(DeleteSeries)),
+            ("LoanHistory", schemars::schema_for!(LoanHistory)),
+            ("UpcomingVolumes", schemars::schema_for!(UpcomingVolumes)),
+            ("RecentActivity", schemars::schema_for!(RecentActivity)),
+            ("CompareWith", schemars::schema_for!(CompareWith)),
+            ("SeriesRef", schemars::schema_for!(SeriesRef)),
+            ("VolumeRef", schemars::schema_for!(VolumeRef)),
+            ("CreateLocation", schemars::schema_for!(CreateLocation)),
+            ("ResolveIsbn", schemars::schema_for!(ResolveIsbn)),
+        ] {
+            portability_complaints(schema.as_value(), name, &mut complaints);
+        }
+        assert!(
+            complaints.is_empty(),
+            "argument schemas a strict MCP client would trip on:\n  {}",
+            complaints.join("\n  ")
+        );
+    }
+
+    /// Collapsing `T | null` must not collapse a genuine union, which
+    /// would quietly narrow a contract rather than clarify one.
+    #[test]
+    fn a_real_union_of_two_types_survives() {
+        let mut schema: schemars::Schema =
+            serde_json::from_value(serde_json::json!({ "type": ["string", "integer"] }))
+                .expect("a valid schema");
+        plain_optional(&mut schema);
+        assert_eq!(
+            schema.get("type"),
+            Some(&serde_json::json!(["string", "integer"]))
+        );
     }
 
     #[test]
