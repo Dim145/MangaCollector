@@ -4,9 +4,9 @@ use axum::{
 };
 
 use crate::handlers::{
-    activity, archive, auth as auth_handlers, author, calendar, coffret, compare, external,
-    external_import, follow, health, isbn, library, locations, public, public_config, realtime,
-    seals, settings, snapshot, storage, user_profile, volume,
+    activity, api_keys, archive, auth as auth_handlers, author, calendar, coffret, compare,
+    external, external_import, follow, health, isbn, library, locations, public, public_config,
+    realtime, seals, settings, snapshot, storage, user_profile, volume,
 };
 use crate::state::AppState;
 
@@ -75,6 +75,14 @@ pub fn api_router() -> Router<AppState> {
 
 fn user_router() -> Router<AppState> {
     Router::new()
+        // 鍵 · API keys for the MCP endpoint. Minted from the settings
+        // page by a signed-in human; the keys themselves only ever
+        // authenticate on `/mcp`, which takes no cookie. `/scopes` is
+        // registered before `/{id}` so the literal segment wins.
+        .route("/api-keys", get(api_keys::list).post(api_keys::mint))
+        .route("/api-keys/scopes", get(api_keys::scopes))
+        .route("/api-keys/audit", get(api_keys::audit))
+        .route("/api-keys/{id}", delete(api_keys::revoke))
         // 番 · Server-side ISBN resolution with a shared cache.
         .route("/isbn/{isbn}", get(isbn::lookup))
         // Library routes — note: /library/search and /library/custom must be

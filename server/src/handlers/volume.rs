@@ -1,15 +1,19 @@
+//! 巻 · `/api/user/volume` — volume tracking, loans, physical copies.
+//!
+//! Writes go through `services::ops::volume`, which owns the realtime
+//! fan-out; see that module's header for why.
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::auth::AuthenticatedUser;
-use crate::handlers::realtime::ClientId;
 use crate::errors::AppError;
+use crate::handlers::realtime::ClientId;
 use crate::models::volume::{UpdateVolumeRequest, Volume};
-use crate::services::realtime::SyncKind;
+use crate::services::ops;
 use crate::services::volume;
 use crate::state::AppState;
 
@@ -23,6 +27,18 @@ pub struct UpcomingVolumeRequest {
     pub release_isbn: Option<String>,
     #[serde(default)]
     pub release_url: Option<String>,
+}
+
+impl UpcomingVolumeRequest {
+    /// Split the announce-side fields off the wire type. `vol_num` is
+    /// not one of them — the edit path has no use for it.
+    fn details(self) -> ops::volume::UpcomingDetails {
+        ops::volume::UpcomingDetails {
+            release_date: self.release_date,
+            release_isbn: self.release_isbn,
+            release_url: self.release_url,
+        }
+    }
 }
 
 /// GET /api/user/volume
@@ -58,19 +74,8 @@ pub async fn bulk_mark_volumes(
     Path(mal_id): Path<i32>,
     Json(body): Json<BulkMarkRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    volume::bulk_mark_for_series(&state.db, user.id, mal_id, body.owned, body.read).await?;
-
-    // Realtime fan-out: both the library counter and the volume rows
-    // moved, so subscribed sessions need to re-pull both feeds.
-    state
-        .broker
-        .publish_scoped(user.id, SyncKind::Library, Some(mal_id), client_id.clone())
-        .await;
-    state
-        .broker
-        .publish_scoped(user.id, SyncKind::Volumes, Some(mal_id), client_id.clone())
-        .await;
-
+    ops::volume::bulk_mark_volumes(&state, user.id, mal_id, body.owned, body.read, client_id)
+        .await?;
     Ok(Json(json!({ "status": "ok" })))
 }
 
@@ -93,23 +98,16 @@ pub async fn add_upcoming_volume(
     Path(mal_id): Path<i32>,
     Json(body): Json<UpcomingVolumeRequest>,
 ) -> Result<Json<Volume>, AppError> {
-    let vol_num = body
-        .vol_num
-        .ok_or_else(|| AppError::BadRequest("vol_num is required".into()))?;
-    let inserted = volume::add_upcoming_manually(
-        &state.db,
+    let vol_num = body.vol_num;
+    let inserted = ops::volume::add_upcoming_volume(
+        &state,
         user.id,
         mal_id,
         vol_num,
-        body.release_date,
-        body.release_isbn,
-        body.release_url,
+        body.details(),
+        client_id,
     )
     .await?;
-    state
-        .broker
-        .publish_scoped(user.id, SyncKind::Volumes, Some(mal_id), client_id.clone())
-        .await;
     Ok(Json(inserted))
 }
 
@@ -122,19 +120,8 @@ pub async fn update_upcoming_volume(
     Path(id): Path<i32>,
     Json(body): Json<UpcomingVolumeRequest>,
 ) -> Result<Json<Volume>, AppError> {
-    let updated = volume::update_upcoming_manually(
-        &state.db,
-        id,
-        user.id,
-        body.release_date,
-        body.release_isbn,
-        body.release_url,
-    )
-    .await?;
-    state
-        .broker
-        .publish_scoped(user.id, SyncKind::Volumes, None, client_id.clone())
-        .await;
+    let updated =
+        ops::volume::update_upcoming_volume(&state, user.id, id, body.details(), client_id).await?;
     Ok(Json(updated))
 }
 
@@ -146,11 +133,7 @@ pub async fn delete_volume(
     ClientId(client_id): ClientId,
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    volume::delete_manual_volume(&state.db, id, user.id).await?;
-    state
-        .broker
-        .publish_scoped(user.id, SyncKind::Volumes, None, client_id.clone())
-        .await;
+    ops::volume::delete_volume(&state, user.id, id, client_id).await?;
     Ok(Json(json!({
         "success": true,
         "message": "Volume deleted successfully"
@@ -162,48 +145,9 @@ pub async fn update_volume(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     ClientId(client_id): ClientId,
-    Json(mut body): Json<UpdateVolumeRequest>,
+    Json(body): Json<UpdateVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let id = body.id;
-    // 物 · Physical-copy fields ride on the same PATCH, applied after the
-    // main update like the loan so one round-trip covers the drawer.
-    let physical = body.take_physical();
-    let loan_change = body.loan;
-    let outcome = volume::update_by_id(
-        &state.db,
-        &state.activity,
-        id,
-        user.id,
-        body.owned,
-        body.price,
-        body.store,
-        body.collector,
-        body.read,
-        body.notes,
-    )
-    .await?;
-    // Loan mutation rides on the same PATCH so a single round-trip
-    // updates both ownership/read state and the loan triplet. Handler
-    // applies it AFTER the main update so the row is in its final
-    // ownership state before we mark it as lent (e.g. avoiding a
-    // weird "lent but unowned" intermediate).
-    if let Some(loan_patch) = loan_change {
-        volume::set_loan(&state.db, id, user.id, loan_patch).await?;
-    }
-    volume::set_physical_details(&state.db, id, user.id, physical).await?;
-    let series_id = outcome.series_id;
-    state
-        .broker
-        .publish_scoped(user.id, SyncKind::Volumes, series_id, client_id.clone())
-        .await;
-    // 読 · The read flip moved the series' reading progression: other
-    // sessions need the library row too, not just the volume rows.
-    if outcome.library_changed {
-        state
-            .broker
-            .publish_scoped(user.id, SyncKind::Library, series_id, client_id.clone())
-            .await;
-    }
+    ops::volume::update_volume(&state, user.id, body, client_id).await?;
     Ok(Json(json!({
         "success": true,
         "message": "Volume updated successfully"

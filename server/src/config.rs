@@ -116,6 +116,41 @@ pub struct Config {
     /// on how long it will spin before returning partial data; this
     /// timeout adds margin for serialization + network transit.
     pub external_proxy_timeout_secs: u64,
+    /// 接 · Everything the MCP endpoint reads. Grouped because it is one
+    /// feature with one on/off switch, and because `routes::mcp` wants
+    /// the whole lot rather than five loose fields.
+    pub mcp: McpConfig,
+}
+
+/// Configuration for `/mcp`.
+#[derive(Debug, Clone)]
+pub struct McpConfig {
+    /// Master switch. Default **false**: the endpoint hands an agent
+    /// write access to a user's whole collection, so it is opt-in for
+    /// the operator rather than something a deploy turns on by
+    /// surprise. `MCP_ENABLED=true`.
+    pub enabled: bool,
+    /// Extra `Host` values the transport will answer to, on top of the
+    /// loopback defaults rmcp ships.
+    ///
+    /// rmcp validates `Host` to block DNS rebinding — a page on any
+    /// origin can POST to `http://localhost:3000/mcp`, and without the
+    /// check the browser's own network position is the attacker's.
+    /// Anything reachable under a real hostname therefore has to name
+    /// it here or every request is refused. Comma-separated; an entry
+    /// without a port matches any port, with one it must match exactly.
+    pub allowed_hosts: Vec<String>,
+    /// `Origin` values the transport accepts. Empty (the default) means
+    /// rmcp does not check it — which is right for an endpoint that
+    /// takes no cookie and is not reachable from a browser session.
+    pub allowed_origins: Vec<String>,
+    /// Token refill rate of the per-key bucket, in seconds between
+    /// tokens. Default 1.
+    pub rate_limit_per_second: u64,
+    /// Burst capacity of the per-key bucket. Default 20 — an agent
+    /// legitimately fires a short flurry of reads while answering one
+    /// question.
+    pub rate_limit_burst: u32,
 }
 
 impl Config {
@@ -263,6 +298,40 @@ impl Config {
                 // before the proxy starts emitting partials; 30 s
                 // headroom covers serialization + network transit.
                 .unwrap_or(150),
+            mcp: McpConfig {
+                // Opt-in, unlike every other flag here: a mistyped value
+                // must leave the endpoint closed, so this reads
+                // `== "true"` rather than `!= "false"`.
+                enabled: std::env::var("MCP_ENABLED")
+                    .ok()
+                    .map(|s| s.trim().eq_ignore_ascii_case("true"))
+                    .unwrap_or(false),
+                allowed_hosts: csv_list("MCP_ALLOWED_HOSTS"),
+                allowed_origins: csv_list("MCP_ALLOWED_ORIGINS"),
+                rate_limit_per_second: std::env::var("MCP_RATE_LIMIT_PER_SECOND")
+                    .ok()
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .map(|n| n.max(1))
+                    .unwrap_or(1),
+                rate_limit_burst: std::env::var("MCP_RATE_LIMIT_BURST")
+                    .ok()
+                    .and_then(|s| s.parse::<u32>().ok())
+                    .map(|n| n.max(1))
+                    .unwrap_or(20),
+            },
         })
     }
+}
+
+/// Read a comma-separated env var into a trimmed, non-empty list.
+/// Absent or all-blank yields an empty vec, which every caller reads as
+/// "nothing configured" rather than "one empty entry".
+fn csv_list(key: &str) -> Vec<String> {
+    std::env::var(key)
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
 }

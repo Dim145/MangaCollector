@@ -242,6 +242,27 @@ CORS and does not read it yet.
   `forceResyncFromServer()` (Settings → restore from server) discard all six outbox tables on purpose.
 - `emitSyncEvent` forwards a `payload` field the current server never sets.
 
+### Who publishes
+
+A write is a service call *plus* the invalidation that tells the user's
+other devices to drop their caches. Those two are one operation, and
+splitting them is how a second caller ends up writing correct rows behind
+stale screens — nothing errors, and the user is the one who notices.
+
+So any write path reachable from more than one place lives in
+`services::ops`, which owns both halves; the handler extracts, calls one
+`ops` function and serialises. `library`, `volume` and `locations` are
+migrated (they are what the MCP endpoint mutates). Snapshots, settings,
+follows and the compare copy still fan out from their handler — HTTP is
+their only caller, so there is nothing for them to drift from. Move one
+across the day it gains a second caller, and add it to `MIGRATED` in
+`services/ops/mod.rs` in the same commit or the guard checks nothing.
+
+Every `ops` function takes `origin: Option<String>` — the `X-Client-Id`
+of the tab that caused the write over HTTP, so the socket that already
+holds the optimistic state is skipped. A caller that is not a browser tab
+passes an id matching no socket, and every real device gets the event.
+
 ## Where it lives
 
 | File | Role |
@@ -250,7 +271,8 @@ CORS and does not read it yet.
 | `server/src/services/realtime.rs` | `SyncKind`, `SyncEvent`, `SyncBroker` (in-memory or Redis `mc:sync`) |
 | `server/src/routes/api.rs` | mounts `GET /api/ws` (outside the `/user` nest) |
 | `server/src/main.rs` | picks the broker from `REDIS_URL`; CORS allow-list for `x-client-id`, `idempotency-key` |
-| `server/src/handlers/{library,volume,coffret}.rs` | `publish_scoped(user, kind, Some(mal_id), client_id)` after each mutation |
+| `server/src/services/ops/` | 書 · write orchestrations — service call **plus** its fan-out, for every write path with more than one caller (`library`, `volume`, `locations`). The handlers there are thin shells; a `#[cfg(test)]` guard in `ops/mod.rs` refuses a `broker` reference in them |
+| `server/src/handlers/coffret.rs` | `publish_scoped(user, kind, Some(mal_id), client_id)` after each mutation — still handler-side, HTTP being its only caller |
 | `server/src/services/activity_coalescer.rs` | 5 s compensating-pair buffer for the activity feed |
 | `client/src/lib/db.js` | Dexie schema v1–v16, outbox-aware `cache*` writers, `clearAllUserData` |
 | `client/src/lib/sync/outbox.js` | enqueue / flush / refetch / backoff / dead-letter / force resync |

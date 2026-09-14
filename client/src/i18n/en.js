@@ -1328,6 +1328,38 @@ export default {
       "Every wishlist series in your library becomes visible on /u/{slug}, including series you add WHILE the window is open. There's no per-series opt-in — it's all-or-nothing for the duration. Adult-content filtering still applies.",
     birthdayScopeReminder:
       "Reminder · series you add now go live immediately on the public page.",
+    mcpTitle: "API access · 鍵",
+    mcpBody:
+      "Mint a key so an AI client can read and curate this collection through the MCP endpoint. Each key carries an explicit list of what it may do — nothing else.",
+    mcpDisabled:
+      "The MCP endpoint is switched off on this instance. You can still manage keys here, but no client will connect until the operator sets MCP_ENABLED=true.",
+    mcpLoading: "Loading…",
+    mcpEmpty: "No keys yet. Mint one to connect an AI client.",
+    mcpNewKey: "New key",
+    mcpAuditToggle: "Agent activity",
+    mcpLabel: "Label",
+    mcpLabelPlaceholder: "Claude Desktop, laptop…",
+    mcpScopes: "What it may do",
+    mcpPresetReadOnly: "Read-only preset",
+    mcpMint: "Mint the key",
+    mcpCancel: "Cancel",
+    mcpMintFailed: "Could not mint the key.",
+    mcpRevoke: "Revoke",
+    mcpRevokeConfirm: "Revoke for good",
+    mcpExpired: "Expired",
+    mcpLastUsed: "Last used {when}",
+    mcpNeverUsed: "Never used",
+    mcpRevealTitle: "Your new key",
+    mcpRevealWarning:
+      "This is the only time the key is shown. The server keeps a digest and cannot recover it — copy it now, or revoke it and mint another.",
+    mcpTheKey: "The key",
+    mcpTheCommand: "Ready-made command",
+    mcpRevealEnvHint:
+      "Don't commit the key. Several clients resolve ${env:VAR} inside their config file, so prefer an environment variable over the literal value.",
+    mcpRevealDone: "I've copied it",
+    mcpCopy: "Copy",
+    mcpCopied: "Copied",
+    mcpAuditEmpty: "No agent has called anything yet.",
     archiveTitle: "Archive & portability · 写本",
     archiveBody:
       "Export your collection to archive it, or import a scroll received from elsewhere. Merge-only: series already present (same mal_id) are skipped.",

@@ -3,7 +3,11 @@
 [extend]
 useDefault = true
 
-[allowlist]
+# Both blocks use the `[[allowlists]]` (plural) form. The singular
+# `[allowlist]` is deprecated and gitleaks refuses a config that mixes
+# the two, so adding a second reason meant migrating the first.
+
+[[allowlists]]
 description = "Browser storage keys, not credentials"
 regexTarget = "secret"
 regexes = [
@@ -11,4 +15,26 @@ regexes = [
   # stores things under in localStorage. Public by construction: they
   # are visible in any browser's developer tools.
   '''^mc[.:][a-z0-9.:\-]+$''',
+]
+
+[[allowlists]]
+description = "Key-shaped test fixtures that cannot be real keys"
+regexTarget = "secret"
+regexes = [
+  # This server only ever issues `mcp_<12 hex>_<64 hex>` (see
+  # `services::api_keys::mint`), so a value whose secret half is a word
+  # — let alone one of the words below — cannot be a credential it
+  # minted. The tests need something key-shaped to assert that the
+  # rate-limit bucket keeps the prefix and drops the secret, and that
+  # the settings panel stops showing the key once its dialog closes.
+  #
+  # Two spellings are in history (commits a894593 and 70aa301); the
+  # working tree uses `not-a-real-secret` only.
+  '''^mcp_[0-9a-z]{1,16}_(not-a-real-secret|thesecret|supersecret)$''',
+  # And the bare prefix with no secret half at all. A prefix is the
+  # public half by design — it is what the settings page shows and what
+  # the rate limiter buckets on, and `guard.rs` asserts on it precisely
+  # to prove the bucket keeps the prefix and drops the secret. A full
+  # credential always carries `_<64 hex>` after it.
+  '''^mcp_[0-9a-f]{12}$''',
 ]

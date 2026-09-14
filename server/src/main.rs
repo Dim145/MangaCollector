@@ -457,6 +457,11 @@ async fn main() -> anyhow::Result<()> {
         move |req, next| csrf_origin_guard(allowed.clone(), req, next)
     });
 
+    // 接 · Kept for the `/mcp` merge below, which happens after the CSRF
+    // layer is applied and therefore after `state` has been moved into
+    // the main router.
+    let mcp_state = state.clone();
+
     let app = Router::new()
         .nest("/auth", routes::auth::auth_router())
         .nest("/api", routes::api::api_router())
@@ -480,8 +485,28 @@ async fn main() -> anyhow::Result<()> {
         None => app,
     };
 
+    let app = app.layer(csrf_layer);
+
+    // 接 · `/mcp` merges HERE — deliberately outside the CSRF guard and
+    // outside the per-IP limiter, and inside everything below.
+    //
+    // `csrf_origin_guard` rejects any state-changing request whose
+    // `Origin` header does not match the frontend. MCP clients are not
+    // browsers and send none, so every tool call would 403 from inside
+    // that layer. Skipping it is safe precisely because the endpoint
+    // accepts **no cookie**: CSRF is an attack on ambient authority, and
+    // a bearer credential a browser will not attach on its own has none
+    // to abuse. The per-IP limiter is likewise wrong here — several
+    // clients behind one NAT would share a bucket — so `routes::mcp`
+    // brings its own, keyed on the API key's public prefix.
+    //
+    // Everything applied below this point still wraps it: the body cap,
+    // the panic catcher, tracing, Sentry and the security headers.
     let app = app
-        .layer(csrf_layer)
+        .merge(routes::mcp::router(mcp_state.clone()).with_state(mcp_state.clone()))
+        .merge(routes::mcp::well_known_router().with_state(mcp_state));
+
+    let app = app
         .layer(axum::extract::DefaultBodyLimit::max(max_body_bytes))
         .layer(session_layer)
         .layer(cors)

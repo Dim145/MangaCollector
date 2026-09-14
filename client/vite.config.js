@@ -95,6 +95,15 @@ const devProxy = apiProxy
       "/api": { target: apiProxy, changeOrigin: false, ws: true },
       "/auth": { target: apiProxy, changeOrigin: false },
       "/public": { target: apiProxy, changeOrigin: false },
+      // 接 · The MCP endpoint and its RFC 9728 metadata. Without these
+      // two, the ready-made `claude mcp add` command that Réglages →
+      // Accès API hands you points at the Vite origin and 404s — which
+      // reads as a broken key rather than a missing dev proxy.
+      "/mcp": { target: apiProxy, changeOrigin: false },
+      "/.well-known/oauth-protected-resource": {
+        target: apiProxy,
+        changeOrigin: false,
+      },
     }
   : undefined;
 

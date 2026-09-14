@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import PublicProfileSection from "@/components/PublicProfileSection.jsx";
 import BirthdayModeSection from "@/components/BirthdayModeSection.jsx";
 import ArchiveSection from "@/components/ArchiveSection.jsx";
+import McpKeysSection from "@/components/McpKeysSection.jsx";
 import WelcomeTour from "@/components/WelcomeTour.jsx";
 import { resetTourSeen } from "@/lib/tour.js";
 import { getApiKey } from "@/lib/isbn.js";
@@ -45,6 +46,7 @@ export default function ChapterAccount({
 
       <SubBlock block={subBlocks.tools} t={t}>
         <ArchiveSection />
+        <McpKeysSection />
         <ShelfStickersEntry t={t} />
         <ScannerKeySection
           apiKey={apiKeyInput}

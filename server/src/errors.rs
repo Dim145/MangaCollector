@@ -15,6 +15,15 @@ pub enum AppError {
     #[error("{0}")]
     Conflict(String),
 
+    /// 禁 · Authenticated, but not allowed to do *this*. Distinct from
+    /// `Unauthorized`, which means "no valid credential": the caller has
+    /// one, it just does not carry the scope. The MCP endpoint needs the
+    /// two separated — the specification has a client answer a 401 by
+    /// authenticating and a 403 `insufficient_scope` by asking for a
+    /// wider grant, and collapsing them sends it round the wrong loop.
+    #[error("{0}")]
+    Forbidden(String),
+
     #[error("Database error: {0}")]
     Database(String),
 
@@ -73,7 +82,8 @@ impl IntoResponse for AppError {
             // log stream.
             AppError::NotFound(msg)
             | AppError::BadRequest(msg)
-            | AppError::Conflict(msg) => {
+            | AppError::Conflict(msg)
+            | AppError::Forbidden(msg) => {
                 tracing::debug!(error = %msg, "client error");
             }
             AppError::Unauthorized => {}
@@ -107,6 +117,10 @@ impl IntoResponse for AppError {
             ),
             AppError::Conflict(msg) => (
                 StatusCode::CONFLICT,
+                json!({ "success": false, "error": msg }),
+            ),
+            AppError::Forbidden(msg) => (
+                StatusCode::FORBIDDEN,
                 json!({ "success": false, "error": msg }),
             ),
             AppError::Database(_) | AppError::Storage(_) | AppError::Internal(_) => (
