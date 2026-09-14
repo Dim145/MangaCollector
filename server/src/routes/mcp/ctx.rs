@@ -299,12 +299,16 @@ fn as_structured_content(value: serde_json::Value) -> serde_json::Value {
 /// A mitigation, not a guarantee — the client still owns the
 /// human-in-the-loop step.
 pub fn fence(payload: &str) -> String {
-    let cleaned: String = payload
+    // Filter first, then measure, then cut. Measuring the *input*
+    // instead would report a truncation that never happened whenever the
+    // characters the filter removed were what pushed it over the cap —
+    // and an agent told its answer was cut short asks again for nothing.
+    let filtered: String = payload
         .chars()
         .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
-        .take(MAX_PAYLOAD)
         .collect();
-    let truncated = payload.chars().count() > MAX_PAYLOAD;
+    let truncated = filtered.chars().count() > MAX_PAYLOAD;
+    let cleaned: String = filtered.chars().take(MAX_PAYLOAD).collect();
     let cleaned = cleaned
         .replace(FENCE_OPEN, "<<untrusted-data(escaped)>>")
         .replace(FENCE_CLOSE, "<</untrusted-data(escaped)>>");
@@ -380,6 +384,18 @@ mod tests {
         let fenced = fence(&"x".repeat(MAX_PAYLOAD + 500));
         assert!(fenced.contains("truncated"));
         assert!(fenced.chars().count() < MAX_PAYLOAD + 200);
+    }
+
+    #[test]
+    fn a_payload_that_only_control_characters_pushed_over_the_cap_is_not_called_truncated() {
+        // Under the cap once the control characters are dropped, so
+        // nothing was cut — saying otherwise sends an agent back for a
+        // narrower query it does not need.
+        let mut payload = "x".repeat(MAX_PAYLOAD - 10);
+        payload.push_str(&"\u{0007}".repeat(500));
+        let fenced = fence(&payload);
+        assert!(!fenced.contains("truncated"), "nothing was actually cut");
+        assert!(!fenced.contains('\u{0007}'));
     }
 
     #[test]

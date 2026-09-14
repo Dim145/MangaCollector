@@ -52,7 +52,11 @@ use axum::{Json, Router, http::StatusCode, routing::get};
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::never::NeverSessionManager,
 };
-use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
+use tower_governor::{
+    GovernorLayer,
+    governor::GovernorConfigBuilder,
+    key_extractor::{PeerIpKeyExtractor, SmartIpKeyExtractor},
+};
 
 use crate::state::AppState;
 
@@ -65,6 +69,17 @@ const MAX_BODY_BYTES: usize = 1024 * 1024;
 /// Where the endpoint lives. Documented, and what the settings page puts
 /// in the ready-made `claude mcp add` command.
 pub const PATH: &str = "/mcp";
+
+/// How much looser the per-IP backstop is than the per-key bucket.
+///
+/// The two limiters answer different questions. The per-key one is
+/// about fairness — one credential's retry loop must not throttle
+/// another's — and is sized for a single agent. The per-IP one is
+/// about load, and has to leave room for several legitimate agents
+/// behind one address while still bounding a prober who rotates
+/// prefixes. Six is that room: a NAT would need six busy agents to
+/// reach it, a prober reaches it in a second.
+const IP_BACKSTOP_FACTOR: u32 = 6;
 
 /// The `/mcp` router: the rmcp transport wrapped in the kill-switch, the
 /// per-key limiter and API-key authentication.
@@ -136,15 +151,90 @@ pub fn router(state: AppState) -> Router<AppState> {
             ));
 
     if state.config.rate_limit_enabled {
-        let conf = Arc::new(
+        let expect_valid = "valid MCP governor configuration (both knobs clamped ≥ 1 in config.rs)";
+
+        // Evict limiter state that has not been hit recently. Without
+        // it the per-key and per-IP maps grow for as long as the process
+        // lives — a small leak, but one a prober rotating prefixes would
+        // be delighted to feed. A macro rather than a function because
+        // the bounds would name `governor`, which is only a transitive
+        // dependency; `main.rs` sidesteps it the same way.
+        macro_rules! with_cleanup {
+            ($name:literal, $conf:expr) => {{
+                let conf = Arc::new($conf);
+                let limiter = conf.limiter().clone();
+                crate::services::jobs::spawn_supervised($name, async move {
+                    let interval = std::time::Duration::from_secs(60);
+                    loop {
+                        tokio::time::sleep(interval).await;
+                        limiter.retain_recent();
+                    }
+                });
+                conf
+            }};
+        }
+
+        // ── Per key ──────────────────────────────────────────────
+        // Fairness: each credential gets its own budget, so several
+        // clients behind one NAT do not share one and a single agent's
+        // retry loop cannot throttle the rest.
+        let per_key = with_cleanup!(
+            "mcp_governor_key_cleanup",
             GovernorConfigBuilder::default()
                 .per_second(state.config.mcp.rate_limit_per_second)
                 .burst_size(state.config.mcp.rate_limit_burst)
                 .key_extractor(guard::ApiKeyBucket)
                 .finish()
-                .expect("valid MCP governor configuration (both knobs clamped ≥ 1 in config.rs)"),
+                .expect(expect_valid)
         );
-        mcp = mcp.layer(GovernorLayer::new(conf));
+        mcp = mcp.layer(GovernorLayer::new(per_key));
+
+        // ── Per IP, outside it ───────────────────────────────────
+        // 抜 · The per-key bucket alone is escapable, and by design:
+        // `ApiKeyBucket` reads the prefix off the raw header without
+        // checking it exists, precisely so it can shed bad credentials
+        // *before* spending a key lookup on each. The consequence is
+        // that a caller who rotates the prefix — `mcp_…01_x`,
+        // `mcp_…02_x` — gets a fresh bucket every time and the limiter
+        // stops limiting, which is the opposite of what it is there
+        // for.
+        //
+        // An address-keyed backstop closes that: the prefix is the
+        // attacker's to choose, the source address is not. It sits
+        // outside so a flood is dropped before it reaches either the
+        // key bucket or the database.
+        //
+        // Which extractor is correct depends on the deployment and the
+        // two are harmful in each other's, exactly as in `main.rs` —
+        // `TRUST_PROXY_HEADERS` decides.
+        let ip_burst = state
+            .config
+            .mcp
+            .rate_limit_burst
+            .saturating_mul(IP_BACKSTOP_FACTOR);
+        mcp = if state.config.trust_proxy_headers {
+            let conf = with_cleanup!(
+                "mcp_governor_ip_cleanup",
+                GovernorConfigBuilder::default()
+                    .per_second(state.config.mcp.rate_limit_per_second)
+                    .burst_size(ip_burst)
+                    .key_extractor(SmartIpKeyExtractor)
+                    .finish()
+                    .expect(expect_valid)
+            );
+            mcp.layer(GovernorLayer::new(conf))
+        } else {
+            let conf = with_cleanup!(
+                "mcp_governor_ip_cleanup",
+                GovernorConfigBuilder::default()
+                    .per_second(state.config.mcp.rate_limit_per_second)
+                    .burst_size(ip_burst)
+                    .key_extractor(PeerIpKeyExtractor)
+                    .finish()
+                    .expect(expect_valid)
+            );
+            mcp.layer(GovernorLayer::new(conf))
+        };
     }
 
     mcp.layer(axum::middleware::from_fn_with_state(

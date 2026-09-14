@@ -54,7 +54,7 @@ beforeEach(() => {
       prefix: "mcp_abc123",
       label: "Laptop",
       scopes: READ_ONLY,
-      secret: "mcp_abc123_thesecret",
+      secret: "mcp_abc123_not-a-real-secret",
     })),
     isMinting: false,
     revoke: vi.fn(async () => {}),
@@ -134,16 +134,16 @@ describe("McpKeysSection", () => {
     fireEvent.click(screen.getByRole("button", { name: /mint the key/i }));
 
     await screen.findByText(/only time the key is shown/i);
-    expect(screen.getByText("mcp_abc123_thesecret")).toBeInTheDocument();
+    expect(screen.getByText("mcp_abc123_not-a-real-secret")).toBeInTheDocument();
     // The command carries the key, so the user never assembles a header
     // by hand — which is how one ends up in a committed config file.
     expect(
-      screen.getByText(/claude mcp add .*Bearer mcp_abc123_thesecret/),
+      screen.getByText(/claude mcp add .*Bearer mcp_abc123_not-a-real-secret/),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /copied it/i }));
     await waitFor(() =>
-      expect(screen.queryByText("mcp_abc123_thesecret")).not.toBeInTheDocument(),
+      expect(screen.queryByText("mcp_abc123_not-a-real-secret")).not.toBeInTheDocument(),
     );
   });
 

@@ -126,7 +126,7 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 149 tests across 30 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 152 tests across 30 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
@@ -343,9 +343,14 @@ stateless), so an AI client can read and curate one account's collection.
   accepts **no cookie** — there is no ambient authority to abuse. It
   also skips the per-IP limiter and brings its own, keyed on the key's
   public prefix, so clients behind one NAT don't share a bucket.
-- **Layer order** is `require_enabled → governor → authenticate →
-  transport`: a disabled feature costs a config read, and a flood of bad
-  credentials is shed before it can spend a key lookup each.
+- **Layer order** is `require_enabled → governor(IP) → governor(key) →
+  authenticate → transport`: a disabled feature costs a config read, and
+  a flood of bad credentials is shed before it can spend a key lookup
+  each. Two limiters because the per-key bucket is escapable by design —
+  it trusts the presented prefix so it can shed before authenticating,
+  so a caller rotating prefixes gets a fresh bucket each time; the
+  address-keyed backstop outside it (six times looser) is what the
+  caller cannot choose.
 - **`allowed_hosts` is extended, never assigned.** rmcp validates `Host`
   to block DNS rebinding and ships loopback-only; assigning the list
   drops those defaults and 403s everything silently.

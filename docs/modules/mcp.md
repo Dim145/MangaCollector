@@ -230,9 +230,17 @@ accepted as a fallback for those that cannot set `Authorization`.
   safe *because* the endpoint accepts no cookie: CSRF is an attack on
   ambient authority, and a bearer credential a browser will not attach on
   its own has none to abuse.
-- **The rate limiter is keyed on the key prefix, not the IP.** Several
-  clients behind one NAT would otherwise share a bucket, and one agent's
-  retry loop would throttle everyone else.
+- **Two limiters, and each covers the other's hole.** The inner one is
+  keyed on the key prefix — several clients behind one NAT would
+  otherwise share a bucket and one agent's retry loop would throttle the
+  rest. But `ApiKeyBucket` reads the prefix off the raw header without
+  checking it exists, *by design*, so it can shed bad credentials before
+  spending a key lookup on each — which means a caller who rotates the
+  prefix gets a fresh bucket every time and the limiter stops limiting.
+  So an address-keyed backstop sits outside it, six times looser: the
+  prefix is the caller's to choose, the source address is not. It
+  inherits the `TRUST_PROXY_HEADERS` caveat from `main.rs` — behind a
+  proxy you must set it, or every client shares the proxy's bucket.
 - **`allowed_hosts` is pushed onto, never assigned.** rmcp validates
   `Host` to block DNS rebinding and ships accepting loopback only;
   assigning the list *replaces* those defaults and 403s everything
@@ -326,13 +334,15 @@ command the settings panel prints works verbatim under `pnpm dev`.
   degrades instead of failing the key, while an unknown one *requested*
   at mint time is refused; only a well-formed `mcp_<prefix>_<secret>`
   parses; the digest is stable and is not the secret.
-- `routes/mcp/guard.rs` — Bearer wins over `X-Api-Key`, Basic auth is not
-  a credential, the bucket is the public prefix and never the secret,
-  unparseable credentials share one bucket, and the 401 points at the
-  metadata document.
+- `routes/mcp/guard.rs` — Bearer wins over `X-Api-Key` and its scheme is
+  matched case-insensitively (RFC 6750 §2.1; clients do send `bearer`),
+  Basic auth is not a credential, the bucket is the public prefix and
+  never the secret, unparseable credentials share one bucket, and the
+  401 points at the metadata document.
 - `routes/mcp/ctx.rs` — a list becomes `{count, items}`, a scalar becomes
   `{value}`, a payload cannot close its own fence, control characters go
-  but layout survives, oversized payloads say they were truncated, and a
+  but layout survives, oversized payloads say they were truncated while
+  one that only control characters pushed over the cap does not, and a
   5xx stays opaque while a 4xx does not.
 - `routes/mcp/dto.rs` — limits clamp, `has_more` is honest at every
   boundary, dates parse or name the field they wanted, tri-state folds
@@ -342,10 +352,14 @@ command the settings panel prints works verbatim under `pnpm dev`.
 - `routes/mcp/prompts.rs` — every tool a prompt names exists, and every
   prompt is advertised with a description.
 - `routes/mcp/server.rs` — the router and `TOOL_SCOPES` describe the same
-  tools; an empty key is offered only `whoami`; deletion is not reachable
-  from the read-only preset; the instructions name the fence markers the
-  tools actually emit; and the closed vocabularies in the descriptions
-  are the ones the server takes.
+  tools; **every tool enforces the scope it is advertised under**, read
+  out of the source (the table alone cannot see which scope the handler
+  passes to `ctx::authorize`, and a tool filed under `library:delete`
+  that enforced `library:read` would be an escalation for anyone who
+  guessed the name); an empty key is offered only `whoami`; deletion is
+  not reachable from the read-only preset; the instructions name the
+  fence markers the tools actually emit; and the closed vocabularies in
+  the descriptions are the ones the server takes.
 - `services/ops/mod.rs` — the migrated handlers do not reach for the
   broker, and the paths listed there still exist.
 

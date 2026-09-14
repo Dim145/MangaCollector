@@ -333,6 +333,107 @@ mod tests {
         }
     }
 
+    /// What a tool *advertises* and what it *enforces* must be the same
+    /// scope.
+    ///
+    /// `every_router_tool_has_a_scope_entry` only proves a tool appears
+    /// in the table. It cannot see which scope the handler actually
+    /// passes to `ctx::authorize`, and the dangerous direction is
+    /// quiet: a tool filed under `library:delete` — therefore hidden
+    /// from read-only keys — that enforces `library:read` would be a
+    /// privilege escalation for anyone who guesses the name, since
+    /// `tools/list` is advertising, not enforcement.
+    ///
+    /// Read out of the source, like the client's cross-language parity
+    /// suites and `services::ops`'s broker guard: the alternative is a
+    /// mock that would have to be kept honest by the thing it checks.
+    #[test]
+    fn every_tool_enforces_the_scope_it_is_advertised_under() {
+        let mut enforced: std::collections::HashMap<String, Option<String>> =
+            std::collections::HashMap::new();
+
+        for rel in [
+            "src/routes/mcp/tools_read.rs",
+            "src/routes/mcp/tools_write.rs",
+            "src/routes/mcp/server.rs",
+        ] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
+            let src = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("{rel} should be readable: {e}"));
+            // Stop at the test module. This very test names
+            // `ctx::authorize` in its own body and doc comment, and
+            // `server.rs` is one of the files it reads — without the cut
+            // it counts itself.
+            let src = match src.find("#[cfg(test)]") {
+                Some(at) => &src[..at],
+                None => &src[..],
+            };
+            // Collapse whitespace so a call broken across lines by
+            // rustfmt reads the same as a one-liner.
+            let flat = src.split_whitespace().collect::<Vec<_>>().join(" ");
+
+            // `ctx::authorize(` and `ctx::authorize_unscoped(` —
+            // rustfmt breaks the long ones across lines, so match the
+            // call name and then scan forward rather than matching a
+            // fixed prefix that only one of the two layouts produces.
+            let mut rest = flat.as_str();
+            while let Some(at) = rest.find("ctx::authorize") {
+                rest = &rest[at + "ctx::authorize".len()..];
+                let scoped = !rest.starts_with("_unscoped");
+                // Bound the scan so one call cannot read the next one's
+                // arguments if this ever fails to match. Taken in
+                // `chars`, not bytes: these files are full of box-drawing
+                // rules and kanji, and a byte slice lands mid-character.
+                let window: String = rest.chars().take(240).collect();
+                let window = window.as_str();
+                let Some(open) = window.find('"') else {
+                    continue;
+                };
+                let Some(close) = window[open + 1..].find('"') else {
+                    continue;
+                };
+                let tool = window[open + 1..open + 1 + close].to_string();
+                let scope = if scoped {
+                    window[open + 1 + close..]
+                        .split("Scope::")
+                        .nth(1)
+                        .map(|s| {
+                            s.chars()
+                                .take_while(|c| c.is_alphanumeric())
+                                .collect::<String>()
+                        })
+                        .filter(|s| !s.is_empty())
+                } else {
+                    None
+                };
+                enforced.insert(tool, scope);
+            }
+        }
+
+        assert_eq!(
+            enforced.len(),
+            TOOL_SCOPES.len(),
+            "found {} authorize() calls for {} advertised tools — a tool \
+             either skips authorization or was parsed wrong",
+            enforced.len(),
+            TOOL_SCOPES.len()
+        );
+
+        for (tool, advertised) in TOOL_SCOPES {
+            let enforced_scope = enforced
+                .get(*tool)
+                .unwrap_or_else(|| panic!("`{tool}` never calls ctx::authorize"));
+            let advertised_name = advertised.map(|s| format!("{s:?}"));
+            assert_eq!(
+                enforced_scope.as_deref(),
+                advertised_name.as_deref(),
+                "`{tool}` is advertised under {advertised_name:?} but enforces \
+                 {enforced_scope:?} — `tools/list` would hide it from keys that \
+                 can in fact call it, or offer it to keys that cannot"
+            );
+        }
+    }
+
     #[test]
     fn instructions_name_the_untrusted_markers_the_tools_actually_emit() {
         assert!(INSTRUCTIONS.contains(ctx::FENCE_OPEN));

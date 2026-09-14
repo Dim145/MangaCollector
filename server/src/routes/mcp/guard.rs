@@ -86,7 +86,13 @@ fn presented(headers: &header::HeaderMap) -> Option<&str> {
     headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
+        // RFC 6750 §2.1 makes the scheme case-insensitive, and clients
+        // in the field do send `bearer`. Matching only `Bearer ` turned
+        // those into an unexplained 401 against a key that was fine.
+        .and_then(|v| {
+            let (scheme, rest) = v.split_once(' ')?;
+            scheme.eq_ignore_ascii_case("bearer").then_some(rest)
+        })
         .or_else(|| headers.get("x-api-key").and_then(|v| v.to_str().ok()))
         .map(str::trim)
 }
@@ -178,6 +184,20 @@ mod tests {
     }
 
     #[test]
+    fn the_bearer_scheme_is_case_insensitive() {
+        // RFC 6750 §2.1. Clients do send `bearer`, and rejecting them
+        // looked like a bad key rather than a picky server.
+        for scheme in ["Bearer", "bearer", "BEARER", "BeArEr"] {
+            let r = req(&[("authorization", &format!("{scheme} mcp_abc_def"))]);
+            assert_eq!(
+                presented(r.headers()),
+                Some("mcp_abc_def"),
+                "`{scheme}` should be accepted"
+            );
+        }
+    }
+
+    #[test]
     fn a_non_bearer_authorization_is_not_a_credential() {
         // Basic auth must not be read as a key, and must not fall
         // through to whatever `x-api-key` happens to say.
@@ -190,11 +210,11 @@ mod tests {
         let key = ApiKeyBucket
             .extract(&req(&[(
                 "authorization",
-                "Bearer mcp_0123456789ab_supersecret",
+                "Bearer mcp_0123456789ab_not-a-real-secret",
             )]))
             .unwrap();
         assert_eq!(key, "mcp_0123456789ab");
-        assert!(!key.contains("supersecret"));
+        assert!(!key.contains("not-a-real-secret"));
     }
 
     #[test]
