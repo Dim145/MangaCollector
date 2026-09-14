@@ -126,7 +126,7 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 145 tests across 29 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 147 tests across 30 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
@@ -372,7 +372,7 @@ stateless), so an AI client can read and curate one account's collection.
   as the server accepts them; written from memory they were wrong twice,
   and an agent sending a refused value cannot tell the schema lied. A
   test in `routes/mcp/server.rs` pins them.
-- Twenty tools. Env: `MCP_ENABLED`, `MCP_ALLOWED_HOSTS`,
+- Twenty-three tools and five prompts. Env: `MCP_ENABLED`, `MCP_ALLOWED_HOSTS`,
   `MCP_ALLOWED_ORIGINS`, `MCP_RATE_LIMIT_PER_SECOND`,
   `MCP_RATE_LIMIT_BURST`. Traefik and the client nginx both route `/mcp`
   explicitly — as `Path`, not `PathPrefix`. Full guide:

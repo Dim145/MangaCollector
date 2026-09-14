@@ -153,17 +153,41 @@ and the handler's own `ctx::authorize` is what stops it.
 | `list_locations` | `locations:read` |
 | `upcoming_volumes` | `releases:read` |
 | `resolve_isbn` | `isbn:read` |
-| `recent_activity` | `stats:read` |
+| `recent_activity`, `library_stats` | `stats:read` |
+| `compare_with` | `social:read` |
 | `mark_volumes`, `set_physical_copy` | `volumes:write` |
-| `start_reread`, `set_reading_state` | `library:write` |
+| `start_reread`, `set_reading_state`, `add_custom_series` | `library:write` |
 | `create_location` | `locations:write` |
 | `lend_volume`, `return_volume` | `loans:write` |
 | `delete_series` | `library:delete` **+ `confirm: true`** |
+
+### Prompts
+
+Five, fetched by name and carrying no scopes of their own — fetching one
+reveals nothing, and the tools it suggests enforce their own when the
+model gets there: `find_the_gaps`, `what_to_read_next`, `loans_review`,
+`tidy_the_shelves`, `month_in_review`. They describe an approach rather
+than dictate an answer, and each restates the traps that matter here:
+owning and having read are independent, an unreleased tome is not a gap,
+and names typed by people are data.
+
+A test asserts every tool a prompt names actually exists — a prompt that
+sends the model after a tool that is gone surfaces as the model being
+confused, not as the server being wrong.
 
 ### Out of scope by design
 
 Not "needs a bigger scope" — unreachable from `/mcp`, whatever the key:
 
+- **Adding a series that a catalogue already knows.** `add_custom_series`
+  covers what no catalogue has; picking the right MAL or MangaDex entry
+  needs a search this endpoint does not expose, and an agent supplying a
+  remembered `mal_id` would mint a row that silently refreshes into a
+  different series. That one goes through the web app.
+- **Resources.** Deliberately none. The obvious candidates
+  (`manga://series/{mal_id}`, the library as a document) duplicate
+  `get_series` and `list_series` exactly, and plumbing that adds an
+  address without adding a capability is surface for nothing.
 - **Imports** of any kind: MyAnimeList, AniList, MangaDex, Yamtrack, and
   archive bundles. Three separate mechanisms would have to exist first
   (an async stage for calls that run into minutes, a server-side staging
@@ -259,6 +283,7 @@ accepted as a fallback for those that cannot set `Authorization`.
 | `server/src/routes/mcp/server.rs` | `ServerInfo`, instructions, `TOOL_SCOPES`, scope-filtered `tools/list` |
 | `server/src/routes/mcp/dto.rs` | tool arguments (published as JSON Schema), `Page`, date and tri-state helpers |
 | `server/src/routes/mcp/tools_read.rs`, `tools_write.rs` | the tools |
+| `server/src/routes/mcp/prompts.rs` | the five prompts |
 | `server/src/services/api_keys.rs` | scopes, mint / list / revoke, `authenticate` |
 | `server/src/services/mcp_audit.rs` | the trail, `args_digest`, `Outcome` |
 | `server/src/models/api_key.rs`, `mcp_audit.rs` | entities |
@@ -302,6 +327,8 @@ command the settings panel prints works verbatim under `pnpm dev`.
 - `routes/mcp/dto.rs` — limits clamp, `has_more` is honest at every
   boundary, dates parse or name the field they wanted, and tri-state
   folds absent / empty / value apart.
+- `routes/mcp/prompts.rs` — every tool a prompt names exists, and every
+  prompt is advertised with a description.
 - `routes/mcp/server.rs` — the router and `TOOL_SCOPES` describe the same
   tools; an empty key is offered only `whoami`; deletion is not reachable
   from the read-only preset; the instructions name the fence markers the

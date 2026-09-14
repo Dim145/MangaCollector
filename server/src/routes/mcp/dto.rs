@@ -179,6 +179,30 @@ pub struct DeleteSeries {
     pub confirm: bool,
 }
 
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct AddCustomSeries {
+    /// The series' title, as the owner wants to see it on the shelf.
+    pub name: String,
+    /// How many tomes the series has. A row is created for each, all
+    /// unowned, so the caller can mark them afterwards.
+    pub volumes: i32,
+    /// How many of them the caller already owns. Marks that many from
+    /// the first tome; omit for none.
+    #[serde(default)]
+    pub volumes_owned: Option<i32>,
+    /// Genres, free text and free-form — a custom series answers to no
+    /// catalogue.
+    #[serde(default)]
+    pub genres: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct CompareWith {
+    /// The other collector's public slug — the last segment of their
+    /// `/u/{slug}` profile URL.
+    pub slug: String,
+}
+
 /// Parse a `YYYY-MM-DD` argument.
 ///
 /// Dates cross the wire as strings rather than a `chrono` type: the

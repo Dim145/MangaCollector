@@ -18,6 +18,7 @@ use rmcp::{
 use super::ctx;
 use super::dto;
 use super::server::McMcp;
+use crate::models::library::AddCustomRequest;
 use crate::models::volume::{LoanPatch, PhysicalPatch};
 use crate::services::api_keys::Scope;
 use crate::services::ops;
@@ -322,5 +323,38 @@ impl McMcp {
                 .await
                 .map(|()| serde_json::json!({ "volume_id": input.volume_id, "returned": true }));
         call.finish(done).await
+    }
+
+    #[tool(
+        description = "Add a series no catalogue knows about — a doujinshi, an artbook, a small-press run. It gets a negative id of its own and is never reconciled against MyAnimeList or MangaDex, so nothing upstream can overwrite it. To add a series that IS in a catalogue, use the web app: picking the right entry needs a search this endpoint deliberately does not expose.",
+        annotations(title = "Add a custom series")
+    )]
+    async fn add_custom_series(
+        &self,
+        Parameters(input): Parameters<dto::AddCustomSeries>,
+        ctx: RequestContext<rmcp::RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let call = ctx::authorize(
+            &self.state,
+            &ctx,
+            "add_custom_series",
+            Scope::LibraryWrite,
+            &input,
+        )
+        .await?;
+        let origin = call.origin();
+        let entry = ops::library::add_custom_entry(
+            &self.state,
+            call.user_id(),
+            AddCustomRequest {
+                name: input.name.clone(),
+                volumes: input.volumes,
+                volumes_owned: input.volumes_owned,
+                genres: input.genres.clone(),
+            },
+            origin,
+        )
+        .await;
+        call.finish(entry).await
     }
 }

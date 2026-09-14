@@ -41,6 +41,7 @@
 pub mod ctx;
 pub mod dto;
 pub mod guard;
+pub mod prompts;
 pub mod server;
 pub mod tools_read;
 pub mod tools_write;

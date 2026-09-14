@@ -11,6 +11,7 @@ use rmcp::{
     model::{
         Implementation, ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo,
     },
+    prompt_handler,
     service::RequestContext,
     tool, tool_handler, tool_router,
 };
@@ -38,11 +39,14 @@ const TOOL_SCOPES: &[(&str, Option<Scope>)] = &[
     ("upcoming_volumes", Some(Scope::ReleasesRead)),
     ("resolve_isbn", Some(Scope::IsbnRead)),
     ("recent_activity", Some(Scope::StatsRead)),
+    ("library_stats", Some(Scope::StatsRead)),
+    ("compare_with", Some(Scope::SocialRead)),
     // Writes, all reversible.
     ("mark_volumes", Some(Scope::VolumesWrite)),
     ("set_physical_copy", Some(Scope::VolumesWrite)),
     ("start_reread", Some(Scope::LibraryWrite)),
     ("set_reading_state", Some(Scope::LibraryWrite)),
+    ("add_custom_series", Some(Scope::LibraryWrite)),
     ("create_location", Some(Scope::LocationsWrite)),
     ("lend_volume", Some(Scope::LoansWrite)),
     ("return_volume", Some(Scope::LoansWrite)),
@@ -135,6 +139,7 @@ impl McMcp {
 }
 
 #[tool_handler]
+#[prompt_handler]
 impl ServerHandler for McMcp {
     fn get_info(&self) -> ServerInfo {
         let mut implementation = Implementation::new("mangacollector", env!("CARGO_PKG_VERSION"))
@@ -143,9 +148,14 @@ impl ServerHandler for McMcp {
             Some("Read and curate a self-hosted manga collection, volume by volume.".to_string());
         implementation.website_url = Some(self.state.config.frontend_url.clone());
 
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(implementation)
-            .with_instructions(INSTRUCTIONS)
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_prompts()
+                .build(),
+        )
+        .with_server_info(implementation)
+        .with_instructions(INSTRUCTIONS)
     }
 
     /// Advertise only the tools this key can actually use.

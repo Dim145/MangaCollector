@@ -15,7 +15,9 @@ use super::dto::{self, Page};
 use super::server::McMcp;
 use crate::errors::AppError;
 use crate::services::api_keys::Scope;
-use crate::services::{activity, library, loan_history, locations, releases, volume};
+use crate::services::{
+    activity, compare, library, loan_history, locations, releases, users, volume,
+};
 
 #[tool_router(router = tool_router_read, vis = "pub")]
 impl McMcp {
@@ -323,5 +325,90 @@ impl McMcp {
             .await
             .map(Page::whole);
         call.finish(rows).await
+    }
+
+    #[tool(
+        description = "Counts across the whole library: how many series, how many tomes are tracked and how many of those are owned, the split by reading status, and how many series are complete. These are row counts, not estimates — no prices, no percentages whose definition could be argued with.",
+        annotations(title = "Library stats", read_only_hint = true, idempotent_hint = true)
+    )]
+    async fn library_stats(
+        &self,
+        ctx: RequestContext<rmcp::RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let call =
+            ctx::authorize(&self.state, &ctx, "library_stats", Scope::StatsRead, &()).await?;
+        // Aggregation of values the rows already carry, not a second
+        // opinion about them: every number here is a count or a sum of
+        // stored columns. Anything with a contestable definition — a
+        // completion percentage, money — stays out, because a tool that
+        // disagrees with the screen is worse than one that says less.
+        let stats = library::get_user_library(&self.state.db, call.user_id())
+            .await
+            .map(|rows| {
+                let mut by_status: std::collections::BTreeMap<String, usize> =
+                    std::collections::BTreeMap::new();
+                let mut tracked: i64 = 0;
+                let mut owned: i64 = 0;
+                let mut complete = 0usize;
+                for row in &rows {
+                    *by_status
+                        .entry(
+                            row.reading_status
+                                .clone()
+                                .unwrap_or_else(|| "unset".to_string()),
+                        )
+                        .or_default() += 1;
+                    tracked += i64::from(row.volumes.max(0));
+                    owned += i64::from(row.volumes_owned.max(0));
+                    if row.volumes > 0 && row.volumes_owned >= row.volumes {
+                        complete += 1;
+                    }
+                }
+                serde_json::json!({
+                    "series": rows.len(),
+                    "series_complete": complete,
+                    "volumes_tracked": tracked,
+                    "volumes_owned": owned,
+                    "by_reading_status": by_status,
+                })
+            });
+        call.finish(stats).await
+    }
+
+    // ─────────────────────────────────────────────────────── social
+
+    #[tool(
+        description = "Compare the caller's library with another collector's PUBLIC profile, by their slug (the last segment of their /u/{slug} URL): what both own, what each has that the other does not. Only profiles their owner chose to publish are visible, and the owner's adult-content setting still applies.",
+        annotations(
+            title = "Compare with a collector",
+            read_only_hint = true,
+            idempotent_hint = true
+        )
+    )]
+    async fn compare_with(
+        &self,
+        Parameters(input): Parameters<dto::CompareWith>,
+        ctx: RequestContext<rmcp::RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let call =
+            ctx::authorize(&self.state, &ctx, "compare_with", Scope::SocialRead, &input).await?;
+        let me = call.user().clone();
+        let payload = async {
+            let slug = input.slug.trim().to_lowercase();
+            if slug.is_empty() {
+                return Err(AppError::NotFound("Profile not found".into()));
+            }
+            // Self-compare is pointless and would read as an all-shared
+            // result; the web route refuses it the same way.
+            if me.public_slug.as_deref() == Some(slug.as_str()) {
+                return Err(AppError::BadRequest("Cannot compare with yourself.".into()));
+            }
+            let other = users::find_by_public_slug(&self.state.db, &slug)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Profile not found".into()))?;
+            compare::compare_users(&self.state.db, &me, &other).await
+        }
+        .await;
+        call.finish(payload).await
     }
 }
