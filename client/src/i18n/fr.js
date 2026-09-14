@@ -1368,6 +1368,38 @@ export default {
       "TOUTES les séries de votre liste de souhaits deviennent visibles sur /u/{slug}, y compris celles que vous ajoutez PENDANT la fenêtre. Pas d'opt-in par série — c'est tout ou rien pour la durée choisie. Le filtre contenu adulte reste actif.",
     birthdayScopeReminder:
       "Rappel · les séries ajoutées maintenant apparaissent immédiatement sur la page publique.",
+    mcpTitle: "Accès API · 鍵",
+    mcpBody:
+      "Créez une clé pour qu'un client IA lise et enrichisse cette collection via l'endpoint MCP. Chaque clé porte la liste explicite de ce qu'elle peut faire — et rien d'autre.",
+    mcpDisabled:
+      "L'endpoint MCP est désactivé sur cette instance. Vous pouvez gérer les clés ici, mais aucun client ne se connectera tant que MCP_ENABLED=true n'est pas posé.",
+    mcpLoading: "Chargement…",
+    mcpEmpty: "Aucune clé pour l'instant. Créez-en une pour connecter un client IA.",
+    mcpNewKey: "Nouvelle clé",
+    mcpAuditToggle: "Activité des agents",
+    mcpLabel: "Intitulé",
+    mcpLabelPlaceholder: "Claude Desktop, portable…",
+    mcpScopes: "Ce qu'elle peut faire",
+    mcpPresetReadOnly: "Préréglage lecture seule",
+    mcpMint: "Créer la clé",
+    mcpCancel: "Annuler",
+    mcpMintFailed: "Impossible de créer la clé.",
+    mcpRevoke: "Révoquer",
+    mcpRevokeConfirm: "Révoquer définitivement",
+    mcpExpired: "Expirée",
+    mcpLastUsed: "Dernier usage {when}",
+    mcpNeverUsed: "Jamais utilisée",
+    mcpRevealTitle: "Votre nouvelle clé",
+    mcpRevealWarning:
+      "C'est la seule fois où la clé s'affiche. Le serveur n'en garde qu'une empreinte et ne peut pas la retrouver — copiez-la maintenant, ou révoquez-la et recommencez.",
+    mcpTheKey: "La clé",
+    mcpTheCommand: "Commande prête à coller",
+    mcpRevealEnvHint:
+      "Ne commitez pas la clé. Plusieurs clients résolvent ${env:VAR} dans leur fichier de config : préférez une variable d'environnement à la valeur en clair.",
+    mcpRevealDone: "C'est copié",
+    mcpCopy: "Copier",
+    mcpCopied: "Copié",
+    mcpAuditEmpty: "Aucun agent n'a encore appelé quoi que ce soit.",
     archiveTitle: "Archive & portabilité · 写本",
     archiveBody:
       "Exportez votre collection pour l'archiver ou importez un rouleau reçu d'ailleurs. Merge uniquement : les séries déjà présentes (même mal_id) sont ignorées.",

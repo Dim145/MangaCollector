@@ -28,3 +28,18 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
 });
+
+/*
+ * jsdom implements no Web Animations API. `ui/Modal.jsx` gates its
+ * unmount on `getAnimations({ subtree: true })` from inside a
+ * `requestAnimationFrame`, so in jsdom that callback throws *after* the
+ * test that closed the modal has already finished — surfacing as an
+ * unhandled error that fails the whole run without failing a single
+ * assertion, and pointing at whichever test happened to run last.
+ *
+ * An empty list is also the behaviour a test wants: nothing to await,
+ * so the modal unmounts on the next tick instead of never.
+ */
+if (!Element.prototype.getAnimations) {
+  Element.prototype.getAnimations = () => [];
+}

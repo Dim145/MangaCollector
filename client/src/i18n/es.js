@@ -1346,6 +1346,38 @@ export default {
       "TODAS las series de tu lista de deseos serán visibles en /u/{slug}, incluidas las que añadas DURANTE la ventana. No hay opt-in por serie — es todo o nada durante la duración elegida. El filtro de contenido para adultos sigue activo.",
     birthdayScopeReminder:
       "Recordatorio · las series añadidas ahora aparecen inmediatamente en la página pública.",
+    mcpTitle: "Acceso API · 鍵",
+    mcpBody:
+      "Crea una clave para que un cliente de IA lea y enriquezca esta colección a través del endpoint MCP. Cada clave lleva la lista explícita de lo que puede hacer — y nada más.",
+    mcpDisabled:
+      "El endpoint MCP está desactivado en esta instancia. Puedes gestionar claves aquí, pero ningún cliente se conectará hasta que el operador ponga MCP_ENABLED=true.",
+    mcpLoading: "Cargando…",
+    mcpEmpty: "Aún no hay claves. Crea una para conectar un cliente de IA.",
+    mcpNewKey: "Nueva clave",
+    mcpAuditToggle: "Actividad de agentes",
+    mcpLabel: "Etiqueta",
+    mcpLabelPlaceholder: "Claude Desktop, portátil…",
+    mcpScopes: "Lo que puede hacer",
+    mcpPresetReadOnly: "Preajuste solo lectura",
+    mcpMint: "Crear la clave",
+    mcpCancel: "Cancelar",
+    mcpMintFailed: "No se pudo crear la clave.",
+    mcpRevoke: "Revocar",
+    mcpRevokeConfirm: "Revocar definitivamente",
+    mcpExpired: "Caducada",
+    mcpLastUsed: "Último uso {when}",
+    mcpNeverUsed: "Nunca usada",
+    mcpRevealTitle: "Tu nueva clave",
+    mcpRevealWarning:
+      "Esta es la única vez que se muestra la clave. El servidor guarda solo un resumen y no puede recuperarla — cópiala ahora, o revócala y crea otra.",
+    mcpTheKey: "La clave",
+    mcpTheCommand: "Comando listo para pegar",
+    mcpRevealEnvHint:
+      "No subas la clave al repositorio. Varios clientes resuelven ${env:VAR} en su archivo de configuración: prefiere una variable de entorno al valor literal.",
+    mcpRevealDone: "Ya la copié",
+    mcpCopy: "Copiar",
+    mcpCopied: "Copiado",
+    mcpAuditEmpty: "Ningún agente ha llamado nada todavía.",
     archiveTitle: "Archivo y portabilidad · 写本",
     archiveBody:
       "Exporta tu colección para archivarla o importa un rollo recibido. Solo fusión: las series ya presentes (mismo mal_id) se ignoran.",
