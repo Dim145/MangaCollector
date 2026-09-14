@@ -347,3 +347,34 @@ pub async fn refresh_upcoming(
         discovered_count: discovered.len(),
     })
 }
+
+/// 読 · Set where the caller is in a series: status, and the dates that
+/// go with it.
+///
+/// A thin front for [`update_manga`] rather than its own write path —
+/// `services::library` validates the status against
+/// `models::library::READING_STATUSES` and refuses an unknown one with a
+/// message naming the whole set, which is exactly what an agent needs to
+/// correct itself.
+pub async fn set_reading_state(
+    state: &AppState,
+    user_id: i32,
+    mal_id: i32,
+    status: Option<String>,
+    started_at: Option<chrono::NaiveDate>,
+    finished_at: Option<chrono::NaiveDate>,
+    origin: Option<String>,
+) -> Result<(), AppError> {
+    let body = UpdateLibraryRequest {
+        // `Some(None)` clears, `Some(Some(v))` sets, `None` leaves
+        // alone — the three-state shape the wire type uses throughout.
+        reading_status: status.map(|s| {
+            let s = s.trim().to_string();
+            if s.is_empty() { None } else { Some(s) }
+        }),
+        started_reading_at: started_at.map(Some),
+        finished_reading_at: finished_at.map(Some),
+        ..Default::default()
+    };
+    update_manga(state, user_id, mal_id, body, origin).await
+}

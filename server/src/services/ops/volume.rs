@@ -5,7 +5,7 @@
 //! in `handlers::volume`.
 
 use crate::errors::AppError;
-use crate::models::volume::{UpdateVolumeRequest, Volume};
+use crate::models::volume::{LoanPatch, PhysicalPatch, UpdateVolumeRequest, Volume};
 use crate::services::realtime::SyncKind;
 use crate::services::volume;
 use crate::state::AppState;
@@ -158,5 +158,43 @@ pub async fn update_volume(
     if outcome.library_changed {
         fan_out(state, user_id, &origin, series_id, &[SyncKind::Library]).await;
     }
+    Ok(())
+}
+
+/// Set the physical-copy fields of one tome — condition, shelf location,
+/// purchase date, ISBN, spare copies.
+///
+/// Unscoped fan-out (`mal_id: None`): the service resolves the row by id
+/// and does not hand back which series it belongs to, and inventing a
+/// second lookup to narrow an invalidation would cost a query to save a
+/// refetch. `update_upcoming_volume` and `delete_volume` already publish
+/// the same way.
+pub async fn set_physical_copy(
+    state: &AppState,
+    user_id: i32,
+    id: i32,
+    patch: PhysicalPatch,
+    origin: Option<String>,
+) -> Result<(), AppError> {
+    volume::set_physical_details(&state.db, id, user_id, patch).await?;
+    fan_out(state, user_id, &origin, None, &[SyncKind::Volumes]).await;
+    Ok(())
+}
+
+/// Lend a tome out, or take it back.
+///
+/// `Some(patch)` opens a loan, `None` closes the open one. The service
+/// writes the volume row and the append-only ledger in one transaction —
+/// they are one fact in two places, and a half-write here is how a tome
+/// that went out once ends up recorded as lent three times.
+pub async fn set_loan(
+    state: &AppState,
+    user_id: i32,
+    id: i32,
+    patch: Option<LoanPatch>,
+    origin: Option<String>,
+) -> Result<(), AppError> {
+    volume::set_loan(&state.db, id, user_id, patch).await?;
+    fan_out(state, user_id, &origin, None, &[SyncKind::Volumes]).await;
     Ok(())
 }

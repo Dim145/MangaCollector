@@ -94,8 +94,10 @@ pub struct SearchLibrary {
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct ListSeries {
-    /// Only series with this reading status: `reading`, `completed`,
-    /// `on_hold`, `dropped`, `plan_to_read`. Omit for all of them.
+    /// Only series with this reading status. One of `planned`,
+    /// `reading`, `paused`, `completed`, `dropped` — the vocabulary in
+    /// `models::library::READING_STATUSES`, which a test below pins
+    /// against this very sentence. Omit for all of them.
     #[serde(default)]
     pub reading_status: Option<String>,
     /// Rows per page, 1-200. Defaults to 50.
@@ -177,6 +179,101 @@ pub struct DeleteSeries {
     pub confirm: bool,
 }
 
+/// Parse a `YYYY-MM-DD` argument.
+///
+/// Dates cross the wire as strings rather than a `chrono` type: the
+/// schema an agent reads then says the format outright, and nothing
+/// depends on a `schemars` feature flag to describe it.
+pub fn parse_date(raw: &str, field: &str) -> Result<chrono::NaiveDate, crate::errors::AppError> {
+    chrono::NaiveDate::parse_from_str(raw.trim(), "%Y-%m-%d").map_err(|_| {
+        crate::errors::AppError::BadRequest(format!(
+            "`{field}` must be a date as YYYY-MM-DD, got \"{raw}\"."
+        ))
+    })
+}
+
+/// Fold an optional string argument into the three-state shape the
+/// physical-copy and library patches use.
+///
+/// Absent leaves the column alone; an empty string clears it; anything
+/// else sets it. An agent has no way to send JSON `null` through a typed
+/// argument, so the empty string is how "clear this" is expressed — and
+/// the tool descriptions say so.
+pub fn tri_state(value: Option<String>) -> Option<Option<String>> {
+    value.map(|v| {
+        let v = v.trim().to_string();
+        if v.is_empty() { None } else { Some(v) }
+    })
+}
+
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct SetReadingState {
+    /// The series to move.
+    pub mal_id: i32,
+    /// One of `planned`, `reading`, `paused`, `completed`, `dropped`.
+    /// An empty string clears the status; omit to leave it alone.
+    #[serde(default)]
+    pub status: Option<String>,
+    /// When the caller started reading, as `YYYY-MM-DD`.
+    #[serde(default)]
+    pub started_at: Option<String>,
+    /// When they finished, as `YYYY-MM-DD`.
+    #[serde(default)]
+    pub finished_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct SetPhysicalCopy {
+    /// The tome's own id, from `get_volumes` — not its number in the
+    /// series.
+    pub volume_id: i32,
+    /// Condition of the copy. A closed vocabulary, not free text: one
+    /// of `new`, `like_new`, `good`, `fair`, `poor`
+    /// (`models::volume::VOLUME_CONDITIONS`, pinned by a test). An
+    /// empty string clears it.
+    #[serde(default)]
+    pub condition: Option<String>,
+    /// Where it is shelved. Naming a place that does not exist yet
+    /// registers it. An empty string unfiles the tome.
+    #[serde(default)]
+    pub location: Option<String>,
+    /// When it was bought, as `YYYY-MM-DD`. An empty string clears it.
+    #[serde(default)]
+    pub bought_on: Option<String>,
+    /// The copy's ISBN-10 or ISBN-13; stored normalised to ISBN-13. An
+    /// empty string clears it.
+    #[serde(default)]
+    pub isbn: Option<String>,
+    /// How many spare copies of this tome the caller holds. There is no
+    /// "clear" — zero is it.
+    #[serde(default)]
+    pub extra_copies: Option<i32>,
+}
+
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct LendVolume {
+    /// The tome's own id, from `get_volumes`.
+    pub volume_id: i32,
+    /// Who has it. Free text, as the owner would write it.
+    pub to: String,
+    /// When it is expected back, as `YYYY-MM-DD`. Omit for open-ended.
+    #[serde(default)]
+    pub due_on: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct VolumeRef {
+    /// The tome's own id, from `get_volumes`.
+    pub volume_id: i32,
+}
+
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct RecentActivity {
+    /// How many entries, 1-100. Defaults to 30.
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -213,6 +310,33 @@ mod tests {
         let page = Page::slice((0..4).collect::<Vec<u32>>(), 4, 0);
         assert_eq!(page.count, 4);
         assert!(!page.has_more);
+    }
+
+    #[test]
+    fn a_date_argument_is_parsed_or_says_what_it_wanted() {
+        assert_eq!(
+            parse_date("2026-03-14", "bought_on").unwrap(),
+            chrono::NaiveDate::from_ymd_opt(2026, 3, 14).unwrap()
+        );
+        // Whitespace is the agent's, not the user's.
+        assert!(parse_date("  2026-03-14 ", "bought_on").is_ok());
+        let err = parse_date("14/03/2026", "bought_on").unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("YYYY-MM-DD"), "{msg}");
+        assert!(msg.contains("bought_on"), "the field must be named: {msg}");
+    }
+
+    #[test]
+    fn tri_state_folds_absent_empty_and_value_apart() {
+        // Absent leaves alone, empty clears, text sets. Getting the
+        // first two confused is how an agent silently wipes a note.
+        assert_eq!(tri_state(None), None);
+        assert_eq!(tri_state(Some(String::new())), Some(None));
+        assert_eq!(tri_state(Some("   ".into())), Some(None));
+        assert_eq!(
+            tri_state(Some(" salon ".into())),
+            Some(Some("salon".into()))
+        );
     }
 
     #[test]

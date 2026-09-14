@@ -15,7 +15,7 @@ use super::dto::{self, Page};
 use super::server::McMcp;
 use crate::errors::AppError;
 use crate::services::api_keys::Scope;
-use crate::services::{library, loan_history, locations, releases, volume};
+use crate::services::{activity, library, loan_history, locations, releases, volume};
 
 #[tool_router(router = tool_router_read, vis = "pub")]
 impl McMcp {
@@ -54,7 +54,7 @@ impl McMcp {
     }
 
     #[tool(
-        description = "List the caller's series, optionally filtered by reading status (`reading`, `completed`, `on_hold`, `dropped`, `plan_to_read`). One page at a time.",
+        description = "List the caller's series, optionally filtered by reading status — one of `planned`, `reading`, `paused`, `completed`, `dropped`. One page at a time.",
         annotations(title = "List series", read_only_hint = true, idempotent_hint = true)
     )]
     async fn list_series(
@@ -293,5 +293,35 @@ impl McMcp {
             )),
         };
         call.finish(outcome).await
+    }
+
+    // ─────────────────────────────────────────────────────── stats
+
+    #[tool(
+        description = "The caller's own activity feed, newest first: series added or removed, tomes marked owned or read, milestones reached. This is the app's own log of what happened, not the MCP audit trail.",
+        annotations(
+            title = "Recent activity",
+            read_only_hint = true,
+            idempotent_hint = true
+        )
+    )]
+    async fn recent_activity(
+        &self,
+        Parameters(input): Parameters<dto::RecentActivity>,
+        ctx: RequestContext<rmcp::RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let call = ctx::authorize(
+            &self.state,
+            &ctx,
+            "recent_activity",
+            Scope::StatsRead,
+            &input,
+        )
+        .await?;
+        let limit = u64::from(input.limit.unwrap_or(30).clamp(1, 100));
+        let rows = activity::list_for_user(&self.state.db, call.user_id(), limit, None)
+            .await
+            .map(Page::whole);
+        call.finish(rows).await
     }
 }

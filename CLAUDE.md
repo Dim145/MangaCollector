@@ -126,7 +126,7 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 142 tests across 29 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 145 tests across 29 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
@@ -281,7 +281,8 @@ is the only way past that, per run.
 flows as Mermaid diagrams, endpoints, client side, invariants, where the
 code lives, how it is tested: `archive.md` (export / import / restore),
 `loans.md` (loans, borrowing, the ledger), `locations.md` (the places
-registry), `realtime.md` (WebSocket + Dexie + the outbox), `releases.md`
+registry), `mcp.md` (the agent endpoint, its keys and its tools),
+`realtime.md` (WebSocket + Dexie + the outbox), `releases.md`
 (upcoming volumes and the calendar), `scan.md` (barcodes, ISBN
 resolution, inventory, labels). Read the relevant one before changing a
 subsystem; they are written against the code, not the intent.
@@ -366,10 +367,16 @@ stateless), so an AI client can read and curate one account's collection.
 - **Audit**: one `mcp_audit_log` row per call — tool, outcome
   (`ok|denied|error`), duration, and a **digest** of the arguments,
   never their content. Read back at `GET /api/user/api-keys/audit`.
-- Env: `MCP_ENABLED`, `MCP_ALLOWED_HOSTS`, `MCP_ALLOWED_ORIGINS`,
-  `MCP_RATE_LIMIT_PER_SECOND`, `MCP_RATE_LIMIT_BURST`. Traefik and the
-  client nginx both route `/mcp` explicitly — as `Path`, not
-  `PathPrefix`.
+- **A tool description is an API.** Closed vocabularies
+  (`READING_STATUSES`, `VOLUME_CONDITIONS`) must be spelled out exactly
+  as the server accepts them; written from memory they were wrong twice,
+  and an agent sending a refused value cannot tell the schema lied. A
+  test in `routes/mcp/server.rs` pins them.
+- Twenty tools. Env: `MCP_ENABLED`, `MCP_ALLOWED_HOSTS`,
+  `MCP_ALLOWED_ORIGINS`, `MCP_RATE_LIMIT_PER_SECOND`,
+  `MCP_RATE_LIMIT_BURST`. Traefik and the client nginx both route `/mcp`
+  explicitly — as `Path`, not `PathPrefix`. Full guide:
+  `docs/modules/mcp.md`.
 
 ## Database
 

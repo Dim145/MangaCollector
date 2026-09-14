@@ -18,6 +18,7 @@ use rmcp::{
 use super::ctx;
 use super::dto;
 use super::server::McMcp;
+use crate::models::volume::{LoanPatch, PhysicalPatch};
 use crate::services::api_keys::Scope;
 use crate::services::ops;
 
@@ -149,6 +150,177 @@ impl McMcp {
         let done = ops::library::delete_manga(&self.state, call.user_id(), input.mal_id, origin)
             .await
             .map(|()| serde_json::json!({ "mal_id": input.mal_id, "deleted": true }));
+        call.finish(done).await
+    }
+
+    #[tool(
+        description = "Set where the caller is in a series: reading status and the dates that go with it. Status is one of `planned`, `reading`, `paused`, `completed`, `dropped`; an empty string clears it and omitting it leaves it alone. Dates are YYYY-MM-DD.",
+        annotations(title = "Set reading state", idempotent_hint = true)
+    )]
+    async fn set_reading_state(
+        &self,
+        Parameters(input): Parameters<dto::SetReadingState>,
+        ctx: RequestContext<rmcp::RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let call = ctx::authorize(
+            &self.state,
+            &ctx,
+            "set_reading_state",
+            Scope::LibraryWrite,
+            &input,
+        )
+        .await?;
+        if input.status.is_none() && input.started_at.is_none() && input.finished_at.is_none() {
+            return call
+                .refuse("Nothing to do: set `status`, `started_at`, `finished_at`, or several.")
+                .await;
+        }
+        let origin = call.origin();
+        let done = async {
+            let started_at = match input.started_at.as_deref() {
+                Some(raw) => Some(dto::parse_date(raw, "started_at")?),
+                None => None,
+            };
+            let finished_at = match input.finished_at.as_deref() {
+                Some(raw) => Some(dto::parse_date(raw, "finished_at")?),
+                None => None,
+            };
+            ops::library::set_reading_state(
+                &self.state,
+                call.user_id(),
+                input.mal_id,
+                input.status.clone(),
+                started_at,
+                finished_at,
+                origin,
+            )
+            .await?;
+            Ok(serde_json::json!({ "mal_id": input.mal_id, "status": "ok" }))
+        }
+        .await;
+        call.finish(done).await
+    }
+
+    #[tool(
+        description = "Record the physical facts about one tome: its condition, where it is shelved, when it was bought, its ISBN and how many spare copies there are. Condition is a closed vocabulary, not free text: one of `new`, `like_new`, `good`, `fair`, `poor`. Takes a tome's own `volume_id` (from `get_volumes`), not its number in the series. An empty string clears a field; omitting it leaves it alone. Naming a place that does not exist registers it.",
+        annotations(title = "Set physical copy", idempotent_hint = true)
+    )]
+    async fn set_physical_copy(
+        &self,
+        Parameters(input): Parameters<dto::SetPhysicalCopy>,
+        ctx: RequestContext<rmcp::RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let call = ctx::authorize(
+            &self.state,
+            &ctx,
+            "set_physical_copy",
+            Scope::VolumesWrite,
+            &input,
+        )
+        .await?;
+        let origin = call.origin();
+        let done = async {
+            let bought_at = match input.bought_on.as_deref().map(str::trim) {
+                // The empty string is how "clear it" is said — see
+                // `dto::tri_state`; a date only gets parsed when there
+                // is one.
+                Some("") => Some(None),
+                Some(raw) => Some(Some(dto::parse_date(raw, "bought_on")?)),
+                None => None,
+            };
+            let patch = PhysicalPatch {
+                condition: dto::tri_state(input.condition.clone()),
+                location: dto::tri_state(input.location.clone()),
+                extra_copies: input.extra_copies,
+                bought_at,
+                isbn: dto::tri_state(input.isbn.clone()),
+            };
+            if patch.is_empty() {
+                return Err(crate::errors::AppError::BadRequest(
+                    "Nothing to do: set at least one of condition, location, \
+                     bought_on, isbn or extra_copies."
+                        .into(),
+                ));
+            }
+            ops::volume::set_physical_copy(
+                &self.state,
+                call.user_id(),
+                input.volume_id,
+                patch,
+                origin,
+            )
+            .await?;
+            Ok(serde_json::json!({ "volume_id": input.volume_id, "status": "ok" }))
+        }
+        .await;
+        call.finish(done).await
+    }
+
+    #[tool(
+        description = "Lend one tome out. Records who has it and, optionally, when it is expected back (YYYY-MM-DD). The loan also lands in the append-only ledger `loan_history` reads from, so 'already lent N times' stays true.",
+        annotations(title = "Lend a volume")
+    )]
+    async fn lend_volume(
+        &self,
+        Parameters(input): Parameters<dto::LendVolume>,
+        ctx: RequestContext<rmcp::RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let call =
+            ctx::authorize(&self.state, &ctx, "lend_volume", Scope::LoansWrite, &input).await?;
+        let origin = call.origin();
+        let done = async {
+            let due_at = match input.due_on.as_deref() {
+                Some(raw) => Some(
+                    dto::parse_date(raw, "due_on")?
+                        .and_hms_opt(0, 0, 0)
+                        .expect("midnight is a valid time")
+                        .and_utc(),
+                ),
+                None => None,
+            };
+            ops::volume::set_loan(
+                &self.state,
+                call.user_id(),
+                input.volume_id,
+                Some(LoanPatch {
+                    to: input.to.clone(),
+                    due_at,
+                    // Linking a loan to a followed account is a social
+                    // act with an audience; MCP records the borrower as
+                    // free text and leaves that decision to a human.
+                    to_user_id: None,
+                }),
+                origin,
+            )
+            .await?;
+            Ok(serde_json::json!({ "volume_id": input.volume_id, "lent_to": input.to }))
+        }
+        .await;
+        call.finish(done).await
+    }
+
+    #[tool(
+        description = "Take a lent tome back. Closes the open ledger row with today's date. Does nothing if the tome was not out.",
+        annotations(title = "Return a volume", idempotent_hint = true)
+    )]
+    async fn return_volume(
+        &self,
+        Parameters(input): Parameters<dto::VolumeRef>,
+        ctx: RequestContext<rmcp::RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let call = ctx::authorize(
+            &self.state,
+            &ctx,
+            "return_volume",
+            Scope::LoansWrite,
+            &input,
+        )
+        .await?;
+        let origin = call.origin();
+        let done =
+            ops::volume::set_loan(&self.state, call.user_id(), input.volume_id, None, origin)
+                .await
+                .map(|()| serde_json::json!({ "volume_id": input.volume_id, "returned": true }));
         call.finish(done).await
     }
 }

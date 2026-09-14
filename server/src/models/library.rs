@@ -321,7 +321,11 @@ pub struct AddCustomRequest {
 ///   - field omitted → leave the column untouched
 ///   - `Some("")`    → unset (handled by `sanitize_label` before save)
 ///   - `Some(text)`  → trim + clamp to `PUBLISHER_MAX_LEN` / `EDITION_MAX_LEN`
-#[derive(Debug, Deserialize)]
+// `Default` so a caller with one field to change (the MCP
+// `set_reading_state` tool) can build the patch without spelling out ten
+// `None`s — every field is already an `Option`, so the derive is exactly
+// "touch nothing".
+#[derive(Debug, Default, Deserialize)]
 pub struct UpdateLibraryRequest {
     pub volumes: Option<i32>,
     /// Use `Option<Option<String>>` via custom serde so the client can

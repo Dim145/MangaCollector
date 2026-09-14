@@ -37,10 +37,15 @@ const TOOL_SCOPES: &[(&str, Option<Scope>)] = &[
     ("list_locations", Some(Scope::LocationsRead)),
     ("upcoming_volumes", Some(Scope::ReleasesRead)),
     ("resolve_isbn", Some(Scope::IsbnRead)),
+    ("recent_activity", Some(Scope::StatsRead)),
     // Writes, all reversible.
     ("mark_volumes", Some(Scope::VolumesWrite)),
+    ("set_physical_copy", Some(Scope::VolumesWrite)),
     ("start_reread", Some(Scope::LibraryWrite)),
+    ("set_reading_state", Some(Scope::LibraryWrite)),
     ("create_location", Some(Scope::LocationsWrite)),
+    ("lend_volume", Some(Scope::LoansWrite)),
+    ("return_volume", Some(Scope::LoansWrite)),
     // Irreversible. Also needs `confirm: true` on the call itself.
     ("delete_series", Some(Scope::LibraryDelete)),
 ];
@@ -244,6 +249,75 @@ mod tests {
                 assert!(
                     Scope::ALL.contains(scope),
                     "`{tool}` requires a scope that is not in Scope::ALL"
+                );
+            }
+        }
+    }
+
+    /// A closed vocabulary a tool *advertises* must be the one the
+    /// server actually accepts.
+    ///
+    /// This is not hypothetical, it happened twice. The first cut said
+    /// the reading statuses were `on_hold` and `plan_to_read`, and that
+    /// `condition` was free text — both written from memory, both
+    /// refused by every call. An agent reading those descriptions sends
+    /// values the server rejects, and has no way to tell that the schema
+    /// lied rather than its own argument being wrong. The description
+    /// *is* the API here, so it gets pinned like one.
+    #[test]
+    fn the_closed_vocabularies_in_the_schemas_are_the_ones_the_server_takes() {
+        use crate::models::library::READING_STATUSES;
+        use crate::models::volume::VOLUME_CONDITIONS;
+
+        // (tool, the vocabulary it must spell out, plausible values that
+        // are NOT ours and must not appear). The third list holds
+        // *values* only, never prose: "free text" as a forbidden entry
+        // also matches the sentence "not free text", which is the
+        // correction rather than the bug.
+        let pinned: &[(&str, &[&str], &[&str])] = &[
+            (
+                "list_series",
+                &READING_STATUSES,
+                &["on_hold", "plan_to_read"],
+            ),
+            (
+                "set_reading_state",
+                &READING_STATUSES,
+                &["on_hold", "plan_to_read"],
+            ),
+            (
+                "set_physical_copy",
+                &VOLUME_CONDITIONS,
+                &["mint", "excellent", "damaged"],
+            ),
+        ];
+
+        let described: std::collections::HashMap<String, String> = McMcp::tool_router()
+            .list_all()
+            .into_iter()
+            .map(|t| {
+                (
+                    t.name.to_string(),
+                    t.description.as_deref().unwrap_or_default().to_string(),
+                )
+            })
+            .collect();
+
+        for (tool, vocabulary, forbidden) in pinned {
+            let text = described
+                .get(*tool)
+                .unwrap_or_else(|| panic!("`{tool}` no longer exists"));
+            for value in *vocabulary {
+                assert!(
+                    text.contains(value),
+                    "`{tool}` does not mention `{value}`, so an agent cannot \
+                     know it is allowed"
+                );
+            }
+            for wrong in *forbidden {
+                assert!(
+                    !text.contains(wrong),
+                    "`{tool}` advertises `{wrong}`, which the server refuses"
                 );
             }
         }
