@@ -16,6 +16,7 @@ pub mod jobs;
 pub mod library;
 pub mod mal_api;
 pub mod mangadex_api;
+pub mod ops;
 pub mod proxy_client;
 pub mod realtime;
 pub mod releases;

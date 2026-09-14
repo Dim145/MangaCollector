@@ -1,4 +1,7 @@
 //! 棚 · `/api/user/locations` — the places registry.
+//!
+//! Writes go through `services::ops::locations`, which owns the realtime
+//! fan-out; see that module's header for why.
 use axum::{
     Json,
     extract::{Path, State},
@@ -11,7 +14,7 @@ use crate::errors::AppError;
 use crate::handlers::realtime::ClientId;
 use crate::models::location::Model as Location;
 use crate::services::locations::{self, LocationPatch, LocationsResponse};
-use crate::services::realtime::SyncKind;
+use crate::services::ops;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -37,11 +40,7 @@ pub async fn create(
     ClientId(client_id): ClientId,
     Json(body): Json<CreateLocationRequest>,
 ) -> Result<Json<Location>, AppError> {
-    let row = locations::create(&state.db, user.id, &body.name, body.note).await?;
-    state
-        .broker
-        .publish_scoped(user.id, SyncKind::Volumes, None, client_id.clone())
-        .await;
+    let row = ops::locations::create(&state, user.id, &body.name, body.note, client_id).await?;
     Ok(Json(row))
 }
 
@@ -54,11 +53,7 @@ pub async fn update(
     Path(id): Path<i64>,
     Json(body): Json<LocationPatch>,
 ) -> Result<Json<Location>, AppError> {
-    let row = locations::update(&state.db, user.id, id, body).await?;
-    state
-        .broker
-        .publish_scoped(user.id, SyncKind::Volumes, None, client_id.clone())
-        .await;
+    let row = ops::locations::update(&state, user.id, id, body, client_id).await?;
     Ok(Json(row))
 }
 
@@ -70,10 +65,6 @@ pub async fn remove(
     ClientId(client_id): ClientId,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let cleared = locations::remove(&state.db, user.id, id).await?;
-    state
-        .broker
-        .publish_scoped(user.id, SyncKind::Volumes, None, client_id.clone())
-        .await;
+    let cleared = ops::locations::remove(&state, user.id, id, client_id).await?;
     Ok(Json(json!({ "success": true, "unfiled": cleared })))
 }
