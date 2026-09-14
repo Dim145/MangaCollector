@@ -1,10 +1,12 @@
 pub mod activity;
+pub mod api_key;
 pub mod archive;
 pub mod author;
 pub mod coffret;
 pub mod compare;
 pub mod follow;
 pub mod library;
+pub mod mcp_audit;
 pub mod session_meta;
 pub mod setting;
 pub mod snapshot;

@@ -137,6 +137,34 @@ chrono = { version = "0.4", features = ["serde"] }
 # (which doesn't enable `v4` by default).
 uuid = { version = "1", features = ["v4"] }
 
+# 鍵 · API-key hashing (`services::api_keys`). All three are already in
+# the dep graph — sha2/digest via sqlx's SCRAM auth and the aws SDK, hex
+# and subtle alongside them — so declaring them directly adds no code to
+# the build, only the right to call them. Same reasoning as `uuid` above.
+#
+# `subtle` rather than `==` on the digests: the comparison is against a
+# value an attacker supplies, and a constant-time one costs nothing here.
+sha2 = "0.10"
+hex = "0.4"
+subtle = "2"
+
+# 接 · MCP server (routes::mcp). Official Rust SDK.
+#
+# `transport-streamable-http-server` pulls only http / http-body / bytes /
+# sse-stream / tower — no HTTP *client*, so it cannot drag in a second
+# reqwest major nor an OpenSSL chain (the whole tree is rustls, see the
+# reqwest and aws-sdk-s3 notes above). The `auth` feature is deliberately
+# OFF: we authenticate with per-user API keys, not OAuth, so its oauth2 +
+# reqwest dependency would be dead weight in a `FROM scratch` image.
+rmcp = { version = "3.3", default-features = false, features = [
+    "server",
+    "macros",
+    "transport-streamable-http-server",
+] }
+# Schema derives for the MCP tool input types — `tools/list` publishes
+# these, and they are what stops an agent guessing at argument shapes.
+schemars = "1"
+
 # Error handling
 anyhow = "1"
 thiserror = "2"

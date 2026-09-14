@@ -99,7 +99,10 @@ services:
     image: dim145/mangacollector-back:latest
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.server.rule=PathPrefix(`/api/`) || PathPrefix(`/auth/`)"
+      # 接 · `/mcp` and its RFC 9728 metadata are exact paths, not
+      # prefixes: `PathPrefix(`/mcp`)` would also capture `/mcpanything`
+      # and hand it to a backend that has no route for it.
+      - "traefik.http.routers.server.rule=PathPrefix(`/api/`) || PathPrefix(`/auth/`) || Path(`/mcp`) || Path(`/.well-known/oauth-protected-resource`)"
       - "traefik.http.services.server.loadbalancer.server.port=3000"
     # 直 · Loopback only. Traefik is the way in (`:12000`); this mapping
     # is here so you can curl the API without going through the proxy.

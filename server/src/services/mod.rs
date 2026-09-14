@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod activity_coalescer;
+pub mod api_keys;
 pub mod archive;
 pub mod author;
 pub mod cache;
@@ -16,6 +17,7 @@ pub mod jobs;
 pub mod library;
 pub mod mal_api;
 pub mod mangadex_api;
+pub mod mcp_audit;
 pub mod ops;
 pub mod proxy_client;
 pub mod realtime;
