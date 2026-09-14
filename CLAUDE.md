@@ -14,7 +14,16 @@ server/   → Rust 2024 + Axum 0.8 + SeaORM 1.1 (over sqlx 0.8)
 ```
 
 **Backend pattern:** `routes/` → `handlers/` → `services/` → `models/`
-(SeaORM entities). 23 handler modules, 31 service modules, 16 entity modules.
+(SeaORM entities). 24 handler modules, 33 service modules + `ops/`, 18 entity
+modules, plus `routes/mcp/` (the MCP endpoint).
+
+`services/ops/` (書) sits between handlers and services and holds the
+**write orchestrations**: a write is a service call plus the realtime
+fan-out that invalidates the user's other devices, and the two must not
+be separable. Any write path with more than one entry point lives there —
+today `library`, `volume`, `locations`. A `#[cfg(test)]` guard in
+`services/ops/mod.rs` reads those handlers back and fails on a `broker`
+reference. See `docs/modules/realtime.md` § "Who publishes".
 
 **Auth:** `openidconnect` 4 — Google OAuth 2.0 or generic OpenID Connect,
 selected by `AUTH_MODE`. Sessions are PostgreSQL-backed via `tower-sessions`
@@ -64,6 +73,10 @@ cache invalidations for cross-device sync.
 | `APP_ENABLE_DOTENV` | Whether to load `.env` at startup |
 | `EXTERNAL_PROXY_URL`, `EXTERNAL_PROXY_TIMEOUT_SECS` | Release-calendar proxy (see `docs/release-calendar-proxy.md`) |
 | `GOOGLE_BOOKS_API_KEY` | Optional, for ISBN lookups |
+| `MCP_ENABLED` | 接 · Opt-in switch for `/mcp`. Default `false` — it hands an agent write access to a whole library |
+| `MCP_ALLOWED_HOSTS` | Extra `Host` values the MCP transport answers to, comma-separated. rmcp ships loopback-only and validates `Host` against DNS rebinding, so a real deployment must name itself here or every request is refused |
+| `MCP_ALLOWED_ORIGINS` | `Origin` values to accept. Empty = unchecked, which is right for a cookie-less endpoint |
+| `MCP_RATE_LIMIT_PER_SECOND`, `MCP_RATE_LIMIT_BURST` | Per-key token bucket for `/mcp` (default 1/s, burst 20) |
 
 Never commit real values — `docker-compose.yml` is tracked.
 
@@ -113,10 +126,17 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 106 tests across 24 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 142 tests across 29 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
+  `services/api_keys.rs` pins the MCP credential rules — the scope
+  vocabulary, that the read-only preset really is read-only, that a
+  scope from a newer build degrades instead of failing the key while an
+  unknown one requested at mint time is refused, and that only a
+  well-formed `mcp_<prefix>_<secret>` parses. `services/ops/mod.rs`
+  holds the write-orchestration guard: it reads the migrated handlers
+  back and fails on a `broker` reference.
   `services/users.rs` pins `row_publicly_visible` — the one predicate
   every cross-user surface asks before showing a row (adult opt-out AND
   the Birthday-mode wishlist horizon, independently); `archive.rs` also
@@ -133,7 +153,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 012 tests across 48 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 018 tests across 49 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -162,9 +182,11 @@ docker compose build
     (which account the local caches belong to) pins the asymmetry that
     matters — a foreign stamp wipes, an absent one adopts; `clientId` and
     `realtimePlan` (the websocket decision table) are pure and tested.
-  - `components/ui/CoverImage.test.jsx`, `components/VirtualVolumeGrid.test.jsx`
-    and `components/ArchiveSection.test.jsx` (the import modal's merge /
-    replace choice) are the component tests; `hooks/useWindowGridVirtualizer.test.js`
+  - `components/ui/CoverImage.test.jsx`, `components/VirtualVolumeGrid.test.jsx`,
+    `components/ArchiveSection.test.jsx` (the import modal's merge /
+    replace choice) and `components/McpKeysSection.test.jsx` (the API-key
+    panel: that the mint dialog opens on the read-only preset, and that
+    the secret is shown once and then dropped) are the component tests; `hooks/useWindowGridVirtualizer.test.js`
     covers the lane / pinned-row maths shared by both windowed grids and
     `hooks/useArchive.test.jsx` pins the import endpoint's wire shape.
   - Three suites assert **cross-language parity** by parsing the Rust
@@ -182,8 +204,18 @@ docker compose build
   runs that. A Homebrew `cargo` earlier on `PATH` than rustup's shim
   silently wins locally (`cargo --version` will say so), and its clippy
   is not the same clippy — 1.98 does not fire `nonminimal_bool` where
-  1.94 does, so a local green run can still fail CI. Before pushing
-  Rust: `rustup run 1.94 cargo clippy --all-targets -- -D warnings`.
+  1.94 does, so a local green run can still fail CI.
+  `rustup run 1.94 cargo …` is **not enough for clippy**: it fixes
+  `cargo` (1.94.1) but `cargo clippy` still resolves `cargo-clippy` through
+  `PATH`, where Homebrew wins — `rustup run 1.94 cargo clippy --version`
+  says `0.1.98`. Same for `rustfmt`, which the touched-lines script shells
+  out to. Put the toolchain's own bin directory first instead:
+
+  ```bash
+  export PATH="$HOME/.rustup/toolchains/1.94-aarch64-apple-darwin/bin:$PATH"
+  cargo clippy --version   # must say 0.1.94
+  cargo clippy --all-targets -- -D warnings
+  ```
 - **Formatting caveat:** neither tree is clean under its formatter — a
   blind `cargo fmt` reflows ~54 Rust files, and `prettier --write .`
   rewrites 199 of 209 client files (including `lib/season.js`, whose
@@ -194,6 +226,17 @@ docker compose build
   `RUSTFMT_TOUCHED_BASE`. It refuses to write a file when rustfmt's
   re-sorting of the `use` block would drop an import out of the touched
   hunks — if it says so, reformat the import block by hand.
+  Two rough edges, both only triggered when the edit reaches the top of a
+  file. (1) It strips rustfmt's `--emit stdout` header by comparing the
+  line to the temp path, but rustfmt prints it with a trailing colon, so
+  the header survives into the file as a stray first line whenever the
+  first changed range is within the first ~3 lines. (2) Its safety net
+  compares `use` lines only, so a *duplicated* item inside a
+  `use axum::{…}` block (the merge can keep both orderings) passes
+  unnoticed. Re-read the head of any file whose first lines you touched,
+  and always `cargo check` after running it. Untracked files get no diff
+  ranges at all — format a brand-new file with plain
+  `rustfmt --edition 2024 --config skip_children=true <file>`.
 - **Mutation testing:** `node scripts/stryker-module.mjs <lib/foo>` runs a
   Stryker campaign over one module against its own test file (a minute);
   `--all` sweeps every paired module; `pnpm test:mutants` mutates the
@@ -265,6 +308,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 | `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`) |
 | `/api/authors` | Author records, photos, refresh |
 | `/api/user`, `/api/account` | Profile, deletion, public slug; `GET /api/user/isbn/{isbn}` resolves a barcode through the server-side chain (see External Integrations) |
+| `/api/user/api-keys` | 鍵 · Mint / list / revoke the per-user keys that open the MCP endpoint, plus `GET /api-keys/scopes` (catalogue + whether the operator enabled `/mcp`) and `GET /api-keys/audit` (what agents did). Session-authenticated: a key never authenticates here, only on `/mcp` |
 | `/api/user/locations` | The places registry — list with per-place counts, create, rename (cascades to the tomes filed there), annotate, reorder, delete (unfiles them) |
 | `/api/settings` | User preferences |
 | `/api/seals` | Milestone trophies |
@@ -274,16 +318,67 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 | `/api/import` | External imports: MAL by username (Jikan) or official XML export, AniList, MangaDex list, Yamtrack CSV |
 | `/api/health` | Health checks (loopback-gated by default) |
 | `/api/ws` | WebSocket for cross-device invalidation |
+| `/mcp` | 接 · Model Context Protocol over Streamable HTTP (rmcp). Bearer API key, **no cookie**. Mounted at the top level, outside the CSRF guard and the per-IP limiter — see below |
+| `/.well-known/oauth-protected-resource` | RFC 9728 metadata for `/mcp`, deliberately without `authorization_servers` |
 | `/api/public-config`, `/api/public-slug`, `/api/public-adult` | Public config & profile visibility |
 | `/public/u/{slug}` | Anonymous public profile + poster endpoint |
 
+## MCP endpoint (`/mcp`)
+
+`server/src/routes/mcp/` — an MCP server over Streamable HTTP (rmcp 3.3,
+stateless), so an AI client can read and curate one account's collection.
+**Off by default**: `MCP_ENABLED=true` opts in.
+
+- **Auth** is a per-user API key, `mcp_<prefix>_<secret>`, presented as
+  `Authorization: Bearer` (`X-Api-Key` is accepted as a fallback). Only
+  the prefix is stored in the clear; the secret is a SHA-256 digest
+  compared in constant time. This deviates from the spec's OAuth 2.1
+  profile deliberately — authorization is OPTIONAL there, and a static
+  key is the right shape for self-hosting. The cost: header-setting
+  clients work, claude.ai web connectors (OAuth-only) do not.
+- **Mounted at the top level and merged *after* `csrf_layer`**
+  (`main.rs`). MCP clients send no `Origin`, so `csrf_origin_guard`
+  would 403 every tool call. Skipping it is safe because the endpoint
+  accepts **no cookie** — there is no ambient authority to abuse. It
+  also skips the per-IP limiter and brings its own, keyed on the key's
+  public prefix, so clients behind one NAT don't share a bucket.
+- **Layer order** is `require_enabled → governor → authenticate →
+  transport`: a disabled feature costs a config read, and a flood of bad
+  credentials is shed before it can spend a key lookup each.
+- **`allowed_hosts` is extended, never assigned.** rmcp validates `Host`
+  to block DNS rebinding and ships loopback-only; assigning the list
+  drops those defaults and 403s everything silently.
+- **Writes go through `services::ops`**, never a service directly, and
+  pass `origin = mcp:<key_id>` — an id matching no websocket, so every
+  one of the user's real devices gets the invalidation.
+- **`ctx::as_structured_content`** normalises every result to a JSON
+  object at the boundary (lists become `{count, items}`). A bare array
+  fails the client's schema check on revisions 2025-06-18 → 2025-11-25
+  and surfaces as an opaque "tool execution failed".
+- **`ctx::fence`** wraps every payload in `<<untrusted-data>>` markers
+  that the server `instructions` teach the model to read as inert data.
+  Synopses come from MAL/MangaDex and notes from users; both reach a
+  model's context and are an injection surface.
+- **Scopes** are an explicit allow-list, no wildcard, empty grants
+  nothing. `tools/list` advertises only what a key can call;
+  `ctx::authorize` is what actually enforces it. Destructive tools need
+  `confirm: true` *on top of* the scope.
+- **Audit**: one `mcp_audit_log` row per call — tool, outcome
+  (`ok|denied|error`), duration, and a **digest** of the arguments,
+  never their content. Read back at `GET /api/user/api-keys/audit`.
+- Env: `MCP_ENABLED`, `MCP_ALLOWED_HOSTS`, `MCP_ALLOWED_ORIGINS`,
+  `MCP_RATE_LIMIT_PER_SECOND`, `MCP_RATE_LIMIT_BURST`. Traefik and the
+  client nginx both route `/mcp` explicitly — as `Path`, not
+  `PathPrefix`.
+
 ## Database
 
-- Migrations: **`server/migrations/`** — 50 raw `.sql` files, embedded at
+- Migrations: **`server/migrations/`** — 52 raw `.sql` files, embedded at
   compile time via `sqlx::migrate!("./migrations")` in `server/src/db.rs`
   and applied automatically on startup. There is no separate migrate script.
-- Entities (`server/src/models/`): `activity`, `archive`, `author`,
+- Entities (`server/src/models/`): `activity`, `api_key`, `archive`, `author`,
   `coffret`, `compare`, `follow`, `isbn_cache`, `library`, `loan_history`,
+  `mcp_audit`,
   `location`, `session_meta`, `setting`, `snapshot`, `user`, `user_seal`,
   `volume`.
 - `locations` is a **registry, not a foreign key**: a tome keeps naming
@@ -314,7 +409,16 @@ stock-taking count, and both the series page and a place can print an
 Avery label sheet with each tome's EAN-13 (jsPDF + JsBarcode, lazy).
 The barcode scanner also reads a still photo (the way in when the camera
 is refused or absent) and offers torch and zoom when the device reports
-them. `/aide` is the help page: its prose lives in
+them. Réglages → Compte carries the **Accès API** panel (`components/McpKeysSection.jsx`
++ `hooks/useMcpKeys.js`): mint, list and revoke MCP keys, read the agent
+audit trail, and copy a ready-made `claude mcp add` line. The minted
+secret never enters the query cache — it lives in component state for
+the life of the reveal dialog and no longer, because the server keeps
+only a digest and cannot show it twice. `vite.config.js`'s dev proxy
+forwards `/mcp` and the `.well-known` path alongside `/api`, so that
+copied command works verbatim against `pnpm dev`.
+
+`/aide` is the help page: its prose lives in
 `client/src/content/help.{en,fr,es}.md` and is fetched with the page, not
 bundled — a small in-house reader parses it to plain objects that the
 renderer turns into React nodes, so nothing is ever set as HTML.
