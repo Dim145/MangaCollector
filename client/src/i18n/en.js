@@ -1457,7 +1457,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.14.0 · Archive your collection",
+    version: "v2.15.0 · Open your shelf to an agent",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",
