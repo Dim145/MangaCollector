@@ -226,17 +226,22 @@ docker compose build
   `RUSTFMT_TOUCHED_BASE`. It refuses to write a file when rustfmt's
   re-sorting of the `use` block would drop an import out of the touched
   hunks — if it says so, reformat the import block by hand.
-  Two rough edges, both only triggered when the edit reaches the top of a
-  file. (1) It strips rustfmt's `--emit stdout` header by comparing the
-  line to the temp path, but rustfmt prints it with a trailing colon, so
-  the header survives into the file as a stray first line whenever the
-  first changed range is within the first ~3 lines. (2) Its safety net
-  compares `use` lines only, so a *duplicated* item inside a
-  `use axum::{…}` block (the merge can keep both orderings) passes
-  unnoticed. Re-read the head of any file whose first lines you touched,
-  and always `cargo check` after running it. Untracked files get no diff
-  ranges at all — format a brand-new file with plain
-  `rustfmt --edition 2024 --config skip_children=true <file>`.
+  Two bugs that made it corrupt files were fixed in 2.15.0, both found
+  when CI ran the script over a branch's worth of new files: it never
+  recognised rustfmt's `--emit stdout` banner (printed with a trailing
+  colon, and on macOS naming the *resolved* `/private/var/…` while
+  `tempfile` hands back the `/var/…` symlink), so the banner landed in
+  any file whose first changed range reached the top; and its safety net
+  only looked for declarations that *vanished*, so one the merge left in
+  the file **twice** — `use` items inside a braced list, `pub mod`
+  lines — sailed through and broke the build. Both are guarded now, and
+  the script refuses to write rather than duplicate.
+  Still true: untracked files get no diff ranges at all, so format a
+  brand-new file with plain
+  `rustfmt --edition 2024 --config skip_children=true <file>`; and
+  `cargo check` after running it, because a refusal is silent by design.
+  When it refuses, sort the declaration block by hand — that is usually
+  pre-existing drift your edit pulled into range.
 - **Mutation testing:** `node scripts/stryker-module.mjs <lib/foo>` runs a
   Stryker campaign over one module against its own test file (a minute);
   `--all` sweeps every paired module; `pnpm test:mutants` mutates the

@@ -31,6 +31,29 @@ def changed_ranges(path):
         ranges.append((start, start + max(count, 1)))  # 1-based [start, end)
     return ranges
 
+def _is_header(line, tmp_path):
+    """Is `line` rustfmt's `--emit stdout` filename banner?
+
+    Two things defeated the obvious `line.strip() == tmp_path`:
+
+      • rustfmt prints it *with a trailing colon*; and
+      • on macOS `tempfile` hands back `/var/folders/…`, a symlink, while
+        rustfmt prints the resolved `/private/var/folders/…`.
+
+    So compare the real paths, with the colon off. Getting this wrong was
+    invisible almost always — an insert at index 0 falls outside every
+    touched range and is dropped — and bit only when the first changed
+    range reached the top of the file. Which is exactly what CI does to
+    every new file: it diffs against the branch base, so a file added on
+    the branch is touched from line 1, the banner is written into it, and
+    the script then reports its own damage as unformatted code.
+    """
+    candidate = line.strip().rstrip(":")
+    if not candidate:
+        return False
+    return candidate == tmp_path or os.path.realpath(candidate) == os.path.realpath(tmp_path)
+
+
 def formatted_lines(path):
     src = pathlib.Path(path).read_text()
     # `delete=False` plus no cleanup left one copy of every file it
@@ -52,11 +75,74 @@ def formatted_lines(path):
             text=True,
         )
     lines = res.stdout.splitlines(keepends=True)
-    if lines and lines[0].strip() == tmp_path:
+    # 頭 · rustfmt announces the file it formatted before printing it.
+    # Two things made the old comparison never match (see `_is_header`),
+    # so the header stayed in `fmt`.
+    #
+    # That was invisible almost always: an insert at index 0 falls outside
+    # every touched range and gets dropped. It only lands in the file when
+    # the first changed range reaches the top — adding a `//!` module
+    # header, say. Which is precisely what CI does to *every* new file: it
+    # diffs against the branch base, so a file added on the branch is
+    # touched from line 1, the header is written into it, and the script
+    # then reports its own damage as unformatted code.
+    if lines and _is_header(lines[0], tmp_path):
         lines = lines[1:]
     if lines and lines[0].strip() == "":
         lines = lines[1:]
     return lines
+
+
+def duplicated_declarations(work, out):
+    """Declarations the merge left in the file twice.
+
+    rustfmt re-sorts `use` and `pub mod` blocks as a whole. When only
+    part of that reordering falls inside a touched hunk, the merge can
+    keep the line in its new position *and* in its old one — and the file
+    stops compiling. The loss guard below is the mirror image of this and
+    catches neither, since it only looks for declarations that vanished.
+
+    Reformatting never legitimately increases how many times a given
+    `use x;` or `pub mod y;` appears, so counting them is exact.
+    """
+    def counts(ls):
+        seen = {}
+        for line in ls:
+            text = line.strip()
+            if text.startswith(("use ", "pub mod ", "mod ")):
+                seen[text] = seen.get(text, 0) + 1
+        return seen
+
+    before, after = counts(work), counts(out)
+    return sorted(d for d, n in after.items() if n > before.get(d, 0))
+
+
+def duplicated_use_items(ls):
+    """Items appearing twice inside one braced `use` list.
+
+    The loss guard below compares whole `use ` lines, so it cannot see
+    inside `use axum::{Json, extract::{…}}`. When rustfmt reorders the
+    items and only part of the block is in a touched hunk, the merge can
+    keep both orderings and leave an item twice — which does not compile,
+    and which no check noticed.
+    """
+    dupes, block, inside = [], [], False
+    for line in ls:
+        text = line.strip()
+        if not inside:
+            if text.startswith("use ") and text.endswith("{"):
+                inside, block = True, []
+            continue
+        if text.startswith("}"):
+            seen = set()
+            for item in block:
+                if item in seen:
+                    dupes.append(item)
+                seen.add(item)
+            inside = False
+        elif text:
+            block.append(text.rstrip(","))
+    return dupes
 
 def main(path):
     work = pathlib.Path(path).read_text().splitlines(keepends=True)
@@ -82,6 +168,14 @@ def main(path):
     # that lost one.
     def imports(ls):
         return sorted(l.strip() for l in ls if l.lstrip().startswith("use "))
+    duped = duplicated_declarations(work, out) + duplicated_use_items(out)
+    if duped:
+        print(f"{path}: NOT WRITTEN — reflowing would duplicate {len(duped)} declaration(s):")
+        for item in sorted(set(duped)):
+            print(f"    {item}")
+        print("    (rustfmt reordered the block and the merge kept both "
+              "orderings; sort the declarations by hand)")
+        return
     lost = set(imports(work)) - set(imports(out))
     if lost:
         print(f"{path}: NOT WRITTEN — reflowing would drop {len(lost)} import(s):")
