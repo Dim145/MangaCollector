@@ -12,7 +12,7 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 
 | | |
 |---|---|
-| **Landing page** — about, hero, top manga from MAL | ![Landing](docs/screenshots/landing.png) |
+| **Landing page** — the product itself: real screenshots for a visitor, your own shelf once signed in | ![Landing](docs/screenshots/landing.png) |
 | **Sign-in** — Google or generic OpenID Connect | ![Auth](docs/screenshots/auth.png) |
 | **Library dashboard** — your shelf at a glance | ![Library](docs/screenshots/dashboard.png) |
 | **Series page** — bulk volume editing, cover swap, MAL refresh | ![Series](docs/screenshots/mangaEditor.png) |
