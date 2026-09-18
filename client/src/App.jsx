@@ -360,7 +360,7 @@ function AppShell() {
         <RouteErrorBoundary>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              <Route path="/" element={<About googleUser={googleUser} />} />
+              <Route path="/" element={<About />} />
               <Route path="/log-in" element={<Login />} />
               <Route
                 path="/dashboard"

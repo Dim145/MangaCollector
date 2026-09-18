@@ -1,90 +1,96 @@
-import { useContext, useEffect, useState } from "react";
 import { useT } from "@/i18n/index.jsx";
-// Each cover ships in AVIF, WebP, and JPEG; the <picture> element in
-// the render below picks the smallest format the browser supports.
-import PunpunAvif from "../assets/punpun.avif";
-import PunpunWebp from "../assets/punpun.webp";
-import PunpunJpg from "../assets/punpun.jpg";
-import BerserkAvif from "../assets/berserk.avif";
-import BerserkWebp from "../assets/berserk.webp";
-import BerserkJpg from "../assets/berserk.jpg";
-import BeastarsAvif from "../assets/beastars.avif";
-import BeastarsWebp from "../assets/beastars.webp";
-import BeastarsJpg from "../assets/beastars.jpg";
-import TokyoGhoulAvif from "../assets/tokyoghoul.avif";
-import TokyoGhoulWebp from "../assets/tokyoghoul.webp";
-import TokyoGhoulJpg from "../assets/tokyoghoul.jpg";
-import VinlandAvif from "../assets/vinland.avif";
-import VinlandWebp from "../assets/vinland.webp";
-import VinlandJpg from "../assets/vinland.jpg";
-import FirePunchAvif from "../assets/firepunch.avif";
-import FirePunchWebp from "../assets/firepunch.webp";
-import FirePunchJpg from "../assets/firepunch.jpg";
+import { useAuth } from "@/hooks/useAuth.js";
+import { useLibrary } from "@/hooks/useLibrary.js";
+import CoverImage from "@/components/ui/CoverImage.jsx";
 
-const FirePunch = {
-  avif: FirePunchAvif,
-  webp: FirePunchWebp,
-  jpg: FirePunchJpg,
-};
-const Punpun = { avif: PunpunAvif, webp: PunpunWebp, jpg: PunpunJpg };
-const TokyoGhoul = {
-  avif: TokyoGhoulAvif,
-  webp: TokyoGhoulWebp,
-  jpg: TokyoGhoulJpg,
-};
-const Berserk = { avif: BerserkAvif, webp: BerserkWebp, jpg: BerserkJpg };
-const Vinland = { avif: VinlandAvif, webp: VinlandWebp, jpg: VinlandJpg };
-const Beastars = { avif: BeastarsAvif, webp: BeastarsWebp, jpg: BeastarsJpg };
-import SettingsContext from "@/SettingsContext.js";
+/**
+ * 表 · The landing page.
+ *
+ * Everything on it is either the product or a statement about the
+ * product that is true of every deployment. There are no testimonials
+ * (there were three, from people who did not exist), no borrowed
+ * popularity (the hero used to show MyAnimeList's top 8 as if they were
+ * a shelf, fetched from a third party on every anonymous visit), and no
+ * decorative covers under someone else's copyright bundled into the
+ * build.
+ *
+ * What replaced them:
+ *
+ *   • The hero shows the app. To a stranger, that is a spread of two real
+ *     screenshots; on a device whose cache holds a shelf of your own, it
+ *     is *your* shelf — the same covers the dashboard shows.
+ *   • "The real thing" is four screenshots with plain captions.
+ *   • "In plain terms" says what this is and what it is not, in claims
+ *     that hold for anyone who deploys it.
+ *
+ * Screenshots ship as AVIF + WebP with a JPEG fallback at two widths;
+ * every `<img>` carries its intrinsic size so the layout is settled
+ * before the first byte arrives.
+ */
 
-const MOCKED = [
-  { id: 1, title: "Fire Punch", volumes: 8, img: FirePunch },
-  { id: 2, title: "Goodnight Punpun", volumes: 13, img: Punpun },
-  { id: 3, title: "Tokyo Ghoul", volumes: 14, img: TokyoGhoul },
-  { id: 4, title: "Berserk", volumes: 41, img: Berserk },
-  { id: 5, title: "Vinland Saga", volumes: 27, img: Vinland },
-  { id: 6, title: "Beastars", volumes: 22, img: Beastars },
+// ── Screenshots ────────────────────────────────────────────────────
+//
+// `import.meta.glob` keeps the twenty asset imports out of the way. The
+// files are hashed by Vite like any other import; nothing here is
+// fetched at runtime from anywhere but our own origin.
+const SCREEN_FILES = import.meta.glob("../assets/screens/*.{avif,webp,jpg}", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
+
+function screenUrl(id, width, ext) {
+  return SCREEN_FILES[`../assets/screens/${id}-${width}.${ext}`];
+}
+
+// All four sources are 2732 × 1800, resized to 1400 → 1400 × 922 and
+// 800 → 800 × 527. The 1400 figure is what `<img width height>` carries.
+const SCREEN_W = 1400;
+const SCREEN_H = 922;
+
+/** The four screens, in the order they are shown. `kanji` labels the chip. */
+const SCREENS = [
+  { id: "library", kanji: "本棚", key: "Library" },
+  { id: "series", kanji: "作品", key: "Series" },
+  { id: "volumes", kanji: "巻", key: "Volumes" },
+  { id: "stats", kanji: "統計", key: "Stats" },
 ];
 
-export default function About({ googleUser } = {}) {
-  const [topMangas, setTopMangas] = useState(MOCKED);
-  const { authName } = useContext(SettingsContext);
-  const t = useT();
-  // The hero CTA used to render two near-identical buttons (Get Started +
-  // Open Dashboard) regardless of auth state. For a logged-out visitor both
-  // routes funnel to /log-in — the choice was theatre. For a returning,
-  // already-signed-in user, "Get Started" is misleading. We collapse to a
-  // single primary action whose label and destination track the actual
-  // session.
-  const isAuthed = Boolean(googleUser);
+/** Fewer real series than this and the spread reads better than a shelf. */
+const MIN_SHELF = 4;
+const SHELF_SLOTS = 8;
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const response = await fetch(
-          `https://api.jikan.moe/v4/top/manga?type=manga&limit=8`,
-        );
-        if (!response.ok) return;
-        const data = await response.json();
-        const top = (data.data || []).slice(0, 8).map((m) => ({
-          id: m.mal_id,
-          title: m.title_english || m.title,
-          volumes: m.volumes || "—",
-          // The render below treats `img` as a `{ avif, webp, jpg }`
-          // bundle (the format the bundled mocked covers ship in). MAL
-          // only serves JPG, so the avif/webp `<source>` slots stay
-          // empty and `<picture>` naturally falls through to the
-          // `<img decoding="async" src={img.jpg}>`. Returning a bare string here (the
-          // previous behaviour) made `m.img.jpg` undefined and the
-          // cards rendered as empty frames.
-          img: { jpg: m.images?.jpg?.large_image_url },
-        }));
-        if (top.length) setTopMangas(top);
-      } catch (e) {
-        console.error(e);
-      }
-    })();
-  }, []);
+/** Footer links: a 10px label, but a 44px hit area — and never split across lines. */
+const FOOT_LINK =
+  "inline-flex min-h-11 items-center whitespace-nowrap hover:text-washi";
+
+export default function About() {
+  const t = useT();
+  // 誰 · The same answer the header and the tab bar act on. The route
+  // used to hand this page App's `googleUser`, which only a protected
+  // route ever sets — so a signed-in visitor who *landed* here was
+  // greeted as a stranger until they had been somewhere else first.
+  const { isAuthenticated: isAuthed } = useAuth();
+
+  // Dexie is read either way (instant, no request); the network
+  // revalidation only runs for a signed-in visitor. The shelf follows
+  // the cache, not the session: the cache is stamped with the account
+  // it was filled for and wiped on logout or on a foreign login
+  // (`lib/owner.js`), so a shelf on this device is this visitor's own —
+  // and it is there in milliseconds, before `/auth/user` has answered,
+  // so a returning collector never sees the spread flash before their
+  // covers. The call to action, by contrast, follows the session.
+  const { data: library } = useLibrary({ enabled: isAuthed });
+  const shelf =
+    library.length >= MIN_SHELF
+      ? [...library]
+          // Most recently touched first — "what you were just doing",
+          // not the arbitrary MAL-id order the cache happens to hold.
+          .sort((a, b) =>
+            String(b.modified_on).localeCompare(String(a.modified_on)),
+          )
+          .slice(0, SHELF_SLOTS)
+      : null;
 
   return (
     <div
@@ -123,7 +129,6 @@ export default function About({ googleUser } = {}) {
               </span>
               {t("about.version")}
             </span>
-
             <h1
               data-ink-trail="true"
               className="mt-6 font-display text-5xl font-light leading-[0.95] tracking-tight text-washi md:text-7xl lg:text-8xl animate-fade-up"
@@ -139,14 +144,12 @@ export default function About({ googleUser } = {}) {
                 {t("about.heroArchived")}
               </span>
             </h1>
-
             <p
               className="mx-auto mt-6 max-w-xl text-base text-washi-muted md:text-lg animate-fade-up"
               style={{ animationDelay: "100ms" }}
             >
               {t("about.subHero")}
             </p>
-
             {/* Single primary CTA — destination & label depend on auth.
                 Logged-out → "Get started" (→ /log-in). Logged-in → "Open
                 dashboard" (→ /dashboard). One button, no mid-funnel
@@ -160,79 +163,31 @@ export default function About({ googleUser } = {}) {
                 className="group inline-flex items-center justify-center gap-2 rounded-full bg-hanko px-7 py-3.5 text-sm font-semibold uppercase tracking-wider text-on-hanko shadow-xl glow-red transition hover:scale-[1.02] hover:bg-hanko-deep active:scale-95"
               >
                 {isAuthed ? t("about.openDashboard") : t("about.getStarted")}
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                >
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg>
+                <ArrowIcon />
               </a>
             </div>
           </div>
 
-          {/* Hero image — collage of covers */}
+          {/* Hero visual — the product, or the visitor's own shelf */}
           <div
             className="relative mx-auto mt-16 max-w-5xl animate-fade-up"
             style={{ animationDelay: "300ms" }}
           >
-            <div className="relative">
-              <div className="pointer-events-none absolute -inset-20 -z-10 opacity-40 blur-3xl">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "radial-gradient(ellipse at 30% 50%, oklch(0.6 0.22 25 / 0.3), transparent 60%), radial-gradient(ellipse at 70% 50%, oklch(0.82 0.13 78 / 0.15), transparent 60%)",
-                  }}
-                />
-              </div>
-
-              {/* Carousel of 8 covers */}
-              <div className="grid grid-cols-4 gap-3 md:grid-cols-8">
-                {topMangas.slice(0, 8).map((m, i) => (
-                  <div
-                    key={m.id}
-                    className={`relative aspect-[2/3] overflow-hidden rounded-lg border border-border shadow-2xl transition-transform duration-500 hover:scale-105 hover:-translate-y-2 ${
-                      i % 2 === 0 ? "md:translate-y-2" : "md:-translate-y-2"
-                    }`}
-                    style={{
-                      animation: `fade-up 0.8s ${i * 80}ms both cubic-bezier(0.16, 1, 0.3, 1)`,
-                    }}
-                  >
-                    {m.img && (
-                      <picture>
-                        <source srcSet={m.img.avif} type="image/avif" />
-                        <source srcSet={m.img.webp} type="image/webp" />
-                        <img
-                          referrerPolicy="no-referrer"
-                          src={m.img.jpg}
-                          alt=""
-                          loading="lazy"
-                          decoding="async"
-                          className="h-full w-full object-cover"
-                        />
-                      </picture>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-ink-0 via-transparent to-transparent" />
-                    <div className="absolute inset-x-0 bottom-0 p-1.5">
-                      <p className="line-clamp-1 font-display text-[10px] font-semibold text-washi drop-shadow">
-                        {m.title}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div className="pointer-events-none absolute -inset-20 -z-10 opacity-40 blur-3xl">
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at 30% 50%, oklch(0.6 0.22 25 / 0.3), transparent 60%), radial-gradient(ellipse at 70% 50%, oklch(0.82 0.13 78 / 0.15), transparent 60%)",
+                }}
+              />
             </div>
+            {shelf ? <OwnShelf shelf={shelf} t={t} /> : <Spread t={t} />}
           </div>
         </div>
       </section>
 
-      {/* ─────────── Philosophy / Stats ─────────── */}
+      {/* ─────────── Philosophy ─────────── */}
       <section className="relative px-4 py-16 sm:px-6 md:py-24">
         <div className="mx-auto max-w-6xl">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-16">
@@ -248,11 +203,24 @@ export default function About({ googleUser } = {}) {
                 </span>
               </h2>
             </div>
-            <div className="space-y-5 text-base text-washi-muted md:text-lg">
+            <div className="space-y-6 text-base text-washi-muted md:text-lg">
               <p>{t("about.philosophyBody1")}</p>
-              <p className="border-l-2 border-hanko/50 pl-4 font-display italic text-washi">
-                "{t("about.philosophyQuote")}"
-              </p>
+              {/* 信 · Three principles, numbered — the app's own, not a
+                  quotation. The previous cut styled this line as a
+                  pull-quote, which left the reader looking for who said
+                  it. Nobody did; we mean it. */}
+              <ol className="space-y-3 border-l-2 border-hanko/50 pl-5">
+                {["credo1", "credo2", "credo3"].map((key, i) => (
+                  <li key={key} className="flex items-baseline gap-4">
+                    <span className="font-mono text-[10px] tracking-[0.25em] text-hanko-bright">
+                      0{i + 1}
+                    </span>
+                    <span className="font-display text-lg text-washi md:text-xl">
+                      {t(`about.${key}`)}
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
         </div>
@@ -271,69 +239,69 @@ export default function About({ googleUser } = {}) {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <FeatureCard
-              number="01"
-              title={t("about.f1Title")}
-              description={t("about.f1Body")}
-            />
-            <FeatureCard
-              number="02"
-              title={t("about.f2Title")}
-              description={t("about.f2Body")}
-              accent
-            />
-            <FeatureCard
-              number="03"
-              title={t("about.f3Title")}
-              description={t("about.f3Body")}
-            />
-            <FeatureCard
-              number="04"
-              title={t("about.f4Title")}
-              description={t("about.f4Body")}
-            />
-            <FeatureCard
-              number="05"
-              title={t("about.f5Title")}
-              description={t("about.f5Body")}
-            />
-            <FeatureCard
-              number="06"
-              title={t("about.f6Title")}
-              description={t("about.f6Body")}
-              accent
-            />
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <FeatureCard
+                key={n}
+                number={`0${n}`}
+                title={t(`about.f${n}Title`)}
+                description={t(`about.f${n}Body`)}
+                accent={n === 2 || n === 6}
+              />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ─────────── Testimonials ─────────── */}
+      {/* ─────────── The real thing ─────────── */}
       <section className="relative px-4 py-16 sm:px-6 md:py-20">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-10 text-center">
+          <div className="mb-10 max-w-2xl">
             <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
-              {t("about.voicesLabel")}
+              {t("about.seeLabel")}
             </span>
             <h2 className="mt-2 font-display text-3xl font-semibold italic text-washi md:text-4xl">
-              {t("about.voicesHeading")}
+              {t("about.seeHeading")}
+            </h2>
+            <p className="mt-3 text-sm text-washi-muted md:text-base">
+              {t("about.seeBody")}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {SCREENS.map((screen) => (
+              <ScreenCard key={screen.id} screen={screen} t={t} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─────────── In plain terms ─────────── */}
+      <section className="relative px-4 py-16 sm:px-6 md:py-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-10">
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
+              {t("about.natureLabel")}
+            </span>
+            <h2 className="mt-2 font-display text-3xl font-semibold italic text-washi md:text-4xl">
+              {t("about.natureHeading1")}{" "}
+              <span className="text-washi-dim font-light">
+                {t("about.natureHeading2")}
+              </span>
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Testimonial
-              quote={t("about.t1Quote")}
-              name={t("about.t1Name")}
-              role={t("about.t1Role")}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Ledger
+              kanji="是"
+              tone="moegi"
+              title={t("about.isTitle")}
+              items={[1, 2, 3, 4, 5].map((n) => t(`about.is${n}`))}
             />
-            <Testimonial
-              quote={t("about.t2Quote")}
-              name={t("about.t2Name")}
-              role={t("about.t2Role")}
-            />
-            <Testimonial
-              quote={t("about.t3Quote", { provider: authName || "OAuth" })}
-              name={t("about.t3Name")}
-              role={t("about.t3Role")}
+            <Ledger
+              kanji="否"
+              tone="hanko"
+              title={t("about.isntTitle")}
+              items={[1, 2, 3, 4, 5].map((n) => t(`about.isnt${n}`))}
             />
           </div>
         </div>
@@ -365,22 +333,13 @@ export default function About({ googleUser } = {}) {
               </p>
               <div className="mt-8">
                 <a
-                  href="/log-in"
+                  href={isAuthed ? "/dashboard" : "/log-in"}
                   className="group inline-flex items-center gap-2 rounded-full bg-washi px-8 py-4 text-sm font-semibold uppercase tracking-wider text-ink-0 shadow-xl transition hover:scale-[1.02] active:scale-95"
                 >
-                  {t("about.startCollecting")}
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                  >
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
+                  {isAuthed
+                    ? t("about.openDashboard")
+                    : t("about.startCollecting")}
+                  <ArrowIcon />
                 </a>
               </div>
             </div>
@@ -399,28 +358,280 @@ export default function About({ googleUser } = {}) {
               {t("about.footerYear", { year: new Date().getFullYear() })}
             </p>
           </div>
-          <nav className="flex items-center gap-5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-            <a className="hover:text-washi" href="/dashboard">
+          <nav className="flex flex-wrap items-center justify-center gap-x-5 font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+            <a className={FOOT_LINK} href="/dashboard">
               Dashboard
             </a>
-            <a className="hover:text-washi" href="/glossary">
+            <a className={FOOT_LINK} href="/glossary">
               <span aria-hidden="true" className="font-jp text-xs">
                 字典
               </span>
               <span className="ml-1.5">{t("about.footerGlossary")}</span>
             </a>
-            <a className="hover:text-washi" href="/aide">
+            <a className={FOOT_LINK} href="/aide">
               <span aria-hidden="true" className="font-jp text-xs">
                 助
               </span>
               <span className="ml-1.5">{t("about.footerHelp")}</span>
             </a>
-            <a className="hover:text-washi" href="/log-in">
-              Sign in
+            <a
+              className={FOOT_LINK}
+              href="https://github.com/Dim145/MangaCollector"
+              rel="noopener noreferrer"
+            >
+              <span aria-hidden="true" className="font-jp text-xs">
+                源
+              </span>
+              <span className="ml-1.5">{t("about.footerSource")}</span>
             </a>
+            {!isAuthed && (
+              <a className={FOOT_LINK} href="/log-in">
+                {t("about.footerSignIn")}
+              </a>
+            )}
           </nav>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// ── Pieces ─────────────────────────────────────────────────────────
+
+function ArrowIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4 transition-transform group-hover:translate-x-1"
+      aria-hidden="true"
+    >
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </svg>
+  );
+}
+
+/**
+ * One screenshot as a responsive `<picture>`. AVIF first, WebP second,
+ * JPEG for whatever is left; two widths so a phone never downloads the
+ * 1400-pixel cut.
+ */
+function Screenshot({
+  id,
+  alt,
+  sizes,
+  loading = "lazy",
+  fetchPriority = "auto",
+}) {
+  return (
+    <picture>
+      <source
+        type="image/avif"
+        srcSet={`${screenUrl(id, 800, "avif")} 800w, ${screenUrl(id, 1400, "avif")} 1400w`}
+        sizes={sizes}
+      />
+      <source
+        type="image/webp"
+        srcSet={`${screenUrl(id, 800, "webp")} 800w, ${screenUrl(id, 1400, "webp")} 1400w`}
+        sizes={sizes}
+      />
+      <img
+        src={screenUrl(id, 1400, "jpg")}
+        alt={alt}
+        width={SCREEN_W}
+        height={SCREEN_H}
+        loading={loading}
+        fetchPriority={fetchPriority}
+        decoding="async"
+        className="block h-auto w-full"
+      />
+    </picture>
+  );
+}
+
+/**
+ * A small mono label with a kanji, pinned to a screenshot's *lower* corner
+ * — the upper one is where the app's own wordmark sits in every capture,
+ * and a label over a logo reads as clutter.
+ */
+function ScreenChip({ kanji, children, className = "" }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md border border-border bg-ink-0/80 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-washi-muted backdrop-blur ${className}`}
+    >
+      <span aria-hidden="true" className="font-jp text-xs text-hanko-bright">
+        {kanji}
+      </span>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * 頁 · The signed-out hero: two real screens laid like an open ledger —
+ * the library across the spread, the series page riding its corner. The
+ * tilt is a static transform, so it holds under reduced motion; only
+ * the entrance fades.
+ */
+function Spread({ t }) {
+  return (
+    <div className="relative pb-10 md:pb-16">
+      <figure className="relative -rotate-[1.2deg] overflow-hidden rounded-xl border border-border bg-ink-1 shadow-2xl md:mr-[24%]">
+        <Screenshot
+          id="library"
+          alt={t("about.screenLibraryAlt")}
+          sizes="(min-width: 1024px) 780px, 100vw"
+          loading="eager"
+          fetchPriority="high"
+        />
+        <figcaption className="absolute bottom-3 left-3">
+          <ScreenChip kanji="本棚">{t("about.screenLibraryTitle")}</ScreenChip>
+        </figcaption>
+      </figure>
+      <figure className="absolute -bottom-2 right-0 hidden w-[46%] rotate-[1.4deg] overflow-hidden rounded-xl border border-border bg-ink-1 shadow-2xl md:block">
+        <Screenshot
+          id="series"
+          alt={t("about.screenSeriesAlt")}
+          sizes="(min-width: 1024px) 480px, 46vw"
+        />
+        <figcaption className="absolute bottom-3 left-3">
+          <ScreenChip kanji="作品">{t("about.screenSeriesTitle")}</ScreenChip>
+        </figcaption>
+      </figure>
+    </div>
+  );
+}
+
+/**
+ * 棚 · The signed-in hero: the visitor's own covers, the same images the
+ * dashboard shows, in the eight-slot rail the old carousel used — with
+ * a caption that says so. Nothing here is anyone else's shelf.
+ */
+function OwnShelf({ shelf, t }) {
+  return (
+    <div>
+      <div className="grid grid-cols-4 gap-3 md:grid-cols-8">
+        {shelf.map((m, i) => (
+          <div
+            key={m.id ?? m.mal_id ?? i}
+            className={`relative aspect-[2/3] overflow-hidden rounded-lg border border-border bg-ink-1 shadow-2xl transition-transform duration-500 hover:-translate-y-2 hover:scale-105 ${
+              i % 2 === 0 ? "md:translate-y-2" : "md:-translate-y-2"
+            }`}
+          >
+            <CoverImage
+              src={m.image_url_jpg}
+              alt={m.name}
+              paletteSeed={m.name}
+              loading={i < 4 ? "eager" : "lazy"}
+              className="h-full w-full"
+            />
+            <div
+              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-0 via-transparent to-transparent"
+              aria-hidden="true"
+            />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 p-1.5">
+              <p className="line-clamp-1 font-display text-[10px] font-semibold text-washi drop-shadow">
+                {m.name}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-5 text-center font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim">
+        {t("about.shelfCaption", { count: shelf.length })}
+      </p>
+    </div>
+  );
+}
+
+/** A screenshot with its caption, for "the real thing". */
+function ScreenCard({ screen, t }) {
+  const { id, kanji, key } = screen;
+  return (
+    <figure className="group overflow-hidden rounded-2xl border border-border bg-ink-1/50 transition hover:-translate-y-0.5 hover:border-border/80">
+      <div className="relative border-b border-border bg-ink-0">
+        <Screenshot
+          id={id}
+          alt={t(`about.screen${key}Alt`)}
+          sizes="(min-width: 1024px) 560px, (min-width: 640px) 50vw, 100vw"
+        />
+      </div>
+      <figcaption className="flex items-start gap-4 p-5">
+        <span
+          aria-hidden="true"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border bg-ink-2/60 font-jp text-sm font-bold text-hanko-bright"
+        >
+          {kanji}
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-display text-lg font-semibold text-washi">
+            {t(`about.screen${key}Title`)}
+          </h3>
+          <p className="mt-1 text-sm leading-relaxed text-washi-muted">
+            {t(`about.screen${key}Body`)}
+          </p>
+        </div>
+      </figcaption>
+    </figure>
+  );
+}
+
+/**
+ * 帳 · One column of "in plain terms". `tone` picks the mark: moegi —
+ * the palette's "completed" green — for what it is, hanko red for what
+ * it is not. The mark is drawn, not typed, so it reads the same in every
+ * font and is invisible to a screen reader, which gets the list itself.
+ */
+function Ledger({ kanji, tone, title, items }) {
+  const isYes = tone === "moegi";
+  const chip = isYes
+    ? "border-moegi/40 bg-moegi/10 text-moegi"
+    : "border-hanko/40 bg-hanko/10 text-hanko-bright";
+  const mark = isYes ? "text-moegi" : "text-hanko-bright";
+  return (
+    <div className="rounded-2xl border border-border bg-ink-1/50 p-6">
+      <div className="mb-4 flex items-center gap-3">
+        <span
+          aria-hidden="true"
+          className={`grid h-9 w-9 place-items-center rounded-md border font-jp text-base font-bold ${chip}`}
+        >
+          {kanji}
+        </span>
+        <h3 className="font-display text-xl font-semibold text-washi">
+          {title}
+        </h3>
+      </div>
+      <ul className="divide-y divide-border">
+        {items.map((item) => (
+          <li
+            key={item}
+            className="flex items-start gap-3 py-3 text-sm leading-relaxed text-washi-muted"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`mt-1 h-3.5 w-3.5 shrink-0 ${mark}`}
+              aria-hidden="true"
+            >
+              {isYes ? (
+                <polyline points="3 8.5 6.5 12 13 4.5" />
+              ) : (
+                <line x1="3" y1="8" x2="13" y2="8" />
+              )}
+            </svg>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -450,36 +661,6 @@ function FeatureCard({ number, title, description, accent }) {
       <p className="mt-2 text-sm leading-relaxed text-washi-muted">
         {description}
       </p>
-    </div>
-  );
-}
-
-function Testimonial({ quote, name, role }) {
-  return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border bg-ink-1/50 p-6 transition hover:-translate-y-0.5">
-      <svg
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        className="h-6 w-6 text-hanko-bright/30"
-      >
-        <path d="M10 11H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v9c0 2.8-2.2 5-5 5v-2c1.7 0 3-1.3 3-3zM18 11h-4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v9c0 2.8-2.2 5-5 5v-2c1.7 0 3-1.3 3-3z" />
-      </svg>
-      <p className="mt-3 font-display text-base italic leading-relaxed text-washi">
-        {quote}
-      </p>
-      <div className="mt-4 flex items-center gap-3">
-        <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-gold to-gold-muted font-display text-xs font-bold text-ink-0">
-          {name[0]}
-        </div>
-        <div>
-          <p className="font-display text-sm font-semibold text-washi">
-            {name}
-          </p>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-washi-dim">
-            {role}
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

@@ -153,7 +153,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 018 tests across 49 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 024 tests across 50 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -186,7 +186,10 @@ docker compose build
     `components/ArchiveSection.test.jsx` (the import modal's merge /
     replace choice) and `components/McpKeysSection.test.jsx` (the API-key
     panel: that the mint dialog opens on the read-only preset, and that
-    the secret is shown once and then dropped) are the component tests; `hooks/useWindowGridVirtualizer.test.js`
+    the secret is shown once and then dropped) and `components/About.test.jsx`
+    (the landing: no request and no third-party fetch for a stranger, the
+    visitor's own shelf read from the device cache, screenshots with real
+    alt text and intrinsic sizes, en/fr/es key parity) are the component tests; `hooks/useWindowGridVirtualizer.test.js`
     covers the lane / pinned-row maths shared by both windowed grids and
     `hooks/useArchive.test.jsx` pins the import endpoint's wire shape.
   - Three suites assert **cross-language parity** by parsing the Rust
@@ -434,6 +437,15 @@ the life of the reveal dialog and no longer, because the server keeps
 only a digest and cannot show it twice. `vite.config.js`'s dev proxy
 forwards `/mcp` and the `.well-known` path alongside `/api`, so that
 copied command works verbatim against `pnpm dev`.
+
+`/` is the landing (`components/About.jsx`). Everything on it is the
+product or a claim true of every deployment: real screenshots from
+`assets/screens/` (AVIF / WebP / JPEG at 800 and 1400 px, served from
+our own origin), the visitor's own shelf when the device cache holds
+one, and an "it is / it isn't" ledger. No testimonials, no
+third-party fetch for a stranger, no bundled covers under someone
+else's copyright. Auth comes from `useAuth()` like the header — not
+from App's `googleUser`, which only a protected route ever sets.
 
 `/aide` is the help page: its prose lives in
 `client/src/content/help.{en,fr,es}.md` and is fetched with the page, not
