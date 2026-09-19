@@ -30,6 +30,7 @@ import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useOwnPublicSlug } from "@/hooks/usePublicProfile.js";
+import { computeLibraryStats } from "@/utils/libraryStats.js";
 import { useT } from "@/i18n/index.jsx";
 import {
   pickBracket,
@@ -144,10 +145,19 @@ export default function ProfilePage({ googleUser }) {
     completionRate,
     memberSinceDays,
   } = useMemo(() => {
-    const totalSeries = library.length;
-    const totalVolumes = volumes.length;
+    // 数 · Series, tomes and completion come from the shared
+    // definition — this page used to count the volume rows itself,
+    // which put an announced-but-unreleased tome in the denominator
+    // and disagreed with the dashboard by a tome and a percentage
+    // point on the very same shelf.
+    const {
+      seriesCount: totalSeries,
+      totalVolumes,
+      totalOwned: owned,
+      completionRate: completion,
+    } = computeLibraryStats(library);
 
-    let owned = 0;
+    // What was paid is a per-tome fact and stays a per-tome sum.
     let cost = 0;
     let firstAddedTs = Infinity;
     for (const series of library) {
@@ -159,13 +169,9 @@ export default function ProfilePage({ googleUser }) {
 
     for (const vol of volumes) {
       if (vol.owned) {
-        owned += 1;
         cost += Number(vol.price) || 0;
       }
     }
-
-    const completion =
-      totalVolumes > 0 ? Number(((owned / totalVolumes) * 100).toFixed(1)) : 0;
 
     const memberSinceDays = Number.isFinite(firstAddedTs)
       ? Math.max(0, Math.floor((Date.now() - firstAddedTs) / (1000 * 60 * 60 * 24)))

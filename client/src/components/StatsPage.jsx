@@ -21,6 +21,7 @@ import { useExtendedAnalytics } from "@/hooks/useExtendedAnalytics.js";
 import { useFriendsOverlap } from "@/hooks/useFriendsOverlap.js";
 import { useSeals } from "@/hooks/useSeals.js";
 import { useOnline } from "@/hooks/useOnline.js";
+import { computeLibraryStats } from "@/utils/libraryStats.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 
 // 金 · Recharts payloads stay lazy on the deep-dive page too —
@@ -74,20 +75,18 @@ export default function StatsPage() {
   // Hero totals — kept aligned with the slim version shown on
   // the new ProfilePage. Three figures + a seal counter.
   const heroTotals = useMemo(() => {
-    const lib = library ?? [];
-    const vols = volumes ?? [];
-    const ownedVols = vols.filter((v) => v.owned);
-    const totalVolumes = vols.length;
+    // 数 · Same definition as the dashboard and the profile — see
+    // `utils/libraryStats.js`. This was a third independent count.
+    const { seriesCount, totalOwned, completionPct } = computeLibraryStats(
+      library ?? [],
+    );
     return {
-      seriesCount: lib.length,
-      ownedVolumeCount: ownedVols.length,
-      completionPct:
-        totalVolumes > 0
-          ? Math.round((ownedVols.length / totalVolumes) * 100)
-          : 0,
+      seriesCount,
+      ownedVolumeCount: totalOwned,
+      completionPct,
       sealsCount: earnedSeals.length,
     };
-  }, [library, volumes, earnedSeals]);
+  }, [library, earnedSeals]);
 
   // 金 · Top-5 series by cumulative spend — the input shape
   // `MostValuedChart` actually expects (`{ title, fullTitle,

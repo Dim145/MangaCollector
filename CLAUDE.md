@@ -58,7 +58,7 @@ cache invalidations for cross-device sync.
 | `AUTH_MODE` | `google` or `openidconnect` |
 | `AUTH_CLIENT_ID` / `AUTH_CLIENT_SECRET` | OAuth credentials |
 | `AUTH_ISSUER` | OIDC issuer URL (generic mode) |
-| `AUTH_NAME` / `AUTH_ICON` | Login-page display name and icon |
+| `AUTH_NAME` / `AUTH_ICON` | Login-page display name and icon. `AUTH_ICON` is the literal `google` or an image URL (`http(s)://…` or `/…`); anything else draws a generic key glyph rather than a broken image |
 | `SESSION_SECRET` | **Inert.** Read into the config and used nowhere — session ids come from the Postgres store and the cookie is not signed. Startup says so when it is set. |
 | `FRONTEND_URL` | CORS origin + OAuth redirect URI |
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET_NAME`, `S3_REGION`, `S3_USE_SSL`, `S3_USE_PATH_STYLE` | S3/MinIO storage backend |
@@ -126,9 +126,9 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 152 tests across 30 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 154 tests across 31 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
-  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,users}.rs`,
+  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
   `services/api_keys.rs` pins the MCP credential rules — the scope
   vocabulary, that the read-only preset really is read-only, that a
@@ -144,7 +144,9 @@ docker compose build
   `services/cover_pool.rs` pins the cover-URL allowlist (host match,
   `http`→`https`, no credentials, own posters pass); `loan_history.rs`
   the loans CSV (statuses, BOM, date bounds); `locations.rs` the note
-  hygiene. `util/isbn.rs`
+  hygiene; `settings.rs` pins the currency catalogue — which character
+  groups the thousands and which marks the fraction, a pair that was
+  swapped for USD and printed `$12.166,30` on every default account. `util/isbn.rs`
   pins ISBN normalisation (10 → 13, checksums); `services/isbn_resolver.rs`
   pins the four catalogue parsers on real fixtures (Google Books, Open
   Library, BnF SRU Dublin Core, openBD) and the cache freshness rule
@@ -153,7 +155,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 024 tests across 50 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 031 tests across 51 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -184,7 +186,10 @@ docker compose build
     `realtimePlan` (the websocket decision table) are pure and tested.
   - `components/ui/CoverImage.test.jsx`, `components/VirtualVolumeGrid.test.jsx`,
     `components/ArchiveSection.test.jsx` (the import modal's merge /
-    replace choice) and `components/McpKeysSection.test.jsx` (the API-key
+    replace choice), `components/MangaPageRoute.test.jsx` (the deep-link
+    contract: a printed QR code resolves its series against the server
+    rather than bouncing to the dashboard when the device cache is cold)
+    and `components/McpKeysSection.test.jsx` (the API-key
     panel: that the mint dialog opens on the read-only preset, and that
     the secret is shown once and then dropped) and `components/About.test.jsx`
     (the landing: no request and no third-party fetch for a stranger, the
@@ -393,7 +398,7 @@ stateless), so an AI client can read and curate one account's collection.
 
 ## Database
 
-- Migrations: **`server/migrations/`** — 52 raw `.sql` files, embedded at
+- Migrations: **`server/migrations/`** — 53 raw `.sql` files, embedded at
   compile time via `sqlx::migrate!("./migrations")` in `server/src/db.rs`
   and applied automatically on startup. There is no separate migrate script.
 - Entities (`server/src/models/`): `activity`, `api_key`, `archive`, `author`,
@@ -407,6 +412,16 @@ stateless), so an AI client can read and curate one account's collection.
   that let a place be renamed or emptied in one move. A place typed on a
   tome registers itself; a rename rewrites the tomes filed under it;
   deleting one unfiles them.
+- `user_libraries.volumes_owned` is a **denormalised counter, derived
+  server-side**. `services::ops::volume::update_volume` re-runs
+  `library::recount_volumes_owned` on every ownership flip, so every
+  entry point — drawer, scanner, stock-taking, archive restore, import,
+  `/mcp`, replayed outbox — leaves it true. It used to be the *client*
+  that pushed the count back from the series page, and every other path
+  left it stale: the dashboard's 完/願 filters and the public profile's
+  wishlist gate both read it, so a shelf collected through the scanner
+  could be shown to visitors as a wishlist entry. Never write it from a
+  count a caller supplies without a reason.
 - `loan_history` is an **append-only ledger**: a row per lend, closed by
   `returned_at` when the tome comes back (or is un-owned), never deleted
   with the volume (`volume_id` goes `NULL`). It travels in the archive

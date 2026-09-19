@@ -183,9 +183,6 @@ function Hero({ count, t }) {
         <span className="font-mono text-[10px] uppercase tracking-[0.32em] text-hanko-bright">
           {t("friends.kicker")}
         </span>
-        <span className="font-jp text-[11px] tracking-[0.4em] text-hanko-bright">
-          友
-        </span>
         <span className="h-px flex-1 bg-gradient-to-r from-hanko/40 via-border to-transparent" />
         <span className="font-mono text-[11px] tabular-nums uppercase tracking-[0.22em] text-washi-dim">
           {count}{" "}

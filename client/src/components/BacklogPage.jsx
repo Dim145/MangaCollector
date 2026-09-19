@@ -199,7 +199,14 @@ function StatsBand({ data, t }) {
       <Stat
         kanji="月"
         kanjiLabel="tsuki"
-        label={t("backlog.statPaceLabel")}
+        // "<1 months to clear" and "1 months to clear" both read as a
+        // bug. The label follows the number that is actually printed,
+        // and "<1" takes the singular — it is less than one month.
+        label={t(
+          data.monthsToClear != null && Math.round(data.monthsToClear) <= 1
+            ? "backlog.statPaceLabelSingular"
+            : "backlog.statPaceLabelPlural",
+        )}
         value={
           data.monthsToClear == null
             ? "—"

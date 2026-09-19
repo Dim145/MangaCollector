@@ -153,9 +153,28 @@ pub async fn update_volume(
 
     let series_id = outcome.series_id;
     fan_out(state, user_id, &origin, series_id, &[SyncKind::Volumes]).await;
+
+    // 数 · A tome that changed hands moved the library row's
+    // `volumes_owned` counter with it. Re-deriving it here — on the one
+    // path every caller funnels through — is what keeps the dashboard's
+    // 完/願 filters and the public profile's wishlist gate honest no
+    // matter who wrote the row: the drawer, the scanner, the
+    // stock-taking count, an agent on `/mcp` or a replayed outbox.
+    // Before, only the series page pushed the count back, so every
+    // other path left it one out.
+    let recounted = if outcome.owned_changed
+        && let Some(mal_id) = series_id
+    {
+        crate::services::library::recount_volumes_owned(&state.db, user_id, mal_id).await?;
+        true
+    } else {
+        false
+    };
+
     // 読 · The read flip moved the series' reading progression: other
-    // sessions need the library row too, not just the volume rows.
-    if outcome.library_changed {
+    // sessions need the library row too, not just the volume rows. So
+    // does the recount above.
+    if outcome.library_changed || recounted {
         fan_out(state, user_id, &origin, series_id, &[SyncKind::Library]).await;
     }
     Ok(())

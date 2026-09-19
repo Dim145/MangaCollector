@@ -161,7 +161,11 @@ export default function CalendarPage() {
                 <span className="font-display text-2xl italic font-semibold not-italic text-washi">
                   {byMonth.length}
                 </span>{" "}
-                {t("calendar.statMonths")}
+                {t(
+                  byMonth.length === 1
+                    ? "calendar.statMonthsSingular"
+                    : "calendar.statMonthsPlural",
+                )}
               </span>
             )}
           </div>

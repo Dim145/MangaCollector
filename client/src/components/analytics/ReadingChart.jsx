@@ -12,6 +12,24 @@ import Skeleton from "../ui/Skeleton.jsx";
 import { useT } from "@/i18n/index.jsx";
 
 /**
+ * 高 · The chart's height, in pixels, for both the box that reserves
+ * the space and the chart drawn inside it.
+ *
+ * A number, not `"100%"`, and that is the point. `ResponsiveContainer`
+ * starts at a size of -1 × -1 and only learns better from a
+ * `ResizeObserver` it attaches in an effect — so on its first render it
+ * warns, into the console of anyone who opens /stats:
+ *
+ *     The width(-1) and height(-1) of chart should be greater than 0
+ *
+ * Nothing about the parent can prevent that; the element being measured
+ * does not exist yet. But the check is an OR over the two axes, so a
+ * height it does not have to measure satisfies it. The width stays
+ * `"100%"` and still follows the column.
+ */
+const CHART_H = 192;
+
+/**
  * Reading cadence — monthly histogram of `read_at` timestamps.
  *
  * Siblings of SpendingChart both visually and in intent: same card
@@ -89,7 +107,7 @@ export default function ReadingChart({ reading, loading }) {
       )}
 
       {/* Bar chart — moegi gradient bars, taller month highlighted gold */}
-      <div className="mt-5 h-48 w-full">
+      <div className="mt-5 w-full" style={{ height: CHART_H }}>
         {loading ? (
           <Skeleton.Bars count={12} />
         ) : totalReads === 0 ? (
@@ -103,7 +121,7 @@ export default function ReadingChart({ reading, loading }) {
             </p>
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={CHART_H}>
             <BarChart
               data={data}
               margin={{ top: 10, right: 8, left: 0, bottom: 0 }}
