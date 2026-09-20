@@ -15,6 +15,10 @@
  * and every other page had no memory at all, so a series reached with
  * "forward" inherited whatever offset the previous page had.
  *
+ * Only the library's entries are recorded (see `remembersScroll`): the
+ * reader asked for the shelf to come back where it was, and for every
+ * other page to open at its top.
+ *
  * In-memory first, mirrored to `sessionStorage` so a reload finds the
  * current entry's position again (the router restores `location.key`
  * from `history.state`). Bounded: a long session pushes many entries.
@@ -22,6 +26,20 @@
 
 const PREFIX = "mc:scroll:";
 const MAX_ENTRIES = 200;
+
+/**
+ * 棚 · The one page whose position is worth keeping: the library, a
+ * long shelf a reader scrolls, leaves for a series and comes back to.
+ * Every other page starts at the top on every arrival, back included —
+ * a series page or the backlog reopening half-way down read as being
+ * in the wrong place, not as being remembered.
+ */
+const REMEMBERED_ROUTES = new Set(["/dashboard"]);
+
+/** Does this route keep its scroll position across a back navigation? */
+export function remembersScroll(pathname) {
+  return REMEMBERED_ROUTES.has(pathname);
+}
 
 /** How long a restore may wait for the page to grow tall enough. */
 export const RESTORE_WAIT_MS = 1500;

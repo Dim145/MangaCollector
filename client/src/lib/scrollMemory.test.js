@@ -3,6 +3,7 @@ import {
   _resetScrollMemory,
   canHold,
   readScroll,
+  remembersScroll,
   writeScroll,
 } from "./scrollMemory.js";
 
@@ -61,5 +62,14 @@ describe("canHold", () => {
     // A skeleton shorter than the viewport holds nothing but the top.
     expect(canHold(600, 900, 0)).toBe(true);
     expect(canHold(600, 900, 1)).toBe(false);
+  });
+});
+
+describe("remembersScroll", () => {
+  it("keeps the library's position and nobody else's", () => {
+    expect(remembersScroll("/dashboard")).toBe(true);
+    for (const other of ["/mangapage", "/backlog", "/calendrier", "/", "/settings"]) {
+      expect(remembersScroll(other)).toBe(false);
+    }
   });
 });

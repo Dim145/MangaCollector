@@ -5,34 +5,53 @@ import {
   RESTORE_WAIT_MS,
   canHold,
   readScroll,
+  remembersScroll,
   writeScroll,
 } from "@/lib/scrollMemory.js";
 
-/** Real input from the reader while a restore is in flight ends it: their intent wins. */
-const INPUT_EVENTS = ["wheel", "touchstart", "keydown", "pointerdown"];
+/**
+ * 指 · Which input counts as the reader scrolling, once the position has
+ * been put back. A trackpad swipe-back sends *horizontal* `wheel` events
+ * to the page as it arrives — that gesture is how we got here, not a
+ * wish to move — so only a clearly vertical wheel counts, along with a
+ * touch drag and the keyboard. Nothing counts before placement: an
+ * unplaced page shows the previous page's offset, which nobody wants.
+ */
+function isReaderScroll(e) {
+  if (e.type === "wheel") {
+    return Math.abs(e.deltaY) > 10 && Math.abs(e.deltaY) > Math.abs(e.deltaX);
+  }
+  return true;
+}
+const INPUT_EVENTS = ["wheel", "touchmove", "keydown"];
 
 /**
  * 戻 · Where each history entry was scrolled to, kept and put back.
  *
- * Mounted once, in the app shell, so every page gets it — the library,
- * the backlog, a series reached with "forward", all of them.
+ * Mounted once, in the app shell: it decides the scroll position of
+ * every page on every navigation — the top for all of them, except the
+ * library coming back to where it was.
  *
  * Three rules, and each one is a bug that was fixed:
  *
- *   1. A push or replace navigation starts at the top. A pop (back,
- *      forward, or the library's own "back" button, which is a real
- *      step back) restores that entry's remembered position — and an
- *      entry with no memory goes to the top rather than keeping the
- *      offset of the page we came from, which is what a series looked
- *      like when reached with "forward" after a scrolled library.
+ *   1. Only the library remembers (`remembersScroll`). Every other page
+ *      starts at the top on every arrival. On the library, a push or
+ *      replace starts at the top too; a pop (back, forward, or the
+ *      series page's own "back to library", which is a real step back)
+ *      restores that history entry's position — and an entry with no
+ *      memory goes to the top rather than keeping the offset of the
+ *      page we came from.
  *
  *   2. Restoring waits until the page can hold the position. The
  *      virtualized grid gets its height a frame after the rows arrive
  *      from Dexie; a `scrollTo` issued before that clamps against a
  *      skeleton. Then it holds the position for a short while against
  *      the mount's own scrolls (the window virtualizer scrolls to its
- *      initial offset as it attaches), and lets go the moment the reader
- *      touches anything.
+ *      initial offset as it attaches), and lets go if the reader really
+ *      scrolls — a vertical wheel, a touch drag, a key. A trackpad
+ *      swipe-back sends horizontal wheel events to the page it lands on;
+ *      treating those as intent cancelled the restore and, worse, wrote
+ *      the unrestored position over the memory.
  *
  *   3. Nothing is recorded until the restore has had its say. The mount
  *      is full of scrolls that are not the reader's, and persisting them
@@ -78,10 +97,19 @@ export function useScrollMemory() {
   useLayoutEffect(() => {
     keyRef.current = location.key;
     armedRef.current = false;
-    const arm = () => {
+    // `record` also notes the position as it stands; a cancel passes
+    // `false` so a spurious cancel can never overwrite a good memory.
+    const arm = (record = true) => {
       armedRef.current = true;
-      writeScroll(location.key, window.scrollY);
+      if (record) writeScroll(location.key, window.scrollY);
     };
+
+    if (!remembersScroll(location.pathname)) {
+      // Not a page we remember: the top, on every kind of arrival, and
+      // nothing recorded.
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      return undefined;
+    }
 
     if (navType !== "POP") {
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -118,13 +146,17 @@ export function useScrollMemory() {
       cancelAnimationFrame(raf);
       for (const ev of INPUT_EVENTS) window.removeEventListener(ev, onInput);
     };
-    const onInput = () => {
+    // Only listened to once the position is in place (see below).
+    const onInput = (e) => {
+      if (!isReaderScroll(e)) return;
       stop();
-      arm();
+      arm(false);
     };
-    for (const ev of INPUT_EVENTS) {
-      window.addEventListener(ev, onInput, { passive: true });
-    }
+    const listenForReader = () => {
+      for (const ev of INPUT_EVENTS) {
+        window.addEventListener(ev, onInput, { passive: true });
+      }
+    };
 
     const tick = () => {
       if (cancelled) return;
@@ -139,6 +171,7 @@ export function useScrollMemory() {
           place();
           placed = true;
           placedAt = now;
+          listenForReader();
         }
         raf = requestAnimationFrame(tick);
         return;
@@ -160,5 +193,5 @@ export function useScrollMemory() {
     // remount React performs in development, after which the effect runs
     // again from scratch with no ref left behind to skip it.
     return stop;
-  }, [location.key, navType]);
+  }, [location.key, location.pathname, navType]);
 }

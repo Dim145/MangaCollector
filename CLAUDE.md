@@ -155,7 +155,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 039 tests across 52 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 040 tests across 52 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -328,19 +328,26 @@ subsystem; they are written against the code, not the intent.
   through the few milliseconds between React Query settling and Dexie
   emitting, so an empty state never flashes in between.
 - **Scroll on navigation** is the app shell's job, not a page's:
-  `hooks/useScrollMemory.js` (mounted once in `AppShell`) scrolls to the
-  top on push/replace and, on pop, restores *that history entry's* own
-  position once the page can hold it — waiting for Dexie and the
-  virtualizer, holding against the mount's own scrolls, yielding to the
-  first real input. `history.scrollRestoration` is `manual` because the
-  browser's restore fires before any of that. A page must not keep its
-  own scroll memory (the dashboard used to, under one global key, which
-  is why three round trips deep "back" landed on the latest position
-  rather than that entry's). A "back" control that means *back* calls
-  `navigate(-1)` — the series page does when `location.state.from ===
-  "library"` — so the entry behind restores itself instead of a new
-  entry starting at the top. Never guard an effect with a "first run"
-  ref: development runs effects twice.
+  `hooks/useScrollMemory.js` (mounted once in `AppShell`) puts every
+  page at the top on every arrival — except the library
+  (`remembersScroll` in `lib/scrollMemory.js`), which on a *pop* comes
+  back to *that history entry's* own position once the page can hold it
+  (waiting for Dexie and the virtualizer, holding 400 ms against the
+  mount's own scrolls). The reader's decision: a series or the backlog
+  reopening half-way down reads as the wrong place, not as memory.
+  `history.scrollRestoration` is `manual` because the browser's restore
+  fires before any of that. Only a clearly *vertical* wheel, a touch
+  drag or a key cancels a restore — a trackpad swipe-back hands the
+  arriving page horizontal wheel events, and treating those as intent
+  cancelled the restore and overwrote the memory with 0; a cancel never
+  writes. A page must not keep its own scroll memory (the dashboard used
+  to, under one global key, which is why three round trips deep "back"
+  landed on the latest position rather than that entry's). A "back"
+  control that means *back* calls `navigate(-1)` — the series page does
+  when `location.state.from === "library"` — so the entry behind
+  restores itself instead of a new entry starting at the top. Never
+  guard an effect with a "first run" ref: development runs effects
+  twice.
 
 ## API Routes
 
