@@ -15,6 +15,24 @@ import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
+ * 高 · The chart's height, in pixels, for both the box that reserves
+ * the space and the chart drawn inside it.
+ *
+ * A number, not `"100%"`, and that is the point. `ResponsiveContainer`
+ * starts at a size of -1 × -1 and only learns better from a
+ * `ResizeObserver` it attaches in an effect — so on its first render it
+ * warns, into the console of anyone who opens /stats:
+ *
+ *     The width(-1) and height(-1) of chart should be greater than 0
+ *
+ * Nothing about the parent can prevent that; the element being measured
+ * does not exist yet. But the check is an OR over the two axes, so a
+ * height it does not have to measure satisfies it. The width stays
+ * `"100%"` and still follows the column.
+ */
+const CHART_H = 224;
+
+/**
  * Monthly spending over the last 12 months.
  *
  * Uses `volume.modified_on` as a stand-in for "purchase date" (closest
@@ -62,7 +80,7 @@ export default function SpendingChart({ data, loading }) {
         </div>
       </div>
 
-      <div className="mt-4 h-56">
+      <div className="mt-4" style={{ height: CHART_H }}>
         {loading ? (
           <Skeleton.Bars count={12} maxHeight={200} />
         ) : totalAmount === 0 ? (
@@ -70,7 +88,7 @@ export default function SpendingChart({ data, loading }) {
             {t("analytics.spending.empty")}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={CHART_H}>
             <BarChart data={data} margin={{ top: 6, right: 8, left: -12, bottom: 0 }}>
               <defs>
                 <linearGradient id="spend-grad" x1="0" y1="0" x2="0" y2="1">

@@ -43,6 +43,17 @@ export function computeLibraryStats(rows, { topGenresLimit = 6 } = {}) {
 
   const completionPct =
     totalVolumes > 0 ? Math.round((totalOwned / totalVolumes) * 100) : 0;
+  // 率 · The same fraction to one decimal, for the surfaces that show it
+  // large enough to earn one. Derived here rather than recomputed at the
+  // call site so "61 %" and "61,4 %" can never disagree about which
+  // fraction they are rounding — the dashboard, the profile and the
+  // stats page each used to count this for themselves, from two
+  // different denominators, and printed three different answers for one
+  // shelf.
+  const completionRate =
+    totalVolumes > 0
+      ? Number(((totalOwned / totalVolumes) * 100).toFixed(1))
+      : 0;
 
   const topGenres = Array.from(genreFreq.entries())
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -55,6 +66,7 @@ export function computeLibraryStats(rows, { topGenresLimit = 6 } = {}) {
     totalOwned,
     seriesComplete,
     completionPct,
+    completionRate,
     topGenres,
   };
 }

@@ -10,6 +10,24 @@ import Skeleton from "../ui/Skeleton.jsx";
 import { useT } from "@/i18n/index.jsx";
 
 /**
+ * 高 · The chart's height, in pixels, for both the box that reserves
+ * the space and the chart drawn inside it.
+ *
+ * A number, not `"100%"`, and that is the point. `ResponsiveContainer`
+ * starts at a size of -1 × -1 and only learns better from a
+ * `ResizeObserver` it attaches in an effect — so on its first render it
+ * warns, into the console of anyone who opens /stats:
+ *
+ *     The width(-1) and height(-1) of chart should be greater than 0
+ *
+ * Nothing about the parent can prevent that; the element being measured
+ * does not exist yet. But the check is an OR over the two axes, so a
+ * height it does not have to measure satisfies it. The width stays
+ * `"100%"` and still follows the column.
+ */
+const CHART_H = 224;
+
+/**
  * Palette that rotates through the Shōjo Noir accent colours. Reused across
  * pies so stores and genres share a consistent visual language — the user
  * stops associating a colour with a specific meaning and starts reading the
@@ -38,15 +56,21 @@ function PieCard({ title, label, data, loading, tFn, emptyKey }) {
         {title}
       </h3>
 
-      <div className="mt-4 flex h-56 items-center justify-center">
+      {/* 枠 · A plain block, not a centred flex box: `items-center`
+          made the chart a flex item whose height came from its content,
+          so `height: 100%` had nothing to resolve against. The two
+          placeholders centre themselves instead. */}
+      <div className="mt-4" style={{ height: CHART_H }}>
         {loading ? (
-          <Skeleton.Circle size={160} thickness={28} />
+          <div className="flex h-full items-center justify-center">
+            <Skeleton.Circle size={160} thickness={28} />
+          </div>
         ) : total === 0 ? (
-          <div className="text-center text-sm text-washi-muted">
+          <div className="flex h-full items-center justify-center text-center text-sm text-washi-muted">
             {tFn(emptyKey)}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={CHART_H}>
             <PieChart>
               <Pie
                 data={data}

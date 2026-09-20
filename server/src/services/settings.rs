@@ -24,11 +24,15 @@ const VALID_ACCENT_COLORS: &[&str] =
 
 pub fn get_currency_by_code(code: &str) -> Option<CurrencyInfo> {
     match code {
+        // 銭 · `separator` groups the thousands, `decimal` marks the
+        // fraction — the two are swapped between these entries on
+        // purpose, and were swapped the wrong way round for USD until
+        // 2.15.1: every price on a default account read `$12.166,30`.
         "USD" => Some(CurrencyInfo {
             code: "USD".into(),
             symbol: "$".into(),
-            separator: ".".into(),
-            decimal: ",".into(),
+            separator: ",".into(),
+            decimal: ".".into(),
             precision: 2,
             format: "!#".into(),
             negative_pattern: "-!#".into(),
@@ -216,4 +220,45 @@ pub async fn update_user_settings(
         .map_err(AppError::from)?;
 
     Ok(row)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 銭 · The two separators are not interchangeable, and nothing
+    /// downstream can tell that they were swapped: `currency.js` on the
+    /// client formats whatever it is handed, so `$12.166,30` renders as
+    /// confidently as `$12,166.30`. Only a reader notices, which is how
+    /// USD shipped European grouping to every default account.
+    #[test]
+    fn each_currency_groups_and_points_the_way_its_readers_expect() {
+        let usd = get_currency_by_code("USD").expect("USD is in the catalogue");
+        assert_eq!(usd.separator, ",", "USD groups thousands with a comma");
+        assert_eq!(usd.decimal, ".", "USD marks the fraction with a point");
+        assert_eq!(usd.format, "!#", "USD writes the symbol first");
+
+        let eur = get_currency_by_code("EUR").expect("EUR is in the catalogue");
+        assert_eq!(eur.separator, " ", "EUR groups thousands with a space");
+        assert_eq!(eur.decimal, ",", "EUR marks the fraction with a comma");
+        assert_eq!(eur.format, "#!", "EUR writes the symbol last");
+
+        // Whatever the currency, the two must differ — sharing a
+        // character makes 1.234 ambiguous.
+        for code in ["USD", "EUR"] {
+            let c = get_currency_by_code(code).unwrap();
+            assert_ne!(
+                c.separator, c.decimal,
+                "{code} uses the same character for both roles"
+            );
+        }
+    }
+
+    /// The default has to be a code the catalogue answers, or a fresh
+    /// account gets no currency object at all.
+    #[test]
+    fn the_default_currency_is_one_we_know() {
+        assert!(get_currency_by_code(DEFAULT_CURRENCY).is_some());
+        assert!(get_currency_by_code("XYZ").is_none());
+    }
 }

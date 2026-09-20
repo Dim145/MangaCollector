@@ -31,6 +31,7 @@ import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useStreak } from "@/hooks/useStreak.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
 import { normalizeSort, sortLibrary } from "@/utils/librarySort.js";
+import { computeLibraryStats } from "@/utils/libraryStats.js";
 import { useLang, useT } from "@/i18n/index.jsx";
 
 // All series are rendered on mount — `content-visibility: auto` on each
@@ -308,19 +309,20 @@ export default function Dashboard() {
       };
     }, [allVolumes]);
 
+  // 数 · The shelf's headline figures, from the one function that
+  // defines them (`utils/libraryStats.js`). The dashboard, the profile
+  // and the stats page each counted this for themselves and printed
+  // three different answers for the same shelf; they all read the same
+  // numbers now.
   const stats = useMemo(() => {
-    const series = library.length;
-    let owned = 0;
-    let total = 0;
-    let complete = 0;
-    for (const m of library) {
-      const o = m.volumes_owned ?? 0;
-      const t = m.volumes ?? 0;
-      owned += o;
-      total += t;
-      if (t > 0 && o >= t) complete += 1;
-    }
-    return { series, owned, total, complete };
+    const { seriesCount, totalOwned, totalVolumes, seriesComplete } =
+      computeLibraryStats(library);
+    return {
+      series: seriesCount,
+      owned: totalOwned,
+      total: totalVolumes,
+      complete: seriesComplete,
+    };
   }, [library]);
 
   const filtered = useMemo(() => {

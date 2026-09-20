@@ -1,10 +1,9 @@
 use chrono::Utc;
+use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
     TransactionTrait,
 };
-use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
-
 use crate::db::Db;
 use crate::errors::AppError;
 use crate::models::activity::event_types;
@@ -1062,6 +1061,40 @@ pub async fn update_manga_volumes_tx(
     }
 
     Ok(())
+}
+
+/// 数 · Re-derive `volumes_owned` from the volume rows themselves.
+///
+/// `user_libraries.volumes_owned` is a denormalised counter, and until
+/// 2.15.1 the only thing keeping it true was the *client*: the series
+/// page re-counted its rows after a successful write and pushed the
+/// total back. Every other way a tome changes hands — the scanner, the
+/// stock-taking count, an archive restore, an external import, an agent
+/// on `/mcp`, a replayed outbox from a tab that was closed before it
+/// could push — left the counter where it was.
+///
+/// A stale counter is not cosmetic. It decides which series the
+/// dashboard files under 完 complete and 願 wishlist, and
+/// `handlers::public` hides a series from a public profile when it
+/// reads zero. A shelf that was fully collected through the scanner
+/// could therefore show as a wishlist entry to a visitor.
+///
+/// So the count is now derived here, server-side, and applied through
+/// `update_volumes_owned` so the clamp and the completion milestone
+/// behave exactly as they do when a client sends the number.
+pub async fn recount_volumes_owned(db: &Db, user_id: i32, mal_id: i32) -> Result<(), AppError> {
+    let owned = VolumeEntity::find()
+        .filter(volume_mod::Column::UserId.eq(user_id))
+        .filter(volume_mod::Column::MalId.eq(mal_id))
+        .filter(volume_mod::Column::Owned.eq(true))
+        .count(db)
+        .await
+        .map_err(AppError::from)?;
+    // `count` is a u64; a library that overflowed an i32 has bigger
+    // problems, and `update_volumes_owned` clamps to the series total
+    // anyway.
+    let owned = i32::try_from(owned).unwrap_or(i32::MAX);
+    update_volumes_owned(db, user_id, mal_id, owned).await
 }
 
 pub async fn update_volumes_owned(

@@ -235,6 +235,9 @@ pub async fn update_by_id(
     query = apply_read_transition(query, read, existing.as_ref(), now);
 
     let was_owned = existing.as_ref().is_some_and(|r| r.owned);
+    // Read off the row that is about to be overwritten. A missing row
+    // (idempotent replay) flips nothing.
+    let owned_changed = existing.as_ref().is_some_and(|r| r.owned != owned);
     query = auto_clear_loan_if_unown(query, was_owned, owned);
 
     query.exec(db).await.map_err(AppError::from)?;
@@ -306,16 +309,22 @@ pub async fn update_by_id(
     Ok(VolumeUpdateOutcome {
         series_id,
         library_changed,
+        owned_changed,
     })
 }
 
-/// What `update_by_id` touched, so the handler can scope its realtime
-/// events: the series the volume belongs to, and whether the library
-/// row itself moved (reading progression).
+/// What `update_by_id` touched, so the caller can scope its realtime
+/// events and repair what the write knocked out of date: the series the
+/// volume belongs to, whether the library row itself moved (reading
+/// progression), and whether ownership flipped.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct VolumeUpdateOutcome {
     pub series_id: Option<i32>,
     pub library_changed: bool,
+    /// The `owned` flag actually flipped on an existing row — so the
+    /// library's denormalised `volumes_owned` counter is now one out
+    /// and has to be re-derived. A price or note edit leaves it false.
+    pub owned_changed: bool,
 }
 
 /// 物 · Apply the physical-copy fields of a PATCH: condition (validated),

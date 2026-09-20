@@ -24,8 +24,26 @@ describe("computeLibraryStats", () => {
       totalOwned: 0,
       seriesComplete: 0,
       completionPct: 0,
+      completionRate: 0,
       topGenres: [],
     });
+  });
+
+  it("rounds one fraction two ways, never two fractions", () => {
+    // 率 · The dashboard shows the integer, the profile the decimal.
+    // They disagreed for years because each counted its own numerator
+    // and denominator; the point of returning both here is that they
+    // cannot any more.
+    const stats = computeLibraryStats([
+      { volumes: 7, volumes_owned: 3 },
+      { volumes: 5, volumes_owned: 2 },
+    ]);
+    // 5 owned of 12 = 41.666…
+    expect(stats.totalOwned).toBe(5);
+    expect(stats.totalVolumes).toBe(12);
+    expect(stats.completionRate).toBe(41.7);
+    expect(stats.completionPct).toBe(42);
+    expect(Math.round(stats.completionRate)).toBe(stats.completionPct);
   });
 
   it.each([[null], [undefined], ["not an array"], [42], [{}]])(

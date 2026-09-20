@@ -11,6 +11,24 @@ import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
+ * 高 · The chart's height, in pixels, for both the box that reserves
+ * the space and the chart drawn inside it.
+ *
+ * A number, not `"100%"`, and that is the point. `ResponsiveContainer`
+ * starts at a size of -1 × -1 and only learns better from a
+ * `ResizeObserver` it attaches in an effect — so on its first render it
+ * warns, into the console of anyone who opens /stats:
+ *
+ *     The width(-1) and height(-1) of chart should be greater than 0
+ *
+ * Nothing about the parent can prevent that; the element being measured
+ * does not exist yet. But the check is an OR over the two axes, so a
+ * height it does not have to measure satisfies it. The width stays
+ * `"100%"` and still follows the column.
+ */
+const CHART_H = 256;
+
+/**
  * 金 · "Most valued series" — five tallest spend bars on the
  * profile page. Lifted out of ProfilePage so the recharts chunk
  * (380 KB / 110 KB gzipped) can be lazy-imported alongside the
@@ -38,7 +56,7 @@ export default function MostValuedChart({
         {t("profile.mostValued")}
       </h2>
 
-      <div className="mt-4 h-64">
+      <div className="mt-4" style={{ height: CHART_H }}>
         {loading ? (
           <Skeleton.Bars count={5} maxHeight={230} />
         ) : data.length === 0 ? (
@@ -46,7 +64,7 @@ export default function MostValuedChart({
             {t("profile.startAdding")}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={CHART_H}>
             <BarChart data={data}>
               <defs>
                 <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">

@@ -27,11 +27,16 @@ import {
  *   - isEmpty       : Genuinely no data (fetch done, Dexie empty).
  *                     Use to show the empty state.
  */
-export function useLibrary() {
+export function useLibrary({ enabled = true } = {}) {
   const data = useLiveQuery(() => db.library.toArray(), []);
 
+  // `enabled: false` keeps the Dexie read (instant, offline, no request)
+  // and skips the network revalidation. The landing page uses it for a
+  // visitor who is not signed in: firing `GET /api/user/library` there
+  // would be a guaranteed 401 on every anonymous visit.
   const query = useQuery({
     queryKey: ["library"],
+    enabled,
     queryFn: async () => {
       const { data } = await axios.get(`/api/user/library`);
       await cacheLibrary(data);
@@ -39,7 +44,7 @@ export function useLibrary() {
     },
   });
 
-  return deriveListState(data, query);
+  return deriveListState(data, query, { enabled });
 }
 
 export function useSearchLibrary(query) {

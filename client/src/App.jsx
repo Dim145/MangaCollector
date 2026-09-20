@@ -8,12 +8,10 @@ import {
   useState,
 } from "react";
 import {
-  Navigate,
   Route,
   Routes,
   useLocation,
   useNavigationType,
-  useSearchParams,
 } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -22,7 +20,6 @@ import {
   loadLanguage,
   rememberLanguage,
 } from "@/i18n/index.jsx";
-import { useLibrary } from "@/hooks/useLibrary.js";
 
 // Eager — always on screen, no point code-splitting these
 import Header from "./components/Header";
@@ -35,7 +32,6 @@ import InkTrailCursor from "@/components/ui/InkTrailCursor.jsx";
 import UpdatePrompt from "@/components/UpdatePrompt.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
-import MangaPageSkeleton from "@/components/MangaPageSkeleton.jsx";
 
 // 鍵 · CommandPalette + ShortcutsCheatSheet are gated behind global
 // keypresses (`⌘K` and `?`) — they're never on screen at first paint.
@@ -55,7 +51,7 @@ const ShortcutsCheatSheet = lazy(
 const About = lazy(() => import("./components/About"));
 const Login = lazy(() => import("./components/Login"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
-const MangaPage = lazy(() => import("./components/MangaPage"));
+const MangaPageRoute = lazy(() => import("./components/MangaPageRoute"));
 const AddPage = lazy(() => import("@/components/AddPage.jsx"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
 // 帳 · StatsPage — deep-dive ledger with the heavy charts +
@@ -97,6 +93,7 @@ import { installSyncRunner } from "@/lib/sync.js";
 import { applyThemePreference, rememberThemePreference } from "@/lib/theme.js";
 import { applyAccentToDocument, rememberAccent } from "@/lib/accent.js";
 import { setSoundEnabled } from "@/lib/sounds.js";
+import { useAuth } from "@/hooks/useAuth.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
@@ -223,45 +220,23 @@ function I18nBoundary({ children }) {
 }
 
 /**
- * Hydrates the `manga` prop for `/mangapage` so deep links work.
+ * 錠 · Mounts its children only once we know there is a session.
  *
- * Internal navigations push a Manga row in `location.state.manga`.
- * Deep links (refresh, bookmark, QR scan) carry no state — fall back
- * to `?mal_id=` and look the row up in the Dexie-cached library. If
- * neither yields a row, redirect to /dashboard.
+ * `AppShell` wraps every route, `/log-in` and the landing included, so
+ * anything mounted in it runs for visitors who have no account at all.
+ * The command palette searches your library and the seal notifier reads
+ * your trophies; both fired their GETs at anonymous visitors, who got a
+ * 401 apiece — an error in their console and a line in the operator's
+ * log, on the one page where a newcomer is deciding whether to trust
+ * the app.
+ *
+ * `useAuth` is the shared probe (one `/auth/user` for the whole tree),
+ * and it answers `cached` rather than `unauthenticated` when the server
+ * is merely unreachable, so an offline session keeps its overlays.
  */
-function MangaPageRoute({ stateManga, adult_content_level }) {
-  const [searchParams] = useSearchParams();
-  const malIdParam = searchParams.get("mal_id");
-  const malId = malIdParam ? Number.parseInt(malIdParam, 10) : null;
-
-  const { data: library, isInitialLoad: libLoading } = useLibrary();
-
-  if (stateManga) {
-    return (
-      <MangaPage manga={stateManga} adult_content_level={adult_content_level} />
-    );
-  }
-
-  if (!Number.isFinite(malId)) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // Wait for Dexie before deciding the row doesn't exist — a fresh tab
-  // races hydration against this render. Skeleton mirrors the hero
-  // layout so the swap to real data is a crossfade-in-place rather
-  // than a "blank → content" pop.
-  if (libLoading) {
-    return <MangaPageSkeleton />;
-  }
-
-  const resolved = library?.find((m) => m.mal_id === malId);
-  if (!resolved) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  return (
-    <MangaPage manga={resolved} adult_content_level={adult_content_level} />
-  );
+function SignedInOnly({ children }) {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? children : null;
 }
 
 /**
@@ -326,10 +301,12 @@ function AppShell() {
       {/* 印鑑 · Seal-unlock notifier — listens to realtime sync
           events for kinds that could move a seal threshold and
           fires a click-to-/seals toast through the same SyncToaster
-          shell. Mounted only inside the auth-gated `AppShell` so
-          the GET /api/user/seals call is only ever fired for a
-          logged-in user. */}
-      <SealsUnlockToaster />
+          shell. Behind `SignedInOnly` so its GET /api/user/seals is
+          only ever fired for a logged-in user: `AppShell` itself is
+          not auth-gated, it wraps the landing and /log-in too. */}
+      <SignedInOnly>
+        <SealsUnlockToaster />
+      </SignedInOnly>
       {/* 筆 · Ink-trail cursor — paints a trailing brush line
           over headings marked `data-ink-trail`. Off by default;
           users opt in from Settings → Apparence. The component
@@ -344,7 +321,12 @@ function AppShell() {
           and the second press will hit the cached chunk and open
           instantly. */}
       <Suspense fallback={null}>
-        <CommandPalette />
+        {/* Searches your library and jumps to protected routes — there
+            is nothing for it to offer a visitor who is not signed in,
+            and mounting it asked for their library and got a 401. */}
+        <SignedInOnly>
+          <CommandPalette />
+        </SignedInOnly>
         <ShortcutsCheatSheet
           open={cheatSheetOpen}
           onClose={() => setCheatSheetOpen(false)}
@@ -360,7 +342,7 @@ function AppShell() {
         <RouteErrorBoundary>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              <Route path="/" element={<About googleUser={googleUser} />} />
+              <Route path="/" element={<About />} />
               <Route path="/log-in" element={<Login />} />
               <Route
                 path="/dashboard"

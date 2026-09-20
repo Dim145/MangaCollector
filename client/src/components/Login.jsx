@@ -1,7 +1,8 @@
 import { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SettingsContext from "@/SettingsContext.js";
-import { checkAuthStatus, initiateOAuth } from "../utils/auth";
+import { initiateOAuth } from "../utils/auth";
+import { useAuth } from "@/hooks/useAuth.js";
 import { useT } from "@/i18n/index.jsx";
 
 export default function Login() {
@@ -10,13 +11,19 @@ export default function Login() {
   const navigate = useNavigate();
   const { authName, authIcon } = useContext(SettingsContext);
   const t = useT();
+  // 錠 · Read the session through the shared probe rather than calling
+  // `checkAuthStatus()` again. That is what `useAuth` exists for — the
+  // hook's own header explains that four components each asking the
+  // server independently is how this page came to fire `/auth/user`
+  // three times, and an anonymous visitor got three console errors for
+  // the privilege of looking at a sign-in form.
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    (async () => {
-      const user = await checkAuthStatus();
-      if (user) navigate("/dashboard");
-    })();
+    if (isAuthenticated) navigate("/dashboard");
+  }, [isAuthenticated, navigate]);
 
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("error") === "auth_failed") {
       setError(t("login.authFailed"));
@@ -45,6 +52,15 @@ export default function Login() {
 
   const providerLabel = authName || t("login.providerFallback");
   const isGoogle = String(authName || "").toLowerCase() === "google";
+  // 印 · `AUTH_ICON` is documented as a keyword (`google`) but is read
+  // straight into `<img src>`, so every other value — the `openid` the
+  // example configs suggest, a provider's name, a typo — rendered as a
+  // broken-image glyph next to the one button on the page. Only take it
+  // as a source when it actually looks like one, and drop the element
+  // if the URL turns out not to resolve.
+  const iconSrc = String(authIcon ?? "").trim();
+  const iconIsUrl = /^(https?:\/\/|\/)/i.test(iconSrc);
+  const [iconFailed, setIconFailed] = useState(false);
 
   return (
     <div className="relative isolate min-h-[calc(100svh_-_4rem)] overflow-hidden grain flex items-center justify-center px-4 py-12">
@@ -160,16 +176,33 @@ export default function Login() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
+            ) : iconIsUrl && !iconFailed ? (
+              <img
+                decoding="async"
+                referrerPolicy="no-referrer"
+                src={iconSrc}
+                onError={() => setIconFailed(true)}
+                alt=""
+                className="relative h-5 w-5"
+              />
             ) : (
-              authIcon && (
-                <img
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  src={authIcon}
-                  alt=""
-                  className="relative h-5 w-5"
-                />
-              )
+              // 鍵 · The generic mark, for a provider that named itself
+              // without giving us a logo. A key: what a sign-in is.
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="relative h-5 w-5"
+              >
+                <circle cx="8" cy="15" r="4" />
+                <path d="M10.85 12.15 19 4" />
+                <path d="M18 5l2 2" />
+                <path d="M15 8l2 2" />
+              </svg>
             )}
             <span className="relative">
               {isLoading
@@ -190,11 +223,13 @@ export default function Login() {
           </ul>
         </div>
 
+        {/* 約 · There used to be a "you agree to our Terms & Privacy
+            Policy" line here, naming two documents that do not exist —
+            no route, no file, nothing to read. A self-hosted app cannot
+            assert terms on its operator's behalf, so the line says what
+            is actually true of signing in instead. */}
         <p className="mt-6 text-center text-[10px] uppercase tracking-wider text-washi-dim">
-          {t("login.terms", {
-            terms: t("login.termsLabel"),
-            privacy: t("login.privacyLabel"),
-          })}
+          {t("login.selfHostedNote")}
         </p>
       </div>
     </div>
