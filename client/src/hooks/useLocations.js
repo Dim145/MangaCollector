@@ -81,6 +81,11 @@ export function useLocationPhoto() {
   const upload = useMutation({
     mutationFn: async ({ id, file }) => {
       const blob = await prepareShelfPhoto(file);
+      // `prepareShelfPhoto` answers null for a file it was not given;
+      // `FormData.append(name, null, filename)` is a TypeError, not a
+      // failed request, so the mutation would reject with something
+      // nobody can read.
+      if (!blob) throw new Error("no file to upload");
       const body = new FormData();
       // The third argument is the filename: without it a Blob is sent
       // as a plain field and the server finds no `photo` file.

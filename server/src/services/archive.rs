@@ -274,7 +274,12 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
         let genres = csv_escape(&series.genres.join("|"));
         let publisher = csv_escape(series.publisher.as_deref().unwrap_or(""));
         let edition = csv_escape(series.edition.as_deref().unwrap_or(""));
-        let edition_status = series.publication_status.as_deref().unwrap_or("");
+        // Escaped like every other cell although the vocabulary is
+        // closed today: "which columns are safe" is a fact about four
+        // other functions, and the day one of them widens, the CSV is
+        // where it would show up. Escaping everything keeps the rule
+        // local to this function.
+        let edition_status = csv_escape(series.publication_status.as_deref().unwrap_or(""));
         if series.volumes_detail.is_empty() {
             // No per-volume detail — one summary row, so a series the
             // reader tracks without owning a single tome still appears.
@@ -291,9 +296,9 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
                 .map(|t| t.date_naive().to_string())
                 .unwrap_or_default();
             let bought = v.bought_at.map(|d| d.to_string()).unwrap_or_default();
-            let condition = v.condition.as_deref().unwrap_or("");
+            let condition = csv_escape(v.condition.as_deref().unwrap_or(""));
             let location = csv_escape(v.location.as_deref().unwrap_or(""));
-            let isbn = v.isbn.as_deref().unwrap_or("");
+            let isbn = csv_escape(v.isbn.as_deref().unwrap_or(""));
             let notes = csv_escape(v.notes.as_deref().unwrap_or(""));
             // 帯 · The parts, as one readable cell: "obi|jacket" beats
             // three boolean columns a human has to decode.
@@ -1165,6 +1170,59 @@ mod csv_tests {
         let csv = build_export_csv(&bundle(vec![s]));
         assert_eq!(csv.lines().count(), 2, "header + one summary row");
         assert!(csv.lines().nth(1).unwrap().starts_with("One Piece,13,"));
+    }
+
+    /// Count the fields of one CSV line, honouring quotes — a name
+    /// with a comma in it is one field, not two.
+    fn fields(line: &str) -> usize {
+        let mut n = 1;
+        let mut quoted = false;
+        let mut chars = line.chars().peekable();
+        while let Some(c) = chars.next() {
+            match c {
+                '"' if quoted && chars.peek() == Some(&'"') => {
+                    chars.next();
+                }
+                '"' => quoted = !quoted,
+                ',' if !quoted => n += 1,
+                _ => {}
+            }
+        }
+        n
+    }
+
+    /// 列 · Every row carries exactly the header's columns.
+    ///
+    /// The summary row — a series with no tome detail — is written as a
+    /// literal run of commas, so adding a column means counting them by
+    /// hand. This is the test that catches the miscount: a shifted row
+    /// puts the publisher under `notes` in every spreadsheet that opens
+    /// the file, and nothing else complains.
+    #[test]
+    fn every_row_has_the_columns_the_header_promises() {
+        let mut bare = series();
+        bare.name = "Nobody owns this, yet".into();
+        bare.volumes_detail = vec![];
+        let csv = build_export_csv(&bundle(vec![series(), bare]));
+        let lines: Vec<&str> = csv.trim_end().lines().collect();
+        let header = fields(lines[0]);
+        assert_eq!(header, 20, "the header itself moved");
+        for line in &lines[1..] {
+            assert_eq!(
+                fields(line),
+                header,
+                "row out of step with the header: {line}"
+            );
+        }
+        // And the summary row really is there — quoted, because its
+        // name carries a comma, which is exactly what the counter above
+        // has to see as one field rather than two.
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.starts_with("\"Nobody owns this, yet\"")),
+            "summary row missing: {lines:?}"
+        );
     }
 
     #[test]

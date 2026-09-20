@@ -29,11 +29,16 @@ pub fn photo_storage_path(user_id: i32, id: i64) -> String {
 
 /// The URL the client fetches, carrying the upload date so a
 /// replacement photo is not served from the browser's cache.
+///
+/// Milliseconds, not seconds: replacing a photo right after taking it
+/// is an ordinary thing to do, and two uploads inside the same second
+/// would otherwise share a URL — the reader would be shown the one
+/// they just replaced, and reloading would not help.
 pub fn photo_url(id: i64, taken: Option<DateTime<Utc>>) -> Option<String> {
     let at = taken?;
     Some(format!(
         "/api/user/locations/{id}/photo?v={}",
-        at.timestamp()
+        at.timestamp_millis()
     ))
 }
 
@@ -416,8 +421,11 @@ mod tests {
         let taken = DateTime::from_timestamp(1_700_000_000, 0).expect("valid instant");
         assert_eq!(
             photo_url(7, Some(taken)).as_deref(),
-            Some("/api/user/locations/7/photo?v=1700000000")
+            Some("/api/user/locations/7/photo?v=1700000000000")
         );
+        // Two uploads inside the same second must not share a URL.
+        let later = DateTime::from_timestamp(1_700_000_000, 400_000_000).expect("valid instant");
+        assert_ne!(photo_url(7, Some(taken)), photo_url(7, Some(later)));
     }
 
     #[test]

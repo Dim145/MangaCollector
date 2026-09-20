@@ -20,9 +20,14 @@ export function useVolumeOverlays(needed) {
   useEffect(() => {
     if (!needed || ready) return undefined;
     let alive = true;
-    preloadVolumeOverlays().then(() => {
-      if (alive) setReady(true);
-    });
+    preloadVolumeOverlays().then(
+      () => {
+        if (alive) setReady(true);
+      },
+      // Handled, not swallowed: the card stays as it was and the next
+      // tap retries. Without this arm it is an unhandled rejection.
+      () => {},
+    );
     return () => {
       alive = false;
     };

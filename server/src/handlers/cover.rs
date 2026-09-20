@@ -37,8 +37,12 @@
 //!
 //!   * the allow-list (`is_whitelisted_poster_url`) is what keeps this
 //!     from being an open proxy into the operator's network — it is
-//!     the same predicate the poster upload path already trusts;
-//!   * a size cap, because the answer is held in memory;
+//!     the same predicate the poster upload path already trusts. It is
+//!     checked against the URL the reader asked for, which is why the
+//!     relay follows **no** redirect: a hop is a second URL that
+//!     nothing checked, and a cover is a direct object anyway;
+//!   * a size cap, enforced as the bytes arrive rather than after —
+//!     a `Content-Length` is a claim, and a chunked answer makes none;
 //!   * a content-type check, because what comes back is served to a
 //!     browser and `image/*` is the only thing that should.
 
@@ -97,8 +101,8 @@ pub async fn proxy_cover(
         .await
         .map_err(|_| AppError::Internal("Cover relay is shutting down".into()))?;
 
-    let upstream = state
-        .http_client
+    let mut upstream = state
+        .relay_client
         .get(&query.src)
         .timeout(UPSTREAM_TIMEOUT)
         .send()
@@ -141,12 +145,20 @@ pub async fn proxy_cover(
         return Err(AppError::BadRequest("Cover too large".into()));
     }
 
-    let bytes = upstream.bytes().await.map_err(|err| {
-        tracing::debug!(%err, "cover proxy: body failed mid-flight");
-        AppError::NotFound("Cover unavailable".into())
-    })?;
-    if bytes.len() > MAX_COVER_BYTES {
-        return Err(AppError::BadRequest("Cover too large".into()));
+    // Chunk by chunk, so the ceiling holds whatever the upstream
+    // claimed: `bytes()` would buffer the whole answer first, and the
+    // check after it would come too late to protect this process.
+    let mut bytes: Vec<u8> = Vec::new();
+    loop {
+        let chunk = upstream.chunk().await.map_err(|err| {
+            tracing::debug!(%err, "cover proxy: body failed mid-flight");
+            AppError::NotFound("Cover unavailable".into())
+        })?;
+        let Some(chunk) = chunk else { break };
+        if bytes.len() + chunk.len() > MAX_COVER_BYTES {
+            return Err(AppError::BadRequest("Cover too large".into()));
+        }
+        bytes.extend_from_slice(&chunk);
     }
 
     let content_type = HeaderValue::from_str(&content_type)

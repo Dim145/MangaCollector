@@ -33,7 +33,15 @@ export function preloadVolumeOverlays() {
     import("./LoanModal.jsx").then((m) => {
       loanSheet = m.default;
     }),
-  ]);
+  ]).catch((err) => {
+    // 再 · Forget the failure. A chunk fetch fails for reasons that
+    // pass — a tab left open across a deploy asking for a hash that no
+    // longer exists, a tunnel, a dropped connection — and a memoised
+    // rejection would answer every later tap with the same error, for
+    // the life of the page. Clearing it lets the next tap try again.
+    inFlight = null;
+    throw err;
+  });
   return inFlight;
 }
 

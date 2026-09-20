@@ -239,6 +239,15 @@ pub async fn update_by_id(
     // (idempotent replay) flips nothing.
     let owned_changed = existing.as_ref().is_some_and(|r| r.owned != owned);
     query = auto_clear_loan_if_unown(query, was_owned, owned);
+    // 飛 · Skipping a tome is a decision about one you do not have.
+    // Owning it answers the question, so an owned row is wanted again.
+    // Without this the row keeps `wanted = false` for good — the drawer
+    // hides the toggle once a tome is owned — and the completion maths
+    // then counts the copy in `volumes_owned` while leaving it out of
+    // the target, so a series with a real hole reads as finished.
+    if owned {
+        query = query.col_expr(volume::Column::Wanted, true.into());
+    }
 
     query.exec(db).await.map_err(AppError::from)?;
 
@@ -349,9 +358,14 @@ pub async fn set_physical_details(
     else {
         return Ok(());
     };
+    let owns_a_copy = existing.owned;
     let mut active: ActiveModel = existing.into();
     if let Some(flag) = patch.wanted {
-        active.wanted = Set(flag);
+        // The same invariant as the upsert above, on the path that
+        // could otherwise undo it: the drawer sends the whole physical
+        // block, so a tome skipped long ago and bought since would
+        // arrive carrying `wanted: false` beside its new grade.
+        active.wanted = Set(flag || owns_a_copy);
     }
     if let Some(flag) = patch.has_obi {
         active.has_obi = Set(flag);

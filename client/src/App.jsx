@@ -240,13 +240,20 @@ function I18nBoundary({ children }) {
  * is merely unreachable, so an offline session keeps its overlays.
  */
 function SignedInOnly({ children }) {
-  const { isAuthenticated } = useAuth();
+  const { status, isAuthenticated } = useAuth();
   // 影 · The cover relay answers a session and nothing else, so the
   // rewrite waits for one — an anonymous visitor on the landing would
   // otherwise buy a 401 per cover. See `lib/covers.js`.
+  //
+  // `checking` is not an answer. Writing `false` while the probe is in
+  // flight switches the relay off for its duration — every cover that
+  // mounts in that window goes straight to the CDN, which is the one
+  // thing the relay exists to prevent — and a visit closed mid-probe
+  // would leave the remembered flag cleared for the next one.
   useEffect(() => {
+    if (status?.kind === "checking") return;
     setCoverProxySession(isAuthenticated);
-  }, [isAuthenticated]);
+  }, [status?.kind, isAuthenticated]);
   return isAuthenticated ? children : null;
 }
 

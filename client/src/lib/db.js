@@ -880,6 +880,16 @@ export async function clearAllUserData() {
     // stale id behind would make the next sign-in look like an
     // account switch and wipe a freshly-populated cache.
     localStorage.removeItem("mc:owner");
+    // 冷 · The conditional-refresh tags and the relay's remembered
+    // session. Both are about the account that just left: a tag whose
+    // rows are gone would be answered `304` against an empty table
+    // (the row-count guard in `lib/coreQueries.js` is what catches
+    // that today, and it should not be the only thing that does).
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("mc:etag:") || key.startsWith("mc:covers:")) {
+        localStorage.removeItem(key);
+      }
+    }
   } catch {
     // Private/incognito modes may throw — not worth reporting.
   }

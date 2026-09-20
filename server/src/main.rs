@@ -132,14 +132,33 @@ async fn main() -> anyhow::Result<()> {
         ))
         .connect_timeout(std::time::Duration::from_secs(5))
         .timeout(std::time::Duration::from_secs(30))
-        // Cap redirects (default is up to 10). Every outbound host is a
-        // fixed literal today, so user input never controls a request
-        // target — but if one of those trusted upstreams ever issues an
-        // open redirect, an unbounded follow could chain into an
-        // internal host (SSRF). Two hops covers legitimate CDN/host
-        // moves without giving a redirect chain room to pivot. The OIDC
-        // client sets `Policy::none()` separately (auth.rs).
+        // Cap redirects (default is up to 10). Every target reached
+        // through *this* client is a fixed literal, so user input never
+        // controls one — but if a trusted upstream ever issues an open
+        // redirect, an unbounded follow could chain into an internal
+        // host (SSRF). Two hops covers legitimate CDN/host moves
+        // without giving a redirect chain room to pivot. The OIDC
+        // client sets `Policy::none()` separately (auth.rs), and so
+        // does the cover relay below — it is the one request whose
+        // target comes from a reader.
         .redirect(reqwest::redirect::Policy::limited(2))
+        .build()
+        .expect("reqwest client builder should not fail with defaults");
+
+    // 影 · The cover relay's client. The allow-list is checked against
+    // the URL a reader asked for; a redirect is a *second* URL that
+    // nothing checked, so this one follows none. Built here rather than
+    // lazily so a broken TLS backend fails at boot, not at the first
+    // cover.
+    let relay_client = reqwest::Client::builder()
+        .user_agent(concat!(
+            "MangaCollector/",
+            env!("CARGO_PKG_VERSION"),
+            " (+https://github.com/dim145/MangaCollector)"
+        ))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .expect("reqwest client builder should not fail with defaults");
 
@@ -235,6 +254,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Application state
     let state = AppState {
+        relay_client,
         db: orm_db,
         pool,
         config: Arc::new(config),

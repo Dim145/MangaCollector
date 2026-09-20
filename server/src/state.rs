@@ -20,6 +20,11 @@ pub struct AppState {
     pub storage: Arc<dyn StorageBackend>,
     pub oidc_client: Arc<OidcState>,
     pub http_client: reqwest::Client,
+    /// 直 · The cover relay's own client. Separate from `http_client`
+    /// for one reason: the relay is the only outbound request whose
+    /// target a reader chooses, and this one follows **no** redirects.
+    /// See `handlers::cover`.
+    pub relay_client: reqwest::Client,
     /// 影 · Whether covers are relayed through this server instead of
     /// being fetched by the browser straight from MangaDex and
     /// MyAnimeList (`PROXY_COVERS`). Off by default: it moves those

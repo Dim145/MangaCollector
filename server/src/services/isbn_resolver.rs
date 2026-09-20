@@ -197,7 +197,10 @@ async fn open_library(client: &reqwest::Client, isbn: &str) -> anyhow::Result<Op
             ("isbn", isbn),
             (
                 "fields",
-                "title,subtitle,author_name,publisher,first_publish_year,number_of_pages_median,language,cover_i",
+                // 叢 · `series` is read by the parser below; leaving it
+                // out of this list made that branch dead and sent every
+                // Open Library answer through the title heuristic.
+                "title,subtitle,author_name,publisher,first_publish_year,number_of_pages_median,language,cover_i,series",
             ),
             ("limit", "1"),
         ])
@@ -284,7 +287,13 @@ pub fn split_title_series(title: &str) -> Option<(String, i32)> {
     const MARKERS: [&str; 9] = [
         "tome", "tomo", "volume", "vol.", "band", "deel", "t.", "#", "t",
     ];
-    let lower = title.to_lowercase();
+    // 字 · ASCII-lowered, deliberately: every marker is ASCII, and
+    // `to_lowercase` is not length-preserving — `İ` (U+0130) grows from
+    // two bytes to three, `K` (U+212A) shrinks from three to one. The
+    // marker is found in this copy and the cut is made in `title`, so
+    // the two have to agree byte for byte or the knife lands inside a
+    // character, which panics.
+    let lower = title.to_ascii_lowercase();
     for marker in MARKERS {
         let Some(at) = lower.rfind(marker) else {
             continue;
@@ -349,7 +358,10 @@ pub fn parse_google(text: &str, isbn: &str) -> Option<IsbnBook> {
         .as_array()
         .and_then(|a| a.first())
         .and_then(|entry| entry["orderNumber"].as_i64())
-        .map(|n| n as i32);
+        // `as i32` wraps: 2_147_483_648 would come back as a volume
+        // number of -2_147_483_648.
+        .and_then(|n| i32::try_from(n).ok())
+        .filter(|n| *n > 0);
     let from_title = split_title_series(&title);
     let series = from_title.as_ref().map(|(name, _)| name.clone());
     let volume = ordered.or_else(|| from_title.as_ref().map(|(_, n)| *n));
@@ -488,6 +500,26 @@ pub fn parse_bnf(xml: &str, isbn: &str) -> Option<IsbnBook> {
                 match quick_xml::escape::unescape(raw) {
                     Ok(unescaped) => text.push_str(&unescaped),
                     Err(_) => text.push_str(raw),
+                }
+            }
+            // 参 · quick-xml splits text at an entity reference and
+            // hands it over as its own event. Without this arm
+            // "Black &amp; White" arrives as "Black  White" — and an
+            // ampersand is mandatorily escaped in XML, so any title
+            // carrying one loses it.
+            Ok(Event::GeneralRef(r)) => {
+                let name: &str = &r;
+                match name {
+                    "amp" => text.push('&'),
+                    "lt" => text.push('<'),
+                    "gt" => text.push('>'),
+                    "quot" => text.push('"'),
+                    "apos" => text.push('\''),
+                    _ => {
+                        if let Ok(Some(ch)) = r.resolve_char_ref() {
+                            text.push(ch);
+                        }
+                    }
                 }
             }
             Ok(Event::CData(c)) => text.push_str(&c),
@@ -648,9 +680,20 @@ fn leading_number(raw: &str) -> Option<i32> {
 fn parse_cover_price(raw: &str) -> Option<IsbnPrice> {
     let mut parts = raw.split_whitespace();
     let amount = parts.next()?.replace(',', ".");
-    let currency = parts.next().unwrap_or("EUR").to_ascii_uppercase();
+    // Three letters or it is not a currency code: the field is free
+    // text, and "6,90 euros environ" should not become the currency
+    // "EUROS ENVIRON" on a shelf.
+    let currency = parts
+        .next()
+        .map(str::trim)
+        .filter(|c| c.len() == 3 && c.chars().all(|ch| ch.is_ascii_alphabetic()))
+        .map(str::to_ascii_uppercase)
+        .unwrap_or_else(|| "EUR".to_string());
     let amount: f64 = amount.parse().ok()?;
-    if amount <= 0.0 {
+    // `<= 0.0` is false for NaN and for infinity, and "nan" parses.
+    // Neither can be written as JSON — both come out `null` — so one
+    // would sit in the thirty-day cache as a price with no amount.
+    if !amount.is_finite() || amount <= 0.0 {
         return None;
     }
     Some(IsbnPrice { amount, currency })
@@ -793,6 +836,72 @@ mod tests {
 
         let none = r#"<srw:searchRetrieveResponse xmlns:srw="x"><srw:numberOfRecords>0</srw:numberOfRecords></srw:searchRetrieveResponse>"#;
         assert!(parse_bnf(none, ISBN).is_none());
+    }
+
+    /// 字 · A title whose case changes length must not move the knife.
+    ///
+    /// `to_lowercase` is not length-preserving: `İ` (U+0130) is two
+    /// bytes and lowercases to three, `K` (U+212A) three to one. The
+    /// marker was found in the lowered copy and the cut made in the
+    /// original, so the two disagreed by those bytes — at best a
+    /// series named half a word, at worst a slice through the middle
+    /// of a character, which is a panic, and a 500 on every scan of
+    /// that barcode. Open Library is a public wiki: such a title is
+    /// something a stranger can write.
+    #[test]
+    fn a_title_that_changes_length_when_lowercased_is_still_cut_cleanly() {
+        assert_eq!(
+            split_title_series("İstanbul, Tome 2"),
+            Some(("İstanbul".into(), 2))
+        );
+        // The panic case: a multi-byte character sitting where the
+        // offsets drifted apart.
+        assert_eq!(split_title_series("İ tomeé"), None);
+        assert_eq!(
+            split_title_series("KELVIN, Tome 3"),
+            Some(("KELVIN".into(), 3))
+        );
+    }
+
+    /// 参 · An XML entity is not a hole in the text.
+    ///
+    /// quick-xml splits text at `&amp;…;` and hands the reference over
+    /// as its own event, so a parser that only reads `Text` silently
+    /// drops it: "Black &amp; White" becomes the series "Black  White".
+    #[test]
+    fn an_ampersand_in_a_title_survives_the_parser() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<srw:searchRetrieveResponse xmlns:srw="http://www.loc.gov/zing/srw/" xmlns:mxc="info:lc/xmlns/marcxchange-v2">
+  <srw:numberOfRecords>1</srw:numberOfRecords>
+  <srw:records><srw:record><srw:recordData><mxc:record>
+    <mxc:datafield tag="200" ind1="1" ind2=" "><mxc:subfield code="a">Black &amp; White</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="225" ind1="|" ind2=" "><mxc:subfield code="a">Caf&#233; &amp; Cie</mxc:subfield><mxc:subfield code="v">4</mxc:subfield></mxc:datafield>
+  </mxc:record></srw:recordData></srw:record></srw:records>
+</srw:searchRetrieveResponse>"#;
+        let b = parse_bnf(xml, ISBN).unwrap();
+        assert_eq!(b.title, "Black & White");
+        assert_eq!(b.series.as_deref(), Some("Café & Cie"));
+        assert_eq!(b.volume, Some(4));
+    }
+
+    /// 価 · A price that is not a number is not a price.
+    ///
+    /// `amount <= 0.0` is false for NaN, so `"nan EUR"` used to pass
+    /// straight through. A NaN cannot be written as JSON — it comes out
+    /// `null` — so the cached payload would carry a price with no
+    /// amount, for the thirty days the hit is kept.
+    #[test]
+    fn a_price_that_is_not_a_number_is_refused() {
+        assert!(parse_cover_price("nan EUR").is_none());
+        assert!(parse_cover_price("inf EUR").is_none());
+        assert!(parse_cover_price("-inf EUR").is_none());
+        assert!(parse_cover_price("0 EUR").is_none());
+        // And a currency is three letters or it is not one.
+        assert_eq!(parse_cover_price("6,90 EUR").unwrap().currency, "EUR");
+        assert_eq!(
+            parse_cover_price("6,90 euros environ").unwrap().currency,
+            "EUR"
+        );
     }
 
     #[test]

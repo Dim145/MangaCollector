@@ -49,6 +49,13 @@ export function gapSuggestions(library, volumes, limit = 4) {
     if (m.publication_status === "stopped") continue;
     const total = m.volumes ?? 0;
     if (total <= 0) continue;
+    // 完 · The series' own counter, which arrives with the library and
+    // not with the tomes. Without it, the moment where the library has
+    // loaded and the volume table has not — the volumes are read
+    // through a debounced live query over a table twenty times larger —
+    // shows every series as entirely missing, and the four shortest are
+    // offered to a reader who owns them in full.
+    if ((m.volumes_owned ?? 0) >= total) continue;
 
     const has = owned.get(m.mal_id) ?? new Set();
     const not = skipped.get(m.mal_id) ?? new Set();
@@ -77,6 +84,13 @@ export function skippedCounts(volumes) {
   const counts = new Map();
   for (const v of volumes ?? []) {
     if (v.wanted !== false) continue;
+    // A tome on the shelf is not a tome that was skipped, whatever the
+    // flag still says. The drawer hides the skip toggle once a tome is
+    // owned, so a row marked skipped and bought later keeps
+    // `wanted: false` for good; counting it here would subtract it from
+    // the target while `volumes_owned` still adds it, and a run with a
+    // real hole in it would read as finished.
+    if (v.owned) continue;
     counts.set(v.mal_id, (counts.get(v.mal_id) ?? 0) + 1);
   }
   return counts;

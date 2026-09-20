@@ -106,8 +106,11 @@ pub async fn get_photo(
             // The stamp says there is a photo and the blob is gone.
             // Clear the stamp so the page stops asking, and answer 404
             // rather than 500 — nothing here is the reader's fault.
+            // Through `ops` like every other write: the reader's other
+            // devices are showing the same broken frame, and the
+            // invalidation is what takes it off them too.
             tracing::warn!(user_id = user.id, location_id = id, %err, "place photo blob missing");
-            let _ = locations::set_photo(&state.db, user.id, id, None).await;
+            let _ = ops::locations::set_photo(&state, user.id, id, None, None).await;
             return Err(AppError::NotFound("Place photo blob missing.".into()));
         }
     };

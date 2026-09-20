@@ -2,6 +2,10 @@ import { memo, useEffect, useRef, useState } from "react";
 import Tooltip from "./ui/Tooltip.jsx";
 import { normalizeISBN } from "@/lib/isbn.js";
 import { useVolumeOverlays } from "@/hooks/useVolumeOverlays.js";
+import {
+  preloadVolumeOverlays,
+  volumeOverlaysReady,
+} from "@/components/volumeOverlays.js";
 import LoanStamp, {
   LOAN_STATUS_KANJI,
   classifyLoanStatus,
@@ -148,7 +152,19 @@ function VolumeImpl({
   // cards, and that pass was most of the delay between tap and drawer.
   const openDetails = () => {
     setDrawerUsed(true);
-    setIsEditing(true);
+    // 扉 · Edit mode hides the pencil, so entering it without a drawer
+    // to close leaves the card with neither — which is what a failed
+    // chunk fetch produced. Already-loaded is the normal case and
+    // stays synchronous; otherwise the mode waits for the module, and
+    // a failure simply leaves the card as it was.
+    if (volumeOverlaysReady()) {
+      setIsEditing(true);
+      return;
+    }
+    preloadVolumeOverlays().then(
+      () => setIsEditing(true),
+      () => {},
+    );
   };
   const openLoanModal = () => {
     setLoanModalUsed(true);

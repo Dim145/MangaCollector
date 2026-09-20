@@ -146,12 +146,17 @@ pub fn frontend_config() -> Result<FrontendObservabilityConfig> {
 /// the switch the SPA is told about and the one the route enforces are
 /// the same switch. Anything but a clear "yes" is off.
 pub fn proxy_covers_enabled() -> bool {
+    flag_is_on(std::env::var("PROXY_COVERS").ok().as_deref())
+}
+
+/// The reading half of the switch, kept apart from the environment so
+/// it can be tested without touching it. `std::env::set_var` is unsafe
+/// in Rust 2024 for a reason that applies here: the test harness runs
+/// tests on several threads and thirty-odd call sites read the
+/// environment, so a test that writes it races all of them.
+fn flag_is_on(raw: Option<&str>) -> bool {
     matches!(
-        std::env::var("PROXY_COVERS")
-            .unwrap_or_default()
-            .trim()
-            .to_ascii_lowercase()
-            .as_str(),
+        raw.unwrap_or_default().trim().to_ascii_lowercase().as_str(),
         "1" | "true" | "yes" | "on"
     )
 }
@@ -207,15 +212,13 @@ fn parse_bool(key: &str) -> bool {
 
 #[cfg(test)]
 mod proxy_covers_tests {
-    use super::proxy_covers_enabled;
+    use super::flag_is_on;
 
     /// The default is off, and only an unambiguous value turns it on:
     /// an operator who mistypes should keep the behaviour they had,
     /// not silently start paying for every cover.
     #[test]
     fn only_a_clear_yes_turns_the_relay_on() {
-        // SAFETY: single-threaded test, and the variable is read
-        // through this function alone.
         for (value, expected) in [
             ("true", true),
             ("TRUE", true),
@@ -227,10 +230,9 @@ mod proxy_covers_tests {
             ("", false),
             ("maybe", false),
         ] {
-            unsafe { std::env::set_var("PROXY_COVERS", value) };
-            assert_eq!(proxy_covers_enabled(), expected, "for {value:?}");
+            assert_eq!(flag_is_on(Some(value)), expected, "for {value:?}");
         }
-        unsafe { std::env::remove_var("PROXY_COVERS") };
-        assert!(!proxy_covers_enabled());
+        // Unset is the default, and the default is off.
+        assert!(!flag_is_on(None));
     }
 }

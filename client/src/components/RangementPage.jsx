@@ -843,6 +843,12 @@ function PlaceDetail({
       )}
 
       <ShelfPhoto
+        // 鍵 · Keyed on the URL: `broken` is per photo, and without a
+        // key React keeps the same instance across places — one 404
+        // would hide every other shelf's photo, and the "add" button
+        // hides whenever a photo exists, so the reader would have
+        // neither.
+        key={photoUrl ?? "none"}
         t={t}
         name={name}
         url={photoUrl}

@@ -113,6 +113,24 @@ describe("counting what the reader actually wants", () => {
     expect(skippedCounts(null).size).toBe(0);
   });
 
+  it("stops counting a skipped tome once it is on the shelf", () => {
+    // The drawer hides the skip toggle on an owned tome, so a row
+    // marked skipped and bought later keeps `wanted: false` for good.
+    // Counting it would take it out of the target while
+    // `volumes_owned` still counts it in — a twelve-tome run missing
+    // its last volume would read as finished.
+    const counts = skippedCounts([
+      { mal_id: 1, vol_num: 5, wanted: false, owned: true },
+      { mal_id: 2, vol_num: 5, wanted: false, owned: false },
+    ]);
+    expect(counts.get(1)).toBeUndefined();
+    expect(counts.get(2)).toBe(1);
+    // Twelve published, eleven on the shelf (one of them the tome that
+    // was skipped and bought since), the twelfth genuinely missing.
+    const series = { volumes: 12, volumes_owned: 11 };
+    expect(seriesIsComplete(series, counts.get(1) ?? 0)).toBe(false);
+  });
+
   it("takes the skipped tomes out of the target", () => {
     expect(wantedVolumes({ volumes: 12 }, 2)).toBe(10);
     expect(wantedVolumes({ volumes: 12 })).toBe(12);
