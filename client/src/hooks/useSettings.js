@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
-import axios from "@/utils/axios.js";
-import { cacheSettings, readSettings, SETTINGS_KEY, db } from "@/lib/db.js";
+import { readSettings, SETTINGS_KEY, db } from "@/lib/db.js";
+import { settingsQuery } from "@/lib/coreQueries.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { enqueueSettingsUpdate } from "@/lib/sync.js";
 import { useAuth } from "@/hooks/useAuth.js";
@@ -20,15 +20,7 @@ export function useUserSettings() {
   // only the revalidation waits, and it waits on a probe (`/auth/user`)
   // that was already in flight beside it.
   const { isAuthenticated } = useAuth();
-  const query = useQuery({
-    queryKey: ["settings"],
-    enabled: isAuthenticated,
-    queryFn: async () => {
-      const { data } = await axios.get(`/api/user/settings`);
-      await cacheSettings(data);
-      return data;
-    },
-  });
+  const query = useQuery({ ...settingsQuery, enabled: isAuthenticated });
 
   const settings = row
     ? Object.fromEntries(Object.entries(row).filter(([k]) => k !== "key"))

@@ -1,8 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
-import { cacheAllVolumes, cacheVolumesForManga, db } from "@/lib/db.js";
+import { cacheVolumesForManga, db } from "@/lib/db.js";
 import { deriveListState } from "@/lib/queryState.js";
+import { allVolumesQuery } from "@/lib/coreQueries.js";
 import { useDebouncedLiveQuery } from "@/hooks/useDebouncedLiveQuery.js";
 import { enqueueVolumeUpdate } from "@/lib/sync.js";
 
@@ -56,14 +57,10 @@ export function useVolumesForManga(mal_id) {
 export function useAllVolumes() {
   const data = useDebouncedLiveQuery(() => db.volumes.toArray(), []);
 
-  const query = useQuery({
-    queryKey: ["volumes-all"],
-    queryFn: async () => {
-      const { data } = await axios.get(`/api/user/volume`);
-      await cacheAllVolumes(data);
-      return data;
-    },
-  });
+  // Shared with App's idle prefetch — see `lib/coreQueries.js`. This
+  // is the megabyte response, so fetching it twice was the single
+  // biggest waste on every page load.
+  const query = useQuery(allVolumesQuery);
 
   return deriveListState(data, query);
 }

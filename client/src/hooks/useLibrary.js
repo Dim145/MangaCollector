@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
-import { cacheLibrary, db } from "@/lib/db.js";
+import { db } from "@/lib/db.js";
+import { libraryQuery } from "@/lib/coreQueries.js";
 import { refetchLibraryEntry, refetchVolumes } from "@/lib/sync/outbox.js";
 import { deriveListState } from "@/lib/queryState.js";
 import {
@@ -34,15 +35,9 @@ export function useLibrary({ enabled = true } = {}) {
   // and skips the network revalidation. The landing page uses it for a
   // visitor who is not signed in: firing `GET /api/user/library` there
   // would be a guaranteed 401 on every anonymous visit.
-  const query = useQuery({
-    queryKey: ["library"],
-    enabled,
-    queryFn: async () => {
-      const { data } = await axios.get(`/api/user/library`);
-      await cacheLibrary(data);
-      return data;
-    },
-  });
+  // Defined in `lib/coreQueries.js` so App's idle prefetch can warm
+  // this exact key instead of racing it with a second request.
+  const query = useQuery({ ...libraryQuery, enabled });
 
   return deriveListState(data, query, { enabled });
 }

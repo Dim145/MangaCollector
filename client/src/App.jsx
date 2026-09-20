@@ -98,14 +98,12 @@ import { useUserSettings } from "@/hooks/useSettings.js";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync.js";
 import { useTimeOfDay } from "@/hooks/useTimeOfDay.js";
-import axios from "@/utils/axios.js";
+import { db, SETTINGS_KEY } from "@/lib/db.js";
 import {
-  cacheAllVolumes,
-  cacheLibrary,
-  cacheSettings,
-  db,
-  SETTINGS_KEY,
-} from "@/lib/db.js";
+  allVolumesQuery,
+  libraryQuery,
+  settingsQuery,
+} from "@/lib/coreQueries.js";
 
 /**
  * Warm the Dexie cache for core user data during idle time after mount,
@@ -123,12 +121,19 @@ async function prefetchCoreUserData() {
     return;
   }
 
-  // Best-effort; failures are swallowed. React Query/Dexie recover on the
-  // next actual useQuery invocation.
+  // Through the query client, under the keys the hooks use. Fetching
+  // these with bare axios — as this did — meant React Query knew
+  // nothing about the responses and asked for all three again as soon
+  // as a page mounted: two of everything, and the volumes response is
+  // a megabyte. `prefetchQuery` fills the same cache entry the hook
+  // will read, so the hook either awaits this very promise or finds
+  // the data fresh and asks for nothing.
+  //
+  // Errors are swallowed by `prefetchQuery` itself; the hooks recover.
   await Promise.allSettled([
-    axios.get("/api/user/library").then((r) => cacheLibrary(r.data)),
-    axios.get("/api/user/volume").then((r) => cacheAllVolumes(r.data)),
-    axios.get("/api/user/settings").then((r) => cacheSettings(r.data)),
+    queryClient.prefetchQuery(libraryQuery),
+    queryClient.prefetchQuery(allVolumesQuery),
+    queryClient.prefetchQuery(settingsQuery),
   ]);
 }
 
