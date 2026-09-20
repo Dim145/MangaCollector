@@ -49,7 +49,6 @@ export default function ArchiveSection() {
         {/* ─── Export column ─── */}
         <div className="rounded-xl border border-border bg-ink-0/40 p-4">
           <div className="mb-3 flex items-center gap-2">
-            <span className="font-jp text-xs text-gold-muted">巻</span>
             <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-washi-muted">
               {t("settings.archiveExport")}
             </p>
@@ -86,7 +85,6 @@ export default function ArchiveSection() {
         {/* ─── Import column ─── */}
         <div className="rounded-xl border border-border bg-ink-0/40 p-4">
           <div className="mb-3 flex items-center gap-2">
-            <span className="font-jp text-xs text-gold-muted">封</span>
             <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-washi-muted">
               {t("settings.archiveImport")}
             </p>

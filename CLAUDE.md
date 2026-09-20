@@ -141,7 +141,7 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 163 tests across 34 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 168 tests across 35 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `http_cache.rs`, `handlers/cover.rs`,
   `observability.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users}.rs`,
@@ -157,6 +157,11 @@ docker compose build
   every cross-user surface asks before showing a row (adult opt-out AND
   the Birthday-mode wishlist horizon, independently); `archive.rs` also
   pins the import ceilings and the ledger index.
+  `services/archive.rs` also pins the **spreadsheet export**: a BOM so
+  Excel reads the accents, dates as days rather than instants, one line
+  per tome carrying the copy (price, grade, shelf, barcode, purchase
+  day, doubles) and not just its price, and a formula hidden in a
+  series name neutralised.
   `services/cover_pool.rs` pins the cover-URL allowlist (host match,
   `http`→`https`, no credentials, own posters pass); `loan_history.rs`
   the loans CSV (statuses, BOM, date bounds); `locations.rs` the note

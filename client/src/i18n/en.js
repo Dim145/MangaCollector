@@ -1392,8 +1392,7 @@ export default {
     archiveBody:
       "Export your collection to archive it, or import a scroll received from elsewhere. Merge-only: series already present (same mal_id) are skipped.",
     archiveExport: "EXPORT · 巻",
-    archiveExportBody:
-      "Download your whole archive as a single file. JSON to restore later, CSV to open in a spreadsheet.",
+    archiveExportBody: "Download your whole archive as a single file. JSON to restore later; CSV for a spreadsheet — one line per tome, with its price, grade, shelf and barcode.",
     archiveExportJson: "Full JSON",
     archiveExportCsv: "Flat CSV",
     archiveImport: "IMPORT · 封",

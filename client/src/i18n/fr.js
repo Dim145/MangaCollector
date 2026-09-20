@@ -1432,8 +1432,7 @@ export default {
     archiveBody:
       "Exportez votre collection pour l'archiver ou importez un rouleau reçu d'ailleurs. Merge uniquement : les séries déjà présentes (même mal_id) sont ignorées.",
     archiveExport: "EXPORTER · 巻",
-    archiveExportBody:
-      "Téléchargez toute votre archive dans un seul fichier. JSON pour restaurer plus tard, CSV pour ouvrir dans un tableur.",
+    archiveExportBody: "Téléchargez toute votre archive en un fichier. JSON pour restaurer plus tard ; CSV pour un tableur — une ligne par tome, avec prix, état, rangement et code-barres.",
     archiveExportJson: "JSON complet",
     archiveExportCsv: "CSV plat",
     archiveImport: "IMPORTER · 封",

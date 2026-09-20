@@ -1410,8 +1410,7 @@ export default {
     archiveBody:
       "Exporta tu colección para archivarla o importa un rollo recibido. Solo fusión: las series ya presentes (mismo mal_id) se ignoran.",
     archiveExport: "EXPORTAR · 巻",
-    archiveExportBody:
-      "Descarga todo tu archivo en un único fichero. JSON para restaurar más tarde, CSV para abrir en una hoja de cálculo.",
+    archiveExportBody: "Descarga todo tu archivo en un solo fichero. JSON para restaurar más tarde; CSV para una hoja de cálculo: una línea por tomo, con precio, estado, ubicación y código de barras.",
     archiveExportJson: "JSON completo",
     archiveExportCsv: "CSV plano",
     archiveImport: "IMPORTAR · 封",

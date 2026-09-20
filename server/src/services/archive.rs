@@ -243,45 +243,64 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
     })
 }
 
-/// Flatten the whole archive into CSV rows — one line per volume of
-/// every series (so a collector can open the file in a spreadsheet and
-/// sort/pivot freely). Returns the raw CSV text including the header.
+/// 表 · Flatten the whole archive into CSV rows — one line per volume
+/// of every series, so a collector can open the file in a spreadsheet
+/// and sort, pivot or hand it to an insurer.
+///
+/// It carries what the JSON bundle carries about a copy, because that
+/// is what the file is for: the earlier version stopped at price and
+/// store, which left out everything an inventory actually needs — the
+/// grade, the shelf, the barcode, the day it was bought. The bundle is
+/// the lossless format; this one is the readable one, and it was not
+/// readable enough to answer "what is on my shelves and what did it
+/// cost".
+///
+/// A BOM leads, or Excel reads `Glénat` as `GlÃ©nat`. Dates are days,
+/// not instants: a spreadsheet does nothing useful with an RFC 3339
+/// timestamp, and nobody bought a book at 14:32:07 UTC.
 pub fn build_export_csv(bundle: &ExportBundle) -> String {
     let mut out = String::new();
     out.push_str(
-        "mal_id,series,vol_num,owned,collector,read_at,price,store,notes,genres\n",
+        "\u{feff}series,mal_id,volume,owned,wanted,collector,read_on,price,store,\
+         bought_on,condition,location,isbn,extra_copies,notes,publisher,edition,\
+         edition_status,genres\n",
     );
     for series in &bundle.library {
-        let mal = series
-            .mal_id
-            .map(|i| i.to_string())
-            .unwrap_or_default();
+        let mal = series.mal_id.map(|i| i.to_string()).unwrap_or_default();
         let name = csv_escape(&series.name);
         let genres = csv_escape(&series.genres.join("|"));
+        let publisher = csv_escape(series.publisher.as_deref().unwrap_or(""));
+        let edition = csv_escape(series.edition.as_deref().unwrap_or(""));
+        let edition_status = series.publication_status.as_deref().unwrap_or("");
         if series.volumes_detail.is_empty() {
-            // No per-volume detail — emit a single summary row so the
-            // series still appears in the CSV.
+            // No per-volume detail — one summary row, so a series the
+            // reader tracks without owning a single tome still appears.
             out.push_str(&format!(
-                "{mal},{name},,,,,,,,{genres}\n"
+                "{name},{mal},,,,,,,,,,,,,,{publisher},{edition},{edition_status},{genres}\n"
             ));
             continue;
         }
         for v in &series.volumes_detail {
-            let price = v
-                .price
-                .map(|p| p.to_string())
-                .unwrap_or_default();
+            let price = v.price.map(|p| p.to_string()).unwrap_or_default();
             let store = csv_escape(v.store.as_deref().unwrap_or(""));
             let read = v
                 .read_at
-                .map(|t| t.to_rfc3339())
+                .map(|t| t.date_naive().to_string())
                 .unwrap_or_default();
+            let bought = v.bought_at.map(|d| d.to_string()).unwrap_or_default();
+            let condition = v.condition.as_deref().unwrap_or("");
+            let location = csv_escape(v.location.as_deref().unwrap_or(""));
+            let isbn = v.isbn.as_deref().unwrap_or("");
             let notes = csv_escape(v.notes.as_deref().unwrap_or(""));
             out.push_str(&format!(
-                "{mal},{name},{vol},{owned},{collector},{read},{price},{store},{notes},{genres}\n",
+                "{name},{mal},{vol},{owned},{wanted},{collector},{read},{price},\
+                 {store},{bought},{condition},{location},{isbn},{extra},{notes},\
+                 {publisher},{edition},{edition_status},{genres}\n",
                 vol = v.vol_num,
                 owned = v.owned,
+                wanted = v.wanted,
                 collector = v.collector,
+                extra = v.extra_copies,
             ));
         }
     }
@@ -1024,6 +1043,120 @@ mod identity_tests {
         assert_ne!(
             series_key(None, None, "Mon Manga"),
             series_key(None, None, "Mon Manga 2")
+        );
+    }
+}
+
+#[cfg(test)]
+mod csv_tests {
+    use super::*;
+    use crate::models::archive::{ExportBundle, ExportSeries};
+
+    /*
+     * 表 · The spreadsheet export. What it has to be is readable by a
+     * spreadsheet and complete enough to answer "what is on my shelves
+     * and what did it cost" — the earlier version stopped at price and
+     * store, which is not an inventory.
+     */
+
+    fn bundle(series: Vec<ExportSeries>) -> ExportBundle {
+        let mut b: ExportBundle = serde_json::from_str(
+            r#"{"version":3,"exported_at":"2026-01-01T00:00:00Z",
+                "source":"test","user":{"name":"Test","email":null},
+                "settings":null,"library":[]}"#,
+        )
+        .unwrap();
+        b.library = series;
+        b
+    }
+
+    fn series() -> ExportSeries {
+        serde_json::from_str(
+            r#"{
+              "mal_id": 13, "mangadex_id": null, "name": "One Piece",
+              "volumes": 2, "volumes_owned": 1, "image_url_jpg": null,
+              "genres": ["Action", "Aventure"], "publisher": "Glénat",
+              "edition": "Standard", "publication_status": "ongoing",
+              "coffrets": [],
+              "volumes_detail": [
+                {"vol_num": 1, "owned": true, "price": "6.90",
+                 "store": "Librairie du coin", "collector": true,
+                 "read_at": "2025-03-04T14:32:07Z", "notes": "dédicacé",
+                 "condition": "good", "location": "Étagère A",
+                 "extra_copies": 1, "bought_at": "2025-03-01",
+                 "isbn": "9782723492607"},
+                {"vol_num": 2, "owned": false, "wanted": false}
+              ]
+            }"#,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn leads_with_a_bom_so_excel_reads_the_accents() {
+        let csv = build_export_csv(&bundle(vec![series()]));
+        assert!(csv.starts_with('\u{feff}'), "BOM for Excel");
+        assert!(csv.contains("Glénat"));
+    }
+
+    #[test]
+    fn carries_the_copy_and_not_just_its_price() {
+        let csv = build_export_csv(&bundle(vec![series()]));
+        let header = csv.lines().next().unwrap();
+        for column in [
+            "series",
+            "volume",
+            "owned",
+            "wanted",
+            "read_on",
+            "price",
+            "store",
+            "bought_on",
+            "condition",
+            "location",
+            "isbn",
+            "extra_copies",
+            "publisher",
+            "edition",
+            "edition_status",
+        ] {
+            assert!(header.contains(column), "missing column {column}");
+        }
+        let first = csv.lines().nth(1).unwrap();
+        assert!(first.contains("9782723492607"), "the barcode: {first}");
+        assert!(first.contains("good"), "the grade: {first}");
+        assert!(first.contains("Étagère A"), "the shelf: {first}");
+        assert!(first.contains("2025-03-01"), "the day it was bought");
+        // A day, not an instant: a spreadsheet does nothing with 14:32:07.
+        assert!(first.contains("2025-03-04"), "read on, as a day");
+        assert!(!first.contains("14:32:07"), "no timestamp: {first}");
+    }
+
+    #[test]
+    fn says_which_tomes_were_skipped_on_purpose() {
+        let csv = build_export_csv(&bundle(vec![series()]));
+        let second = csv.lines().nth(2).unwrap();
+        // 飛 · owned=false, wanted=false — a decision, and the file says so.
+        assert!(second.contains("false,false"), "{second}");
+    }
+
+    #[test]
+    fn still_names_a_series_nobody_owns_a_tome_of() {
+        let mut s = series();
+        s.volumes_detail.clear();
+        let csv = build_export_csv(&bundle(vec![s]));
+        assert_eq!(csv.lines().count(), 2, "header + one summary row");
+        assert!(csv.lines().nth(1).unwrap().starts_with("One Piece,13,"));
+    }
+
+    #[test]
+    fn neutralises_a_formula_hidden_in_a_series_name() {
+        let mut s = series();
+        s.name = "=HYPERLINK(\"http://evil\")".into();
+        let csv = build_export_csv(&bundle(vec![s]));
+        assert!(
+            !csv.contains("\n=HYPERLINK"),
+            "must not start a cell with ="
         );
     }
 }
