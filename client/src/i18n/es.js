@@ -1475,7 +1475,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.15.0 · Abre tu estantería a un agente",
+    version: "v2.15.1 · Siete correcciones, una portada honesta",
     heroStart: "Cada",
     heroAccent: "tomo",
     heroEnd1: ",",

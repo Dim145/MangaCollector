@@ -1456,7 +1456,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.15.0 · Open your shelf to an agent",
+    version: "v2.15.1 · Seven fixes, an honest front door",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",

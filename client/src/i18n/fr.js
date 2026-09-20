@@ -1494,7 +1494,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.15.0 · Ouvrez votre étagère à un agent",
+    version: "v2.15.1 · Sept correctifs, une porte d'entrée honnête",
     heroStart: "Chaque",
     heroAccent: "tome",
     heroEnd1: ",",
