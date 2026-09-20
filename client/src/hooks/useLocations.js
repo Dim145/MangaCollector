@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { cacheLocations, db } from "@/lib/db.js";
 import { deriveListState } from "@/lib/queryState.js";
+import { prepareShelfPhoto } from "@/lib/shelfPhoto.js";
 
 /**
  * 棚 · The places registry — Dexie first (works offline), refreshed
@@ -64,4 +65,34 @@ export function useLocationMutations() {
     onSuccess: refresh,
   });
   return { create, update, remove };
+}
+
+/**
+ * 写 · The shelf's photo. Online only, like the rest of the registry:
+ * a file cannot be queued in the outbox, and a photo is not what a
+ * reader is missing in a basement with no signal.
+ *
+ * The file is scaled down here rather than on the server, which never
+ * resizes anything — see `lib/shelfPhoto.js`.
+ */
+export function useLocationPhoto() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ queryKey: ["locations"] });
+  const upload = useMutation({
+    mutationFn: async ({ id, file }) => {
+      const blob = await prepareShelfPhoto(file);
+      const body = new FormData();
+      // The third argument is the filename: without it a Blob is sent
+      // as a plain field and the server finds no `photo` file.
+      body.append("photo", blob, "shelf.jpg");
+      return (await axios.post(`/api/user/locations/${id}/photo`, body)).data;
+    },
+    onSuccess: refresh,
+  });
+  const remove = useMutation({
+    mutationFn: async (id) =>
+      (await axios.delete(`/api/user/locations/${id}/photo`)).data,
+    onSuccess: refresh,
+  });
+  return { upload, remove };
 }

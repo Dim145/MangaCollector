@@ -20,6 +20,23 @@ use crate::models::volume::{self as volume_mod, Entity as VolumeEntity, LOCATION
 /// A note is a reminder ("top shelf, behind the lamp"), not an essay.
 pub const NOTE_MAX_CHARS: usize = 500;
 
+/// 写 · Where a place's photo lives in the storage backend. One key per
+/// place, so an upload replaces the previous photo in place and there
+/// is never an orphan to collect.
+pub fn photo_storage_path(user_id: i32, id: i64) -> String {
+    format!("uploads/places/{user_id}/{id}.jpg")
+}
+
+/// The URL the client fetches, carrying the upload date so a
+/// replacement photo is not served from the browser's cache.
+pub fn photo_url(id: i64, taken: Option<DateTime<Utc>>) -> Option<String> {
+    let at = taken?;
+    Some(format!(
+        "/api/user/locations/{id}/photo?v={}",
+        at.timestamp()
+    ))
+}
+
 /// One place with how many owned tomes sit there.
 #[derive(Debug, Clone, Serialize)]
 pub struct LocationView {
@@ -28,6 +45,8 @@ pub struct LocationView {
     pub note: Option<String>,
     pub position: i32,
     pub volumes: i64,
+    /// `None` when the place has no photo.
+    pub photo_url: Option<String>,
     pub created_on: DateTime<Utc>,
     pub modified_on: DateTime<Utc>,
 }
@@ -161,6 +180,7 @@ pub async fn list(db: &impl ConnectionTrait, user_id: i32) -> Result<LocationsRe
         .into_iter()
         .map(|r| LocationView {
             volumes: by_name.get(&r.name).copied().unwrap_or(0),
+            photo_url: photo_url(r.id, r.photo_updated_at),
             id: r.id,
             name: r.name,
             note: r.note,
@@ -234,9 +254,16 @@ pub async fn update(
 }
 
 /// Delete a place; the tomes filed under it are unfiled, not touched
-/// otherwise. Returns how many were unfiled.
-pub async fn remove(db: &impl ConnectionTrait, user_id: i32, id: i64) -> Result<u64, AppError> {
+/// otherwise. Returns how many were unfiled, and whether the place had
+/// a photo — the blob is the caller's to delete, this module only ever
+/// touches the database.
+pub async fn remove(
+    db: &impl ConnectionTrait,
+    user_id: i32,
+    id: i64,
+) -> Result<(u64, bool), AppError> {
     let row = find_owned(db, user_id, id).await?;
+    let had_photo = row.photo_updated_at.is_some();
     let cleared = VolumeEntity::update_many()
         .col_expr(
             volume_mod::Column::Location,
@@ -252,7 +279,33 @@ pub async fn remove(db: &impl ConnectionTrait, user_id: i32, id: i64) -> Result<
         .exec(db)
         .await
         .map_err(AppError::from)?;
-    Ok(cleared)
+    Ok((cleared, had_photo))
+}
+
+/// 写 · Stamp the place's photo date, or clear it. The bytes are not
+/// this module's business: `ops::locations::set_photo` writes both and
+/// is the only thing allowed to.
+pub async fn set_photo(
+    db: &impl ConnectionTrait,
+    user_id: i32,
+    id: i64,
+    taken: Option<DateTime<Utc>>,
+) -> Result<Model, AppError> {
+    let row = find_owned(db, user_id, id).await?;
+    let mut active: location::ActiveModel = row.into();
+    active.photo_updated_at = Set(taken);
+    active.modified_on = Set(Utc::now());
+    active.update(db).await.map_err(AppError::from)
+}
+
+/// When the place's photo was taken, for a caller deciding whether
+/// there is anything to serve. Errors if the place is not the user's.
+pub async fn photo_taken_at(
+    db: &impl ConnectionTrait,
+    user_id: i32,
+    id: i64,
+) -> Result<Option<DateTime<Utc>>, AppError> {
+    Ok(find_owned(db, user_id, id).await?.photo_updated_at)
 }
 
 /// Registry rows for the archive bundle, in display order.
@@ -347,5 +400,32 @@ mod tests {
             clean_note(Some(long)).unwrap().chars().count(),
             NOTE_MAX_CHARS
         );
+    }
+
+    #[test]
+    fn a_place_with_no_photo_has_no_url() {
+        assert_eq!(photo_url(7, None), None);
+    }
+
+    #[test]
+    fn the_photo_url_carries_its_version() {
+        // The version is the whole point: a replacement photo lands on
+        // the same storage key and the same path, so without it the
+        // browser keeps showing the shelf that was there before. The
+        // client matches this shape — `/…/photo?v=<seconds>`.
+        let taken = DateTime::from_timestamp(1_700_000_000, 0).expect("valid instant");
+        assert_eq!(
+            photo_url(7, Some(taken)).as_deref(),
+            Some("/api/user/locations/7/photo?v=1700000000")
+        );
+    }
+
+    #[test]
+    fn photos_are_keyed_per_user_and_place() {
+        // One key per place, so an upload replaces the previous photo
+        // in place and never leaves an orphan behind; and never a key
+        // two users could both land on.
+        assert_eq!(photo_storage_path(3, 7), "uploads/places/3/7.jpg");
+        assert_ne!(photo_storage_path(3, 7), photo_storage_path(7, 3));
     }
 }

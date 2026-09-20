@@ -88,6 +88,7 @@ export function listPlaces(registry, groups) {
       name,
       note: r.note ?? null,
       position: r.position ?? 0,
+      photo_url: r.photo_url ?? null,
       count: groups?.places?.get(name)?.count ?? 0,
     });
   }
@@ -100,6 +101,9 @@ export function listPlaces(registry, groups) {
       name,
       note: null,
       position: out.length,
+      // A place known only from the tomes filed there has no registry
+      // row yet, so it cannot have a photo.
+      photo_url: null,
       count: groups.places.get(name).count,
     });
   }

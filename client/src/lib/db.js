@@ -899,6 +899,10 @@ export async function cacheLocations(rows) {
         name: r.name,
         note: r.note ?? null,
         position: Number.isFinite(Number(r.position)) ? Number(r.position) : 0,
+        // 写 · The shelf photo's URL, already carrying its version. A
+        // row cached without it shows the page a place with no photo,
+        // so it has to be on this list like every other column.
+        photo_url: typeof r.photo_url === "string" ? r.photo_url : null,
       }));
     if (clean.length) await db.locations.bulkPut(clean);
   });

@@ -1,0 +1,11 @@
+-- 棚 · A photo of the place itself, so a shelf is recognised at a
+-- glance instead of read as a name. Only the fact and its date live
+-- here; the bytes live in the storage backend under
+-- `uploads/places/{user_id}/{location_id}.jpg`, exactly like a custom
+-- poster. NULL = no photo, which is what every existing place gets.
+--
+-- The date is not decoration: it is the cache-buster. A replacement
+-- photo lands on the same storage key and the same URL, so without a
+-- version in the query string the browser would keep showing the old
+-- shelf.
+ALTER TABLE locations ADD COLUMN photo_updated_at TIMESTAMPTZ;

@@ -53,6 +53,7 @@ exactly those controls when offline and says so.
 | `name VARCHAR(80) NOT NULL` | **Exactly** the string stored on `user_volumes.location`. |
 | `note TEXT` | A reminder ("top shelf, behind the lamp"), trimmed, `NULL` when blank, cut at `NOTE_MAX_CHARS` = 500 characters. |
 | `position INTEGER NOT NULL DEFAULT 0` | Display order, 0-based; ties break on name. New places get `max(position) + 1`. |
+| `photo_updated_at TIMESTAMPTZ` | 写 · When the shelf photo was last uploaded — `20260920140000_location_photo.sql`. `NULL` = no photo. Both the existence flag and the URL's cache-buster; the bytes live in the storage backend under `uploads/places/{user_id}/{location_id}.jpg`. |
 | `created_on`, `modified_on TIMESTAMPTZ NOT NULL DEFAULT now()` | |
 
 `UNIQUE (user_id, name)` is the whole consistency story, and what makes
@@ -153,7 +154,10 @@ All four under the session-guarded `/api/user` nest
 | GET | `/api/user/locations` | `locations::list` | `locations::list` | Every place in `position, name` order with its `volumes` count, plus `unfiled` — both from one grouped scan of the user's **owned** volumes, whose keys are trimmed before bucketing. `[]` and `0` when empty. |
 | POST | `/api/user/locations` | `locations::create` | `locations::create` | Body `{name, note?}`. Idempotent: an existing place is returned rather than duplicated, and the note is written only when it differs. A blank name is a 400 (`"A place needs a name."`). Returns the row. |
 | PATCH | `/api/user/locations/{id}` | `locations::update` | `locations::update` | Body `LocationPatch`. A changed `name` **rewrites every tome filed under the old one** before renaming the row; blank → 400, already taken → 409. `note: ""` clears, `position` is floored at 0, `modified_on` is always bumped. 404 for another user's id. |
-| DELETE | `/api/user/locations/{id}` | `locations::remove` | `locations::remove` | Unfiles the tomes (`location = NULL`) and deletes the row; answers `{success, unfiled}`. The tomes are otherwise untouched. 404 for another user's id. |
+| DELETE | `/api/user/locations/{id}` | `locations::remove` | `locations::remove` | Unfiles the tomes (`location = NULL`) and deletes the row; answers `{success, unfiled}`. The tomes are otherwise untouched. The photo blob goes too, best effort. 404 for another user's id. |
+| GET | `/api/user/locations/{id}/photo` | `locations::get_photo` | `locations::photo_taken_at` | The shelf itself, `private, max-age=5 days`. 404 when the place has no photo **or** is not the caller's — a stranger cannot tell the two apart. A stamp whose blob has vanished clears itself and answers 404 rather than 500. |
+| POST | `/api/user/locations/{id}/photo` | `locations::upload_photo` | `ops::locations::set_photo` | Multipart, one `photo` field, at most 8 fields scanned. JPEG/PNG/WebP by magic bytes, 4 MiB ceiling — the client has already scaled the image down (`lib/shelfPhoto.js`), so hitting the ceiling means it skipped that step. Answers `{success, photo_url}`. |
+| DELETE | `/api/user/locations/{id}/photo` | `locations::delete_photo` | `ops::locations::set_photo` | Drops blob and stamp together. |
 
 `PATCH /api/user/volume` is the fifth writer: its `location` field is
 what registers a place in the first place (see `docs/modules/scan.md`
@@ -217,6 +221,18 @@ for the rest of the physical-copy patch).
 
 ## Invariants & gotchas
 
+- **The photo is not in the archive bundle.** The bundle is JSON and
+  carries no blobs — like a custom poster, a shelf photo is not in it.
+  It survives a *same-account* restore anyway, because `import_rows`
+  matches places by name and never deletes a row: the id, and with it
+  the stamp and the blob, are still there afterwards. A bundle restored
+  into a **fresh account** arrives without photos, and that is the
+  honest outcome: the bytes were never in the file.
+- **A photo is a place's, not a name's.** The storage key is
+  `uploads/places/{user_id}/{location_id}.jpg`, so renaming a place
+  keeps its photo (the id does not move) and two users with the same
+  shelf name never collide. Deleting a place takes its blob; an
+  unregistered place (`id: null`) cannot have one at all.
 - **The name is the join.** Nothing enforces that a
   `user_volumes.location` has a registry row, or that a registry row has
   any tomes. Both halves are designed for it: `list` reports a place
@@ -304,12 +320,20 @@ for the rest of the physical-copy patch).
 
 ## Tests & verification
 
-Server (`cargo test locations`): `services/locations.rs::tests` — one
-test, `notes_are_trimmed_cleared_and_capped` (`None` and whitespace
+Server (`cargo test locations`): `services/locations.rs::tests` — four
+tests. `notes_are_trimmed_cleared_and_capped` (`None` and whitespace
 become `None`, surrounding space is trimmed, a long note is cut to
-`NOTE_MAX_CHARS` counted in characters). `ensure`, the rename cascade,
-the delete unfile, `list`'s counting and `import_rows` have **no** unit
+`NOTE_MAX_CHARS` counted in characters), and three on the photo:
+a place with no stamp has no URL, the URL carries its upload date as
+`?v=<seconds>` (the client matches that shape, and without it a
+replacement photo is served from the browser's cache), and the storage
+key is per user *and* per place. `ensure`, the rename cascade, the
+delete unfile, `list`'s counting and `import_rows` have **no** unit
 tests; the database path is only covered by the script below.
+
+The photo's own round trip — upload, serve, survive a reload, remove,
+and the old URL then 404ing at the server — is covered by a browser
+scenario rather than a unit test, since half of it is the page.
 
 Client (`pnpm test`): `lib/locations.test.js` (4) — `groupByLocation`
 groups owned tomes by *trimmed* place then by series, sorted, with the

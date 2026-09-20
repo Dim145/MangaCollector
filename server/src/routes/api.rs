@@ -169,6 +169,15 @@ fn user_router() -> Router<AppState> {
             "/locations/{id}",
             patch(locations::update).delete(locations::remove),
         )
+        // 写 · The shelf's own photo. GET is the <img> the page renders,
+        // so it stays a plain path with the upload date as a query
+        // string — see `services::locations::photo_url`.
+        .route(
+            "/locations/{id}/photo",
+            get(locations::get_photo)
+                .post(locations::upload_photo)
+                .delete(locations::delete_photo),
+        )
         .route("/volume/{mal_id}", get(volume::get_volumes_by_id))
         .route("/volume", patch(volume::update_volume))
         // 印影 Inei · Snapshot history endpoints. POST creates a new

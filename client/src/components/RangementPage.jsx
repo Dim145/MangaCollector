@@ -6,7 +6,11 @@ import { useT } from "@/i18n/index.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes, useUpdateVolume } from "@/hooks/useVolumes.js";
-import { useLocationMutations, useLocations } from "@/hooks/useLocations.js";
+import {
+  useLocationMutations,
+  useLocationPhoto,
+  useLocations,
+} from "@/hooks/useLocations.js";
 import {
   UNFILED,
   groupByLocation,
@@ -26,6 +30,11 @@ const KICKER =
   "font-mono text-[10px] uppercase tracking-[0.32em] text-washi-dim";
 const BTN =
   "rounded-sm border border-border/70 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-muted transition hover:border-gold/60 hover:text-washi disabled:cursor-not-allowed disabled:opacity-40";
+// 写 · Small enough to sit on the photo, opaque enough to be read on
+// whatever the shelf happens to look like. Always visible: a control
+// that only appears on hover does not exist on a phone.
+const PHOTO_CHIP =
+  "rounded-sm border border-washi/30 bg-ink-0/80 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-washi backdrop-blur-sm transition pointer-coarse:min-h-11 hover:border-gold/60 disabled:opacity-40";
 const BTN_PRIMARY =
   "rounded-sm bg-hanko px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-on-hanko shadow-[0_0_24px_var(--hanko-glow)] transition hover:bg-hanko-deep disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -44,6 +53,7 @@ export default function RangementPage() {
   const { data: volumes } = useAllVolumes();
   const { data: library } = useLibrary();
   const { create, update, remove } = useLocationMutations();
+  const { upload: uploadPhoto, remove: removePhoto } = useLocationPhoto();
   const updateVolume = useUpdateVolume();
 
   const groups = useMemo(
@@ -79,6 +89,13 @@ export default function RangementPage() {
             series: [],
           })
         : null;
+
+  // 写 · The registry row behind the open place — a place that exists
+  // only on its tomes has no row, so nothing to hang a photo on.
+  const currentPlace =
+    selected && selected !== UNFILED
+      ? (places.find((p) => p.name === selected) ?? null)
+      : null;
 
   const open = (name) => {
     setSelected(name);
@@ -410,6 +427,24 @@ export default function RangementPage() {
                 setNotice(null);
                 setScanOpen(true);
               }}
+              photoUrl={currentPlace?.photo_url ?? null}
+              canPhoto={Boolean(currentPlace?.id) && online}
+              photoBusy={uploadPhoto.isPending || removePhoto.isPending}
+              onPhoto={async (file) => {
+                if (!currentPlace?.id || !file) return;
+                setNotice(null);
+                try {
+                  await uploadPhoto.mutateAsync({ id: currentPlace.id, file });
+                } catch {
+                  setNotice({ tone: "warn", text: t("rangement.photoFailed") });
+                }
+              }}
+              onPhotoRemove={async () => {
+                if (!currentPlace?.id) return;
+                await removePhoto.mutateAsync(currentPlace.id).catch(() => {
+                  setNotice({ tone: "warn", text: t("rangement.photoFailed") });
+                });
+              }}
               onLabels={openTomeLabels}
               onBoxLabel={selected === UNFILED ? null : openBoxLabel}
               onInventory={() =>
@@ -642,11 +677,73 @@ function PlaceRow({
   );
 }
 
+/**
+ * 写 · The shelf itself. A place is a name until you have seen it; the
+ * photo is what makes "Étagère B" the one behind the door. Shown only
+ * once there is one — an empty frame on every place would cost a band
+ * of the page to say nothing.
+ */
+function ShelfPhoto({ t, name, url, busy, onPick, onRemove }) {
+  const [broken, setBroken] = useState(false);
+  if (!url || broken) return null;
+  return (
+    <figure className="relative border-b border-border/60">
+      {/* The ratio is on the frame, not the image: the space is held
+          before the bytes arrive, so the list below does not jump. The
+          cap keeps a wide pane from turning the shelf into a poster
+          that pushes the tomes themselves off the screen. */}
+      <div className="aspect-[16/7] max-h-72 w-full overflow-hidden bg-ink-0/60">
+        <img
+          src={url}
+          alt={t("rangement.photoAlt", { name })}
+          decoding="async"
+          onError={() => setBroken(true)}
+          className="h-full w-full object-cover"
+        />
+      </div>
+      {(onPick || onRemove) && (
+        <figcaption
+          /* Under a finger the chips grow to 44 px and, floating, they
+             cover the shelf they sit on. On a phone they become a
+             caption bar under the photo; from `sm` up they float. */
+          className="flex justify-end gap-1.5 border-t border-border/60 bg-ink-1/40 p-2 sm:absolute sm:bottom-2 sm:right-2 sm:border-0 sm:bg-transparent sm:p-0"
+        >
+          {onPick && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onPick}
+              className={PHOTO_CHIP}
+            >
+              {t("rangement.photoReplace")}
+            </button>
+          )}
+          {onRemove && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onRemove}
+              className={`${PHOTO_CHIP} hover:border-hanko/60 hover:text-hanko-bright`}
+            >
+              {t("rangement.photoRemove")}
+            </button>
+          )}
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
 function PlaceDetail({
   t,
   name,
   isUnfiled,
   group,
+  photoUrl,
+  canPhoto,
+  photoBusy,
+  onPhoto,
+  onPhotoRemove,
   picked,
   setPicked,
   targets,
@@ -661,6 +758,8 @@ function PlaceDetail({
   onBoxLabel,
   onOpenSeries,
 }) {
+  const photoInput = useRef(null);
+  const pickPhoto = () => photoInput.current?.click();
   const allIds = group.series.flatMap((s) => s.tomes.map((v) => v.id));
   const toggle = (id) =>
     setPicked((prev) => {
@@ -699,6 +798,16 @@ function PlaceDetail({
               {t("rangement.scanHere")}
             </button>
           )}
+          {canPhoto && !photoUrl && (
+            <button
+              type="button"
+              onClick={pickPhoto}
+              disabled={photoBusy}
+              className={BTN}
+            >
+              {t("rangement.addPhoto")}
+            </button>
+          )}
           <button type="button" onClick={onInventory} className={BTN}>
             {t("rangement.inventory")}
           </button>
@@ -714,6 +823,33 @@ function PlaceDetail({
           )}
         </div>
       </header>
+
+      {canPhoto && (
+        /* One input for both the first photo and every replacement.
+           `capture` is deliberately absent: it would force the camera
+           and take away the gallery, and most shelves are photographed
+           once, then chosen again from the roll. */
+        <input
+          ref={photoInput}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) onPhoto(file);
+          }}
+        />
+      )}
+
+      <ShelfPhoto
+        t={t}
+        name={name}
+        url={photoUrl}
+        busy={photoBusy}
+        onPick={canPhoto ? pickPhoto : null}
+        onRemove={canPhoto ? onPhotoRemove : null}
+      />
 
       {notice && (
         <p

@@ -14,6 +14,10 @@ pub struct Model {
     pub note: Option<String>,
     /// Display order, 0-based; ties break on name.
     pub position: i32,
+    /// 写 · When the shelf photo was last uploaded — `None` means there
+    /// is none. The bytes live in the storage backend; this timestamp
+    /// is both the existence flag and the URL's cache-buster.
+    pub photo_updated_at: Option<chrono::DateTime<chrono::Utc>>,
     pub created_on: chrono::DateTime<chrono::Utc>,
     pub modified_on: chrono::DateTime<chrono::Utc>,
 }

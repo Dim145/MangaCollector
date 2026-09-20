@@ -141,7 +141,7 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 171 tests across 35 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 174 tests across 35 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `http_cache.rs`, `handlers/cover.rs`,
   `observability.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users}.rs`,
@@ -179,7 +179,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 087 tests across 58 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 093 tests across 59 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -193,7 +193,8 @@ docker compose build
     `connectivity`, `dailyTexts`,
     `scanLookup` (a scanned barcode against the cached shelf),
     `loanHistory` and `navCounters` (pure read-side helpers),
-    `locations` (grouping tomes by place, move payloads), `inventory`
+    `locations` (grouping tomes by place, move payloads), `shelfPhoto`
+    (fitting a camera photo inside 1 600 px before upload), `inventory`
     (the stock-taking state machine), `labels` (Avery sheet geometry,
     EAN-13 checksums, label text fitting), `gridDensity` (the two grid
     shapes — a test parses the Tailwind class string against the lane
@@ -426,7 +427,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 | `/api/authors` | Author records, photos, refresh |
 | `/api/user`, `/api/account` | Profile, deletion, public slug; `GET /api/user/isbn/{isbn}` resolves a barcode through the server-side chain (see External Integrations) |
 | `/api/user/api-keys` | 鍵 · Mint / list / revoke the per-user keys that open the MCP endpoint, plus `GET /api-keys/scopes` (catalogue + whether the operator enabled `/mcp`) and `GET /api-keys/audit` (what agents did). Session-authenticated: a key never authenticates here, only on `/mcp` |
-| `/api/user/locations` | The places registry — list with per-place counts, create, rename (cascades to the tomes filed there), annotate, reorder, delete (unfiles them) |
+| `/api/user/locations` | The places registry — list with per-place counts, create, rename (cascades to the tomes filed there), annotate, reorder, delete (unfiles them), and 写 the shelf's own photo at `/{id}/photo` (GET / POST multipart / DELETE) |
 | `/api/settings` | User preferences |
 | `/api/seals` | Milestone trophies |
 | `/api/activity`, `/api/streak` | Activity feed & streak |
@@ -528,7 +529,14 @@ stateless), so an AI client can read and curate one account's collection.
   reach the server (`useUpdateMangaMeta`'s destructure, its `fields`
   map, `enqueueLibraryPatch`, the outbox flush's request builder);
   miss one and the interface accepts the value and loses it.
-- `locations` is a **registry, not a foreign key**: a tome keeps naming
+- A place can carry a **photo of the shelf itself** (`locations.photo_updated_at`
++ a blob at `uploads/places/{user}/{id}.jpg`). The date is the
+cache-buster: the URL is stable, so without `?v=` a replacement photo
+would be served from the browser's cache. The image is scaled down on
+the client (`lib/shelfPhoto.js`) because the server never resizes — it
+only checks magic bytes and a 4 MiB ceiling.
+
+`locations` is a **registry, not a foreign key**: a tome keeps naming
   its place in `user_volumes.location` (what the offline cache and the
   archive carry), and the table adds the note, the order and the identity
   that let a place be renamed or emptied in one move. A place typed on a
