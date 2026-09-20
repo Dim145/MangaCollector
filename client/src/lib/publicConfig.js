@@ -68,5 +68,9 @@ function normalize(payload) {
     payload.errorTracking && typeof payload.errorTracking.dsn === "string"
       ? payload.errorTracking
       : null;
-  return { errorTracking };
+  // 影 · Whether the operator relays covers through the server
+  // (`PROXY_COVERS`). Every field this function forgets to carry is a
+  // field the app cannot see, however correct the payload: that is how
+  // the relay shipped switched off despite the server announcing it.
+  return { errorTracking, proxyCovers: payload.proxyCovers === true };
 }

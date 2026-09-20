@@ -120,6 +120,16 @@ async fn main() -> anyhow::Result<()> {
     // but slow upstream responses finish while killing dead sockets
     // fast.
     let http_client = reqwest::Client::builder()
+        // 名 · Say who is calling. Nothing here sent a `User-Agent` at
+        // all, which most upstreams tolerate and MangaDex's CDN does
+        // not: it answered 403 to every cover the relay asked for,
+        // while the same URL from a browser returned the image. Naming
+        // the client is also what MangaDex asks of API consumers.
+        .user_agent(concat!(
+            "MangaCollector/",
+            env!("CARGO_PKG_VERSION"),
+            " (+https://github.com/dim145/MangaCollector)"
+        ))
         .connect_timeout(std::time::Duration::from_secs(5))
         .timeout(std::time::Duration::from_secs(30))
         // Cap redirects (default is up to 10). Every outbound host is a
@@ -231,6 +241,7 @@ async fn main() -> anyhow::Result<()> {
         storage,
         oidc_client: Arc::new(oidc_client),
         http_client,
+        proxy_covers: observability::proxy_covers_enabled(),
         cache,
         broker,
         activity,

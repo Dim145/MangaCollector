@@ -99,6 +99,12 @@ pub fn init() -> Result<Option<sentry::ClientInitGuard>> {
 pub struct FrontendObservabilityConfig {
     #[serde(rename = "errorTracking")]
     pub error_tracking: Option<ErrorTrackingConfig>,
+    /// 影 · Whether the SPA should ask this server for covers rather
+    /// than the two CDNs. Read at boot from `/api/public-config`, so an
+    /// operator flips `PROXY_COVERS` and redeploys without rebuilding
+    /// the frontend.
+    #[serde(rename = "proxyCovers")]
+    pub proxy_covers: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -121,6 +127,7 @@ pub struct ErrorTrackingConfig {
 /// `docker compose up`, not at the user's first page load.
 pub fn frontend_config() -> Result<FrontendObservabilityConfig> {
     let error_tracking = build_error_tracking_config()?;
+    let proxy_covers = proxy_covers_enabled();
 
     if let Some(ref t) = error_tracking {
         eprintln!(
@@ -129,7 +136,24 @@ pub fn frontend_config() -> Result<FrontendObservabilityConfig> {
         );
     }
 
-    Ok(FrontendObservabilityConfig { error_tracking })
+    Ok(FrontendObservabilityConfig {
+        error_tracking,
+        proxy_covers,
+    })
+}
+
+/// 影 · `PROXY_COVERS` — read here and in `main` (for `AppState`), so
+/// the switch the SPA is told about and the one the route enforces are
+/// the same switch. Anything but a clear "yes" is off.
+pub fn proxy_covers_enabled() -> bool {
+    matches!(
+        std::env::var("PROXY_COVERS")
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 fn build_error_tracking_config() -> Result<Option<ErrorTrackingConfig>> {
@@ -178,5 +202,35 @@ fn parse_bool(key: &str) -> bool {
     match env_nonempty(key) {
         Some(s) => matches!(s.to_lowercase().as_str(), "1" | "true" | "yes" | "on"),
         None => false,
+    }
+}
+
+#[cfg(test)]
+mod proxy_covers_tests {
+    use super::proxy_covers_enabled;
+
+    /// The default is off, and only an unambiguous value turns it on:
+    /// an operator who mistypes should keep the behaviour they had,
+    /// not silently start paying for every cover.
+    #[test]
+    fn only_a_clear_yes_turns_the_relay_on() {
+        // SAFETY: single-threaded test, and the variable is read
+        // through this function alone.
+        for (value, expected) in [
+            ("true", true),
+            ("TRUE", true),
+            (" on ", true),
+            ("1", true),
+            ("yes", true),
+            ("false", false),
+            ("0", false),
+            ("", false),
+            ("maybe", false),
+        ] {
+            unsafe { std::env::set_var("PROXY_COVERS", value) };
+            assert_eq!(proxy_covers_enabled(), expected, "for {value:?}");
+        }
+        unsafe { std::env::remove_var("PROXY_COVERS") };
+        assert!(!proxy_covers_enabled());
     }
 }

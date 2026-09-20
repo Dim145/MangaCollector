@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLazyImage } from "@/hooks/useLazyImage.js";
 import { coverPaletteFor } from "@/lib/coverPalette.js";
+import { coverSrc, originalCoverSrc } from "@/lib/covers.js";
 
 /**
  * Cover `<img>` with a kanji-placeholder fallback when the URL is
@@ -39,6 +40,13 @@ export default function CoverImage({
 }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // 影 · What we actually request. Identical to `src` unless the
+  // operator turned the cover relay on (see `lib/covers.js`), in which
+  // case the server fetches the image and the CDN never sees the
+  // reader. `fallback` is the upstream address to try if the relay
+  // fails — a relay that is down or misconfigured must cost a second
+  // request, never a hole in the shelf.
+  const [requested, setRequested] = useState(() => coverSrc(src));
   // 遅 · Defer the actual `<img>` mount until the slot approaches the
   // viewport (200px buffer). Skips the network request entirely for
   // off-screen slots in a virtualized grid; the LQIP swatch fills the
@@ -48,7 +56,17 @@ export default function CoverImage({
   useEffect(() => {
     setFailed(false);
     setLoaded(false);
+    setRequested(coverSrc(src));
   }, [src]);
+
+  const onError = () => {
+    const upstream = originalCoverSrc(requested);
+    if (upstream) {
+      setRequested(upstream);
+      return;
+    }
+    setFailed(true);
+  };
 
   const showImg = Boolean(src) && !failed;
   const placeholderColor =
@@ -76,7 +94,7 @@ export default function CoverImage({
       >
         {near && (
           <img
-            src={src}
+            src={requested}
             alt={alt}
             // 寸 · Intrinsic width/height attributes set the
             // `aspect-ratio` the browser uses to reserve the
@@ -102,7 +120,7 @@ export default function CoverImage({
             // that carry a Referer they don't recognise; the page-level
             // Referrer-Policy stays strict and only this tag opts out.
             referrerPolicy="no-referrer"
-            onError={() => setFailed(true)}
+            onError={onError}
             onLoad={() => setLoaded(true)}
             className={`${imgClassName} ${blur ? "blur-md" : ""} ${
               placeholderColor ? "transition-opacity duration-300" : ""

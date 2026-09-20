@@ -20,6 +20,11 @@ pub struct AppState {
     pub storage: Arc<dyn StorageBackend>,
     pub oidc_client: Arc<OidcState>,
     pub http_client: reqwest::Client,
+    /// 影 · Whether covers are relayed through this server instead of
+    /// being fetched by the browser straight from MangaDex and
+    /// MyAnimeList (`PROXY_COVERS`). Off by default: it moves those
+    /// megabytes onto the operator's connection, which is their call.
+    pub proxy_covers: bool,
     /// Optional Redis-backed cache (disabled when REDIS_URL is not set).
     /// Services take `Option<&CacheStore>` and no-op when absent.
     pub cache: Option<Arc<CacheStore>>,

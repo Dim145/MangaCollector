@@ -93,6 +93,7 @@ import { applyAccentToDocument, rememberAccent } from "@/lib/accent.js";
 import { setSoundEnabled } from "@/lib/sounds.js";
 import { useAuth } from "@/hooks/useAuth.js";
 import { useScrollMemory } from "@/hooks/useScrollMemory.js";
+import { setCoverProxySession } from "@/lib/covers.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
@@ -240,6 +241,12 @@ function I18nBoundary({ children }) {
  */
 function SignedInOnly({ children }) {
   const { isAuthenticated } = useAuth();
+  // 影 · The cover relay answers a session and nothing else, so the
+  // rewrite waits for one — an anonymous visitor on the landing would
+  // otherwise buy a 401 per cover. See `lib/covers.js`.
+  useEffect(() => {
+    setCoverProxySession(isAuthenticated);
+  }, [isAuthenticated]);
   return isAuthenticated ? children : null;
 }
 

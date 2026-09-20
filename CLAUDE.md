@@ -87,6 +87,7 @@ CORS exposed headers.
 | `APP_ENABLE_DOTENV` | Whether to load `.env` at startup |
 | `EXTERNAL_PROXY_URL`, `EXTERNAL_PROXY_TIMEOUT_SECS` | Release-calendar proxy (see `docs/release-calendar-proxy.md`) |
 | `GOOGLE_BOOKS_API_KEY` | Optional, for ISBN lookups |
+| `PROXY_COVERS` | 影 · Relay covers through the server instead of the browser fetching them from MAL/MangaDex, so those CDNs stop seeing every reader's address. Default `false` — it moves the bytes onto the operator's connection. Works for MyAnimeList; MangaDex refuses a server client outright (`ENHANCE_YOUR_CALM` on the first stream, any concurrency), and the browser falls back to fetching those directly. Doing better needs a server-side cover cache |
 | `MCP_ENABLED` | 接 · Opt-in switch for `/mcp`. Default `false` — it hands an agent write access to a whole library |
 | `MCP_ALLOWED_HOSTS` | Extra `Host` values the MCP transport answers to, comma-separated. rmcp ships loopback-only and validates `Host` against DNS rebinding, so a real deployment must name itself here or every request is refused |
 | `MCP_ALLOWED_ORIGINS` | `Origin` values to accept. Empty = unchecked, which is right for a cookie-less endpoint |
@@ -140,8 +141,9 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 158 tests across 32 `#[cfg(test)]` modules
-  (`storage.rs`, `errors.rs`, `http_cache.rs`, `util/{url,uuid,image,isbn}.rs`,
+- **Server:** `cargo test` — 160 tests across 34 `#[cfg(test)]` modules
+  (`storage.rs`, `errors.rs`, `http_cache.rs`, `handlers/cover.rs`,
+  `observability.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
   `services/api_keys.rs` pins the MCP credential rules — the scope
@@ -169,7 +171,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 065 tests across 56 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 071 tests across 57 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -206,6 +208,10 @@ docker compose build
     is no longer co-loaded beside French or Spanish. The second walks
     the source for `t("…")` and fails on a key no catalogue has — it
     found two that were shipping as visible text.
+  - `lib/covers.test.js` pins where a cover is fetched from: nothing
+    changes unless the operator set `PROXY_COVERS`, and even then only
+    somebody else's `http(s)` address is relayed — never our own poster
+    paths, a `data:` preview, or this origin.
   - `lib/coreQueries.test.js` pins the conditional refresh: the library
     and the volumes are fetched as **text**, and an answer whose `ETag`
     matches the last one is neither parsed nor written — unless the

@@ -9,6 +9,7 @@ import { captureDeepLinkIntentFromUrl } from "./lib/deepLinks.js";
 import { initErrorTracking } from "./lib/errorTracking.js";
 import { initAnalytics } from "./lib/analytics.js";
 import { fetchPublicConfig } from "./lib/publicConfig.js";
+import { rememberCoverProxySetting } from "./lib/covers.js";
 import { bootstrapLanguage, loadLanguage } from "./i18n/index.jsx";
 
 // Apply the user's last-known theme + accent before React mounts so
@@ -43,6 +44,10 @@ initAnalytics();
 // "no observability at all" — and per the spec, a silent fetch failure
 // just leaves the feature disabled for this session.
 fetchPublicConfig().then((config) => {
+  // 影 · Whether the operator relays covers through the server. Noted
+  // here; `lib/covers.js` only acts on it once there is a session,
+  // because the relay is authenticated.
+  rememberCoverProxySetting(config?.proxyCovers);
   // `initErrorTracking` now loads the SDK chunk on demand; a failed
   // load (first visit while offline, chunk not yet in the SW cache)
   // must not surface as an unhandled rejection — the app simply runs
@@ -52,8 +57,10 @@ fetchPublicConfig().then((config) => {
   }
 });
 
-// 言 · Pre-load the active language bundle (and English fallback if
-// different) BEFORE the React tree mounts. Each language is its own
+// 言 · Pre-load this reader's language bundle BEFORE the React tree
+// mounts — theirs alone: the three catalogues carry the same keys
+// (`i18n/parity.test.js`), so English is no longer fetched underneath
+// another language. Each language is its own
 // code-split chunk, so visitors only download what they need — English
 // users skip ~100 KB of FR/ES translations, etc. The await is bounded
 // by the network round-trip on first visit; after that, the SW

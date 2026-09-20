@@ -4,7 +4,7 @@ use axum::{
 };
 
 use crate::handlers::{
-    activity, api_keys, archive, auth as auth_handlers, author, calendar, coffret, compare,
+    activity, api_keys, archive, auth as auth_handlers, author, calendar, coffret, compare, cover,
     external, external_import, follow, health, isbn, library, locations, public, public_config,
     realtime, seals, settings, snapshot, storage, user_profile, volume,
 };
@@ -75,6 +75,13 @@ pub fn api_router() -> Router<AppState> {
 
 fn user_router() -> Router<AppState> {
     Router::new()
+        // 影 · The cover relay. Off unless `PROXY_COVERS=true`, in which
+        // case the browser asks for covers here instead of handing the
+        // reader's address to MangaDex and MyAnimeList. Inside this
+        // router because `/api/user` is nested: a `/user/...` route
+        // declared beside the nest is shadowed by it and 404s.
+        // See `handlers/cover.rs` for the three guards it stands on.
+        .route("/cover", get(cover::proxy_cover))
         // 鍵 · API keys for the MCP endpoint. Minted from the settings
         // page by a signed-in human; the keys themselves only ever
         // authenticate on `/mcp`, which takes no cookie. `/scopes` is

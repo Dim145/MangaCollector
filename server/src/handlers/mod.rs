@@ -6,6 +6,7 @@ pub mod author;
 pub mod calendar;
 pub mod coffret;
 pub mod compare;
+pub mod cover;
 pub mod external;
 pub mod external_import;
 pub mod follow;
