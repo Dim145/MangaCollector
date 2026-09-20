@@ -455,6 +455,19 @@ export default defineConfig({
         // resolved path of the module — we match by `node_modules/...`
         // to avoid colliding with our own files that happen to share
         // a name with a dep.
+        //
+        // 図 · There is deliberately NO bucket for recharts / d3. Naming
+        // one made things worse, and the mechanism is worth writing
+        // down. A chunk only pays for itself when the pages that need
+        // it are the pages that load it. Forcing every `d3-*` package
+        // into one chunk pulled in modules that non-chart code shares
+        // (`d3-shape` reaches the seal ribbons, `d3-time-format` the
+        // calendar), so 55 chunks — the entry among them — imported it,
+        // and every first visit paid 372 kB (107 gz) to render a page
+        // with no chart on it. Left alone, the bundler puts recharts
+        // where it is used: a `CategoricalChart` chunk the seven chart
+        // routes share, loaded when Stats is opened and not before.
+        // Measured on this tree: critical JS 271 → 167 kB gz.
         manualChunks(id) {
           if (id.includes("/node_modules/")) {
             if (
@@ -465,9 +478,6 @@ export default defineConfig({
               id.includes("/scheduler/")
             ) {
               return "react-vendor";
-            }
-            if (id.includes("/recharts/") || id.includes("/d3-")) {
-              return "charts";
             }
             if (
               id.includes("/dexie/") ||
