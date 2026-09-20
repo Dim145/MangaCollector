@@ -8,6 +8,7 @@ import {
   remembersScroll,
   writeScroll,
 } from "@/lib/scrollMemory.js";
+import { isScrollAdjusting } from "@/lib/scrollAdjusting.js";
 
 /**
  * 指 · Which input counts as the reader scrolling, once the position has
@@ -74,6 +75,8 @@ export function useScrollMemory() {
   const keyRef = useRef(location.key);
   // May the scroll listener record for the current entry yet?
   const armedRef = useRef(false);
+  // Does the page we are on keep its position at all?
+  const remembersRef = useRef(remembersScroll(location.pathname));
 
   useLayoutEffect(() => {
     if (typeof window === "undefined" || !window.history) return;
@@ -84,6 +87,7 @@ export function useScrollMemory() {
 
   useEffect(() => {
     let pending = false;
+    let lastHeight = document.documentElement.scrollHeight;
     const onScroll = () => {
       if (!armedRef.current || pending) return;
       pending = true;
@@ -93,16 +97,68 @@ export function useScrollMemory() {
         // Scheduled for an entry we have since left: the position we
         // would read now belongs to the new page.
         if (!armedRef.current || keyRef.current !== key) return;
+
+        // 落 · A page that shrinks under the reader drags the scroll
+        // down with it, and the browser reports that as a scroll like
+        // any other. It is not a position anyone chose, and recording
+        // it overwrites one they did: leaving the library for a series
+        // shortens the document while this entry is still the current
+        // one, so "back" came back six hundred pixels above where the
+        // reader had been. A scroll that lands exactly on a *reduced*
+        // maximum is that, and nothing else.
+        const height = document.documentElement.scrollHeight;
+        const shrank = height < lastHeight;
+        lastHeight = height;
+        const bottom = Math.max(0, height - window.innerHeight);
+        if (shrank && Math.abs(window.scrollY - bottom) <= 1) return;
+
+        // 整 · Nor is the virtualizer correcting its own estimate a
+        // position anyone chose. See `lib/scrollAdjusting.js`.
+        if (isScrollAdjusting()) return;
+
         writeScroll(key, window.scrollY);
       });
     };
+    // 押 · The press is the last moment the position is the reader's.
+    //
+    // Clicking a card scrolls the page by itself — the browser reveals
+    // what it just focused, and the series page mounts under the old
+    // document — and every one of those scrolls looked exactly like a
+    // reader's. The library recorded the last of them, so "back"
+    // returned six hundred pixels above the card that was clicked.
+    //
+    // So: write where they were when they pressed, and stop listening.
+    // Recording resumes on the next scroll they actually perform — the
+    // same test the restore uses to decide it has been overruled.
+    const onPointerDown = () => {
+      if (!remembersRef.current) return;
+      if (armedRef.current) writeScroll(keyRef.current, window.scrollY);
+      armedRef.current = false;
+    };
+    const onReaderInput = (event) => {
+      if (remembersRef.current && isReaderScroll(event)) {
+        armedRef.current = true;
+      }
+    };
+
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("pointerdown", onPointerDown, true);
+    for (const ev of INPUT_EVENTS) {
+      window.addEventListener(ev, onReaderInput, { passive: true });
+    }
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      for (const ev of INPUT_EVENTS) {
+        window.removeEventListener(ev, onReaderInput);
+      }
+    };
   }, []);
 
   useLayoutEffect(() => {
     keyRef.current = location.key;
     armedRef.current = false;
+    remembersRef.current = remembersScroll(location.pathname);
     // `record` also notes the position as it stands; a cancel passes
     // `false` so a spurious cancel can never overwrite a good memory.
     const arm = (record = true) => {

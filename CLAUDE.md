@@ -171,7 +171,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 071 tests across 57 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 073 tests across 57 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -376,7 +376,15 @@ subsystem; they are written against the code, not the intent.
   mount's own scrolls). The reader's decision: a series or the backlog
   reopening half-way down reads as the wrong place, not as memory.
   `history.scrollRestoration` is `manual` because the browser's restore
-  fires before any of that. Only a clearly *vertical* wheel, a touch
+  fires before any of that. **What is recorded is where the reader was
+  when they pressed**: a click scrolls the page by itself — the browser
+  reveals what it focused, the next route mounts under the old
+  document, the virtualizer corrects an estimate — and every one of
+  those looks like a reader's scroll. `pointerdown` writes the position
+  and stops the recording; the next real scroll resumes it. A scroll
+  that lands on a *reduced* maximum (the page shrank underneath) and
+  one the virtualizer announced through `lib/scrollAdjusting.js` are
+  ignored for the same reason. Only a clearly *vertical* wheel, a touch
   drag or a key cancels a restore — a trackpad swipe-back hands the
   arriving page horizontal wheel events, and treating those as intent
   cancelled the restore and overwrote the memory with 0; a cancel never

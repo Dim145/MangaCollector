@@ -3,6 +3,7 @@ import {
   defaultRangeExtractor,
   useWindowVirtualizer,
 } from "@tanstack/react-virtual";
+import { markScrollAdjustment } from "@/lib/scrollAdjusting.js";
 
 /**
  * 寸 · Row heights learnt by measurement, kept across mounts.
@@ -29,6 +30,9 @@ const rowHeightMemory = new Map();
 export function instantWindowScroll(offset, { adjustments = 0, behavior }, instance) {
   const win = instance.scrollElement;
   if (!win?.scrollTo) return;
+  // Say so, so the library's scroll memory does not mistake this for
+  // the reader choosing a position — see `lib/scrollAdjusting.js`.
+  markScrollAdjustment();
   win.scrollTo({
     [instance.options.horizontal ? "left" : "top"]: offset + adjustments,
     behavior: behavior ?? "instant",

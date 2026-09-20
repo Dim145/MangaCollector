@@ -43,8 +43,7 @@ export function deriveListState(data, query, opts = {}) {
   const settling =
     dexieReady &&
     safe.length === 0 &&
-    Array.isArray(query.data) &&
-    query.data.length > 0 &&
+    serverRowCount(query.data) > 0 &&
     typeof query.dataUpdatedAt === "number" &&
     Date.now() - query.dataUpdatedAt < SETTLE_WINDOW_MS;
   const loading = pending || settling;
@@ -60,3 +59,25 @@ export function deriveListState(data, query, opts = {}) {
 /** How long a fresh network answer may wait for Dexie before an empty
  *  cache is believed. Dexie emits in single-digit milliseconds. */
 export const SETTLE_WINDOW_MS = 1500;
+
+/**
+ * 数 · How many rows the server said it had, whatever shape it said it
+ * in. Usually the answer is the rows themselves. It is `{unchanged:
+ * true, rows}` when the client recognised the server's `ETag` and
+ * neither parsed nor rewrote an answer it already held (see
+ * `lib/coreQueries.js`) — which is still an answer, and still evidence
+ * that the library is not empty.
+ *
+ * Reading it as "not an array, so nothing" is what this exists to
+ * prevent: the dashboard flashed its empty state on a revisit, and on
+ * a page scrolled near the bottom the browser clamped the scroll to
+ * the sudden shorter document, so coming back landed six hundred
+ * pixels above where the reader had been.
+ */
+function serverRowCount(data) {
+  if (Array.isArray(data)) return data.length;
+  if (data && typeof data === "object" && typeof data.rows === "number") {
+    return data.rows;
+  }
+  return 0;
+}

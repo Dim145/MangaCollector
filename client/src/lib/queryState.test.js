@@ -138,3 +138,41 @@ describe("the settle-to-emit gap", () => {
     expect(s.isEmpty).toBe(true);
   });
 });
+
+describe("an answer the client already held", () => {
+  /*
+   * 数 · `coreQueries` answers `{unchanged: true, rows}` when the
+   * server's ETag matches what the client stored: nothing parsed,
+   * nothing written. That is still an answer, and reading it as "no
+   * rows" made the dashboard flash its empty state on every revisit —
+   * and, scrolled near the bottom, clamped the scroll to the suddenly
+   * shorter page, so "back" landed six hundred pixels too high.
+   */
+  it("counts as rows while Dexie is still catching up", () => {
+    const state = deriveListState(
+      [],
+      {
+        isPending: false,
+        isFetching: false,
+        data: { unchanged: true, rows: 1986 },
+        dataUpdatedAt: Date.now(),
+      },
+    );
+    expect(state.isEmpty).toBe(false);
+    expect(state.isInitialLoad).toBe(true);
+  });
+
+  it("still believes a genuinely empty library", () => {
+    const state = deriveListState(
+      [],
+      {
+        isPending: false,
+        isFetching: false,
+        data: { unchanged: true, rows: 0 },
+        dataUpdatedAt: Date.now(),
+      },
+    );
+    expect(state.isEmpty).toBe(true);
+  });
+});
+
