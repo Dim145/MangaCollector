@@ -155,7 +155,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 040 tests across 52 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 047 tests across 52 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -198,6 +198,10 @@ docker compose build
     visitor's own shelf read from the device cache, screenshots with real
     alt text and intrinsic sizes, en/fr/es key parity) are the component tests; `hooks/useWindowGridVirtualizer.test.js`
     covers the lane / pinned-row maths shared by both windowed grids and
+    the learnt row height (one measured row sizes every unmeasured one,
+    remembered for the grid's next mount, measured the way TanStack
+    measures so the two agree to the pixel; a correction the reader did
+    not ask for is instant), and
     `hooks/useArchive.test.jsx` pins the import endpoint's wire shape.
   - Three suites assert **cross-language parity** by parsing the Rust
     source: the seal catalogue against `services/seals.rs::CATALOG`, the
@@ -347,7 +351,16 @@ subsystem; they are written against the code, not the intent.
   when `location.state.from === "library"` — so the entry behind
   restores itself instead of a new entry starting at the top. Never
   guard an effect with a "first run" ref: development runs effects
-  twice.
+  twice. A windowed grid must report its true height from its first
+  paint, or a restore into its tail has nothing to hold on to:
+  `useWindowGridVirtualizer` learns the row height from the first row
+  it measures, remembers it per grid, lane count and viewport width
+  across mounts, and makes TanStack's own scroll corrections instant
+  (the stylesheet's `scroll-behavior: smooth` would animate them into a
+  visible drift). With the guess 34 px short per row, coming back to a
+  series near the bottom of the library waited the restore's full
+  1.5 s cap — those rows are only measured once rendered, and only
+  rendered once reached — then descended in three hops.
 
 ## API Routes
 

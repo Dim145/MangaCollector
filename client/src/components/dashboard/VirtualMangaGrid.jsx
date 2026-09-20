@@ -45,11 +45,14 @@ export default function VirtualMangaGrid({
   shelf3d,
 }) {
   const { density } = useGridDensity();
-  const { parentRef, lanes, scrollMargin, virtualizer } =
+  const { parentRef, lanes, scrollMargin, virtualizer, measureRow } =
     useWindowGridVirtualizer({
       itemCount: filtered.length,
       laneBreakpoints: laneTable(density),
+      // First paint's guess only — the hook learns the real row height
+      // from the first row it measures and remembers it per density.
       estimateSize: 270,
+      memoryKey: `library:${density}`,
       // 8 rows * up to 6 cols = 48 cards buffer above/below the
       // viewport. Comfortably covers the "Cmd+K → navigate" race
       // condition where View Transitions need the source card to
@@ -73,7 +76,7 @@ export default function VirtualMangaGrid({
           <div
             key={virtualRow.key}
             data-index={virtualRow.index}
-            ref={virtualizer.measureElement}
+            ref={measureRow}
             // Per-row 3D class — applies the same tilt + wood-grain
             // baseline as the simple grid's `.shelf-3d` does. Skipped
             // in selection mode for the same reason as the simple

@@ -45,7 +45,13 @@ const INPUT_EVENTS = ["wheel", "touchmove", "keydown"];
  *   2. Restoring waits until the page can hold the position. The
  *      virtualized grid gets its height a frame after the rows arrive
  *      from Dexie; a `scrollTo` issued before that clamps against a
- *      skeleton. Then it holds the position for a short while against
+ *      skeleton. That presumes the grid reports its true height from
+ *      its first paint — `useWindowGridVirtualizer` learns and
+ *      remembers the row height for exactly this reason. With a guess
+ *      34 px short per row, a position in the grid's tail could not be
+ *      held until those rows were measured, and they were not measured
+ *      until the position was reached, so the restore sat out its full
+ *      cap and then descended in hops. Then it holds the position for a short while against
  *      the mount's own scrolls (the window virtualizer scrolls to its
  *      initial offset as it attaches), and lets go if the reader really
  *      scrolls — a vertical wheel, a touch drag, a key. A trackpad

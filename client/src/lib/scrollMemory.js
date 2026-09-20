@@ -41,7 +41,11 @@ export function remembersScroll(pathname) {
   return REMEMBERED_ROUTES.has(pathname);
 }
 
-/** How long a restore may wait for the page to grow tall enough. */
+/** How long a restore may wait for the page to grow tall enough. A
+ *  safety net for a slow device's skeleton phase, not a path anything
+ *  should take: a page at its true height is holdable at once, and a
+ *  restore that reaches this cap is a page reporting a height it does
+ *  not have (see `useWindowGridVirtualizer`). */
 export const RESTORE_WAIT_MS = 1500;
 /** After placing, how long we keep the position against the mount's own
  *  scrolls (the window virtualizer scrolls to its initial offset as it
