@@ -127,19 +127,14 @@ export default defineConfig({
       // transition is clean once the user clicks reload.
       registerType: "prompt",
       injectRegister: false,
-      includeAssets: [
-        "pwa-192x192.png",
-        "pwa-512x512.png",
-        "pwa-maskable.png",
-        "apple-touch-icon.png",
-        // App-shortcut icons — referenced by the manifest's `shortcuts`
-        // entries and need to be in the precache so the launcher menu
-        // works even when the user is offline at the moment of long-
-        // press. Kept as SVGs (~400 B each) rather than PNG sprites.
-        "shortcut-scan.svg",
-        "shortcut-add.svg",
-        "shortcut-profile.svg",
-      ],
+      // 重 · No `includeAssets`. The icons it used to name — the three
+      // PWA icons, the Apple touch icon, the three shortcut SVGs — sit
+      // in `public/`, and `globPatterns` below already matches every
+      // `.png` and `.svg` the build emits, so naming them again put
+      // each one in the manifest twice. Harmless to the cache, which
+      // keys on the URL, but it meant a 120 kB maskable icon counted
+      // twice against the install. Add the option back only for
+      // something `globPatterns` cannot reach.
       manifest: {
         name: "MangaCollector",
         short_name: "MangaCol",
@@ -236,6 +231,33 @@ export default defineConfig({
       workbox: {
         // Precache the app shell (JS/CSS/HTML)
         globPatterns: ["**/*.{js,css,html,svg,png,jpg,webp,woff2}"],
+        // 荷 · …but not everything the build emits. Installing the app
+        // downloaded 4.7 MB before it could be used once, most of it
+        // for things most readers never open: the error reporter, the
+        // PDF stack behind the label sheet, the charting library, the
+        // two languages this reader is not using, the landing
+        // screenshots a signed-in reader never sees again. Every URL
+        // below is content-hashed and therefore immutable, so the
+        // cache-first runtime rule further down keeps each one from
+        // the moment it is first needed — offline included, from the
+        // second use on. The shell that has to be there before
+        // anything can render stays precached.
+        globIgnores: [
+          "**/prod-*.js", // Sentry / Bugsink, and only when configured
+          "**/jspdf*.js",
+          "**/html2canvas-*.js",
+          "**/index.es-*.js", // canvg, jsPDF's SVG path
+          "**/JsBarcode*.js",
+          // recharts and everything built on it: our four chart
+          // components and the pieces they share. Named one by one on
+          // purpose — there is no glob for "reachable only from
+          // Stats", so a new chart added under another name will
+          // quietly rejoin the precache until it is listed here.
+          "**/{CategoricalChart,CartesianGrid,BarChart}-*.js",
+          "**/{ReadingChart,SpendingChart,MostValuedChart,CompositionPies}-*.js",
+          "**/{en,fr,es}-*.js", // one of the three is ever active
+          "**/{library,series,volumes,stats}-{800,1400}*.{jpg,webp,avif}", // landing
+        ],
         // Skip the backend — we handle offline/sync at the app layer.
         // The trailing slashes on each pattern matter: without them
         // the regex `/^\/auth/` greedily matches `/author/-1` (the
@@ -267,6 +289,26 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: false,
         runtimeCaching: [
+          // 資 · Our own build output that the precache no longer
+          // carries (see `globIgnores`). Cache-first without
+          // revalidation is safe and correct here precisely because
+          // every one of these filenames contains a hash of its
+          // contents: a changed file is a different URL, and
+          // `cleanupOutdatedCaches` plus the expiry below retire the
+          // ones a deploy left behind.
+          {
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin && url.pathname.startsWith("/assets/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "app-assets",
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 90,
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           // Google Fonts stylesheets
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
