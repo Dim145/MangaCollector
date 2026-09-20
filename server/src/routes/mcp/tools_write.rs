@@ -352,6 +352,12 @@ impl McMcp {
                 volumes: input.volumes,
                 volumes_owned: input.volumes_owned,
                 genres: input.genres.clone(),
+                // An agent creating a series knows no catalogue metadata;
+                // the reader fills these in from the edit form.
+                image_url_jpg: None,
+                publisher: None,
+                edition: None,
+                author: None,
             },
             origin,
         )

@@ -63,6 +63,14 @@ pub struct IsbnBook {
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub price: Option<IsbnPrice>,
+    /// 叢 · The series this book belongs to, when the catalogue says so
+    /// — "One Piece", not "Droit devant !!". This is what turns a
+    /// barcode into a shelf entry rather than a lone book.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub series: Option<String>,
+    /// Its number within that series.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volume: Option<i32>,
     pub source: String,
 }
 
@@ -209,7 +217,12 @@ async fn bnf(client: &reqwest::Client, isbn: &str) -> anyhow::Result<Option<Isbn
             ("version", "1.2"),
             ("operation", "searchRetrieve"),
             ("query", &format!("bib.isbn adj \"{isbn}\"")),
-            ("recordSchema", "dublincore"),
+            // 叢 · UNIMARC, not Dublin Core: the series and the volume
+            // number live in 225 $a/$v and 461 $t/$v, and Dublin Core
+            // flattens them away. It also gives cleaner authors (700 $a
+            // + $b rather than a statement of responsibility) and the
+            // cover price.
+            ("recordSchema", "unimarcxchange"),
             ("maximumRecords", "1"),
         ])
         .header("User-Agent", USER_AGENT)
@@ -256,6 +269,57 @@ fn https(url: String) -> String {
     }
 }
 
+/// 叢 · Pull a series and a volume number out of a book title.
+///
+/// Catalogues that have no series field still write it into the title,
+/// and publishers are consistent about it: "One Piece, Tome 15",
+/// "Blacksad - Tome 3", "Naruto, Vol. 7", "Berserk #12". When a title
+/// ends that way, the part before the separator is the series and the
+/// number is the volume.
+///
+/// Deliberately narrow. It fires only on an explicit volume word or a
+/// hash, never on a bare trailing number — "Akira 2" could be a second
+/// volume or a title, and guessing wrong renames someone's shelf.
+pub fn split_title_series(title: &str) -> Option<(String, i32)> {
+    const MARKERS: [&str; 9] = [
+        "tome", "tomo", "volume", "vol.", "band", "deel", "t.", "#", "t",
+    ];
+    let lower = title.to_lowercase();
+    for marker in MARKERS {
+        let Some(at) = lower.rfind(marker) else {
+            continue;
+        };
+        // The marker has to start a word. Without this, the bare "t"
+        // that catches the French "Golden City T09" would also cut
+        // "Bat 21" into "Ba" — and a shelf named "Ba" is worse than one
+        // that was never split.
+        let starts_word = at == 0
+            || lower[..at]
+                .chars()
+                .next_back()
+                .is_some_and(|c| !c.is_alphanumeric());
+        if !starts_word {
+            continue;
+        }
+        // What follows the marker must be a number, and nothing else.
+        let rest = title[at + marker.len()..].trim();
+        let number: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if number.is_empty() || !rest[number.len()..].trim().is_empty() {
+            continue;
+        }
+        let head = title[..at]
+            .trim()
+            .trim_end_matches([',', '-', '\u{2013}', ':', '\u{00b7}'])
+            .trim();
+        if head.is_empty() {
+            continue;
+        }
+        let volume: i32 = number.parse().ok()?;
+        return Some((head.to_string(), volume));
+    }
+    None
+}
+
 pub fn parse_google(text: &str, isbn: &str) -> Option<IsbnBook> {
     let data: serde_json::Value = serde_json::from_str(text).ok()?;
     let item = data.get("items")?.as_array()?.first()?;
@@ -277,6 +341,19 @@ pub fn parse_google(text: &str, isbn: &str) -> Option<IsbnBook> {
         .or_else(|| str_of(&links["thumbnail"]))
         .or_else(|| str_of(&links["smallThumbnail"]))
         .map(https);
+    // 叢 · Google carries the position in a series (`orderNumber`) but
+    // not the series' name — only an opaque `seriesId`. So the number
+    // comes from there when it is there, and the name from the title,
+    // which is where an edition writes it anyway.
+    let ordered = info["seriesInfo"]["volumeSeries"]
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(|entry| entry["orderNumber"].as_i64())
+        .map(|n| n as i32);
+    let from_title = split_title_series(&title);
+    let series = from_title.as_ref().map(|(name, _)| name.clone());
+    let volume = ordered.or_else(|| from_title.as_ref().map(|(_, n)| *n));
+
     Some(IsbnBook {
         isbn: isbn.to_string(),
         title,
@@ -292,6 +369,8 @@ pub fn parse_google(text: &str, isbn: &str) -> Option<IsbnBook> {
         cover,
         description: str_of(&info["description"]),
         price,
+        series,
+        volume,
         source: "google_books".into(),
     })
 }
@@ -304,6 +383,22 @@ pub fn parse_open_library(text: &str, isbn: &str) -> Option<IsbnBook> {
         .as_i64()
         .filter(|id| *id > 0)
         .map(|id| format!("https://covers.openlibrary.org/b/id/{id}-L.jpg"));
+    // 叢 · Open Library writes the series as one string: "Naruto #3",
+    // sometimes "Naruto, Vol. 3". Same shape as a title, same reading.
+    let from_series = strings_of(&doc["series"])
+        .into_iter()
+        .find_map(|entry| split_title_series(&entry).or(Some((entry, 0))))
+        .and_then(|(name, n)| (!name.is_empty()).then_some((name, n)));
+    let from_title = split_title_series(&title);
+    let series = from_series
+        .as_ref()
+        .map(|(name, _)| name.clone())
+        .or_else(|| from_title.as_ref().map(|(name, _)| name.clone()));
+    let volume = from_series
+        .as_ref()
+        .map(|(_, n)| *n)
+        .filter(|n| *n > 0)
+        .or_else(|| from_title.as_ref().map(|(_, n)| *n));
     Some(IsbnBook {
         isbn: isbn.to_string(),
         title,
@@ -319,143 +414,246 @@ pub fn parse_open_library(text: &str, isbn: &str) -> Option<IsbnBook> {
         cover,
         description: None,
         price: None,
+        series,
+        volume,
         source: "open_library".into(),
     })
 }
 
-/// SRU 1.2 + Dublin Core: one `<srw:record>` with `dc:*` children. Repeated
-/// elements (several creators) are kept in order; `numberOfRecords` 0
-/// means an honest miss.
+/// 叢 · SRU 1.2 + UNIMARC (MarcXchange). One `<srw:record>` per hit;
+/// `numberOfRecords` 0 is an honest miss.
+///
+/// Dublin Core, which this used to ask for, flattens a record into
+/// `dc:title` / `dc:creator` and throws away the one thing a shelf
+/// needs: which series the book belongs to and where it sits in it.
+/// UNIMARC keeps them in named subfields, and gives better answers for
+/// everything else too — the author as surname + given name rather than
+/// a sentence ("traduit du japonais par…"), the publisher alone rather
+/// than a place-and-date string, and the cover price.
+///
+/// The fields read, and why:
+///   010 $a ISBN · $d cover price ("6,90 EUR")
+///   101 $a language
+///   200 $a title of *this volume* · $e its subtitle
+///   210 $c publisher · $d year
+///   215 $a extent ("1 vol. (192 p.)")
+///   225 $a series · $v number in it · $x ISSN — see below
+///   330 $a summary
+///   461 $t the set this belongs to · $v number in it
+///   700/701/702 $a surname · $b given name
+///
+/// 225 needs care: a record can carry several, and only one of them is
+/// the series. "One Piece / 15" and "Shonen manga / ISSN 1761-2268" sit
+/// side by side — the second is the publisher's imprint, which every
+/// shōnen in the catalogue shares. The one with a volume number and no
+/// ISSN is the series; 461, when present, says the same thing and is
+/// preferred because it is a real link to a catalogue record.
 pub fn parse_bnf(xml: &str, isbn: &str) -> Option<IsbnBook> {
     use quick_xml::events::Event;
-    let mut reader = quick_xml::Reader::from_str(xml);
-    let mut fields: std::collections::HashMap<String, Vec<String>> = Default::default();
-    let mut current: Option<String> = None;
-    let mut text = String::new();
+
+    // (tag, [(code, value)]) in document order.
+    let mut fields: Vec<(String, Vec<(u8, String)>)> = Vec::new();
     let mut records: Option<u32> = None;
+    let mut tag: Option<String> = None;
+    let mut code: Option<u8> = None;
+    let mut text = String::new();
+    let mut in_records_count = false;
+
+    let mut reader = quick_xml::Reader::from_str(xml);
     loop {
         match reader.read_event() {
             Err(_) | Ok(Event::Eof) => break,
             Ok(Event::Start(e)) => {
                 let local = e.local_name();
                 let local: &str = local.as_ref();
-                if matches!(
-                    local,
-                    "title"
-                        | "creator"
-                        | "contributor"
-                        | "publisher"
-                        | "date"
-                        | "language"
-                        | "format"
-                        | "description"
-                        | "numberOfRecords"
-                ) {
-                    current = Some(local.to_string());
-                    text.clear();
+                match local {
+                    "numberOfRecords" => {
+                        in_records_count = true;
+                        text.clear();
+                    }
+                    "datafield" => {
+                        let t = attr(&e, "tag").unwrap_or_default();
+                        fields.push((t.clone(), Vec::new()));
+                        tag = Some(t);
+                    }
+                    "subfield" => {
+                        code = attr(&e, "code").and_then(|c| c.bytes().next());
+                        text.clear();
+                    }
+                    _ => {}
                 }
             }
             Ok(Event::Text(t)) => {
-                if current.is_some() {
-                    let raw: &str = &t;
-                    match quick_xml::escape::unescape(raw) {
-                        Ok(s) => text.push_str(&s),
-                        Err(_) => text.push_str(raw),
+                let raw: &str = &t;
+                match quick_xml::escape::unescape(raw) {
+                    Ok(unescaped) => text.push_str(&unescaped),
+                    Err(_) => text.push_str(raw),
+                }
+            }
+            Ok(Event::CData(c)) => text.push_str(&c),
+            Ok(Event::End(e)) => {
+                let local = e.local_name();
+                let local: &str = local.as_ref();
+                match local {
+                    "numberOfRecords" if in_records_count => {
+                        records = text.trim().parse().ok();
+                        in_records_count = false;
+                        text.clear();
                     }
-                }
-            }
-            Ok(Event::CData(c)) => {
-                if current.is_some() {
-                    text.push_str(&c);
-                }
-            }
-            Ok(Event::GeneralRef(r)) => {
-                if current.is_some() {
-                    let name: &str = &r;
-                    match name {
-                        "amp" => text.push('&'),
-                        "lt" => text.push('<'),
-                        "gt" => text.push('>'),
-                        "quot" => text.push('"'),
-                        "apos" => text.push('\''),
-                        _ => {
-                            if let Ok(Some(ch)) = r.resolve_char_ref() {
-                                text.push(ch);
+                    "subfield" => {
+                        if let (Some(c), Some(_)) = (code.take(), tag.as_ref()) {
+                            let value = text.trim().to_string();
+                            if !value.is_empty()
+                                && let Some(last) = fields.last_mut()
+                            {
+                                last.1.push((c, value));
                             }
                         }
+                        text.clear();
                     }
-                }
-            }
-            Ok(Event::End(_)) => {
-                if let Some(name) = current.take() {
-                    let value = text.trim().to_string();
-                    if name == "numberOfRecords" {
-                        records = value.parse().ok();
-                    } else if !value.is_empty() {
-                        fields.entry(name).or_default().push(value);
+                    "datafield" => {
+                        tag = None;
                     }
-                    text.clear();
+                    _ => {}
                 }
             }
             Ok(_) => {}
         }
     }
-    if records == Some(0) {
+
+    if records == Some(0) || fields.is_empty() {
         return None;
     }
-    let title = fields.get("title")?.first()?.clone();
-    // BnF creators read "Oda, Eiichiro (1975-....). Auteur du texte" —
-    // keep the name, drop the dates and the role.
-    let authors: Vec<String> = fields
-        .get("creator")
-        .map(|v| {
-            v.iter()
-                .map(|c| clean_bnf_name(c))
-                .filter(|c| !c.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
-    let page_count = fields
-        .get("format")
-        .and_then(|v| v.iter().find_map(|f| pages_in(f)));
+
+    let sub = |t: &str, c: u8| -> Option<String> {
+        fields
+            .iter()
+            .filter(|(ft, _)| ft == t)
+            .find_map(|(_, subs)| subs.iter().find(|(sc, _)| *sc == c).map(|(_, v)| v.clone()))
+    };
+
+    let title = sub("200", b'a')?;
+    let subtitle = sub("200", b'e');
+
+    // 700 is the main author, 701/702 the others (translators included,
+    // which is why the role code is not filtered: a manga's 702 is
+    // usually its translator, and listing them is not wrong).
+    let mut authors: Vec<String> = Vec::new();
+    for (t, subs) in &fields {
+        if t != "700" && t != "701" && t != "702" {
+            continue;
+        }
+        let surname = subs
+            .iter()
+            .find(|(c, _)| *c == b'a')
+            .map(|(_, v)| v.clone());
+        let given = subs
+            .iter()
+            .find(|(c, _)| *c == b'b')
+            .map(|(_, v)| v.clone());
+        let name = match (given, surname) {
+            (Some(g), Some(s)) => format!("{g} {s}"),
+            (None, Some(s)) => s,
+            _ => continue,
+        };
+        if !authors.contains(&name) {
+            authors.push(name);
+        }
+    }
+    if authors.is_empty()
+        && let Some(statement) = sub("200", b'f')
+    {
+        authors.push(statement);
+    }
+
+    // 461 first — a link to the set's own record — then a 225 that
+    // carries a volume number and no ISSN.
+    let series_field = fields
+        .iter()
+        .find(|(t, subs)| t == "461" && subs.iter().any(|(c, _)| *c == b't'))
+        .map(|(_, subs)| (subs, b't'))
+        .or_else(|| {
+            fields
+                .iter()
+                .find(|(t, subs)| {
+                    t == "225"
+                        && subs.iter().any(|(c, _)| *c == b'v')
+                        && !subs.iter().any(|(c, _)| *c == b'x')
+                })
+                .map(|(_, subs)| (subs, b'a'))
+        });
+    let (series, volume) = match series_field {
+        Some((subs, name_code)) => {
+            let name = subs
+                .iter()
+                .find(|(c, _)| *c == name_code)
+                .map(|(_, v)| v.trim().to_string());
+            let number = subs
+                .iter()
+                .find(|(c, _)| *c == b'v')
+                .and_then(|(_, v)| leading_number(v));
+            (name.filter(|n| !n.is_empty()), number)
+        }
+        None => (None, None),
+    };
+
+    let price = sub("010", b'd').and_then(|raw| parse_cover_price(&raw));
+    let page_count = sub("215", b'a').and_then(|extent| {
+        // "1 vol. (192 p.)" — the pagination is the last number.
+        extent
+            .split(|c: char| !c.is_ascii_digit())
+            .rfind(|s| !s.is_empty())
+            .and_then(|digits| digits.parse().ok())
+    });
+
     Some(IsbnBook {
         isbn: isbn.to_string(),
         title,
-        subtitle: None,
+        subtitle,
         authors,
-        publisher: fields.get("publisher").and_then(|v| v.first().cloned()),
-        published: fields.get("date").and_then(|v| v.first().cloned()),
+        publisher: sub("210", b'c'),
+        published: sub("210", b'd'),
         page_count,
-        language: fields.get("language").and_then(|v| v.first().cloned()),
+        language: sub("101", b'a'),
         cover: None,
-        description: fields.get("description").and_then(|v| v.first().cloned()),
-        price: None,
+        description: sub("330", b'a'),
+        price,
+        series,
+        volume,
         source: "bnf".into(),
     })
 }
 
-fn clean_bnf_name(raw: &str) -> String {
-    let no_role = raw.split(". ").next().unwrap_or(raw);
-    let no_dates = match no_role.find(" (") {
-        Some(i) => &no_role[..i],
-        None => no_role,
-    };
-    no_dates.trim().trim_end_matches(',').to_string()
+/// The value of `name` on a start tag, as a `String`.
+fn attr(e: &quick_xml::events::BytesStart<'_>, name: &str) -> Option<String> {
+    e.attributes()
+        .flatten()
+        .find(|a| a.key.as_ref() == name)
+        .map(|a| a.value.trim().to_string())
 }
 
-/// "1 vol. (192 p.) : ill. ; 18 cm" → 192
-fn pages_in(format: &str) -> Option<i32> {
-    let idx = format.find(" p.")?;
-    let head = &format[..idx];
-    let digits: String = head
+/// The integer at the front of a volume statement: "15", "T. 15",
+/// "tome 15" all mean fifteen. `None` when there is no number at all.
+fn leading_number(raw: &str) -> Option<i32> {
+    let digits: String = raw
         .chars()
-        .rev()
+        .skip_while(|c| !c.is_ascii_digit())
         .take_while(|c| c.is_ascii_digit())
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
         .collect();
-    digits.parse().ok().filter(|n: &i32| *n > 0)
+    digits.parse().ok()
+}
+
+/// "6,90 EUR" → 6.90 EUR. The BnF writes the decimal comma and the
+/// currency as a three-letter code after a space.
+fn parse_cover_price(raw: &str) -> Option<IsbnPrice> {
+    let mut parts = raw.split_whitespace();
+    let amount = parts.next()?.replace(',', ".");
+    let currency = parts.next().unwrap_or("EUR").to_ascii_uppercase();
+    let amount: f64 = amount.parse().ok()?;
+    if amount <= 0.0 {
+        return None;
+    }
+    Some(IsbnPrice { amount, currency })
 }
 
 pub fn parse_openbd(text: &str, isbn: &str) -> Option<IsbnBook> {
@@ -472,6 +670,14 @@ pub fn parse_openbd(text: &str, isbn: &str) -> Option<IsbnBook> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    // 叢 · openBD's summary has no series field; the ONIX block below
+    // it does (`Collection` → `TitleElement` with a `PartNumber`), but
+    // Japanese editions put the volume in the title just as often, and
+    // the title is the one field guaranteed to be there.
+    let from_title = split_title_series(&title);
+    let series = from_title.as_ref().map(|(name, _)| name.clone());
+    let volume = from_title.as_ref().map(|(_, n)| *n);
+
     Some(IsbnBook {
         isbn: isbn.to_string(),
         title,
@@ -484,6 +690,8 @@ pub fn parse_openbd(text: &str, isbn: &str) -> Option<IsbnBook> {
         cover: str_of(&summary["cover"]).map(https),
         description: None,
         price: None,
+        series,
+        volume,
         source: "openbd".into(),
     })
 }
@@ -546,28 +754,115 @@ mod tests {
     }
 
     #[test]
-    fn bnf_dublin_core_record_is_normalised() {
+    fn bnf_unimarc_record_is_normalised() {
+        // A real record, trimmed to the fields the parser reads:
+        // One Piece tome 15 in French (Glénat, 2013).
         let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<srw:searchRetrieveResponse xmlns:srw="http://www.loc.gov/zing/srw/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/">
+<srw:searchRetrieveResponse xmlns:srw="http://www.loc.gov/zing/srw/" xmlns:mxc="info:lc/xmlns/marcxchange-v2">
   <srw:numberOfRecords>1</srw:numberOfRecords>
-  <srw:records><srw:record><srw:recordData><oai_dc:dc>
-    <dc:title>One piece. 1, Romance dawn &amp; co</dc:title>
-    <dc:creator>Oda, Eiichiro (1975-....). Auteur du texte</dc:creator>
-    <dc:publisher>Glénat</dc:publisher>
-    <dc:date>2013</dc:date>
-    <dc:language>fre</dc:language>
-    <dc:format>1 vol. (192 p.) : ill. ; 18 cm</dc:format>
-  </oai_dc:dc></srw:recordData></srw:record></srw:records>
+  <srw:records><srw:record><srw:recordData><mxc:record>
+    <mxc:datafield tag="010" ind1=" " ind2=" "><mxc:subfield code="a">978-2-7234-9260-7</mxc:subfield><mxc:subfield code="b">br.</mxc:subfield><mxc:subfield code="d">6,90 EUR</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="101" ind1="1" ind2=" "><mxc:subfield code="a">fre</mxc:subfield><mxc:subfield code="c">jpn</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="200" ind1="1" ind2=" "><mxc:subfield code="a">Droit devant !!</mxc:subfield><mxc:subfield code="b">Texte imprimé</mxc:subfield><mxc:subfield code="f">Eiichiro Oda</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="210" ind1=" " ind2=" "><mxc:subfield code="a">Grenoble</mxc:subfield><mxc:subfield code="c">Glénat</mxc:subfield><mxc:subfield code="d">2013</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="215" ind1=" " ind2=" "><mxc:subfield code="a">1 vol. (192 p.)</mxc:subfield><mxc:subfield code="d">18 x 13 cm</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="225" ind1="|" ind2=" "><mxc:subfield code="a">One Piece</mxc:subfield><mxc:subfield code="v">15</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="225" ind1="|" ind2=" "><mxc:subfield code="a">Shonen manga</mxc:subfield><mxc:subfield code="x">1761-2268</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="330" ind1=" " ind2=" "><mxc:subfield code="a">Lufy rêve de devenir le roi des pirates.</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="461" ind1=" " ind2="0"><mxc:subfield code="0">38888890</mxc:subfield><mxc:subfield code="t">One piece</mxc:subfield><mxc:subfield code="v">15</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="700" ind1=" " ind2="|"><mxc:subfield code="a">Oda</mxc:subfield><mxc:subfield code="b">Eiichirō</mxc:subfield><mxc:subfield code="4">070</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="702" ind1=" " ind2="|"><mxc:subfield code="a">Rabahi</mxc:subfield><mxc:subfield code="b">Djamel</mxc:subfield><mxc:subfield code="4">730</mxc:subfield></mxc:datafield>
+  </mxc:record></srw:recordData></srw:record></srw:records>
 </srw:searchRetrieveResponse>"#;
         let b = parse_bnf(xml, ISBN).unwrap();
-        assert_eq!(b.title, "One piece. 1, Romance dawn & co");
-        assert_eq!(b.authors, vec!["Oda, Eiichiro"]);
+        // 200 $a is the *volume's* title, not the series'.
+        assert_eq!(b.title, "Droit devant !!");
+        // 叢 · The prize: which shelf this book belongs on, and where.
+        assert_eq!(b.series.as_deref(), Some("One piece"));
+        assert_eq!(b.volume, Some(15));
+        // Surname + given name, not "traduit du japonais par…".
+        assert_eq!(b.authors, vec!["Eiichirō Oda", "Djamel Rabahi"]);
         assert_eq!(b.publisher.as_deref(), Some("Glénat"));
         assert_eq!(b.published.as_deref(), Some("2013"));
         assert_eq!(b.page_count, Some(192));
+        assert_eq!(b.language.as_deref(), Some("fre"));
+        let price = b.price.unwrap();
+        assert_eq!(price.currency, "EUR");
+        assert!((price.amount - 6.90).abs() < 0.001);
         assert_eq!(b.source, "bnf");
+
         let none = r#"<srw:searchRetrieveResponse xmlns:srw="x"><srw:numberOfRecords>0</srw:numberOfRecords></srw:searchRetrieveResponse>"#;
         assert!(parse_bnf(none, ISBN).is_none());
+    }
+
+    #[test]
+    fn the_publishers_imprint_is_not_the_series() {
+        // 225 can appear several times. "Shonen manga" with an ISSN is
+        // the imprint every shōnen in the catalogue shares; without the
+        // ISSN test, every manga would land on one enormous shelf.
+        let xml = r#"<srw:searchRetrieveResponse xmlns:srw="http://www.loc.gov/zing/srw/" xmlns:mxc="info:lc/xmlns/marcxchange-v2">
+  <srw:numberOfRecords>1</srw:numberOfRecords>
+  <srw:records><srw:record><srw:recordData><mxc:record>
+    <mxc:datafield tag="200" ind1="1" ind2=" "><mxc:subfield code="a">Un titre</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="225" ind1="|" ind2=" "><mxc:subfield code="a">Shonen manga</mxc:subfield><mxc:subfield code="x">1761-2268</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="225" ind1="|" ind2=" "><mxc:subfield code="a">Vagabond</mxc:subfield><mxc:subfield code="v">T. 7</mxc:subfield></mxc:datafield>
+  </mxc:record></srw:recordData></srw:record></srw:records>
+</srw:searchRetrieveResponse>"#;
+        let b = parse_bnf(xml, ISBN).unwrap();
+        assert_eq!(b.series.as_deref(), Some("Vagabond"));
+        // "T. 7" — the number is read out of the statement.
+        assert_eq!(b.volume, Some(7));
+    }
+
+    #[test]
+    fn a_book_that_belongs_to_no_series_says_so() {
+        let xml = r#"<srw:searchRetrieveResponse xmlns:srw="http://www.loc.gov/zing/srw/" xmlns:mxc="info:lc/xmlns/marcxchange-v2">
+  <srw:numberOfRecords>1</srw:numberOfRecords>
+  <srw:records><srw:record><srw:recordData><mxc:record>
+    <mxc:datafield tag="200" ind1="1" ind2=" "><mxc:subfield code="a">L'Étranger</mxc:subfield></mxc:datafield>
+    <mxc:datafield tag="210" ind1=" " ind2=" "><mxc:subfield code="c">Gallimard</mxc:subfield></mxc:datafield>
+  </mxc:record></srw:recordData></srw:record></srw:records>
+</srw:searchRetrieveResponse>"#;
+        let b = parse_bnf(xml, ISBN).unwrap();
+        assert_eq!(b.title, "L'Étranger");
+        assert_eq!(b.series, None);
+        assert_eq!(b.volume, None);
+    }
+
+    #[test]
+    fn a_series_written_into_the_title_is_read_out_of_it() {
+        // 叢 · What every catalogue without a series field leaves us.
+        for (title, name, number) in [
+            ("One Piece, Tome 15", "One Piece", 15),
+            ("Blacksad - Tome 3", "Blacksad", 3),
+            ("Naruto, Vol. 7", "Naruto", 7),
+            ("Berserk #12", "Berserk", 12),
+            ("Monster T. 4", "Monster", 4),
+            // The French album convention, with no space and no dot.
+            ("Golden City T09", "Golden City", 9),
+        ] {
+            assert_eq!(
+                split_title_series(title),
+                Some((name.to_string(), number)),
+                "{title}"
+            );
+        }
+        // And what it must refuse: a bare number could be part of the
+        // title, and renaming someone's shelf on a guess is worse than
+        // not splitting at all.
+        for title in [
+            "Akira 2",
+            // A bare "t" must start a word, or this becomes "Ba".
+            "Bat 21",
+            "Le Chat 9",
+            "20th Century Boys",
+            "Tome",
+            "Vol. ",
+            "Tome 3",
+            "2001, l'odyssée de l'espace",
+        ] {
+            assert_eq!(split_title_series(title), None, "{title}");
+        }
     }
 
     #[test]

@@ -300,7 +300,17 @@ async function lookupDirect(isbn) {
  */
 function fromCatalogueBook(book, isbn) {
   const fullTitle = [book.title, book.subtitle].filter(Boolean).join(" ");
-  const { title, volume } = parseTitleVolume(fullTitle);
+  const guessed = parseTitleVolume(fullTitle);
+  // 叢 · The catalogue's own answer wins over anything read out of the
+  // title. It matters more than it looks: a national library catalogues
+  // a manga under the *volume's* title — "Droit devant !!" for One Piece
+  // 15 — so guessing from the title searched MyAnimeList for a phrase
+  // that names no series. `book.series` says "One Piece".
+  const title = book.series?.trim() || guessed.title;
+  const volume =
+    typeof book.volume === "number" && book.volume > 0
+      ? book.volume
+      : guessed.volume;
   return {
     isbn,
     rawTitle: fullTitle,

@@ -349,6 +349,20 @@ pub struct AddCustomRequest {
     pub volumes: i32,
     pub volumes_owned: Option<i32>,
     pub genres: Option<Vec<String>>,
+    /// 叢 · What a catalogue already knew about the book the reader
+    /// scanned. All optional: the hand-typed form sends none of them,
+    /// and a series created from a barcode sends what the ISBN chain
+    /// found, so the reader does not retype a publisher a library
+    /// catalogue just told us. The cover goes through the same
+    /// allow-list as every other poster URL.
+    #[serde(default)]
+    pub image_url_jpg: Option<String>,
+    #[serde(default)]
+    pub publisher: Option<String>,
+    #[serde(default)]
+    pub edition: Option<String>,
+    #[serde(default)]
+    pub author: Option<String>,
 }
 
 /// Request body for the `PATCH /library/:mal_id` endpoint.

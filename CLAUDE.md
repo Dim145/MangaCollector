@@ -141,7 +141,7 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 168 tests across 35 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 171 tests across 35 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `http_cache.rs`, `handlers/cover.rs`,
   `observability.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users}.rs`,
@@ -170,7 +170,10 @@ docker compose build
   swapped for USD and printed `$12.166,30` on every default account. `util/isbn.rs`
   pins ISBN normalisation (10 → 13, checksums); `services/isbn_resolver.rs`
   pins the four catalogue parsers on real fixtures (Google Books, Open
-  Library, BnF SRU Dublin Core, openBD) and the cache freshness rule
+  Library, **BnF SRU in UNIMARC**, openBD) — including what turns a
+  barcode into a shelf entry: the series (225 `$a` / 461 `$t`) and the
+  volume number (`$v`), with the publisher's imprint (a 225 carrying an
+  ISSN) refused, since every shōnen in the catalogue shares it and the cache freshness rule
   (a hit lives 30 days, a miss 1 day). `services/library.rs`
   pins the reading-progression rule (`next_reading_state`): what a series'
   status and dates become as tomes are marked read or unread. The archive ones pin the
@@ -639,7 +642,14 @@ chronologically on reconnect. Routing via React Router 7.
 
 - **MyAnimeList** (via Jikan) — primary metadata source
 - **MangaDex** — fallback search and enrichment
-- **ISBN resolvers** — `services/isbn_resolver.rs` walks Google Books →
+- **ISBN resolvers** — 叢 they answer with a **series and a volume
+  number**, not just a title: a national library catalogues a manga
+  under the *volume's* title ("Droit devant !!" for One Piece 15), so
+  the series is what makes the answer usable. BnF is queried in UNIMARC
+  for that reason. `lib/isbn.js` prefers it over the title heuristic,
+  and `/scan` offers to build a custom series from it — the way in for
+  bande dessinée, comics and anything else MyAnimeList does not have.
+  `services/isbn_resolver.rs` walks Google Books →
   Open Library → BnF SRU → openBD (7 s each) and stores the outcome in
   `isbn_cache`, hit or miss, so a barcode costs one upstream round per
   month at most. When the server itself is unreachable the browser asks

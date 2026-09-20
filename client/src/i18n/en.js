@@ -172,6 +172,10 @@ export default {
     openSeries: "Open the series",
     addCopy: "Count a copy · ×{n}",
     addCopyHint: "One more copy of this tome on the shelf.",
+    // 叢 · Build a shelf entry from what an ISBN lookup found —
+    // the way in for everything MyAnimeList does not have.
+    createSeries: "Create the series",
+    creatingSeries: "Creating…",
     addToLibrary: "Add to the library",
     scanNext: "Scan the next one",
   },

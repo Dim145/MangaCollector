@@ -728,6 +728,16 @@ pub async fn add_custom_entry(
 ) -> Result<LibraryEntry, AppError> {
     let new_mal_id = mint_next_custom_mal_id(db, user_id).await?;
 
+    // 作家 · A name a catalogue gave us, resolved to the same author row
+    // the edit form would have created. Without it the reader retypes a
+    // name an ISBN lookup already knew.
+    let author_mal_id = match req.author.as_deref().map(str::trim) {
+        Some(name) if !name.is_empty() => {
+            crate::services::author::resolve_author_from_text(db, user_id, name).await?
+        }
+        _ => None,
+    };
+
     add_to_user_library(
         db,
         http_client,
@@ -739,15 +749,19 @@ pub async fn add_custom_entry(
             name: req.name,
             volumes: req.volumes,
             volumes_owned: req.volumes_owned,
-            image_url_jpg: None,
+            // 叢 · Whatever the caller already knew. A hand-typed
+            // entry sends nothing here and behaves as before; one
+            // created from a scanned barcode arrives with the
+            // publisher and cover a library catalogue gave us, which
+            // is the difference between a blank row and a shelf entry.
+            image_url_jpg: crate::services::cover_pool::allowed_cover_url(
+                req.image_url_jpg.as_deref(),
+            ),
             genres: req.genres,
             mangadex_id: None,
-            // Custom entries have no external metadata to mine; the
-            // user fills in publisher / edition / author from the
-            // edit form.
-            publisher: None,
-            edition: None,
-            author_mal_id: None,
+            publisher: sanitize_label(req.publisher, PUBLISHER_MAX_LEN),
+            edition: sanitize_label(req.edition, EDITION_MAX_LEN),
+            author_mal_id,
         },
     )
     .await
