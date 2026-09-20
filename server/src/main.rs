@@ -3,6 +3,7 @@ mod config;
 mod db;
 mod errors;
 mod handlers;
+mod http_cache;
 mod models;
 mod observability;
 mod routes;
@@ -26,6 +27,7 @@ use tower_governor::{
     key_extractor::{PeerIpKeyExtractor, SmartIpKeyExtractor},
 };
 use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, DefaultOnResponse, TraceLayer};
@@ -464,7 +466,16 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .nest("/auth", routes::auth::auth_router())
-        .nest("/api", routes::api::api_router())
+        .nest(
+            "/api",
+            // 冷 · Weak `ETag` + `private, no-cache` on every JSON GET, so
+            // a reload of the dashboard costs a 304 instead of the
+            // megabyte of volumes it used to. Inside the compression
+            // layer below, which is why the validator is weak: the bytes
+            // that leave are gzip or brotli, the ones hashed here are
+            // neither. See `http_cache`.
+            routes::api::api_router().layer(axum::middleware::from_fn(http_cache::etag_middleware)),
+        )
         .with_state(state);
 
     // GovernorLayer is conditional: when rate limiting is disabled
@@ -510,6 +521,15 @@ async fn main() -> anyhow::Result<()> {
         .layer(axum::extract::DefaultBodyLimit::max(max_body_bytes))
         .layer(session_layer)
         .layer(cors)
+        // 圧 · Compress what goes out. The API was sending its JSON raw —
+        // `/api/user/volume` is a megabyte on a seeded library and about
+        // thirty kilobytes gzipped, and a collection three times that
+        // size is ordinary. The default predicate declines what must not
+        // be touched: anything already compressed (images, video), gRPC,
+        // `text/event-stream` — which matters, because compressing an SSE
+        // body buffers it and breaks the stream — and bodies too small
+        // to be worth a header.
+        .layer(CompressionLayer::new())
         // 災 · Convert a handler panic into a logged, generic 500 instead
         // of a dropped connection. Sits just inside TraceLayer so the
         // request span still records the failure (status + latency).

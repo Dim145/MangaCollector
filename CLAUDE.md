@@ -41,6 +41,17 @@ cache invalidations for cross-device sync.
 
 **Rate limiting:** `tower_governor`, controlled by the `RATE_LIMIT_*` vars.
 
+**HTTP caching:** `CompressionLayer` (gzip + brotli) wraps the whole
+app, and `http_cache::etag_middleware` gives every JSON `GET` under
+`/api` a weak `ETag` plus `private, no-cache` — store it, never use it
+without asking. A handler that sets its own `Cache-Control`
+(`/api/public-config`) keeps it. The tag is weak because compression
+happens outside, so the bytes that leave are not the bytes hashed; a
+body whose length is not known in advance is a stream and is passed
+through untagged rather than buffered. On the seeded library
+`/api/user/volume` went from 998 kB uncompressed and unconditional to
+29 kB on a cold cache and a 300-byte revalidation after that.
+
 **Dev proxy:** Traefik v2.
 
 > The backend was originally Express + Knex + Objection + Passport. That
@@ -126,8 +137,8 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 154 tests across 31 `#[cfg(test)]` modules
-  (`storage.rs`, `errors.rs`, `util/{url,uuid,image,isbn}.rs`,
+- **Server:** `cargo test` — 158 tests across 32 `#[cfg(test)]` modules
+  (`storage.rs`, `errors.rs`, `http_cache.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
   `services/api_keys.rs` pins the MCP credential rules — the scope
