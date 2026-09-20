@@ -112,3 +112,29 @@ describe("deriveListState", () => {
     }
   });
 });
+
+describe("the settle-to-emit gap", () => {
+  // 橋 · React Query has the rows; Dexie — which the queryFn just wrote
+  // them into — has not pushed them to the live query yet.
+  const landed = (ageMs) => query({ data: [{ id: 1 }], dataUpdatedAt: Date.now() - ageMs });
+
+  it("is still the initial load, not an empty shelf", () => {
+    const s = deriveListState([], landed(5));
+    expect(s.isInitialLoad).toBe(true);
+    expect(s.isEmpty).toBe(false);
+    // …and it does not hand back the query's rows: the data still comes
+    // from Dexie, so a stale query result can never be painted.
+    expect(s.data).toEqual([]);
+  });
+
+  it("believes an empty cache once the answer is old", () => {
+    const s = deriveListState([], landed(10_000));
+    expect(s.isEmpty).toBe(true);
+    expect(s.isInitialLoad).toBe(false);
+  });
+
+  it("does not bridge when the network answered empty too", () => {
+    const s = deriveListState([], query({ data: [], dataUpdatedAt: Date.now() }));
+    expect(s.isEmpty).toBe(true);
+  });
+});

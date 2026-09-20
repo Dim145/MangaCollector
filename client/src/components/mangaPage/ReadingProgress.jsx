@@ -97,7 +97,7 @@ export default function ReadingProgress({ series }) {
               aria-checked={active}
               disabled={busy}
               onClick={() => setStatus(opt.id)}
-              className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em] transition disabled:opacity-50 ${
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase pointer-coarse:min-h-11 tracking-[0.18em] transition disabled:opacity-50 ${
                 active
                   ? toneFor(opt.id)
                   : "border-border text-washi-muted hover:border-washi-dim hover:text-washi"

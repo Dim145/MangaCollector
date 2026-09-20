@@ -24,9 +24,23 @@ export default function DefaultBackground({ children }) {
       <SeasonAtmosphere />
 
       {/* Ambient radial gradients — colours resolve from theme tokens so
-          light mode gets pastel hints, dark mode keeps the deep hanko glow. */}
+          light mode gets pastel hints, dark mode keeps the deep hanko glow.
+
+          動 · `fixed`, not `absolute`. Two of the three blooms were
+          anchored to the container's bottom edge (`bottom-0`) and to a
+          third of its height (`top-1/3`), so every time a page grew —
+          skeleton giving way to rows, a header count arriving — the
+          two 30rem blobs slid down with it. They are painted elements,
+          so the browser counted that slide as layout shift: 0.36 on
+          the calendar, 0.64 on the shelf prints, 0.36 on the friends
+          page (mobile), with nothing a reader could see moving at all.
+          Pinned to the viewport they never move, the glow stays in the
+          corner of the screen rather than at the foot of a long
+          document, and the pages report the shift of their content
+          alone. Fixed elements do not widen the document either, so
+          the left bloom's overhang costs no horizontal scroll. */}
       <div
-        className="pointer-events-none absolute inset-0 -z-10"
+        className="pointer-events-none fixed inset-0 -z-10"
         aria-hidden="true"
       >
         <div

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../utils/auth";
 import { useAuth } from "@/hooks/useAuth.js";
 import { useOnline } from "@/hooks/useOnline.js";
@@ -17,6 +17,7 @@ export default function ProfileButton() {
   // On logout we invalidate the key so the next render everywhere
   // re-reads from the server.
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { pathname } = useLocation();
   const online = useOnline();
   const [isOpen, setIsOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
@@ -95,10 +96,13 @@ export default function ProfileButton() {
   }
 
   if (!isAuthenticated) {
+    // 扉 · On the sign-in page itself the button would only point at the
+    // form the visitor is already looking at.
+    if (pathname === "/log-in") return null;
     return (
       <button
         onClick={() => navigate("/log-in")}
-        className="rounded-full bg-hanko px-4 py-1.5 text-sm font-semibold text-on-hanko shadow-md transition-transform hover:scale-[1.03] active:scale-95 glow-red"
+        className="rounded-full bg-hanko px-4 py-1.5 text-sm font-semibold text-on-hanko shadow-md pointer-coarse:py-2.5 transition-transform hover:scale-[1.03] active:scale-95 glow-red"
       >
         {t("nav.signIn")}
       </button>
@@ -112,7 +116,7 @@ export default function ProfileButton() {
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label="Open account menu"
-        className={`group relative grid h-9 w-9 place-items-center overflow-hidden rounded-full font-display text-sm font-bold text-ink-0 transition-transform hover:scale-105 active:scale-95 ring-2 ring-transparent focus-visible:ring-hanko ${
+        className={`group relative grid h-9 w-9 place-items-center overflow-hidden rounded-full font-display text-sm font-bold text-ink-0 transition-transform pointer-coarse:h-11 pointer-coarse:w-11 hover:scale-105 active:scale-95 ring-2 ring-transparent focus-visible:ring-hanko ${
           avatarUrl
             ? "bg-ink-2 hover:ring-hanko/60"
             : "bg-gradient-to-br from-gold to-gold-muted hover:ring-gold/50"

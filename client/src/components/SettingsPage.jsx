@@ -500,12 +500,7 @@ function SavedBadge({ saved, t }) {
           saved ? "bg-gold" : "bg-washi-dim"
         }`}
       />
-      <span className="hidden sm:inline">
-        {saved ? t("common.saved") : t("settings.synced")}
-      </span>
-      <span className="sm:hidden" aria-hidden="true">
-        {saved ? "✓" : "·"}
-      </span>
+      <span>{saved ? t("common.saved") : t("settings.synced")}</span>
     </div>
   );
 }
@@ -535,12 +530,6 @@ function KanjiRibbon({ chapters, active, onJump, t }) {
               >
                 <span
                   aria-hidden="true"
-                  className="font-mono text-[8px] uppercase tracking-[0.18em] opacity-70"
-                >
-                  第{c.kanjiNum}
-                </span>
-                <span
-                  aria-hidden="true"
                   className={`font-jp font-bold leading-none transition-transform ${
                     isActive
                       ? "text-xl drop-shadow-[0_0_8px_var(--hanko-glow)]"
@@ -549,7 +538,12 @@ function KanjiRibbon({ chapters, active, onJump, t }) {
                 >
                   {c.kanji}
                 </span>
-                <span className="sr-only">{t(c.labelKey)}</span>
+                {/* 名 · The chapter's name, printed. It used to be an
+                    ordinal (第一…) with the name for screen readers only,
+                    so a sighted newcomer got four kanji and no words. */}
+                <span className="font-mono text-[8px] uppercase leading-none tracking-[0.14em] opacity-80">
+                  {t(c.labelKey)}
+                </span>
                 {/* Active dot — a single hanko bullet under the glyph. */}
                 <span
                   aria-hidden="true"

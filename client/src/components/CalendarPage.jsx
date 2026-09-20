@@ -148,26 +148,27 @@ export default function CalendarPage() {
               </span>{" "}
               {t("calendar.statCount")}
             </span>
-            {daysToNext != null && (
-              <span>
-                <span className="font-display text-2xl italic font-semibold not-italic text-moegi">
-                  J−{daysToNext}
-                </span>{" "}
-                {t("calendar.statNext")}
-              </span>
-            )}
-            {byMonth.length > 0 && (
-              <span>
-                <span className="font-display text-2xl italic font-semibold not-italic text-washi">
-                  {byMonth.length}
-                </span>{" "}
-                {t(
-                  byMonth.length === 1
-                    ? "calendar.statMonthsSingular"
-                    : "calendar.statMonthsPlural",
-                )}
-              </span>
-            )}
+            {/* 枠 · Always three cells. The two below used to mount only
+                once there was something to say, so the strip grew from
+                one item to three — and wrapped to three lines on a
+                phone — the moment the releases arrived, pushing the
+                whole calendar down. A dash holds the place instead. */}
+            <span>
+              <span className="font-display text-2xl italic font-semibold not-italic text-moegi tabular-nums">
+                {daysToNext != null ? `J−${daysToNext}` : "—"}
+              </span>{" "}
+              {t("calendar.statNext")}
+            </span>
+            <span>
+              <span className="font-display text-2xl italic font-semibold not-italic text-washi tabular-nums">
+                {byMonth.length > 0 ? byMonth.length : "—"}
+              </span>{" "}
+              {t(
+                byMonth.length === 1
+                  ? "calendar.statMonthsSingular"
+                  : "calendar.statMonthsPlural",
+              )}
+            </span>
           </div>
         </header>
 
@@ -291,7 +292,7 @@ function Toolbar({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t("calendar.searchPlaceholder")}
-          className="w-full rounded-full border border-border bg-ink-0/40 py-2 pl-9 pr-4 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+          className="w-full rounded-full border border-border bg-ink-0/40 py-2 pl-9 pr-4 text-sm pointer-coarse:py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
         />
       </label>
 
@@ -312,7 +313,7 @@ function Toolbar({
               role="radio"
               aria-checked={active}
               onClick={() => setWindowMonths(n)}
-              className={`rounded-full px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider transition ${
+              className={`rounded-full px-3 py-1 font-mono text-[10px] font-semibold uppercase pointer-coarse:min-h-11 tracking-wider transition ${
                 active
                   ? "bg-hanko text-on-hanko shadow-md"
                   : "text-washi-muted hover:text-washi"
@@ -343,7 +344,7 @@ function Toolbar({
               role="radio"
               aria-checked={active}
               onClick={() => setView(opt.id)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider transition ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-[10px] font-semibold uppercase pointer-coarse:min-h-11 tracking-wider transition ${
                 active
                   ? "bg-washi/15 text-washi shadow-inner"
                   : "text-washi-muted hover:text-washi"
@@ -382,7 +383,7 @@ function Toolbar({
             ? t("calendar.subscribeTitle")
             : t("calendar.subscribeOfflineHint")
         }
-        className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border border-moegi/40 bg-moegi/5 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-moegi-muted transition hover:border-moegi/70 hover:bg-moegi/15 hover:text-moegi disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-moegi/40 disabled:hover:bg-moegi/5 disabled:hover:text-moegi-muted"
+        className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border border-moegi/40 bg-moegi/5 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider pointer-coarse:min-h-11 text-moegi-muted transition hover:border-moegi/70 hover:bg-moegi/15 hover:text-moegi disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-moegi/40 disabled:hover:bg-moegi/5 disabled:hover:text-moegi-muted"
       >
         {online ? (
           <svg
@@ -415,7 +416,7 @@ function Toolbar({
         type="button"
         onClick={() => onRefetch()}
         title={t("calendar.refreshTitle")}
-        className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full border border-border bg-ink-0/30 text-washi-muted transition hover:border-hanko/50 hover:text-washi"
+        className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full border border-border bg-ink-0/30 pointer-coarse:h-11 pointer-coarse:w-11 text-washi-muted transition hover:border-hanko/50 hover:text-washi"
         aria-label={t("calendar.refreshTitle")}
       >
         <svg

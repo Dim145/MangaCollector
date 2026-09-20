@@ -1040,7 +1040,7 @@ function PhysicalSection({
               role="radio"
               aria-checked={active}
               onClick={() => setCondition(active ? null : c.id)}
-              className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition ${
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase pointer-coarse:min-h-11 tracking-[0.16em] transition ${
                 active
                   ? "border-gold/60 bg-gold/10 text-gold"
                   : "border-border text-washi-muted hover:border-washi-dim hover:text-washi"

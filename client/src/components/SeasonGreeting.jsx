@@ -66,14 +66,16 @@ export default function SeasonGreeting() {
   const t = useT();
   // `null` while we resolve whether the banner should show — keeps
   // SSR-style hydration paths from flashing the wrong state.
-  const [season, setSeason] = useState(null);
-
-  useEffect(() => {
+  // 初 · Decided in the first render, not in an effect after it. Both
+  // reads are synchronous (a date and a localStorage flag), and mounting
+  // the banner one render late pushed the whole dashboard — controls,
+  // filters, grid — down by its own height on every visit that showed
+  // it: a 0.07 layout shift on desktop for a banner that could simply
+  // have been there from the first paint.
+  const [season, setSeason] = useState(() => {
     const current = getCurrentSeason();
-    if (!hasGreetedSeason(current)) {
-      setSeason(current);
-    }
-  }, []);
+    return hasGreetedSeason(current) ? null : current;
+  });
 
   // 儀 · Stable `dismiss` reference. The previous version was a
   // function declaration recreated on every render, captured by the
@@ -103,7 +105,7 @@ export default function SeasonGreeting() {
     <aside
       role="status"
       aria-live="polite"
-      className={`relative mb-8 overflow-hidden rounded-2xl border bg-gradient-to-br p-5 backdrop-blur animate-fade-up ${preset.border} ${preset.background}`}
+      className={`relative mb-6 overflow-hidden rounded-2xl border bg-gradient-to-br p-4 backdrop-blur animate-fade-up sm:mb-8 sm:p-5 ${preset.border} ${preset.background}`}
     >
       {/* Ornamental kanji watermark — pinned to the corner so the
           season's signature lives in the negative space without
@@ -122,7 +124,7 @@ export default function SeasonGreeting() {
             same typographic family rather than a foreign chip. */}
         <span
           aria-hidden="true"
-          className={`shrink-0 font-jp text-5xl font-bold leading-none md:text-6xl ${preset.accent}`}
+          className={`shrink-0 font-jp text-4xl font-bold leading-none sm:text-5xl md:text-6xl ${preset.accent}`}
         >
           {preset.kanji}
         </span>
@@ -134,7 +136,9 @@ export default function SeasonGreeting() {
           <p className="mt-1 font-display text-base italic leading-snug text-washi md:text-lg">
             {t(`season.poetic_${season}`)}
           </p>
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+          {/* The third line is the one that pushed the shelf below the
+              fold on a phone; it reads from `sm:` up. */}
+          <p className="mt-1 hidden font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim sm:block">
             {t(`season.subtle_${season}`)}
           </p>
         </div>
@@ -146,7 +150,7 @@ export default function SeasonGreeting() {
           type="button"
           onClick={dismiss}
           aria-label={t("season.dismissAria")}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border text-washi-dim transition hover:border-hanko/50 hover:text-washi"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border text-washi-dim transition pointer-coarse:h-11 pointer-coarse:w-11 hover:border-hanko/50 hover:text-washi"
         >
           <svg
             viewBox="0 0 24 24"

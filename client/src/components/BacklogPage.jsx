@@ -7,6 +7,7 @@ import { useBacklog } from "@/hooks/useBacklog.js";
 import { hasToBlurImage } from "@/utils/library.js";
 import SettingsContext from "@/SettingsContext.js";
 import { useT } from "@/i18n/index.jsx";
+import Skeleton from "./ui/Skeleton.jsx";
 
 /**
  * 積読 Tsundoku · The pile of unread books — laid bare.
@@ -44,9 +45,7 @@ export default function BacklogPage() {
   if (!data) {
     return (
       <DefaultBackground>
-        <div className="mx-auto max-w-3xl p-8 text-center text-washi-muted">
-          {t("common.loading")}…
-        </div>
+        <BacklogSkeleton t={t} />
       </DefaultBackground>
     );
   }
@@ -62,7 +61,7 @@ export default function BacklogPage() {
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -right-24 -bottom-24 -z-10 h-72 w-72 rounded-full bg-hanko/12 blur-3xl"
+          className="pointer-events-none fixed -right-24 -bottom-24 -z-10 h-72 w-72 rounded-full bg-hanko/12 blur-3xl"
         />
         <FloatingDust />
 
@@ -129,6 +128,50 @@ export default function BacklogPage() {
 }
 
 // ─── Hero ──────────────────────────────────────────────────────────
+
+/**
+ * 骨 · What the page looks like before the pile has been counted.
+ *
+ * The loading state used to be one centred line of text, so the whole
+ * page — masthead, three figures, the rows — arrived at once and pushed
+ * that line away: a shift of 0.8 on the desktop metric, 0.6 on mobile,
+ * on a page that is otherwise still. This keeps the frame the real page
+ * will occupy (same container, same masthead, same three-card band) so
+ * the data lands in place.
+ */
+function BacklogSkeleton({ t }) {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      className="relative mx-auto max-w-4xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12"
+    >
+      <span className="sr-only">{t("common.loading")}…</span>
+      <header className="relative mb-10 md:mb-14">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-8 sm:items-center">
+          <Skeleton className="h-32 w-32 rounded-2xl sm:h-48 sm:w-48" />
+          <div className="pt-2 sm:pt-6">
+            <Skeleton className="h-3 w-32" />
+            <Skeleton className="mt-4 h-9 w-56 md:h-12 md:w-72" />
+            <Skeleton className="mt-4 h-4 w-full max-w-md" />
+            <Skeleton className="mt-2 h-4 w-3/4 max-w-sm" />
+          </div>
+        </div>
+      </header>
+      <section className="mb-10 grid gap-2.5 sm:grid-cols-3 md:mb-14 md:gap-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-[7.75rem] rounded-2xl" />
+        ))}
+      </section>
+      <Skeleton className="mb-6 h-7 w-40" />
+      <div className="space-y-3 md:space-y-4">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-28 rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Hero({ data, t }) {
   return (

@@ -774,7 +774,7 @@ function Footer({ isIntro, isOutro, onBack, onNext, onSkipSection, onClose, t })
         <button
           type="button"
           onClick={onClose}
-          className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim transition hover:text-washi"
+          className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim transition hover:text-washi pointer-coarse:min-h-11 pointer-coarse:px-3"
         >
           {t("tour.skip")}
         </button>
@@ -785,7 +785,7 @@ function Footer({ isIntro, isOutro, onBack, onNext, onSkipSection, onClose, t })
           <button
             type="button"
             onClick={onSkipSection}
-            className="group inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim transition hover:text-washi sm:text-[10px]"
+            className="group inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim transition hover:text-washi pointer-coarse:min-h-11 sm:text-[10px]"
           >
             <span className="border-b border-dotted border-current pb-0.5">
               {t("tour.skipSection")}
@@ -795,7 +795,7 @@ function Footer({ isIntro, isOutro, onBack, onNext, onSkipSection, onClose, t })
         <button
           type="button"
           onClick={isOutro ? onClose : onNext}
-          className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-br from-hanko-deep to-hanko px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-washi shadow-[0_4px_18px_var(--hanko-glow)] transition hover:brightness-110 active:scale-95 sm:px-5"
+          className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-br from-hanko-deep to-hanko px-4 py-2 font-mono text-[10px] pointer-coarse:min-h-11 font-bold uppercase tracking-[0.22em] text-washi shadow-[0_4px_18px_var(--hanko-glow)] transition hover:brightness-110 active:scale-95 sm:px-5"
         >
           {/* Decorative kanji on the right of the next CTA — adds a
               vertical typographic anchor to the button without taking

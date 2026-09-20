@@ -656,8 +656,14 @@ export default function MangaPage({ manga, adult_content_level }) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-10">
-            <div className="mx-auto w-full max-w-[220px] md:mx-0 md:max-w-none">
+          {/* 頭 · Two columns at every width. On a phone the poster takes a
+              6.5rem column beside the title so the series name, its source
+              and its badges are on the first screen — the full-width cover
+              used to fill it alone. The collection block below spans both
+              columns there, and from `md:` up the poster spans both rows so
+              the layout is the one it always was. */}
+          <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-x-10">
+            <div className="w-full md:row-span-2">
               <div
                 // 遷 · `view-transition-name` matches the Dashboard
                 // card's cover wrapper for the same `mal_id`. When the
@@ -783,14 +789,14 @@ export default function MangaPage({ manga, adult_content_level }) {
               )}
             </div>
 
-            <div className="flex flex-col">
+            <div className="flex flex-col justify-center md:justify-start">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
                   {t("manga.seriesLabel")}
                 </span>
               </div>
 
-              <h1 className="mt-2 font-display text-3xl font-semibold leading-tight tracking-tight text-washi md:text-5xl">
+              <h1 className="mt-2 font-display text-2xl font-semibold leading-tight tracking-tight text-washi sm:text-3xl md:text-5xl">
                 {name}
               </h1>
 
@@ -838,7 +844,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                   </a>
                 )}
               </div>
+            </div>
 
+            <div className="col-span-2 mt-6 flex flex-col md:col-span-1 md:col-start-2 md:mt-0">
               {isCustomGenresEditable && isEditing ? (
                 // 編集 · Live edit mode for custom rows. The editor only
                 // mutates local `genres` state; persistence is deferred
@@ -1080,7 +1088,11 @@ export default function MangaPage({ manga, adult_content_level }) {
                   duplicated N/M big stats; the emaki strip remains the
                   interactive visual layer; the total-volumes editor is
                   hosted here during edit mode. */}
-              {!volumesLoading && (
+              {volumesLoading ? (
+                // 骨 · The block below is ~18rem tall; the actions under it
+                // used to drop by that much when the tomes arrived.
+                <Skeleton className="h-72 rounded-2xl" />
+              ) : (
                 <LibraryBlock
                   volumes={volumes}
                   volumesOwned={volumesOwned}

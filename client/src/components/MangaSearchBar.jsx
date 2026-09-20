@@ -11,6 +11,10 @@ export default function MangaSearchBar({
   placeholder,
   clearText,
   additionalButtons,
+  // 即 · The dashboard filters as you type; a "Search" button there
+  // only promised a step that never happens. Off, the input gets its
+  // right padding back and the clear cross moves to the edge.
+  showSubmit = true,
   // Tour-friendly opt-in: when true, the input receives focus on mount.
   // Used by the welcome tour's "Add your first series" step so the
   // user lands ready-to-type instead of having to find the input first.
@@ -90,13 +94,13 @@ export default function MangaSearchBar({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          className="w-full rounded-full border border-border bg-ink-1/60 py-3 pl-12 pr-28 text-sm text-washi placeholder:text-washi-dim backdrop-blur-md transition-all focus:border-hanko/50 focus:bg-ink-1/90 focus:outline-none focus:ring-2 focus:ring-hanko/30"
+          className={`w-full rounded-full border border-border bg-ink-1/60 py-3 pl-12 text-sm text-washi placeholder:text-washi-dim backdrop-blur-md transition-all focus:border-hanko/50 focus:bg-ink-1/90 focus:outline-none focus:ring-2 focus:ring-hanko/30 ${showSubmit ? "pr-28" : "pr-11"}`}
         />
         {query && (
           <button
             onClick={() => setQuery("")}
             aria-label="Clear"
-            className="absolute right-28 top-1/2 -translate-y-1/2 grid h-7 w-7 place-items-center rounded-full text-washi-dim transition hover:text-washi hover:bg-washi/10"
+            className={`absolute top-1/2 -translate-y-1/2 grid h-7 w-7 place-items-center rounded-full text-washi-dim transition hover:text-washi hover:bg-washi/10 pointer-coarse:h-11 pointer-coarse:w-11 ${showSubmit ? "right-28" : "right-2"}`}
             tabIndex={-1}
           >
             <svg
@@ -113,6 +117,7 @@ export default function MangaSearchBar({
             </svg>
           </button>
         )}
+        {showSubmit && (
         <button
           onClick={searchManga}
           disabled={loading}
@@ -127,6 +132,7 @@ export default function MangaSearchBar({
             "Search"
           )}
         </button>
+        )}
       </div>
 
       {/* Action Buttons */}

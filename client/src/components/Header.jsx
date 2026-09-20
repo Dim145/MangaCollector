@@ -207,7 +207,7 @@ export default function Header() {
           {/* Brand */}
           <a
             href="/"
-            className="group flex items-center gap-2.5 tap-none"
+            className="group flex min-h-11 items-center gap-2.5 tap-none"
             aria-label="MangaCollector home"
           >
             <div className="relative">
@@ -241,7 +241,7 @@ export default function Header() {
                   key={item.to}
                   to={item.to}
                   className={({ isActive }) =>
-                    `relative flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+                    `relative flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all pointer-coarse:py-2.5 ${
                       isActive
                         ? "bg-hanko text-on-hanko shadow-md glow-red"
                         : "text-washi-muted hover:text-washi hover:bg-washi/10"
@@ -269,7 +269,7 @@ export default function Header() {
                 aria-label={t("nav.scan")}
                 title={t("nav.scan")}
                 className={({ isActive }) =>
-                  `grid h-9 w-9 place-items-center rounded-full border transition ${
+                  `grid h-9 w-9 place-items-center rounded-full border transition pointer-coarse:h-11 pointer-coarse:w-11 ${
                     isActive
                       ? "border-hanko/60 bg-hanko/15 text-washi"
                       : "border-border bg-ink-1/50 text-washi-muted hover:border-hanko/40 hover:text-washi"

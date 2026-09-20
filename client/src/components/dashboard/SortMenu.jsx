@@ -102,7 +102,7 @@ export default function SortMenu({ sort, onChange }) {
         aria-haspopup="dialog"
         aria-expanded={open}
         title={t("dashboard.sortShort")}
-        className={`relative inline-flex flex-1 items-center justify-center gap-2 rounded-full border px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition sm:flex-none ${
+        className={`relative inline-flex flex-1 items-center justify-center gap-2 rounded-full border px-4 py-2.5 text-xs pointer-coarse:py-3 font-semibold uppercase tracking-wider transition sm:flex-none ${
           !isDefault || open
             ? "border-gold/60 bg-gold/10 text-washi hover:bg-gold/20"
             : "border-border bg-ink-1/60 text-washi-muted hover:border-gold/50 hover:text-washi"

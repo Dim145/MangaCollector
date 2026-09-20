@@ -155,7 +155,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 031 tests across 51 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 034 tests across 51 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -310,6 +310,21 @@ subsystem; they are written against the code, not the intent.
 - `.editorconfig` defines indentation.
 - Tailwind utility-first; conditional classes assembled inline via template
   strings or ternaries — no `clsx` / `twMerge`.
+- **Touch targets:** a control may stay compact for a mouse, but under a
+  finger it reaches 44 px through the `pointer-coarse:` variants
+  (`pointer-coarse:min-h-11`, `pointer-coarse:h-11 pointer-coarse:w-11`,
+  `pointer-coarse:py-3`); a fixed-size switch extends its hit area with
+  `after:absolute after:-inset-*` instead of growing. Anything that only
+  appears on `hover:` needs `pointer-coarse:opacity-100` or it does not
+  exist on a phone.
+- **Layout shift:** decorative blooms and watermarks anchored to a page's
+  *bottom* (`bottom-*`, `top-1/3`) slide when the page grows and count as
+  layout shift although nothing a reader sees moves — pin them
+  (`fixed`) or anchor them to the top. Reserve the space of anything
+  that arrives with data (skeletons with the real heights, placeholder
+  cells in stat strips); `deriveListState` keeps the initial load alive
+  through the few milliseconds between React Query settling and Dexie
+  emitting, so an empty state never flashes in between.
 
 ## API Routes
 

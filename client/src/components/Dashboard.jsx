@@ -510,7 +510,7 @@ export default function Dashboard() {
               washi for raw counts, gold for the achievement (complete
               series), hanko for the rate (progression %). */}
             <div
-              className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-dim sm:gap-x-6"
+              className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-dim sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-6"
               role="group"
               aria-label={t("dashboard.archive")}
             >
@@ -519,7 +519,7 @@ export default function Dashboard() {
                 value={stats.series}
                 loading={isInitialLoad}
               />
-              <span aria-hidden="true" className="text-washi-dim/40">
+              <span aria-hidden="true" className="hidden text-washi-dim/40 sm:inline">
                 ·
               </span>
               <RibbonStat
@@ -528,7 +528,7 @@ export default function Dashboard() {
                 loading={isInitialLoad}
                 width="6ch"
               />
-              <span aria-hidden="true" className="text-washi-dim/40">
+              <span aria-hidden="true" className="hidden text-washi-dim/40 sm:inline">
                 ·
               </span>
               <RibbonStat
@@ -537,7 +537,7 @@ export default function Dashboard() {
                 accent="gold"
                 loading={isInitialLoad}
               />
-              <span aria-hidden="true" className="text-washi-dim/40">
+              <span aria-hidden="true" className="hidden text-washi-dim/40 sm:inline">
                 ·
               </span>
               <RibbonStat
@@ -571,13 +571,18 @@ export default function Dashboard() {
               query={query}
               setQuery={setQuery}
               searchManga={() => {}}
+              showSubmit={false}
               loading={false}
               placeholder={t("dashboard.searchPlaceholder")}
               clearResults={() => setQuery("")}
               hasResults={Boolean(query)}
               clearText={t("dashboard.clearFilter")}
               additionalButtons={
-                !isInitialLoad && !isEmpty ? (
+                // 枠 · Mounted during the initial load too (they cope with
+                // an empty list): on a phone they sit on their own row
+                // under the search field, and appearing only once the
+                // library had loaded pushed the whole grid down 42px.
+                !isEmpty ? (
                   <>
                     <FilterButton
                       library={library}
@@ -611,7 +616,7 @@ export default function Dashboard() {
                 Selected colour follows the state grammar already used by
                 the Manga card badges. */}
               <div
-                className="inline-flex rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur"
+                className="flex w-full rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur sm:inline-flex sm:w-auto"
                 role="tablist"
                 aria-label={t("dashboard.filterTablistLabel")}
               >
@@ -668,7 +673,7 @@ export default function Dashboard() {
                         setFilter(tab.id);
                         setLens(null);
                       }}
-                      className={`group/tab inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold uppercase tracking-wider transition sm:min-h-0 sm:py-1.5 ${
+                      className={`group/tab inline-flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 text-[9px] font-semibold uppercase tracking-wide transition sm:min-h-0 sm:flex-none sm:flex-row sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-xs sm:tracking-wider ${
                         active && !lens
                           ? activeBg
                           : "text-washi-muted hover:text-washi"
@@ -684,10 +689,11 @@ export default function Dashboard() {
                       >
                         {tab.glyph}
                       </span>
-                      {/* Label appears from sm: up. On mobile, the glyph + the
-                        aria-label / native tooltip carry the meaning, and the
-                        whole row stops fighting for horizontal space. */}
-                      <span className="hidden sm:inline">{tab.label}</span>
+                      {/* 札 · The label is always printed. On a phone it sits
+                          under the glyph at 9px and the six chips share the
+                          row; it used to be hidden below `sm:`, which left a
+                          newcomer six kanji and a tooltip they cannot hover. */}
+                      <span className="leading-none">{tab.label}</span>
                     </button>
                   );
                 })}
@@ -721,7 +727,7 @@ export default function Dashboard() {
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <span
                 aria-hidden="true"
-                className="font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim"
+                className="hidden font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim sm:inline"
               >
                 {t("dashboard.lensLabel")}
               </span>
@@ -765,7 +771,7 @@ export default function Dashboard() {
                     }}
                     title={opt.tooltip}
                     aria-pressed={active}
-                    className={`group inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition ${
+                    className={`group inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 py-0.5 pointer-coarse:min-h-11 pointer-coarse:px-3 font-mono text-[10px] uppercase tracking-wider transition ${
                       active
                         ? `${accentRing} bg-ink-0/40`
                         : "border-border text-washi-muted hover:text-washi hover:border-border/80"
