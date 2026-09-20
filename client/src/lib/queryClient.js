@@ -25,6 +25,16 @@ export const queryClient = new QueryClient({
       // staleTime keeps navigations between Dashboard/Profile/Settings from
       // re-hitting the server every 30s. Tab-focus still refetches (below).
       staleTime: 5 * 60 * 1000,
+      // 戻 · Kept, and now it is nearly free. Coming back to a tab used
+      // to re-download the library and the volumes in full — a
+      // megabyte of JSON, parsed and written into Dexie — which is why
+      // this was worth questioning. Today the server tags its answers
+      // and the client compares the tag (`lib/coreQueries.js`), so the
+      // same return costs a conditional request of about 300 bytes,
+      // nothing parsed and nothing written. What it buys is a tab left
+      // open overnight showing what another device did in the
+      // meantime, which is the whole point of an archive you keep on
+      // two machines.
       refetchOnWindowFocus: true,
     },
     mutations: {
