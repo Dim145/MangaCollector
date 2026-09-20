@@ -31,6 +31,7 @@ import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useStreak } from "@/hooks/useStreak.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
 import { normalizeSort, sortLibrary } from "@/utils/librarySort.js";
+import { seriesIsComplete, skippedCounts, wantedVolumes } from "@/lib/gaps.js";
 import { computeLibraryStats } from "@/utils/libraryStats.js";
 import { useLang, useT } from "@/i18n/index.jsx";
 
@@ -202,6 +203,10 @@ export default function Dashboard() {
 
   const { data: rawLibrary, isInitialLoad, isEmpty } = useLibrary();
   const { data: allVolumes } = useAllVolumes();
+  // 飛 · Tomes the reader chose to skip, per series. Feeds the header
+  // figures and the 完 / 進 filters: a run of twelve with two skipped
+  // is a run of ten, and owning the ten is finished.
+  const skippedByMal = useMemo(() => skippedCounts(allVolumes), [allVolumes]);
 
   // 始 · Welcome tour gating.
   // Auto-open on the first dashboard visit when the archive is genuinely
@@ -295,14 +300,14 @@ export default function Dashboard() {
   // numbers now.
   const stats = useMemo(() => {
     const { seriesCount, totalOwned, totalVolumes, seriesComplete } =
-      computeLibraryStats(library);
+      computeLibraryStats(library, { skippedByMal });
     return {
       series: seriesCount,
       owned: totalOwned,
       total: totalVolumes,
       complete: seriesComplete,
     };
-  }, [library]);
+  }, [library, skippedByMal]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -334,8 +339,8 @@ export default function Dashboard() {
           parseTs(m.created_on) < cutoff,
       );
     } else if (filter === "complete") {
-      result = result.filter(
-        (m) => (m.volumes ?? 0) > 0 && (m.volumes_owned ?? 0) >= m.volumes,
+      result = result.filter((m) =>
+        seriesIsComplete(m, skippedByMal.get(m.mal_id) ?? 0),
       );
     } else if (filter === "inprogress") {
       // Genuinely in flight: at least one owned volume, but not all of
@@ -344,7 +349,7 @@ export default function Dashboard() {
       // "being collected".
       result = result.filter((m) => {
         const o = m.volumes_owned ?? 0;
-        const tot = m.volumes ?? 0;
+        const tot = wantedVolumes(m, skippedByMal.get(m.mal_id) ?? 0);
         return o > 0 && (tot === 0 || o < tot);
       });
     } else if (filter === "wishlist") {
@@ -382,7 +387,16 @@ export default function Dashboard() {
     // the filter recompute when the tsundoku slice changes (a volume
     // flip toggles a row in/out of the "積" bucket). `lens` is on the
     // dep list so engaging a smart filter triggers a recompute.
-  }, [library, filter, query, activeTags, tsundokuByMal, upcomingByMal, lens]);
+  }, [
+    library,
+    filter,
+    query,
+    activeTags,
+    tsundokuByMal,
+    upcomingByMal,
+    lens,
+    skippedByMal,
+  ]);
 
   // 並 · Order is applied after filtering, on the (usually smaller)
   // survivor list. Collation follows the UI language; the "upcoming"

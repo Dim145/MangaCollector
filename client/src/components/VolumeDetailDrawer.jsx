@@ -44,6 +44,9 @@ export default function VolumeDetailDrawer({
   currencySetting,
   ownedStatus,
   setOwnedStatus,
+  // 飛 · Whether the reader wants this tome at all.
+  wanted = true,
+  setWanted,
   readStatus,
   setReadStatus,
   collectorStatus,
@@ -432,6 +435,54 @@ export default function VolumeDetailDrawer({
                 ))}
               </div>
             </div>
+
+            {/* 飛 · Skipping a tome only means anything on one the reader
+                does not own: it turns a hole into a decision. Hidden on
+                an owned copy, where the question does not arise, and on
+                an announced one, which is not missing yet. */}
+            {!ownedStatus && !isUpcoming && setWanted && (
+              <div>
+                <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">
+                  {t("volume.wantedLabel")}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setWanted((w) => !w)}
+                  aria-pressed={!wanted}
+                  className={`group flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+                    wanted
+                      ? "border-border bg-ink-1 hover:border-washi/40"
+                      : "border-washi/40 bg-gradient-to-br from-washi/10 to-transparent"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`grid h-6 w-6 place-items-center rounded-full font-jp text-[12px] font-bold leading-none transition ${
+                        wanted
+                          ? "bg-ink-2 text-washi-dim"
+                          : "bg-washi/80 text-ink-0"
+                      }`}
+                    >
+                      {wanted ? "欲" : "飛"}
+                    </span>
+                    <span>
+                      <span
+                        className={`block text-sm font-semibold ${wanted ? "text-washi" : "text-washi"}`}
+                      >
+                        {wanted
+                          ? t("volume.wantedOption")
+                          : t("volume.skippedOption")}
+                      </span>
+                      <span className="block text-[11px] text-washi-dim">
+                        {wanted
+                          ? t("volume.wantedHint")
+                          : t("volume.skippedHint")}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            )}
 
             <div>
               <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-washi-dim">

@@ -355,13 +355,23 @@ export async function enqueueLibraryVolumesOwned(mal_id, nbOwned) {
  * ─── Volume outbox operations ─────────────────────────────────────────────
  */
 
-/** Volume columns that describe the physical copy (see `set_physical_details`). */
+/**
+ * Volume columns applied by `set_physical_details` — the physical copy,
+ * plus 飛 `wanted`, which is not physical but is edited in the same
+ * drawer and lands in the same single UPDATE.
+ *
+ * One list for both directions: what the optimistic Dexie row keeps and
+ * what the flush sends. That is deliberate — the library path next door
+ * keeps four separate whitelists and a field has to be on all four,
+ * which is how more than one of them shipped write-only.
+ */
 const PHYSICAL_KEYS = [
   "condition",
   "location",
   "extra_copies",
   "bought_at",
   "isbn",
+  "wanted",
 ];
 
 export async function enqueueVolumeUpdate(volume) {
@@ -379,6 +389,7 @@ export async function enqueueVolumeUpdate(volume) {
   // 物 · Physical-copy fields, normalised the way the server stores
   // them so the optimistic row reads like the eventual server row.
   if ("condition" in rest) local.condition = rest.condition || null;
+  if ("wanted" in rest) local.wanted = Boolean(rest.wanted);
   if ("location" in rest) {
     const trimmed = String(rest.location ?? "").trim();
     local.location = trimmed === "" ? null : trimmed;

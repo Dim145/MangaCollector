@@ -1517,6 +1517,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           announcedAt={vol.announced_at}
                           loanedTo={vol.loaned_to}
                           loanDueAt={vol.loan_due_at}
+                          wanted={vol.wanted}
                           condition={vol.condition}
                           location={vol.location}
                           extraCopies={vol.extra_copies}
@@ -1576,6 +1577,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                           announcedAt={vol.announced_at}
                           loanedTo={vol.loaned_to}
                           loanDueAt={vol.loan_due_at}
+                          wanted={vol.wanted}
                           condition={vol.condition}
                           location={vol.location}
                           extraCopies={vol.extra_copies}

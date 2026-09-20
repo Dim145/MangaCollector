@@ -124,6 +124,7 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
                 price: v.price,
                 store: v.store,
                 collector: v.collector,
+                wanted: v.wanted,
                 read_at: v.read_at,
                 notes: v.notes,
                 in_coffret: v.coffret_id.is_some(),
@@ -801,6 +802,7 @@ pub async fn apply_import_merge(
                     price: Set(v.price),
                     store: Set(v.store.clone()),
                     collector: Set(v.collector),
+                    wanted: Set(v.wanted),
                     read_at: Set(v.read_at),
                     notes: Set(v.notes.clone()),
                     release_date: Set(v.release_date),
@@ -853,6 +855,9 @@ pub async fn apply_import_merge(
                     price: Set(None),
                     store: Set(None),
                     collector: Set(false),
+                    // A row the bundle did not describe is one nobody
+                    // skipped: filled in to complete a run.
+                    wanted: Set(true),
                     read_at: Set(None),
                     created_on: Set(now),
                     modified_on: Set(now),

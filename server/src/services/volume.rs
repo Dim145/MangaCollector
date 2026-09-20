@@ -350,6 +350,9 @@ pub async fn set_physical_details(
         return Ok(());
     };
     let mut active: ActiveModel = existing.into();
+    if let Some(flag) = patch.wanted {
+        active.wanted = Set(flag);
+    }
     if let Some(raw) = patch.condition {
         active.condition = Set(normalize_condition(raw)?);
     }

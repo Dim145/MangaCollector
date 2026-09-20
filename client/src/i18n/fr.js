@@ -633,6 +633,14 @@ export default {
     noteIndicatorChip: "Note",
     noteIndicatorTooltip: "Une note personnelle est inscrite sur ce tome.",
     noteIndicatorAria: "Ouvrir la note de ce tome",
+    // 飛 · A tome left out on purpose: it keeps its number in the
+    // run and stops being counted as missing.
+    skippedShort: "Sauté",
+    wantedLabel: "Dans la série",
+    wantedOption: "À trouver",
+    skippedOption: "Sauté volontairement",
+    wantedHint: "Compte comme manquant tant que vous ne l'avez pas.",
+    skippedHint: "Garde son numéro, ne compte plus comme manquant.",
     readingLabel: "Lecture",
     readOption: "Lu",
     unreadOption: "Non lu",

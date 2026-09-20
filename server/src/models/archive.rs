@@ -146,6 +146,11 @@ pub struct ExportVolume {
     pub store: Option<String>,
     #[serde(default)]
     pub collector: bool,
+    /// 飛 · Deliberately skipped, so not counted as missing. Absent in
+    /// bundles written before this existed, which `default_true` reads
+    /// as "wanted" — the state every one of those rows was in.
+    #[serde(default = "default_true")]
+    pub wanted: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub read_at: Option<chrono::DateTime<chrono::Utc>>,
     /// Personal note — preserved through export/import round-trips.
@@ -264,6 +269,12 @@ pub enum ImportMode {
     #[default]
     Merge,
     Replace,
+}
+
+/// Serde default for `wanted`: a bundle that predates the column
+/// describes volumes nobody had skipped yet.
+fn default_true() -> bool {
+    true
 }
 
 #[cfg(test)]

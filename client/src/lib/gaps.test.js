@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { gapSuggestions } from "./gaps.js";
+import {
+  gapSuggestions,
+  seriesIsComplete,
+  skippedCounts,
+  wantedVolumes,
+} from "./gaps.js";
 
 /*
  * 補 · What the dashboard offers to complete. Two exclusions carry the
@@ -84,5 +89,46 @@ describe("gapSuggestions", () => {
     expect(gapSuggestions([], [])).toEqual([]);
     expect(gapSuggestions(null, null)).toEqual([]);
     expect(gapSuggestions([series({ volumes: 0 })], [])).toEqual([]);
+  });
+});
+
+describe("counting what the reader actually wants", () => {
+  /*
+   * 飛 · A run of twelve with two skipped is a run of ten. Owning the
+   * ten is finished — not 83 %, which is what the shelf showed before
+   * and what kept a deliberately partial collection permanently
+   * unfinished.
+   */
+  it("counts the skipped tomes per series", () => {
+    const counts = skippedCounts([
+      { mal_id: 1, vol_num: 3, wanted: false },
+      { mal_id: 1, vol_num: 7, wanted: false },
+      { mal_id: 1, vol_num: 1, wanted: true },
+      { mal_id: 2, vol_num: 2, wanted: false },
+      { mal_id: 3, vol_num: 1 }, // absent = wanted
+    ]);
+    expect(counts.get(1)).toBe(2);
+    expect(counts.get(2)).toBe(1);
+    expect(counts.get(3)).toBeUndefined();
+    expect(skippedCounts(null).size).toBe(0);
+  });
+
+  it("takes the skipped tomes out of the target", () => {
+    expect(wantedVolumes({ volumes: 12 }, 2)).toBe(10);
+    expect(wantedVolumes({ volumes: 12 })).toBe(12);
+    // More skipped than published cannot go negative.
+    expect(wantedVolumes({ volumes: 3 }, 9)).toBe(0);
+    expect(wantedVolumes(null)).toBe(0);
+  });
+
+  it("calls a series complete once every wanted tome is in", () => {
+    const series = { volumes: 12, volumes_owned: 10 };
+    expect(seriesIsComplete(series, 2)).toBe(true);
+    expect(seriesIsComplete(series, 1)).toBe(false);
+    expect(seriesIsComplete(series, 0)).toBe(false);
+    // A series with nothing published is not complete, skipped or not.
+    expect(seriesIsComplete({ volumes: 0, volumes_owned: 0 }, 0)).toBe(false);
+    // Nor is one whose every tome was skipped: there is nothing to own.
+    expect(seriesIsComplete({ volumes: 3, volumes_owned: 0 }, 3)).toBe(false);
   });
 });

@@ -11,16 +11,24 @@
  *     seriesCount,      // number of distinct series in the input
  *     totalVolumes,     // sum of `volumes`
  *     totalOwned,       // sum of `volumes_owned`
- *     seriesComplete,   // count of series with volumes_owned >= volumes (and volumes > 0)
+ *     seriesComplete,   // count of series with volumes_owned >= wanted volumes (and > 0)
  *     completionPct,    // round((totalOwned / totalVolumes) * 100), 0 when totalVolumes is 0
  *     topGenres,        // sorted [{ name, count }] capped at `topGenresLimit`
  *   }
+ *
+ * Pass `skippedByMal` (from `lib/gaps.js`) to discount the volumes the
+ * reader deliberately skipped; without it the function counts every
+ * published tome, which is what every caller did before the column
+ * existed.
  *
  * `topGenres` counts at the SERIES level — "genres this corpus
  * touches", not "genres weighted by volume count". `name`s are
  * trimmed; empty strings dropped.
  */
-export function computeLibraryStats(rows, { topGenresLimit = 6 } = {}) {
+export function computeLibraryStats(
+  rows,
+  { topGenresLimit = 6, skippedByMal = null } = {},
+) {
   const list = Array.isArray(rows) ? rows : [];
 
   let totalVolumes = 0;
@@ -29,7 +37,12 @@ export function computeLibraryStats(rows, { topGenresLimit = 6 } = {}) {
   const genreFreq = new Map();
 
   for (const m of list) {
-    const v = m?.volumes ?? 0;
+    // 飛 · Tomes the reader chose to skip are not part of the goal, so
+    // they leave the denominator: owning the other ten of twelve is
+    // finished, not 83 %. Callers that have no volume table pass
+    // nothing and get the old count, unchanged.
+    const skipped = skippedByMal?.get(m?.mal_id) ?? 0;
+    const v = Math.max(0, (m?.volumes ?? 0) - skipped);
     const o = m?.volumes_owned ?? 0;
     totalVolumes += v;
     totalOwned += o;

@@ -64,3 +64,31 @@ export function gapSuggestions(library, volumes, limit = 4) {
   suggestions.sort((a, b) => a.gap - b.gap);
   return suggestions.slice(0, limit);
 }
+
+/**
+ * 飛 · How many tomes of each series the reader has chosen to skip.
+ *
+ * The count matters beyond the gap list: a run of twelve with two
+ * skipped is a run of ten as far as the reader is concerned, so that
+ * is the number the percentage and the 完 filter have to divide by.
+ * Owning the other ten should read as finished, not as 83 %.
+ */
+export function skippedCounts(volumes) {
+  const counts = new Map();
+  for (const v of volumes ?? []) {
+    if (v.wanted !== false) continue;
+    counts.set(v.mal_id, (counts.get(v.mal_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** The volumes of `series` the reader actually wants. */
+export function wantedVolumes(series, skipped = 0) {
+  return Math.max(0, (series?.volumes ?? 0) - skipped);
+}
+
+/** Does the reader hold every tome they want of this series? */
+export function seriesIsComplete(series, skipped = 0) {
+  const target = wantedVolumes(series, skipped);
+  return target > 0 && (series?.volumes_owned ?? 0) >= target;
+}

@@ -616,6 +616,14 @@ export default {
     noteIndicatorChip: "Note",
     noteIndicatorTooltip: "A personal note is inscribed on this volume.",
     noteIndicatorAria: "Open the note for this volume",
+    // 飛 · A tome left out on purpose: it keeps its number in the
+    // run and stops being counted as missing.
+    skippedShort: "Skipped",
+    wantedLabel: "In the run",
+    wantedOption: "Wanted",
+    skippedOption: "Skipped on purpose",
+    wantedHint: "Counts as missing until you own it.",
+    skippedHint: "Keeps its number, stops counting as missing.",
     readingLabel: "Reading",
     readOption: "Read",
     unreadOption: "Unread",

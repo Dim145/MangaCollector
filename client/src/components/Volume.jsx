@@ -39,6 +39,10 @@ function VolumeImpl({
   // edited via the LoanModal mounted at the bottom of this component.
   loanedTo = null,
   loanDueAt = null,
+  // 飛 · Does the reader want this tome? `false` = deliberately
+  // skipped: it keeps its place in the run and stops counting as
+  // missing. Only meaningful on a tome they do not own.
+  wanted = true,
   // 物 · The physical copy — edited in the drawer, saved with the rest.
   condition = null,
   location = null,
@@ -68,6 +72,7 @@ function VolumeImpl({
   const [collectorStatus, setCollectorStatus] = useState(Boolean(collector));
   const [readStatus, setReadStatus] = useState(Boolean(readAt));
   const [noteDraft, setNoteDraft] = useState(note ?? "");
+  const [wantedDraft, setWantedDraft] = useState(wanted !== false);
   const [conditionDraft, setConditionDraft] = useState(condition ?? null);
   const [locationDraft, setLocationDraft] = useState(location ?? "");
   const [extraCopiesDraft, setExtraCopiesDraft] = useState(extraCopies ?? 0);
@@ -257,6 +262,7 @@ function VolumeImpl({
     const noteChanged = draftNote.trim() !== savedNote.trim();
     // 物 · Only ship the physical fields when one of them moved.
     const physicalChanged =
+      wantedDraft !== (wanted !== false) ||
       (conditionDraft ?? null) !== (condition ?? null) ||
       locationDraft.trim() !== (location ?? "").trim() ||
       (Number(extraCopiesDraft) || 0) !== (extraCopies ?? 0) ||
@@ -276,6 +282,7 @@ function VolumeImpl({
       noteChanged ? draftNote : undefined,
       physicalChanged || isbnChanged
         ? {
+            wanted: wantedDraft,
             condition: conditionDraft || null,
             location: locationDraft.trim(),
             extra_copies: Number(extraCopiesDraft) || 0,
@@ -294,6 +301,7 @@ function VolumeImpl({
     setCollectorStatus(Boolean(collector));
     setReadStatus(Boolean(readAt));
     setNoteDraft(note ?? "");
+    setWantedDraft(wanted !== false);
     setConditionDraft(condition ?? null);
     setLocationDraft(location ?? "");
     setExtraCopiesDraft(extraCopies ?? 0);
@@ -311,6 +319,7 @@ function VolumeImpl({
     setCollectorStatus(Boolean(collector));
     setReadStatus(Boolean(readAt));
     setNoteDraft(note ?? "");
+    setWantedDraft(wanted !== false);
     setConditionDraft(condition ?? null);
     setLocationDraft(location ?? "");
     setExtraCopiesDraft(extraCopies ?? 0);
@@ -328,6 +337,7 @@ function VolumeImpl({
     location,
     extraCopies,
     boughtAt,
+    wanted,
     isEditing,
   ]);
 
@@ -359,6 +369,9 @@ function VolumeImpl({
   const isLent = ownedStatus && !isUpcoming && Boolean(loanedTo);
   const loanStatus = isLent ? classifyLoanStatus(loanDueAt) : null;
 
+  // 飛 · Skipped only reads on a tome the reader does not own.
+  const skipped = !ownedStatus && wantedDraft === false && !isUpcoming;
+
   const borderClasses = isUpcoming
     ? isImminent
       ? "border-sakura/55 bg-gradient-to-br from-sakura/10 via-ink-1/40 to-ink-1/40 shadow-[0_0_18px_rgba(245,194,210,0.18)]"
@@ -367,7 +380,14 @@ function VolumeImpl({
       ? "border-transparent ring-2 ring-gold/80 shadow-[0_0_22px_rgba(201,169,97,0.25)]"
       : ownedStatus
         ? "border-hanko/40 bg-hanko/5 hover:border-hanko/60"
-        : "border-border bg-ink-1/40 hover:border-border/80";
+        : skipped
+          ? // 飛 · Deliberately skipped: a dashed edge and a faded card
+            // say "left out on purpose" at a glance, where a plain
+            // missing tome says "not here yet". Without it the decision
+            // is invisible on the shelf and only findable by opening
+            // the drawer.
+            "border-dashed border-washi/25 bg-ink-1/20 opacity-60 hover:opacity-90"
+          : "border-border bg-ink-1/40 hover:border-border/80";
 
   // Cover-less badge classes. When lent the badge stops looking
   // like a "filled chip" and shifts to a "sealed envelope" look:
@@ -410,6 +430,22 @@ function VolumeImpl({
               <span className="font-display text-[10px] font-bold leading-none">
                 限
               </span>
+            </span>
+          </Tooltip>
+        </span>
+      )}
+
+      {/* 飛 · Skipped seal. Top-left like the doubles count, which a
+          skipped tome cannot have — the two never collide. */}
+      {skipped && (
+        <span className="absolute -left-2 -top-2 z-20">
+          <Tooltip text={t("volume.skippedOption")} placement="top">
+            <span
+              aria-label={t("volume.skippedOption")}
+              className="grid h-5 w-5 place-items-center rounded-full bg-ink-1 font-jp text-[10px] font-bold leading-none text-washi-muted ring-1 ring-washi/30"
+              style={{ transform: "rotate(-8deg)" }}
+            >
+              飛
             </span>
           </Tooltip>
         </span>
@@ -822,7 +858,14 @@ function VolumeImpl({
                       <circle cx="8" cy="8" r="5.5" />
                     </svg>
                   )}
-                  {ownedStatus ? t("volume.inCollection") : t("volume.missing")}
+                  {/* 飛 · A skipped tome is not missing — saying so on
+                      the card is the difference between a hole and a
+                      decision. */}
+                  {ownedStatus
+                    ? t("volume.inCollection")
+                    : skipped
+                      ? t("volume.skippedShort")
+                      : t("volume.missing")}
                 </span>
                 {ownedStatus && price > 0 && (
                   <span className="font-mono text-xs text-washi-muted">
@@ -964,6 +1007,8 @@ function VolumeImpl({
         setPurchaseLocation={setPurchaseLocation}
         note={noteDraft}
         setNote={setNoteDraft}
+        wanted={wantedDraft}
+        setWanted={setWantedDraft}
         condition={conditionDraft}
         setCondition={setConditionDraft}
         location={locationDraft}

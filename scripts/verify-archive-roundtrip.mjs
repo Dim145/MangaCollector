@@ -68,6 +68,8 @@ async function enrich(c) {
   const handRead = mal[1] ?? mal[0];
   await c.json("PATCH", `/api/user/library/${handRead.mal_id}`, {
     reading_status: "paused",
+    // 版 · the edition's own state, which MAL cannot know
+    publication_status: "stopped",
     started_reading_at: "2025-01-15",
     finished_reading_at: null,
     times_read: 1,
@@ -124,6 +126,9 @@ async function enrich(c) {
       bought_at: `2024-0${i + 3}-15`,
       // the barcode — typed with hyphens, or as an old ISBN-10; stored as bare ISBN-13
       isbn: ISBNS[i]?.typed ?? null,
+      // 飛 · one tome deliberately skipped, so the bundle has to carry
+      // a `wanted: false` and give it back
+      wanted: i !== 1,
       loan: {
         to: i === 0 ? "Alex (ami)" : `Ami ${i + 1}`,
         due_at: new Date(Date.now() + (i + 1) * 7 * 86400000).toISOString(),
@@ -183,8 +188,9 @@ async function enrich(c) {
 /* ─── 4. normalised views ──────────────────────────────────────────── */
 const SERIES_FIELDS = ["name", "volumes", "volumes_owned", "image_url_jpg", "genres", "mangadex_id",
   "publisher", "edition", "review", "review_public", "author_name", "created_on", "modified_on",
-  "reading_status", "started_reading_at", "finished_reading_at", "times_read"];
-const VOLUME_FIELDS = ["vol_num", "owned", "price", "store", "collector", "read_at", "notes",
+  "reading_status", "started_reading_at", "finished_reading_at", "times_read",
+  "publication_status"];
+const VOLUME_FIELDS = ["vol_num", "owned", "price", "store", "collector", "wanted", "read_at", "notes",
   "release_date", "release_isbn", "release_url", "origin", "announced_at",
   "loaned_to", "loaned_to_user_id", "loan_started_at", "loan_due_at", "in_coffret", "created_on", "modified_on",
   "condition", "location", "extra_copies", "bought_at", "isbn"];

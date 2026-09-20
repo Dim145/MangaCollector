@@ -233,3 +233,35 @@ describe("computeDoubles", () => {
     });
   });
 });
+
+describe("with volumes the reader skipped", () => {
+  /*
+   * 飛 · The skipped tomes leave the denominator. A shelf of twelve
+   * with two skipped and ten owned reads 100 %, because that is what
+   * the reader set out to collect.
+   */
+  const shelf = [{ mal_id: 1, volumes: 12, volumes_owned: 10, genres: [] }];
+
+  it("counts every published tome when nothing is skipped", () => {
+    const out = computeLibraryStats(shelf);
+    expect(out.totalVolumes).toBe(12);
+    expect(out.completionPct).toBe(83);
+    expect(out.seriesComplete).toBe(0);
+  });
+
+  it("discounts them when told about them", () => {
+    const out = computeLibraryStats(shelf, {
+      skippedByMal: new Map([[1, 2]]),
+    });
+    expect(out.totalVolumes).toBe(10);
+    expect(out.completionPct).toBe(100);
+    expect(out.seriesComplete).toBe(1);
+  });
+
+  it("ignores a count for a series that is not there", () => {
+    const out = computeLibraryStats(shelf, {
+      skippedByMal: new Map([[999, 5]]),
+    });
+    expect(out.totalVolumes).toBe(12);
+  });
+});

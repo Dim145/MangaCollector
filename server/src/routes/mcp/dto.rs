@@ -332,6 +332,12 @@ pub struct SetPhysicalCopy {
     /// "clear" — zero is it.
     #[serde(default)]
     pub extra_copies: Option<i32>,
+    /// 飛 · Whether the owner wants this tome at all. `false` marks it
+    /// deliberately skipped: it keeps its place in the run but stops
+    /// counting as missing, so the series can read as complete without
+    /// it. `true` puts it back among the wanted ones.
+    #[serde(default)]
+    pub wanted: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]

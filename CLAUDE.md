@@ -171,7 +171,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 080 tests across 58 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 086 tests across 58 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -414,7 +414,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 |---|---|
 | `/auth` | OAuth callbacks & session lifecycle |
 | `/api/library` | Manga library CRUD, reading progression (`reading_status`, dates, `times_read`; `POST /{mal_id}/reread`), edition status (`publication_status`) |
-| `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`) |
+| `/api/volume` | Volume tracking (including 飛 `wanted` — a tome deliberately skipped), bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`) |
 | `/api/authors` | Author records, photos, refresh |
 | `/api/user`, `/api/account` | Profile, deletion, public slug; `GET /api/user/isbn/{isbn}` resolves a barcode through the server-side chain (see External Integrations) |
 | `/api/user/api-keys` | 鍵 · Mint / list / revoke the per-user keys that open the MCP endpoint, plus `GET /api-keys/scopes` (catalogue + whether the operator enabled `/mcp`) and `GET /api-keys/audit` (what agents did). Session-authenticated: a key never authenticates here, only on `/mcp` |
@@ -501,6 +501,15 @@ stateless), so an AI client can read and curate one account's collection.
   `mcp_audit`,
   `location`, `session_meta`, `setting`, `snapshot`, `user`, `user_seal`,
   `volume`.
+- `user_volumes.wanted` (飛) is **a decision, not a hole**: `false`
+  means the reader deliberately skipped that tome, which keeps its
+  number in the run and stops counting as missing. The rule lives in
+  `client/src/lib/gaps.js` (`skippedCounts`, `wantedVolumes`,
+  `seriesIsComplete`) and reaches the gap suggestions, the completion
+  percentage and the dashboard's 完 / 進 filters — a run of twelve with
+  two skipped is a run of ten, and owning the ten is finished. Default
+  TRUE everywhere, including for rows an archive bundle predating the
+  column describes.
 - `user_libraries.publication_status` (版) is **the edition on the
   shelf**, not the Japanese original MAL reports: `ongoing`, `paused`,
   `completed`, `stopped`, or NULL for "no opinion". A closed edition

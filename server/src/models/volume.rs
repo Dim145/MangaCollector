@@ -17,6 +17,12 @@ pub struct Model {
     pub store: Option<String>,
     #[sea_orm(default)]
     pub collector: bool,
+    /// 飛 · Does the reader want this tome at all? `false` means they
+    /// decided to skip it — an artbook counted as a volume, a side
+    /// story, a double they will not buy again. It stops being a gap
+    /// without leaving the run. Defaults to true everywhere.
+    #[sea_orm(default = true)]
+    pub wanted: bool,
     #[sea_orm(default)]
     pub coffret_id: Option<i32>,
     /// First-read timestamp — NULL means unread (tsundoku if `owned`).
@@ -144,6 +150,12 @@ pub fn normalize_condition(raw: Option<String>) -> Result<Option<String>, crate:
 /// "clear" — 0 is it.
 #[derive(Debug, Default)]
 pub struct PhysicalPatch {
+    /// 飛 · Not physical, strictly: whether the reader wants this tome
+    /// at all. It rides here because it is edited from the same drawer,
+    /// travels through the same optional-field machinery, and lands in
+    /// the same single UPDATE — splitting it out would buy a second
+    /// round trip and nothing else.
+    pub wanted: Option<bool>,
     pub condition: Option<Option<String>>,
     pub location: Option<Option<String>>,
     pub extra_copies: Option<i32>,
@@ -154,7 +166,8 @@ pub struct PhysicalPatch {
 
 impl PhysicalPatch {
     pub fn is_empty(&self) -> bool {
-        self.condition.is_none()
+        self.wanted.is_none()
+            && self.condition.is_none()
             && self.location.is_none()
             && self.extra_copies.is_none()
             && self.bought_at.is_none()
@@ -199,6 +212,10 @@ pub struct UpdateVolumeRequest {
     #[serde(default, deserialize_with = "deserialize_optional_loan")]
     pub loan: Option<Option<LoanPatch>>,
     // ── 物 · Physical copy — omitted / null / value, like `loan` ──
+    /// 飛 · `Some(false)` marks the tome as deliberately skipped: kept
+    /// in the run, no longer counted as missing.
+    #[serde(default)]
+    pub wanted: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_optional_text")]
     pub condition: Option<Option<String>>,
     #[serde(default, deserialize_with = "deserialize_optional_text")]
@@ -216,6 +233,7 @@ impl UpdateVolumeRequest {
     /// ownership / reading / loan fields for `update_by_id`.
     pub fn take_physical(&mut self) -> PhysicalPatch {
         PhysicalPatch {
+            wanted: self.wanted.take(),
             condition: self.condition.take(),
             location: self.location.take(),
             extra_copies: self.extra_copies.take(),
