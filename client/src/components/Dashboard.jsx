@@ -43,9 +43,6 @@ import { useLang, useT } from "@/i18n/index.jsx";
 // Two sessionStorage keys: scroll-Y is written at ~60 Hz so it's kept
 // raw to skip the JSON cost.
 const DASHBOARD_STATE_KEY = "mc:dashboard:view";
-const DASHBOARD_SCROLL_KEY = "mc:dashboard:scrollY";
-/** How long the restore may wait for the grid to be tall enough. */
-const SCROLL_RESTORE_WINDOW_MS = 1500;
 
 // Lens predicates lean on `created_on` / `modified_on` from the
 // library rows. Cheap shared helpers — `parseTs` returns 0 (epoch)
@@ -87,26 +84,6 @@ function writePersistedDashboardState(state) {
   if (typeof sessionStorage === "undefined") return;
   try {
     sessionStorage.setItem(DASHBOARD_STATE_KEY, JSON.stringify(state));
-  } catch {
-    /* quota / private mode — non-fatal */
-  }
-}
-
-function readPersistedScrollY() {
-  if (typeof sessionStorage === "undefined") return 0;
-  try {
-    const raw = sessionStorage.getItem(DASHBOARD_SCROLL_KEY);
-    const n = raw ? Number(raw) : 0;
-    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function writePersistedScrollY(y) {
-  if (typeof sessionStorage === "undefined") return;
-  try {
-    sessionStorage.setItem(DASHBOARD_SCROLL_KEY, String(Math.round(y)));
   } catch {
     /* quota / private mode — non-fatal */
   }
@@ -425,106 +402,12 @@ export default function Dashboard() {
     });
   }, [query, filter, activeTags, lens, sort]);
 
-  // 記 · Scroll memory — three effects that have to agree, so a reader
-  // who opens a series from the middle of a long shelf comes back to
-  // that middle, whether through the browser's back button or the
-  // page's own "back to library".
-  //
-  // The listener is *disarmed* until the restore below has had its
-  // say. The mount of this page is full of scrolls that are not the
-  // reader's — `AppShell` scrolls to the top on a push navigation, the
-  // window virtualizer scrolls to its initial offset (0) as it attaches
-  // — and each fires a `scroll` event. Persisting those wrote `0` over
-  // the very position we were about to restore.
-  const scrollMemoryArmedRef = useRef(false);
-  useEffect(() => {
-    let pending = false;
-    const onScroll = () => {
-      if (!scrollMemoryArmedRef.current || pending) return;
-      pending = true;
-      requestAnimationFrame(() => {
-        writePersistedScrollY(window.scrollY);
-        pending = false;
-      });
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // Restore once the library has resolved AND the document can hold the
-  // position: the virtualized grid gets its height a frame after the
-  // rows arrive, and a `scrollTo` issued before that is clamped to
-  // whatever is there. Tries for up to SCROLL_RESTORE_WINDOW_MS, gives
-  // up at once if the reader scrolls first (their intent wins), puts
-  // them back once if the virtualizer's own mount scroll lands after
-  // ours, and arms the listener either way.
-  //
-  // The ref is reset in the cleanup on purpose: React runs effects
-  // twice in development, and a guard that stayed set through the
-  // simulated remount left the listener disarmed for the whole visit.
-  const restoredScrollRef = useRef(false);
-  useEffect(() => {
-    if (restoredScrollRef.current || isInitialLoad) return;
-    restoredScrollRef.current = true;
-    const arm = () => {
-      scrollMemoryArmedRef.current = true;
-    };
-    const savedY = readPersistedScrollY();
-    if (savedY <= 0) {
-      arm();
-      return undefined;
-    }
-    const started = performance.now();
-    let raf = 0;
-    let placed = false;
-    let cancelled = false;
-    const place = () => {
-      const maxY = Math.max(
-        0,
-        document.documentElement.scrollHeight - window.innerHeight,
-      );
-      window.scrollTo({
-        top: Math.min(savedY, maxY),
-        left: 0,
-        behavior: "instant",
-      });
-      placed = true;
-    };
-    const tick = () => {
-      if (cancelled) return;
-      const elapsed = performance.now() - started;
-      const maxY = document.documentElement.scrollHeight - window.innerHeight;
-      if (!placed) {
-        // The reader moved before we could: leave them be.
-        if (window.scrollY > 2) return arm();
-        if (maxY >= savedY || elapsed > SCROLL_RESTORE_WINDOW_MS) {
-          place();
-          raf = requestAnimationFrame(tick);
-          return undefined;
-        }
-        raf = requestAnimationFrame(tick);
-        return undefined;
-      }
-      // Placed. Yanked back to the top by a mount-time scroll? Once more.
-      if (window.scrollY < 2 && savedY > 2 && elapsed < SCROLL_RESTORE_WINDOW_MS) {
-        place();
-      }
-      return arm();
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(raf);
-      restoredScrollRef.current = false;
-    };
-  }, [isInitialLoad]);
-
-  // Back to the top when the reader changes what the shelf shows. This
-  // compares against the previous values rather than skipping "the
-  // first run": React runs effects twice in development, which turned a
-  // skip-once guard into a reset on mount — the page scrolled to the top
-  // and wrote `0` over the remembered position, and every return to the
-  // library on the dev stack landed at the top.
+  // Back to the top when the reader changes what the shelf shows —
+  // compared against the previous values, not "the first run": React
+  // runs effects twice in development, which turned a skip-once guard
+  // into a reset on mount. Where the shelf was scrolled to is the app
+  // shell's business (`hooks/useScrollMemory.js`); this only says that a
+  // new list starts at its top.
   const lastViewRef = useRef(null);
   useEffect(() => {
     const view = {
@@ -543,7 +426,6 @@ export default function Dashboard() {
       return;
     }
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    writePersistedScrollY(0);
   }, [filter, query, activeTags]);
 
   return (

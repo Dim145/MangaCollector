@@ -105,7 +105,10 @@ function Manga({
     // the `view-transition-name` set on the inner div below). No-op
     // on browsers without View Transitions support.
     navigate("/mangapage", {
-      state: { manga, adult_content_level },
+      // `from` lets the series page's "back to library" be a real step
+      // back (`navigate(-1)`) — the library entry then restores its own
+      // scroll position instead of a fresh entry starting at the top.
+      state: { manga, adult_content_level, from: "library" },
       viewTransition: true,
     });
   };

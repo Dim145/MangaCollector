@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
 import VolumeShelfTile from "./VolumeShelfTile.jsx";
@@ -66,7 +66,21 @@ import { useT } from "@/i18n/index.jsx";
 
 export default function MangaPage({ manga, adult_content_level }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currency: currencySetting } = useContext(SettingsContext);
+  // 戻 · Opened from the library, "back to library" is a real step back:
+  // the dashboard entry restores its own scroll position and the history
+  // stays one pair deep instead of piling a new dashboard entry on every
+  // round trip. From anywhere else — a QR label, the calendar, the
+  // backlog, a fresh tab — there is no library entry behind us to step
+  // back to, so we go there.
+  const cameFromLibrary =
+    location.state?.from === "library" &&
+    (window.history.state?.idx ?? 0) > 0;
+  const backToLibrary = () =>
+    cameFromLibrary
+      ? navigate(-1)
+      : navigate("/dashboard", { viewTransition: true });
   const online = useOnline();
   const t = useT();
 
@@ -607,10 +621,10 @@ export default function MangaPage({ manga, adult_content_level }) {
       <div className="mx-auto max-w-6xl px-4 pt-4 pb-nav md:pb-16 sm:px-6 md:pt-10">
         {/* Back */}
         <button
-          // 戻 · `viewTransition: true` mirrors the forward navigation
-          // from the Dashboard so the hero cover morphs back into its
-          // tile position. Without it, the back nav was an instant cut.
-          onClick={() => navigate("/dashboard", { viewTransition: true })}
+          // 戻 · A real step back when the library is behind us (see
+          // `backToLibrary`); the push with `viewTransition` is the
+          // fallback for every other way onto this page.
+          onClick={backToLibrary}
           className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
         >
           <svg
