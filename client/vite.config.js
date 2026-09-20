@@ -25,8 +25,11 @@ import path from "path";
  * `generateBundle` time, then injects an inline `<script>` into
  * `<head>` that:
  *   1. Reads `localStorage["mc:lang"]` (same key as `bootstrapLanguage`)
- *   2. Injects `<link rel="modulepreload">` for the active language
- *      AND English (the fallback) before main.js even starts fetching
+ *   2. Injects `<link rel="modulepreload">` for the active language,
+ *      and only that one — the three catalogues carry the same keys
+ *      (`i18n/parity.test.js`), so the English fallback never fires and
+ *      preloading it meant every French or Spanish reader fetched and
+ *      parsed a second 92 kB catalogue before the first screen
  *
  * Result: the lang chunks fetch in PARALLEL with main.js, so by the
  * time `loadLanguage()` is called, the bundle is already in the
@@ -55,7 +58,7 @@ function i18nPreloadInjector() {
       order: "post",
       handler(html) {
         if (!manifest || Object.keys(manifest).length === 0) return html;
-        const script = `\n    <script>\n      (function () {\n        try {\n          var m = ${JSON.stringify(manifest)};\n          var stored = localStorage.getItem("mc:lang");\n          var lang = stored && m[stored] ? stored : "en";\n          var add = function (href) {\n            var l = document.createElement("link");\n            l.rel = "modulepreload";\n            l.crossOrigin = "";\n            l.href = href;\n            document.head.appendChild(l);\n          };\n          if (m[lang]) add(m[lang]);\n          if (lang !== "en" && m.en) add(m.en);\n        } catch (_) {}\n      })();\n    </script>`;
+        const script = `\n    <script>\n      (function () {\n        try {\n          var m = ${JSON.stringify(manifest)};\n          var stored = localStorage.getItem("mc:lang");\n          var lang = stored && m[stored] ? stored : "en";\n          var add = function (href) {\n            var l = document.createElement("link");\n            l.rel = "modulepreload";\n            l.crossOrigin = "";\n            l.href = href;\n            document.head.appendChild(l);\n          };\n          if (m[lang]) add(m[lang]);\n        } catch (_) {}\n      })();\n    </script>`;
         return html.replace("</head>", `${script}\n  </head>`);
       },
     },

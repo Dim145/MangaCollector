@@ -169,7 +169,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 060 tests across 54 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 065 tests across 56 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -200,6 +200,12 @@ docker compose build
     (which account the local caches belong to) pins the asymmetry that
     matters — a foreign stamp wipes, an absent one adopts; `clientId` and
     `realtimePlan` (the websocket decision table) are pure and tested.
+  - `i18n/parity.test.js` and `i18n/keys-used.test.js` are what let the
+    app ship **one catalogue per reader**: the three carry the same
+    2 089 keys, so `t()`'s English fallback can never fire and English
+    is no longer co-loaded beside French or Spanish. The second walks
+    the source for `t("…")` and fails on a key no catalogue has — it
+    found two that were shipping as visible text.
   - `lib/coreQueries.test.js` pins the conditional refresh: the library
     and the volumes are fetched as **text**, and an answer whose `ETag`
     matches the last one is neither parsed nor written — unless the
@@ -510,7 +516,9 @@ stateless), so an AI client can read and curate one account's collection.
 122 components in `components/`, 54 hooks in `hooks/`, plus `lib/`
 (Dexie `db.js`, outbox `sync.js`, `connectivity.js`, `theme.js`,
 `barcode.js`, `isbn.js`, `scanLookup.js`, `locations.js`, `inventory.js`,
-`labels.js`), `i18n/` (en/fr/es, lazy-loaded per language) and `styles/`.
+`labels.js`), `i18n/` (en/fr/es, one lazy chunk per language — only the reader's
+own; `bootstrapLanguage` picks it from `localStorage` before the first
+render, so nothing starts in English and switches) and `styles/`.
 The barcode scanner is fully client-side (`/scan` finds a tome on the
 shelf, adds a double, or hands the ISBN to the add flow); only the
 catalogue lookup needs a network. `/rangement` is the places view (move

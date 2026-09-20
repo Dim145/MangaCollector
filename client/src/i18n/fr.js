@@ -12,6 +12,10 @@ export default {
     edit: "Modifier",
     done: "Terminé",
     confirm: "Confirmer",
+    // 誤 · The fallback when a failed write says nothing useful.
+    // Referenced by `ReadingProgress` and written in no catalogue,
+    // so a failed re-read showed the reader `common.genericError`.
+    genericError: "Quelque chose a échoué. Réessayez.",
     retry: "Réessayer",
     retryNow: "Réessayer",
     loading: "Chargement…",
@@ -329,6 +333,13 @@ export default {
     sortByUpcoming: "Prochaine sortie",
     sortDirAsc: "Croissant",
     sortDirDesc: "Décroissant",
+    // 密 · The two shelf depths. These three were referenced by
+    // `DensityToggle` and existed in no catalogue, so the toggle's
+    // tooltip and its screen-reader label read `dashboard.density_dense`
+    // out loud, in every language.
+    densityLabel: "Densité des étagères",
+    density_comfortable: "Étagères aérées",
+    density_dense: "Étagères serrées",
     sortFlip: "Inverser l'ordre",
     sortGapsNote: "Les séries sans valeur pour ce critère vont à la fin.",
     // 連 · Label volontairement distinct de « Séries » (manga) qui

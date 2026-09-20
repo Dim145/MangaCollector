@@ -60,29 +60,22 @@ const BUNDLES = {};
  * can also do their own thing with it; the side-effect of populating
  * `BUNDLES[lang]` is what `I18nProvider` actually reads from later.
  *
- * Always co-loads English when the requested lang isn't English — the
- * `t()` helper falls back to English for missing keys, and we want
- * that fallback to be synchronous (no flash of raw keys) once the
- * provider is mounted.
+ * 一 · One catalogue, not two. This used to co-load English alongside
+ * whatever was asked for, so that `t()`'s fallback would be there
+ * synchronously if a translation were missing. But none is: the three
+ * catalogues carry the same 2 089 keys, and `parity.test.js` fails the
+ * build if that ever stops being true. So a French reader was
+ * downloading and parsing the whole English catalogue — 92 kB, 32 kB
+ * over the wire — before the first screen could paint, for a fallback
+ * that could never fire. The fallback itself stays: if a key really is
+ * missing and English happens to be loaded, it still answers.
  */
 export async function loadLanguage(lang) {
   const code = LOADERS[lang] ? lang : "en";
-  const tasks = [];
   if (!BUNDLES[code]) {
-    tasks.push(
-      LOADERS[code]().then((mod) => {
-        BUNDLES[code] = mod.default;
-      }),
-    );
+    const mod = await LOADERS[code]();
+    BUNDLES[code] = mod.default;
   }
-  if (code !== "en" && !BUNDLES.en) {
-    tasks.push(
-      LOADERS.en().then((mod) => {
-        BUNDLES.en = mod.default;
-      }),
-    );
-  }
-  if (tasks.length) await Promise.all(tasks);
   return BUNDLES[code];
 }
 
@@ -155,7 +148,14 @@ export function useLang() {
 export function bootstrapLanguage() {
   try {
     const stored = localStorage.getItem("mc:lang");
-    if (stored && BUNDLES[stored]) return stored;
+    // 語 · Against `LOADERS`, not `BUNDLES`. `BUNDLES` holds the
+    // catalogues already *resolved*, and at bootstrap it is empty by
+    // definition — so this asked "is French loaded?" before anything
+    // could be, always answered no, and started every reader in
+    // English. A French reader then paid for two catalogues (English
+    // first, then French when the settings arrived) and watched the
+    // first screen switch language under them.
+    if (stored && LOADERS[stored]) return stored;
   } catch {
     /* ignore */
   }
@@ -164,7 +164,7 @@ export function bootstrapLanguage() {
 
 export function rememberLanguage(lang) {
   try {
-    if (BUNDLES[lang]) {
+    if (LOADERS[lang]) {
       localStorage.setItem("mc:lang", lang);
       if (typeof document !== "undefined") {
         document.documentElement.lang = lang;

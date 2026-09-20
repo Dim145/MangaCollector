@@ -12,6 +12,10 @@ export default {
     edit: "Editar",
     done: "Hecho",
     confirm: "Confirmar",
+    // 誤 · The fallback when a failed write says nothing useful.
+    // Referenced by `ReadingProgress` and written in no catalogue,
+    // so a failed re-read showed the reader `common.genericError`.
+    genericError: "Algo salió mal. Inténtalo de nuevo.",
     retry: "Reintentar",
     retryNow: "Reintentar ahora",
     loading: "Cargando…",
@@ -324,6 +328,13 @@ export default {
     sortByUpcoming: "Próxima salida",
     sortDirAsc: "Ascendente",
     sortDirDesc: "Descendente",
+    // 密 · The two shelf depths. These three were referenced by
+    // `DensityToggle` and existed in no catalogue, so the toggle's
+    // tooltip and its screen-reader label read `dashboard.density_dense`
+    // out loud, in every language.
+    densityLabel: "Densidad de estantes",
+    density_comfortable: "Estantes holgados",
+    density_dense: "Estantes apretados",
     sortFlip: "Invertir el orden",
     sortGapsNote: "Las series sin valor para este criterio van al final.",
     streakLabel: "Racha",
