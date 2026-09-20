@@ -1533,7 +1533,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.15.1 · Sept correctifs, une porte d'entrée honnête",
+    version: "v2.16.0 · Plus léger, et il connaît votre étagère",
     heroStart: "Chaque",
     heroAccent: "tome",
     heroEnd1: ",",
