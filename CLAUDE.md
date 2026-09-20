@@ -50,7 +50,10 @@ happens outside, so the bytes that leave are not the bytes hashed; a
 body whose length is not known in advance is a stream and is passed
 through untagged rather than buffered. On the seeded library
 `/api/user/volume` went from 998 kB uncompressed and unconditional to
-29 kB on a cold cache and a 300-byte revalidation after that.
+29 kB on a cold cache and a 300-byte revalidation after that. The
+client reads the tag back (`lib/coreQueries.js`) and skips parsing and
+rewriting an answer it already holds, which is why `ETag` is in the
+CORS exposed headers.
 
 **Dev proxy:** Traefik v2.
 
@@ -166,7 +169,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 052 tests across 53 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 060 tests across 54 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -197,6 +200,11 @@ docker compose build
     (which account the local caches belong to) pins the asymmetry that
     matters — a foreign stamp wipes, an absent one adopts; `clientId` and
     `realtimePlan` (the websocket decision table) are pure and tested.
+  - `lib/coreQueries.test.js` pins the conditional refresh: the library
+    and the volumes are fetched as **text**, and an answer whose `ETag`
+    matches the last one is neither parsed nor written — unless the
+    local table is empty, which is the guard that keeps a wiped cache
+    from staying wiped.
   - `components/volumeOverlays.test.js` pins why the volume drawer and
     the loan sheet are fetched by hand rather than through
     `React.lazy`: once fetched they must be available *synchronously*,

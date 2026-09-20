@@ -329,7 +329,13 @@ async fn main() -> anyhow::Result<()> {
             // 源 · Per-tab client id the SPA stamps on every request so the
             // realtime broker can skip echoing a change back to its author.
             axum::http::header::HeaderName::from_static("x-client-id"),
-        ]);
+        ])
+        // 冷 · The client reads `ETag` back: when it matches the one it
+        // saw last, the megabyte of volumes it was handed is the same
+        // megabyte, and it skips parsing and rewriting its local cache.
+        // Same-origin deployments expose it anyway; a split
+        // frontend/API host does not without this.
+        .expose_headers([axum::http::header::ETAG]);
 
     // Router
     //
