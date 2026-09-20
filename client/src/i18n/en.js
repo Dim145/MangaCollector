@@ -2156,6 +2156,16 @@ export default {
     emptyTitle: "Not enough story yet",
     emptyBody:
       "This year is still too young in your archive to deserve a poster. Come back once a few volumes have joined.",
+    monthEyebrow: "MONTH IN REVIEW · 月",
+    periodLabel: "Period",
+    wholeYear: "Whole year",
+    headlineCaptionMonth: "volumes acquired this month",
+    topSeriesHintMonth: "{n} volumes this month",
+    vsPrevLabel: "Against {month}",
+    vsPrevHint: "{n} volumes that month",
+    shareTitleMonth: "My {period} in review · MangaCollector",
+    emptyBodyMonth:
+      "This month is too quiet to deserve a poster. Pick another one, or come back once a few volumes have arrived.",
     emptyCta: "See my library",
   },
   compare: {

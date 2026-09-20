@@ -6,12 +6,28 @@ import Skeleton from "./ui/Skeleton.jsx";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { useYearInReview } from "@/hooks/useYearInReview.js";
 import { formatCurrency } from "@/utils/price.js";
-import { useT } from "@/i18n/index.jsx";
+import { useLang, useT } from "@/i18n/index.jsx";
+
+/**
+ * 月 · The month's name in the reader's language. The app's own
+ * language, not the browser's: someone reading MangaCollector in
+ * French on an English system should not be handed "September".
+ */
+function monthName(lang, index, style = "long") {
+  try {
+    return new Intl.DateTimeFormat(lang || undefined, {
+      month: style,
+    }).format(new Date(2020, index, 1));
+  } catch {
+    return String(index + 1);
+  }
+}
 
 export default function YearInReviewPage({ googleUser }) {
-  const { year: yearParam } = useParams();
+  const { year: yearParam, month: monthParam } = useParams();
   const navigate = useNavigate();
   const t = useT();
+  const lang = useLang();
 
   const currentYear = new Date().getFullYear();
   const year = useMemo(() => {
@@ -23,14 +39,34 @@ export default function YearInReviewPage({ googleUser }) {
     return parsed;
   }, [yearParam, currentYear]);
 
-  // Redirect a malformed year to the canonical current-year URL.
-  useEffect(() => {
-    if (yearParam && String(year) !== yearParam) {
-      navigate(`/year-in-review/${year}`, { replace: true });
-    }
-  }, [yearParam, year, navigate]);
+  // 月 · `/year-in-review/2026/9` is September 2026; no segment is the
+  // whole year. The URL is 1-based because that is how a person writes
+  // a month; the code is 0-based because that is how `Date` reads one.
+  const month = useMemo(() => {
+    if (!monthParam) return null;
+    const parsed = parseInt(monthParam, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 12) return null;
+    return parsed - 1;
+  }, [monthParam]);
 
-  const { bundle, loading } = useYearInReview(year);
+  // Redirect a malformed year or month to the canonical URL.
+  useEffect(() => {
+    const canonical =
+      month == null ? `/year-in-review/${year}` : `/year-in-review/${year}/${month + 1}`;
+    const current =
+      monthParam == null
+        ? `/year-in-review/${yearParam ?? year}`
+        : `/year-in-review/${yearParam ?? year}/${monthParam}`;
+    if (yearParam && current !== canonical) {
+      navigate(canonical, { replace: true });
+    }
+  }, [yearParam, monthParam, year, month, navigate]);
+
+  const { bundle, loading } = useYearInReview(year, month);
+  const periodLabel =
+    month == null ? String(year) : `${monthName(lang, month)} ${year}`;
+  const fileStamp =
+    month == null ? String(year) : `${year}-${String(month + 1).padStart(2, "0")}`;
   const { data: settings } = useUserSettings();
   const currencySetting = settings?.currency;
 
@@ -71,7 +107,7 @@ export default function YearInReviewPage({ googleUser }) {
       const dataUrl = await generatePng();
       if (!dataUrl) throw new Error("capture-failed");
 
-      const filename = `manga-collector-${year}.png`;
+      const filename = `manga-collector-${fileStamp}.png`;
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], filename, { type: "image/png" });
 
@@ -84,7 +120,10 @@ export default function YearInReviewPage({ googleUser }) {
         try {
           await navigator.share({
             files: [file],
-            title: t("yearReview.shareTitle", { year }),
+            title:
+              month == null
+                ? t("yearReview.shareTitle", { year })
+                : t("yearReview.shareTitleMonth", { period: periodLabel }),
           });
           setCaptureState("shared");
         } catch (err) {
@@ -119,15 +158,19 @@ export default function YearInReviewPage({ googleUser }) {
   return (
     <div className="yir-root mx-auto min-h-screen w-full max-w-[44rem] px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
       {/* Controls sit outside the posterRef so they're skipped by toPng. */}
-      <div className="yir-controls mb-6 flex items-center justify-between gap-3">
+      {/* Three controls no longer fit beside "back" on a phone: the
+          group takes its own line there and returns to the same row
+          from `sm` up. */}
+      <div className="yir-controls mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link
           to="/profile"
           className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim transition hover:text-washi"
         >
           ← {t("common.back")}
         </Link>
-        <div className="flex items-center gap-2">
-          <YearSelector current={year} />
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
+          <YearSelector current={year} month={month} />
+          <MonthSelector current={month} year={year} lang={lang} t={t} />
           <button
             type="button"
             onClick={handleSave}
@@ -225,12 +268,14 @@ export default function YearInReviewPage({ googleUser }) {
         {loading ? (
           <PosterSkeleton />
         ) : bundle.empty ? (
-          <EmptyState year={year} />
+          <EmptyState year={year} month={month} periodLabel={periodLabel} />
         ) : (
           <PosterBody
             bundle={bundle}
             googleUser={googleUser}
             currencySetting={currencySetting}
+            periodLabel={periodLabel}
+            lang={lang}
             t={t}
           />
         )}
@@ -260,7 +305,7 @@ function triggerDownload(dataUrl, filename) {
   }, 0);
 }
 
-function YearSelector({ current }) {
+function YearSelector({ current, month }) {
   const navigate = useNavigate();
   const now = new Date().getFullYear();
   const options = [now - 2, now - 1, now];
@@ -278,7 +323,15 @@ function YearSelector({ current }) {
             type="button"
             role="radio"
             aria-checked={active}
-            onClick={() => navigate(`/year-in-review/${y}`)}
+            // Changing the year keeps the month: someone comparing
+            // two Septembers should not be dropped back into a year.
+            onClick={() =>
+              navigate(
+                month == null
+                  ? `/year-in-review/${y}`
+                  : `/year-in-review/${y}/${month + 1}`,
+              )
+            }
             className={`rounded-full px-2.5 py-1 font-mono text-[10px] tracking-wider transition ${
               active
                 ? "bg-hanko/20 text-hanko-bright"
@@ -293,6 +346,39 @@ function YearSelector({ current }) {
   );
 }
 
+/**
+ * 月 · Which slice of the year the poster covers. A select rather than
+ * twelve chips: thirteen options would take more room than the poster's
+ * own header, and a native control is what a phone opens best.
+ */
+function MonthSelector({ current, year, lang, t }) {
+  const navigate = useNavigate();
+  return (
+    <label className="inline-flex items-center gap-1.5">
+      <span className="sr-only">{t("yearReview.periodLabel")}</span>
+      <select
+        value={current == null ? "" : String(current + 1)}
+        onChange={(e) => {
+          const value = e.target.value;
+          navigate(
+            value === ""
+              ? `/year-in-review/${year}`
+              : `/year-in-review/${year}/${value}`,
+          );
+        }}
+        className="rounded-full border border-border bg-ink-0/40 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider text-washi-muted transition pointer-coarse:min-h-11 hover:text-washi focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+      >
+        <option value="">{t("yearReview.wholeYear")}</option>
+        {Array.from({ length: 12 }, (_, i) => (
+          <option key={i} value={String(i + 1)}>
+            {monthName(lang, i)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function Divider() {
   return (
     <span
@@ -302,9 +388,18 @@ function Divider() {
   );
 }
 
-function PosterBody({ bundle, googleUser, currencySetting, t }) {
+function PosterBody({
+  bundle,
+  googleUser,
+  currencySetting,
+  periodLabel,
+  lang,
+  t,
+}) {
   const {
     year,
+    month,
+    previous,
     volumesAcquired,
     volumesRead,
     seriesStarted,
@@ -318,15 +413,24 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
   } = bundle;
 
   const displayName = googleUser?.name ?? t("profile.reader");
+  const isMonth = month != null;
 
   return (
     <div className="relative z-10 flex flex-col items-center text-center">
       <header className="mb-10">
         <p className="font-mono text-[11px] uppercase tracking-[0.4em] text-washi-dim">
-          {t("yearReview.eyebrow")}
+          {isMonth ? `${t("yearReview.monthEyebrow")} · ${year}` : t("yearReview.eyebrow")}
         </p>
-        <h1 className="yir-year mt-3 font-display text-[6.5rem] font-light italic leading-[0.85] tracking-tight text-washi sm:text-[8rem] md:text-[10rem]">
-          {year}
+        {/* A month's name is a word, not four numerals: it needs a
+            smaller size to hold the same line, and no tracking-tight. */}
+        <h1
+          className={`yir-year mt-3 font-display font-light italic leading-[0.85] capitalize text-washi ${
+            isMonth
+              ? "text-[3.5rem] sm:text-[4.5rem] md:text-[5.5rem]"
+              : "text-[6.5rem] tracking-tight sm:text-[8rem] md:text-[10rem]"
+          }`}
+        >
+          {isMonth ? monthName(lang, month) : year}
         </h1>
         <div
           aria-hidden="true"
@@ -348,7 +452,9 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
           </span>
         </p>
         <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.3em] text-washi-muted">
-          {t("yearReview.headlineCaption")}
+          {isMonth
+            ? t("yearReview.headlineCaptionMonth")
+            : t("yearReview.headlineCaption")}
         </p>
       </section>
 
@@ -408,10 +514,37 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
             {t("yearReview.bestMonthLabel")}
           </p>
           <p className="mt-3 font-display text-2xl font-semibold italic capitalize text-washi">
-            {bestMonth.label}
+            {monthName(lang, bestMonth.index)}
           </p>
           <p className="mt-1 font-mono text-[11px] tracking-wider text-washi-muted">
             {t("yearReview.bestMonthHint", { n: bestMonth.count })}
+          </p>
+        </section>
+      )}
+
+      {/* 比 · The one number a month has that a year does not: the
+          month before it. Shown even when it is a fall — a recap that
+          only ever congratulates is not a record of anything. */}
+      {previous && (
+        <section className="mb-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
+            {t("yearReview.vsPrevLabel", {
+              month: monthName(lang, previous.month),
+            })}
+          </p>
+          <p
+            className={`mt-3 font-display text-3xl font-semibold italic ${
+              previous.delta > 0
+                ? "text-moegi"
+                : previous.delta < 0
+                  ? "text-washi-muted"
+                  : "text-washi"
+            }`}
+          >
+            {previous.delta > 0 ? `+${previous.delta}` : previous.delta}
+          </p>
+          <p className="mt-1 font-mono text-[11px] tracking-wider text-washi-muted">
+            {t("yearReview.vsPrevHint", { n: previous.count })}
           </p>
         </section>
       )}
@@ -425,7 +558,9 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
             {topSeries.name}
           </p>
           <p className="mt-1 font-mono text-[11px] tracking-wider text-washi-muted">
-            {t("yearReview.topSeriesHint", { n: topSeries.count })}
+            {isMonth
+              ? t("yearReview.topSeriesHintMonth", { n: topSeries.count })
+              : t("yearReview.topSeriesHint", { n: topSeries.count })}
           </p>
         </section>
       )}
@@ -459,7 +594,7 @@ function PosterBody({ bundle, googleUser, currencySetting, t }) {
           @{displayName}
         </p>
         <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.4em] text-washi-dim">
-          MangaCollector · {year}
+          MangaCollector · {periodLabel}
         </p>
       </footer>
     </div>
@@ -573,15 +708,20 @@ function PosterSkeleton() {
   );
 }
 
-function EmptyState({ year }) {
+function EmptyState({ year, month, periodLabel }) {
   const t = useT();
+  const isMonth = month != null;
   return (
     <div className="relative z-10 mx-auto flex max-w-md flex-col items-center text-center">
       <p className="font-mono text-[11px] uppercase tracking-[0.4em] text-washi-dim">
-        {t("yearReview.eyebrow")}
+        {isMonth ? t("yearReview.monthEyebrow") : t("yearReview.eyebrow")}
       </p>
-      <h1 className="mt-3 font-display text-7xl font-light italic leading-[0.9] tracking-tight text-washi-dim sm:text-8xl">
-        {year}
+      <h1
+        className={`mt-3 font-display font-light italic leading-[0.9] capitalize text-washi-dim ${
+          isMonth ? "text-4xl sm:text-5xl" : "text-7xl tracking-tight sm:text-8xl"
+        }`}
+      >
+        {periodLabel ?? year}
       </h1>
       <span
         aria-hidden="true"
@@ -593,7 +733,7 @@ function EmptyState({ year }) {
         {t("yearReview.emptyTitle")}
       </h2>
       <p className="mt-3 max-w-prose text-sm text-washi-muted">
-        {t("yearReview.emptyBody")}
+        {isMonth ? t("yearReview.emptyBodyMonth") : t("yearReview.emptyBody")}
       </p>
       <Link
         to="/dashboard"

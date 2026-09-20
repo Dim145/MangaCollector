@@ -179,7 +179,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 093 tests across 59 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 107 tests across 60 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -194,7 +194,10 @@ docker compose build
     `scanLookup` (a scanned barcode against the cached shelf),
     `loanHistory` and `navCounters` (pure read-side helpers),
     `locations` (grouping tomes by place, move payloads), `shelfPhoto`
-    (fitting a camera photo inside 1 600 px before upload), `inventory`
+    (fitting a camera photo inside 1 600 px before upload), `wrapped`
+    (収 what a year *or* a month of collecting looked like — one pure
+    aggregation behind both posters, including the monthly recap's
+    comparison with the month before), `inventory`
     (the stock-taking state machine), `labels` (Avery sheet geometry,
     EAN-13 checksums, label text fitting), `gridDensity` (the two grid
     shapes — a test parses the Tailwind class string against the lane

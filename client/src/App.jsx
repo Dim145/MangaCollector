@@ -562,6 +562,16 @@ function AppShell() {
                   </ProtectedRoute>
                 }
               />
+              {/* 月 · The same poster over one month — `:month` is
+                1-based, and anything else falls back to the year. */}
+              <Route
+                path="/year-in-review/:year/:month"
+                element={
+                  <ProtectedRoute setGoogleUser={setGoogleUser}>
+                    <YearInReviewPage googleUser={googleUser} />
+                  </ProtectedRoute>
+                }
+              />
               {/* 札 · Shelf stickers — print sheet of QR-coded series
                 labels for the user's physical bookshelf. Authenticated
                 because it lists the user's library. */}

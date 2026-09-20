@@ -2178,6 +2178,16 @@ export default {
     emptyTitle: "Aún no hay suficiente historia",
     emptyBody:
       "Este año todavía es demasiado joven en tu archivo para merecer un cartel. Vuelve cuando algunos tomos lo hayan acompañado.",
+    monthEyebrow: "EL MES · 月",
+    periodLabel: "Periodo",
+    wholeYear: "Todo el año",
+    headlineCaptionMonth: "tomos llegados este mes",
+    topSeriesHintMonth: "{n} tomos este mes",
+    vsPrevLabel: "Frente a {month}",
+    vsPrevHint: "{n} tomos aquel mes",
+    shareTitleMonth: "Mi {period} · MangaCollector",
+    emptyBodyMonth:
+      "Este mes es demasiado tranquilo para merecer un cartel. Elige otro, o vuelve cuando hayan llegado algunos tomos.",
     emptyCta: "Ver mi biblioteca",
   },
   compare: {
