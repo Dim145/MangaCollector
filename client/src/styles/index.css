@@ -3877,3 +3877,14 @@
     height: 16mm !important;
   }
 }
+
+/* 字 · The house label — 10px mono, uppercase, wide tracking — reads
+   fine at arm's length on a desktop and is hard work on a phone in
+   the hand. One more pixel under `sm`. Unlayered on purpose: Tailwind's
+   utilities live in `@layer utilities` and an unlayered rule outranks
+   them without a specificity fight. */
+@media (max-width: 40rem) {
+  .text-\[10px\] {
+    font-size: 11px;
+  }
+}

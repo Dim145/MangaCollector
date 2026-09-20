@@ -87,13 +87,15 @@ function Virtualized({ vols, shelf, renderTile }) {
     return out;
   }, [busyIds, indexById]);
 
-  const { parentRef, lanes, scrollMargin, virtualizer } =
+  const { parentRef, lanes, scrollMargin, virtualizer, measureRow } =
     useWindowGridVirtualizer({
       itemCount: vols.length,
       laneBreakpoints,
       // Ledger tiles are tall cards with an inline form; shelf tiles
-      // are 2:3 spines. `measureElement` corrects per row after paint.
+      // are 2:3 spines. A first-paint guess: the hook learns the real
+      // row height from the first row it measures.
       estimateSize: shelf ? 220 : 180,
+      memoryKey: shelf ? "volumes:shelf" : "volumes:ledger",
       overscan: 6,
       pinnedItems,
     });
@@ -116,7 +118,7 @@ function Virtualized({ vols, shelf, renderTile }) {
           <div
             key={row.key}
             data-index={row.index}
-            ref={virtualizer.measureElement}
+            ref={measureRow}
             style={{
               position: "absolute",
               top: 0,

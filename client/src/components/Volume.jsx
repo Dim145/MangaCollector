@@ -860,7 +860,7 @@ function VolumeImpl({
                   : t("volume.markUnread")
                 : t("volume.markRead")
             }
-            className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border font-jp text-[13px] font-bold transition ${
+            className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg pointer-coarse:h-10 pointer-coarse:w-10 border font-jp text-[13px] font-bold transition ${
               readStatus
                 ? "border-moegi/60 bg-moegi/15 text-moegi shadow-[0_0_10px_rgba(163,201,97,0.2)] hover:bg-moegi/25"
                 : "border-transparent text-washi-dim hover:border-border hover:bg-washi/5 hover:text-washi"
@@ -875,7 +875,7 @@ function VolumeImpl({
             onClick={() => setIsEditing(true)}
             aria-label={t("volume.upcomingDetailsAria")}
             title={t("volume.upcomingDetailsTitle")}
-            className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border transition ${
+            className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg pointer-coarse:h-10 pointer-coarse:w-10 border transition ${
               isImminent
                 ? "border-sakura/60 bg-sakura/10 text-sakura hover:bg-sakura/20"
                 : "border-moegi/50 bg-moegi/5 text-moegi hover:bg-moegi/15"
@@ -902,7 +902,7 @@ function VolumeImpl({
           <button
             onClick={() => setIsEditing(true)}
             aria-label={t("common.edit")}
-            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-washi-dim transition hover:bg-washi/5 hover:text-washi"
+            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg pointer-coarse:h-10 pointer-coarse:w-10 text-washi-dim transition hover:bg-washi/5 hover:text-washi"
           >
             <svg
               viewBox="0 0 24 24"
@@ -1022,7 +1022,7 @@ function VolumeImpl({
                   onClick={() => setIsEditing(true)}
                   disabled={locked}
                   aria-label={t("volume.noteIndicatorAria")}
-                  className={`ml-auto inline-flex items-center gap-1 rounded-full border border-hanko/20 bg-hanko/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-hanko-bright transition hover:border-hanko/45 hover:bg-hanko/10 hover:text-hanko-bright ${
+                  className={`ml-auto inline-flex items-center gap-1 rounded-full border border-hanko/20 bg-hanko/5 px-2 py-0.5 font-mono text-[9px] pointer-coarse:py-1.5 uppercase tracking-wider text-hanko-bright transition hover:border-hanko/45 hover:bg-hanko/10 hover:text-hanko-bright ${
                     locked ? "cursor-default opacity-60 hover:bg-hanko/5" : ""
                   }`}
                 >

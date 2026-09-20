@@ -849,7 +849,7 @@ const ProfileChip = forwardRef(function ProfileChip(
   // + accent-tinted shadow" on hover — same vocabulary across
   // all five accents thanks to `--chip-accent`.
   const baseClass =
-    "inline-flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--chip-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1";
+    "inline-flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] transition-all pointer-coarse:min-h-11 duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--chip-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1";
   const idleClass =
     "border-[color:var(--chip-accent)]/40 bg-[color:var(--chip-accent)]/[0.06] text-[color:var(--chip-accent)] hover:-translate-y-0.5 hover:border-[color:var(--chip-accent)]/80 hover:bg-[color:var(--chip-accent)]/[0.12] hover:shadow-[0_8px_22px_-10px_var(--chip-glow)]";
   const disabledClass =

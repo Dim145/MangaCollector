@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
 import VolumeShelfTile from "./VolumeShelfTile.jsx";
@@ -66,7 +66,21 @@ import { useT } from "@/i18n/index.jsx";
 
 export default function MangaPage({ manga, adult_content_level }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currency: currencySetting } = useContext(SettingsContext);
+  // 戻 · Opened from the library, "back to library" is a real step back:
+  // the dashboard entry restores its own scroll position and the history
+  // stays one pair deep instead of piling a new dashboard entry on every
+  // round trip. From anywhere else — a QR label, the calendar, the
+  // backlog, a fresh tab — there is no library entry behind us to step
+  // back to, so we go there.
+  const cameFromLibrary =
+    location.state?.from === "library" &&
+    (window.history.state?.idx ?? 0) > 0;
+  const backToLibrary = () =>
+    cameFromLibrary
+      ? navigate(-1)
+      : navigate("/dashboard", { viewTransition: true });
   const online = useOnline();
   const t = useT();
 
@@ -607,10 +621,10 @@ export default function MangaPage({ manga, adult_content_level }) {
       <div className="mx-auto max-w-6xl px-4 pt-4 pb-nav md:pb-16 sm:px-6 md:pt-10">
         {/* Back */}
         <button
-          // 戻 · `viewTransition: true` mirrors the forward navigation
-          // from the Dashboard so the hero cover morphs back into its
-          // tile position. Without it, the back nav was an instant cut.
-          onClick={() => navigate("/dashboard", { viewTransition: true })}
+          // 戻 · A real step back when the library is behind us (see
+          // `backToLibrary`); the push with `viewTransition` is the
+          // fallback for every other way onto this page.
+          onClick={backToLibrary}
           className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
         >
           <svg
@@ -656,8 +670,14 @@ export default function MangaPage({ manga, adult_content_level }) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-10">
-            <div className="mx-auto w-full max-w-[220px] md:mx-0 md:max-w-none">
+          {/* 頭 · Two columns at every width. On a phone the poster takes a
+              6.5rem column beside the title so the series name, its source
+              and its badges are on the first screen — the full-width cover
+              used to fill it alone. The collection block below spans both
+              columns there, and from `md:` up the poster spans both rows so
+              the layout is the one it always was. */}
+          <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-x-10">
+            <div className="w-full md:row-span-2">
               <div
                 // 遷 · `view-transition-name` matches the Dashboard
                 // card's cover wrapper for the same `mal_id`. When the
@@ -783,14 +803,14 @@ export default function MangaPage({ manga, adult_content_level }) {
               )}
             </div>
 
-            <div className="flex flex-col">
+            <div className="flex flex-col justify-center md:justify-start">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-hanko-bright">
                   {t("manga.seriesLabel")}
                 </span>
               </div>
 
-              <h1 className="mt-2 font-display text-3xl font-semibold leading-tight tracking-tight text-washi md:text-5xl">
+              <h1 className="mt-2 font-display text-2xl font-semibold leading-tight tracking-tight text-washi sm:text-3xl md:text-5xl">
                 {name}
               </h1>
 
@@ -838,7 +858,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                   </a>
                 )}
               </div>
+            </div>
 
+            <div className="col-span-2 mt-6 flex flex-col md:col-span-1 md:col-start-2 md:mt-0">
               {isCustomGenresEditable && isEditing ? (
                 // 編集 · Live edit mode for custom rows. The editor only
                 // mutates local `genres` state; persistence is deferred
@@ -1080,7 +1102,11 @@ export default function MangaPage({ manga, adult_content_level }) {
                   duplicated N/M big stats; the emaki strip remains the
                   interactive visual layer; the total-volumes editor is
                   hosted here during edit mode. */}
-              {!volumesLoading && (
+              {volumesLoading ? (
+                // 骨 · The block below is ~18rem tall; the actions under it
+                // used to drop by that much when the tomes arrived.
+                <Skeleton className="h-72 rounded-2xl" />
+              ) : (
                 <LibraryBlock
                   volumes={volumes}
                   volumesOwned={volumesOwned}

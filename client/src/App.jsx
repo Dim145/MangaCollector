@@ -3,7 +3,6 @@ import {
   Suspense,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -11,7 +10,6 @@ import {
   Route,
   Routes,
   useLocation,
-  useNavigationType,
 } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -94,6 +92,7 @@ import { applyThemePreference, rememberThemePreference } from "@/lib/theme.js";
 import { applyAccentToDocument, rememberAccent } from "@/lib/accent.js";
 import { setSoundEnabled } from "@/lib/sounds.js";
 import { useAuth } from "@/hooks/useAuth.js";
+import { useScrollMemory } from "@/hooks/useScrollMemory.js";
 import { useAuthProvider } from "@/hooks/useAuthProvider.js";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
@@ -256,7 +255,6 @@ function InkTrailGate() {
 
 function AppShell() {
   const location = useLocation();
-  const navType = useNavigationType();
   const { manga, adult_content_level } = location.state || {};
   const [googleUser, setGoogleUser] = useState(null);
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
@@ -272,21 +270,10 @@ function AppShell() {
   // this hook keeps it fresh as the wall clock advances.
   useTimeOfDay();
 
-  // Scroll handling: top on PUSH/REPLACE; on POP we leave it alone so
-  // each destination page can run its own data-aware restore (see
-  // Dashboard.jsx). Browser auto-restoration is disabled because it
-  // fires before our data hydration and would clamp short.
-  useLayoutEffect(() => {
-    if (typeof window === "undefined" || !window.history) return;
-    if ("scrollRestoration" in window.history) {
-      window.history.scrollRestoration = "manual";
-    }
-  }, []);
-
-  useLayoutEffect(() => {
-    if (navType === "POP") return;
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [location.key, navType]);
+  // 戻 · Scroll: top on push/replace, each history entry's own remembered
+  // position on pop — for every page, once the page can hold it. See
+  // `hooks/useScrollMemory.js`; it also owns `history.scrollRestoration`.
+  useScrollMemory();
 
   // 同期 · Realtime sync — opens a WebSocket as soon as we're auth'd
   // and invalidates TanStack queries on incoming events so changes

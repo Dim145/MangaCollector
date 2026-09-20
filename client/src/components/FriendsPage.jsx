@@ -55,7 +55,7 @@ export default function FriendsPage() {
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -right-32 bottom-12 -z-10 h-80 w-80 rounded-full bg-gold/10 blur-3xl"
+          className="pointer-events-none fixed -right-32 bottom-12 -z-10 h-80 w-80 rounded-full bg-gold/10 blur-3xl"
         />
         <CornerKanji />
 
@@ -194,7 +194,7 @@ function Hero({ count, t }) {
 
       <h1
         data-ink-trail="true"
-        className="font-display text-5xl font-light italic leading-[0.95] tracking-tight text-washi md:text-6xl lg:text-7xl"
+        className="font-display text-4xl font-light italic leading-[0.95] tracking-tight text-washi sm:text-5xl md:text-6xl lg:text-7xl"
       >
         <span className="text-hanko-gradient font-semibold not-italic">
           {t("friends.title")}
@@ -224,7 +224,7 @@ function CorrespondentsPanel({ follows, loading, t, lang }) {
 
       {loading && follows.length === 0 ? (
         <ul className="space-y-3" aria-label={t("common.loading")}>
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 2 }).map((_, i) => (
             <li
               key={i}
               className="flex items-center gap-3 rounded-md border border-border/40 bg-ink-2/30 p-3"
@@ -284,7 +284,7 @@ function CorrespondentRow({ follow, onUnfollow, lang, t }) {
     <div className="group relative flex items-center gap-3 rounded-md border border-border/40 bg-ink-2/30 px-3 py-2.5 transition hover:border-gold/40 hover:bg-ink-2/50">
       <Link
         to={`/u/${follow.public_slug}`}
-        className="flex flex-1 items-center gap-3 min-w-0"
+        className="flex min-h-11 flex-1 items-center gap-3 min-w-0"
       >
         {/* Hanko-style portrait — initial pressed in a circular
             stamp. Functions as a low-cost avatar: identifiable per
@@ -308,7 +308,7 @@ function CorrespondentRow({ follow, onUnfollow, lang, t }) {
       <button
         type="button"
         onClick={onUnfollow}
-        className="shrink-0 rounded-md border border-transparent px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim opacity-0 transition hover:border-hanko/50 hover:bg-hanko/10 hover:text-hanko-bright group-hover:opacity-100 focus-visible:opacity-100"
+        className="shrink-0 rounded-md border border-transparent px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim opacity-0 transition pointer-coarse:min-h-11 pointer-coarse:px-3 pointer-coarse:opacity-100 hover:border-hanko/50 hover:bg-hanko/10 hover:text-hanko-bright group-hover:opacity-100 focus-visible:opacity-100"
         aria-label={t("friends.unfollowAria", {
           name: follow.display_name ?? follow.public_slug,
         })}
@@ -522,7 +522,7 @@ function CornerKanji() {
       </span>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-12 left-2 hidden -z-10 font-jp text-9xl font-bold leading-none text-gold/[0.05] md:block"
+        className="pointer-events-none fixed bottom-12 left-2 hidden -z-10 font-jp text-9xl font-bold leading-none text-gold/[0.05] md:block"
         style={{ transform: "rotate(-8deg)" }}
       >
         書

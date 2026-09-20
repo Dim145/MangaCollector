@@ -22,25 +22,29 @@ export default function MangaPageSkeleton() {
         <Skeleton className="mb-6 h-3 w-24 rounded" />
 
         <section className="relative mb-8">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-10">
+          <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-x-10">
             {/* Cover */}
-            <div className="mx-auto w-full max-w-[220px] md:mx-0 md:max-w-none">
+            <div className="w-full md:row-span-2">
               <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border shadow-2xl">
                 <Skeleton className="absolute inset-0 h-full w-full rounded-2xl" />
               </div>
             </div>
 
             {/* Title + meta column */}
-            <div className="flex flex-col">
+            <div className="flex flex-col justify-center md:justify-start">
               {/* Eyebrow */}
               <Skeleton className="h-3 w-32 rounded" />
               {/* Title — two lines worth of space so a long title
                   doesn't push the rest down on resolve */}
-              <Skeleton className="mt-3 h-8 w-3/4 rounded" />
-              <Skeleton className="mt-2 h-8 w-1/2 rounded" />
+              <Skeleton className="mt-3 h-7 w-3/4 rounded md:h-8" />
+              <Skeleton className="mt-2 h-4 w-20 rounded" />
+            </div>
 
+            {/* Below the title on a phone, beside the cover from md: up —
+                the same two-row grid as the page itself. */}
+            <div className="col-span-2 mt-6 flex flex-col md:col-span-1 md:col-start-2 md:mt-0">
               {/* Meta line: completion + count */}
-              <div className="mt-6 flex items-center gap-3">
+              <div className="flex items-center gap-3 md:mt-6">
                 <Skeleton className="h-4 w-24 rounded" />
                 <span className="h-px flex-1 bg-border" />
                 <Skeleton className="h-4 w-16 rounded" />

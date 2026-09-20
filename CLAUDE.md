@@ -155,7 +155,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 031 tests across 51 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 047 tests across 52 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -164,7 +164,9 @@ docker compose build
     `user`, `auth` (~76% overall).
   - `lib/`: `isbn`, `season`, `queryState`, `share`, `pasteDetect`,
     `coverPalette`, `sealsCatalog`, `accent`, `theme`, `tour`,
-    `deepLinks`, `scrollLock`, `haptics`, `connectivity`, `dailyTexts`,
+    `deepLinks`, `scrollLock`, `scrollMemory` (one scroll position per
+    history entry, mirrored to sessionStorage, bounded), `haptics`,
+    `connectivity`, `dailyTexts`,
     `scanLookup` (a scanned barcode against the cached shelf),
     `loanHistory` and `navCounters` (pure read-side helpers),
     `locations` (grouping tomes by place, move payloads), `inventory`
@@ -196,6 +198,10 @@ docker compose build
     visitor's own shelf read from the device cache, screenshots with real
     alt text and intrinsic sizes, en/fr/es key parity) are the component tests; `hooks/useWindowGridVirtualizer.test.js`
     covers the lane / pinned-row maths shared by both windowed grids and
+    the learnt row height (one measured row sizes every unmeasured one,
+    remembered for the grid's next mount, measured the way TanStack
+    measures so the two agree to the pixel; a correction the reader did
+    not ask for is instant), and
     `hooks/useArchive.test.jsx` pins the import endpoint's wire shape.
   - Three suites assert **cross-language parity** by parsing the Rust
     source: the seal catalogue against `services/seals.rs::CATALOG`, the
@@ -310,6 +316,51 @@ subsystem; they are written against the code, not the intent.
 - `.editorconfig` defines indentation.
 - Tailwind utility-first; conditional classes assembled inline via template
   strings or ternaries — no `clsx` / `twMerge`.
+- **Touch targets:** a control may stay compact for a mouse, but under a
+  finger it reaches 44 px through the `pointer-coarse:` variants
+  (`pointer-coarse:min-h-11`, `pointer-coarse:h-11 pointer-coarse:w-11`,
+  `pointer-coarse:py-3`); a fixed-size switch extends its hit area with
+  `after:absolute after:-inset-*` instead of growing. Anything that only
+  appears on `hover:` needs `pointer-coarse:opacity-100` or it does not
+  exist on a phone.
+- **Layout shift:** decorative blooms and watermarks anchored to a page's
+  *bottom* (`bottom-*`, `top-1/3`) slide when the page grows and count as
+  layout shift although nothing a reader sees moves — pin them
+  (`fixed`) or anchor them to the top. Reserve the space of anything
+  that arrives with data (skeletons with the real heights, placeholder
+  cells in stat strips); `deriveListState` keeps the initial load alive
+  through the few milliseconds between React Query settling and Dexie
+  emitting, so an empty state never flashes in between.
+- **Scroll on navigation** is the app shell's job, not a page's:
+  `hooks/useScrollMemory.js` (mounted once in `AppShell`) puts every
+  page at the top on every arrival — except the library
+  (`remembersScroll` in `lib/scrollMemory.js`), which on a *pop* comes
+  back to *that history entry's* own position once the page can hold it
+  (waiting for Dexie and the virtualizer, holding 400 ms against the
+  mount's own scrolls). The reader's decision: a series or the backlog
+  reopening half-way down reads as the wrong place, not as memory.
+  `history.scrollRestoration` is `manual` because the browser's restore
+  fires before any of that. Only a clearly *vertical* wheel, a touch
+  drag or a key cancels a restore — a trackpad swipe-back hands the
+  arriving page horizontal wheel events, and treating those as intent
+  cancelled the restore and overwrote the memory with 0; a cancel never
+  writes. A page must not keep its own scroll memory (the dashboard used
+  to, under one global key, which is why three round trips deep "back"
+  landed on the latest position rather than that entry's). A "back"
+  control that means *back* calls `navigate(-1)` — the series page does
+  when `location.state.from === "library"` — so the entry behind
+  restores itself instead of a new entry starting at the top. Never
+  guard an effect with a "first run" ref: development runs effects
+  twice. A windowed grid must report its true height from its first
+  paint, or a restore into its tail has nothing to hold on to:
+  `useWindowGridVirtualizer` learns the row height from the first row
+  it measures, remembers it per grid, lane count and viewport width
+  across mounts, and makes TanStack's own scroll corrections instant
+  (the stylesheet's `scroll-behavior: smooth` would animate them into a
+  visible drift). With the guess 34 px short per row, coming back to a
+  series near the bottom of the library waited the restore's full
+  1.5 s cap — those rows are only measured once rendered, and only
+  rendered once reached — then descended in three hops.
 
 ## API Routes
 

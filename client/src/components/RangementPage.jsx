@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import BarcodeScanner from "./BarcodeScanner.jsx";
+import Skeleton from "./ui/Skeleton.jsx";
 import { useT } from "@/i18n/index.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
@@ -39,7 +40,7 @@ export default function RangementPage() {
   const t = useT();
   const navigate = useNavigate();
   const online = useOnline();
-  const { data: registry } = useLocations();
+  const { data: registry, isInitialLoad: registryLoading } = useLocations();
   const { data: volumes } = useAllVolumes();
   const { data: library } = useLibrary();
   const { create, update, remove } = useLocationMutations();
@@ -277,6 +278,15 @@ export default function RangementPage() {
                 </span>
               </button>
             </li>
+            {/* 骨 · Two rows' worth of space until the registry answers.
+                The form below used to sit directly under the unfiled
+                row and drop 150px when the places arrived. */}
+            {registryLoading &&
+              [0, 1].map((i) => (
+                <li key={`skeleton-${i}`}>
+                  <Skeleton className="h-[4.25rem] rounded-md" />
+                </li>
+              ))}
             {places.map((place, i) => (
               <PlaceRow
                 key={place.id ?? `name:${place.name}`}
@@ -585,7 +595,7 @@ function PlaceRow({
                   title={t("rangement.moveUp")}
                   disabled={!online || isFirst}
                   onClick={() => onShift(-1)}
-                  className="rounded px-1.5 py-1 hover:text-washi disabled:opacity-30"
+                  className="grid h-9 min-w-9 place-items-center rounded px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 hover:text-washi disabled:opacity-30"
                 >
                   ↑
                 </button>
@@ -595,7 +605,7 @@ function PlaceRow({
                   title={t("rangement.moveDown")}
                   disabled={!online || isLast}
                   onClick={() => onShift(1)}
-                  className="rounded px-1.5 py-1 hover:text-washi disabled:opacity-30"
+                  className="grid h-9 min-w-9 place-items-center rounded px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 hover:text-washi disabled:opacity-30"
                 >
                   ↓
                 </button>
@@ -611,7 +621,7 @@ function PlaceRow({
                 setNote(place.note ?? "");
                 setMode("edit");
               }}
-              className="rounded px-1.5 py-1 font-jp text-sm hover:text-washi disabled:opacity-30"
+              className="grid h-9 min-w-9 place-items-center rounded px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 font-jp text-sm hover:text-washi disabled:opacity-30"
             >
               改
             </button>
@@ -621,7 +631,7 @@ function PlaceRow({
               title={t("rangement.delete")}
               disabled={!online}
               onClick={() => setMode("confirm")}
-              className="rounded px-1.5 py-1 font-jp text-sm hover:text-hanko-bright disabled:opacity-30"
+              className="grid h-9 min-w-9 place-items-center rounded px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 font-jp text-sm hover:text-hanko-bright disabled:opacity-30"
             >
               消
             </button>

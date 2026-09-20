@@ -28,7 +28,7 @@ export default function DensityToggle() {
             aria-checked={active}
             onClick={() => setDensity(id)}
             title={t(`dashboard.density_${id}`)}
-            className={`grid h-9 w-9 place-items-center rounded-full font-jp text-[15px] leading-none transition ${
+            className={`grid h-9 w-9 place-items-center rounded-full font-jp text-[15px] pointer-coarse:h-11 pointer-coarse:w-11 leading-none transition ${
               active
                 ? "bg-gold/15 text-gold"
                 : "text-washi-dim hover:text-washi"

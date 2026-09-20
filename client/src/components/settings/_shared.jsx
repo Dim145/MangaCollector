@@ -138,7 +138,7 @@ function ToggleRow({
           aria-checked={enabled}
           aria-label={ariaLabel}
           onClick={() => onToggle(!enabled)}
-          className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${switchRing} ${
+          className={`relative h-7 w-12 shrink-0 rounded-full border transition after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-1 ${switchRing} ${
             enabled ? switchOn : "border-border bg-ink-2"
           }`}
         >

@@ -138,7 +138,7 @@ export default function ShelfStickersPage() {
               type="button"
               onClick={selectAll}
               disabled={isInitialLoad || orderedLibrary.length === 0}
-              className="rounded-full border border-border bg-transparent px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi disabled:opacity-40"
+              className="rounded-full border border-border bg-transparent px-3 py-1 font-mono text-[10px] pointer-coarse:min-h-11 uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi disabled:opacity-40"
             >
               {t("shelfStickers.selectAll")}
             </button>
@@ -146,7 +146,7 @@ export default function ShelfStickersPage() {
               type="button"
               onClick={selectNone}
               disabled={selected.size === 0}
-              className="rounded-full border border-border bg-transparent px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi disabled:opacity-40"
+              className="rounded-full border border-border bg-transparent px-3 py-1 font-mono text-[10px] pointer-coarse:min-h-11 uppercase tracking-wider text-washi-muted transition hover:border-border/80 hover:text-washi disabled:opacity-40"
             >
               {t("shelfStickers.selectNone")}
             </button>
@@ -181,7 +181,7 @@ export default function ShelfStickersPage() {
               return (
                 <li key={m.mal_id} className="contents">
                   <label
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition ${
+                    className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition ${
                       checked
                         ? "border-hanko/60 bg-hanko/10"
                         : "border-border bg-ink-0/40 hover:border-border/80"
