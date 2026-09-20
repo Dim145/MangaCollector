@@ -166,7 +166,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 047 tests across 52 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 052 tests across 53 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -197,6 +197,11 @@ docker compose build
     (which account the local caches belong to) pins the asymmetry that
     matters — a foreign stamp wipes, an absent one adopts; `clientId` and
     `realtimePlan` (the websocket decision table) are pure and tested.
+  - `components/volumeOverlays.test.js` pins why the volume drawer and
+    the loan sheet are fetched by hand rather than through
+    `React.lazy`: once fetched they must be available *synchronously*,
+    because a suspension between a reader's tap and the drawer cost
+    302 ms against 3 ms without one.
   - `components/ui/CoverImage.test.jsx`, `components/VirtualVolumeGrid.test.jsx`,
     `components/ArchiveSection.test.jsx` (the import modal's merge /
     replace choice), `components/MangaPageRoute.test.jsx` (the deep-link

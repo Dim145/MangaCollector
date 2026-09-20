@@ -1,8 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import Tooltip from "./ui/Tooltip.jsx";
-import VolumeDetailDrawer from "./VolumeDetailDrawer.jsx";
 import { normalizeISBN } from "@/lib/isbn.js";
-import LoanModal from "./LoanModal.jsx";
+import { useVolumeOverlays } from "@/hooks/useVolumeOverlays.js";
 import LoanStamp, {
   LOAN_STATUS_KANJI,
   classifyLoanStatus,
@@ -116,6 +115,29 @@ function VolumeImpl({
   // need a boolean toggle here. Closing the modal also closes the
   // parent drawer so the user comes back to a clean MangaPage.
   const [loanModalOpen, setLoanModalOpen] = useState(false);
+  // Once either has been opened it stays mounted: the drawer plays an
+  // exit animation on close, and a reader who opened one volume's
+  // details will open another's.
+  const [loanModalUsed, setLoanModalUsed] = useState(false);
+  const [drawerUsed, setDrawerUsed] = useState(false);
+  const drawerOpen = isEditing && !locked;
+  // Each flag is set in the same update as the state it gates, so
+  // opening costs one render rather than two: mounting the boundary
+  // from an effect took a whole extra pass over a page of twenty-odd
+  // cards, and that pass was most of the delay between tap and drawer.
+  const openDetails = () => {
+    setDrawerUsed(true);
+    setIsEditing(true);
+  };
+  const openLoanModal = () => {
+    setLoanModalUsed(true);
+    setLoanModalOpen(true);
+  };
+  // Both arrive together, fetched while the page was idle. Null only
+  // for a reader who taps before that has happened.
+  const overlays = useVolumeOverlays(drawerUsed || loanModalUsed);
+  const VolumeDetailDrawer = overlays?.VolumeDetailDrawer;
+  const LoanModal = overlays?.LoanModal;
 
   useEffect(() => {
     if (!onBusyChange) return undefined;
@@ -872,7 +894,7 @@ function VolumeImpl({
 
         {isUpcoming && !isEditing && (
           <button
-            onClick={() => setIsEditing(true)}
+            onClick={openDetails}
             aria-label={t("volume.upcomingDetailsAria")}
             title={t("volume.upcomingDetailsTitle")}
             className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg pointer-coarse:h-10 pointer-coarse:w-10 border transition ${
@@ -900,7 +922,7 @@ function VolumeImpl({
 
         {!locked && !isEditing && !isUpcoming ? (
           <button
-            onClick={() => setIsEditing(true)}
+            onClick={openDetails}
             aria-label={t("common.edit")}
             className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg pointer-coarse:h-10 pointer-coarse:w-10 text-washi-dim transition hover:bg-washi/5 hover:text-washi"
           >
@@ -919,8 +941,9 @@ function VolumeImpl({
         ) : null}
       </div>
 
+      {drawerUsed && VolumeDetailDrawer && (
       <VolumeDetailDrawer
-        open={isEditing && !locked}
+        open={drawerOpen}
         onClose={handleCancel}
         id={id}
         malId={mal_id}
@@ -986,14 +1009,17 @@ function VolumeImpl({
         // the standalone LoanModal mounted just below.
         loanedTo={loanedTo}
         loanDueAt={loanDueAt}
-        onOpenLoanModal={() => setLoanModalOpen(true)}
+        onOpenLoanModal={openLoanModal}
       />
+      )}
 
-      <LoanModal
-        open={loanModalOpen}
-        volumeId={id}
-        onClose={() => setLoanModalOpen(false)}
-      />
+      {loanModalUsed && LoanModal && (
+        <LoanModal
+          open={loanModalOpen}
+          volumeId={id}
+          onClose={() => setLoanModalOpen(false)}
+        />
+      )}
 
       {!isEditing &&
         ((ownedStatus && purchaseLocation) || (note && note.trim())) && (
@@ -1019,7 +1045,7 @@ function VolumeImpl({
               <Tooltip text={t("volume.noteIndicatorTooltip")} placement="top">
                 <button
                   type="button"
-                  onClick={() => setIsEditing(true)}
+                  onClick={openDetails}
                   disabled={locked}
                   aria-label={t("volume.noteIndicatorAria")}
                   className={`ml-auto inline-flex items-center gap-1 rounded-full border border-hanko/20 bg-hanko/5 px-2 py-0.5 font-mono text-[9px] pointer-coarse:py-1.5 uppercase tracking-wider text-hanko-bright transition hover:border-hanko/45 hover:bg-hanko/10 hover:text-hanko-bright ${

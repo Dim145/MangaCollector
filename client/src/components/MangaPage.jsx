@@ -12,6 +12,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Volume from "./Volume";
 import VolumeShelfTile from "./VolumeShelfTile.jsx";
+import { preloadVolumeOverlays } from "./volumeOverlays.js";
 import VolumesViewToggle from "./VolumesViewToggle.jsx";
 import CoffretGroup from "./CoffretGroup";
 import VirtualVolumeGrid from "@/components/VirtualVolumeGrid.jsx";
@@ -200,6 +201,32 @@ export default function MangaPage({ manga, adult_content_level }) {
   const previewCtl = useVolumePreviewController({ coverMap: volumeCoverMap });
   const { mode: volumesView } = useVolumesView();
   const isShelfMode = volumesView === "shelf";
+
+  // 温 · The volume drawer and the loan sheet are lazy (see `Volume`),
+  // which keeps them off the path to the first tome drawn. Fetch them
+  // once the page is idle so the first tap opens instantly rather than
+  // waiting on a round trip — off the critical path, ready before it
+  // is wanted.
+  useEffect(() => {
+    const schedule =
+      typeof window !== "undefined" && "requestIdleCallback" in window
+        ? (fn) => window.requestIdleCallback(fn, { timeout: 3000 })
+        : (fn) => setTimeout(fn, 1200);
+    const handle = schedule(() => {
+      preloadVolumeOverlays();
+    });
+    return () => {
+      if (typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        try {
+          window.cancelIdleCallback(handle);
+        } catch {
+          /* noop */
+        }
+      } else {
+        clearTimeout(handle);
+      }
+    };
+  }, []);
   // `manga` comes frozen from React Router's location.state, so its volume
   // count never updates after navigation. Grab the live row from the Dexie-
   // backed library so edits (and background syncs) are reflected here.
