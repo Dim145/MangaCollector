@@ -129,6 +129,11 @@ async function enrich(c) {
       // 飛 · one tome deliberately skipped, so the bundle has to carry
       // a `wanted: false` and give it back
       wanted: i !== 1,
+      // 附 · the box extras — a different combination per tome, so a
+      // bundle that carries only one of the three columns is caught
+      has_obi: i !== 2,
+      has_jacket: i === 0,
+      has_slipcase: i === 2,
       loan: {
         to: i === 0 ? "Alex (ami)" : `Ami ${i + 1}`,
         due_at: new Date(Date.now() + (i + 1) * 7 * 86400000).toISOString(),
@@ -193,7 +198,8 @@ const SERIES_FIELDS = ["name", "volumes", "volumes_owned", "image_url_jpg", "gen
 const VOLUME_FIELDS = ["vol_num", "owned", "price", "store", "collector", "wanted", "read_at", "notes",
   "release_date", "release_isbn", "release_url", "origin", "announced_at",
   "loaned_to", "loaned_to_user_id", "loan_started_at", "loan_due_at", "in_coffret", "created_on", "modified_on",
-  "condition", "location", "extra_copies", "bought_at", "isbn"];
+  "condition", "location", "extra_copies", "bought_at", "isbn",
+  "has_obi", "has_jacket", "has_slipcase"];
 const COFFRET_FIELDS = ["name", "vol_start", "vol_end", "price", "store", "collector", "created_on", "modified_on"];
 
 // The loan ledger, as comparable tuples. `mal_id` is per-account for

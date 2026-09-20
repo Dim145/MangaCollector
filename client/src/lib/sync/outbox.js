@@ -372,6 +372,9 @@ const PHYSICAL_KEYS = [
   "bought_at",
   "isbn",
   "wanted",
+  "has_obi",
+  "has_jacket",
+  "has_slipcase",
 ];
 
 export async function enqueueVolumeUpdate(volume) {
@@ -390,6 +393,9 @@ export async function enqueueVolumeUpdate(volume) {
   // them so the optimistic row reads like the eventual server row.
   if ("condition" in rest) local.condition = rest.condition || null;
   if ("wanted" in rest) local.wanted = Boolean(rest.wanted);
+  for (const key of ["has_obi", "has_jacket", "has_slipcase"]) {
+    if (key in rest) local[key] = Boolean(rest[key]);
+  }
   if ("location" in rest) {
     const trimmed = String(rest.location ?? "").trim();
     local.location = trimmed === "" ? null : trimmed;

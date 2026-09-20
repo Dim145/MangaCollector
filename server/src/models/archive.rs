@@ -146,6 +146,14 @@ pub struct ExportVolume {
     pub store: Option<String>,
     #[serde(default)]
     pub collector: bool,
+    /// 帯 · The parts the copy still has. Absent in older bundles,
+    /// where the honest default is "not known", i.e. false.
+    #[serde(default)]
+    pub has_obi: bool,
+    #[serde(default)]
+    pub has_jacket: bool,
+    #[serde(default)]
+    pub has_slipcase: bool,
     /// 飛 · Deliberately skipped, so not counted as missing. Absent in
     /// bundles written before this existed, which `default_true` reads
     /// as "wanted" — the state every one of those rows was in.

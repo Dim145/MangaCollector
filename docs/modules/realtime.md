@@ -60,7 +60,8 @@ the Workbox caches, the query cache and the `mc:auth-user` localStorage key.
 outboxLibrary  { mal_id, op: "upsert"|"delete"|"owned"|"patch", payload?, ts }
 outboxVolumes  { id, mal_id, op: "update",
                  payload: { owned, price, store, collector, read?, notes?, loan?,
-                            condition?, location?, extra_copies?, bought_at?, isbn? }, ts }
+                            condition?, location?, extra_copies?, bought_at?, isbn?,
+                            wanted?, has_obi?, has_jacket?, has_slipcase? }, ts }
 outboxSettings { key: "user", payload: { currency, titleType, adult_content_level, theme, language,
                  avatarUrl, sound_enabled, accent_color, shelf_3d_enabled, ink_trail_enabled }, ts }
 outboxBulkMark { mal_id, owned?, read?, ts }
@@ -70,8 +71,8 @@ outboxCoffrets { id, mal_id, op: "create"|"update"|"delete", payload | null, ts 
 
 `ts` is `Date.now()` at the last (re-)enqueue; a coalesced re-edit refreshes it. A coffret `id` is the server PK,
 or `-Date.now()` for a row minted offline (re-keyed with its bound volumes when the `create` flushes).
-`PHYSICAL_KEYS = ["condition", "location", "extra_copies", "bought_at", "isbn"]` are merged field by field and
-only sent when defined. The header comment in `db.js` still lists an `update-owned` op; the code writes `owned` and `patch`.
+`PHYSICAL_KEYS = ["condition", "location", "extra_copies", "bought_at", "isbn", "wanted", "has_obi",
+"has_jacket", "has_slipcase"]` are merged field by field and only sent when defined. The header comment in `db.js` still lists an `update-owned` op; the code writes `owned` and `patch`.
 
 ### Websocket message (`server/src/services/realtime.rs::SyncEvent`)
 

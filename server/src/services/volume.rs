@@ -353,6 +353,15 @@ pub async fn set_physical_details(
     if let Some(flag) = patch.wanted {
         active.wanted = Set(flag);
     }
+    if let Some(flag) = patch.has_obi {
+        active.has_obi = Set(flag);
+    }
+    if let Some(flag) = patch.has_jacket {
+        active.has_jacket = Set(flag);
+    }
+    if let Some(flag) = patch.has_slipcase {
+        active.has_slipcase = Set(flag);
+    }
     if let Some(raw) = patch.condition {
         active.condition = Set(normalize_condition(raw)?);
     }

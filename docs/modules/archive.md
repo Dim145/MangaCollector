@@ -82,7 +82,9 @@ instance; the importer resolves the text through
 `announced_at?`; the loan `loaned_to?` / `loan_started_at?` /
 `loan_due_at?` / `loaned_to_slug?` (the linked borrower's public slug,
 never an id); the physical copy `condition?` / `location?` /
-`extra_copies` / `bought_at?` / `isbn?`; `created_on?` / `modified_on?`.
+`extra_copies` / `bought_at?` / `isbn?` / `wanted` / `has_obi` /
+`has_jacket` / `has_slipcase` (the box extras — obi band, dust jacket,
+slipcase); `created_on?` / `modified_on?`.
 `ExportCoffret`: `name`, `vol_start`, `vol_end`, `price?`, `store?`,
 timestamps — membership is restored by range, ids are recomputed.
 

@@ -1496,6 +1496,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                           loanedTo={vol.loaned_to}
                           loanDueAt={vol.loan_due_at}
                           extraCopies={vol.extra_copies}
+                          hasObi={vol.has_obi}
+                          hasJacket={vol.has_jacket}
+                          hasSlipcase={vol.has_slipcase}
                           locked
                         />
                       ) : (
@@ -1521,6 +1524,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                           condition={vol.condition}
                           location={vol.location}
                           extraCopies={vol.extra_copies}
+                          hasObi={vol.has_obi}
+                          hasJacket={vol.has_jacket}
+                          hasSlipcase={vol.has_slipcase}
                           boughtAt={vol.bought_at}
                           isbn={vol.isbn}
                           locked
@@ -1557,6 +1563,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                           loanedTo={vol.loaned_to}
                           loanDueAt={vol.loan_due_at}
                           extraCopies={vol.extra_copies}
+                          hasObi={vol.has_obi}
+                          hasJacket={vol.has_jacket}
+                          hasSlipcase={vol.has_slipcase}
                         />
                       ) : (
                         <Volume
@@ -1581,6 +1590,9 @@ export default function MangaPage({ manga, adult_content_level }) {
                           condition={vol.condition}
                           location={vol.location}
                           extraCopies={vol.extra_copies}
+                          hasObi={vol.has_obi}
+                          hasJacket={vol.has_jacket}
+                          hasSlipcase={vol.has_slipcase}
                           boughtAt={vol.bought_at}
                           isbn={vol.isbn}
                           onUpdate={volumeUpdateCallback}

@@ -20,6 +20,15 @@ import { useT } from "@/i18n/index.jsx";
  * is disabled — the coffret header is the single source of truth for owned /
  * price / store / collector to avoid split-brain with the coffret totals.
  */
+// 附 · The box extras as the drawer reads them. The row stores three
+// booleans; the drawer edits one object, so the shape is converted at
+// exactly these two points and nowhere else.
+const partsOf = (obi, jacket, slipcase) => ({
+  obi: Boolean(obi),
+  jacket: Boolean(jacket),
+  slipcase: Boolean(slipcase),
+});
+
 function VolumeImpl({
   id,
   mal_id,
@@ -49,6 +58,10 @@ function VolumeImpl({
   extraCopies = 0,
   boughtAt = null,
   isbn = null,
+  // 附 · Obi band / dust jacket / slipcase — what the copy still has.
+  hasObi = false,
+  hasJacket = false,
+  hasSlipcase = false,
   locked = false,
   onUpdate,
   // 来 · Optional callback fired when the user requests "edit announce"
@@ -78,6 +91,9 @@ function VolumeImpl({
   const [extraCopiesDraft, setExtraCopiesDraft] = useState(extraCopies ?? 0);
   const [boughtAtDraft, setBoughtAtDraft] = useState(boughtAt ?? "");
   const [isbnDraft, setIsbnDraft] = useState(isbn ?? "");
+  const [partsDraft, setPartsDraft] = useState(() =>
+    partsOf(hasObi, hasJacket, hasSlipcase),
+  );
 
   // 確 · Confirmation feedback for Volume toggleOwned.
   //   - tickKey: monotonic counter that increments on each owned-flip
@@ -266,7 +282,10 @@ function VolumeImpl({
       (conditionDraft ?? null) !== (condition ?? null) ||
       locationDraft.trim() !== (location ?? "").trim() ||
       (Number(extraCopiesDraft) || 0) !== (extraCopies ?? 0) ||
-      (boughtAtDraft || null) !== (boughtAt ?? null);
+      (boughtAtDraft || null) !== (boughtAt ?? null) ||
+      partsDraft.obi !== Boolean(hasObi) ||
+      partsDraft.jacket !== Boolean(hasJacket) ||
+      partsDraft.slipcase !== Boolean(hasSlipcase);
     // 番 · An ISBN is only sent when it is one; a half-typed number is
     // flagged in the drawer and left out of the save.
     const isbnClean = isbnDraft.trim() === "" ? "" : normalizeISBN(isbnDraft);
@@ -287,6 +306,9 @@ function VolumeImpl({
             location: locationDraft.trim(),
             extra_copies: Number(extraCopiesDraft) || 0,
             bought_at: boughtAtDraft || null,
+            has_obi: partsDraft.obi,
+            has_jacket: partsDraft.jacket,
+            has_slipcase: partsDraft.slipcase,
             ...(isbnChanged ? { isbn: isbnClean } : {}),
           }
         : undefined,
@@ -307,6 +329,7 @@ function VolumeImpl({
     setExtraCopiesDraft(extraCopies ?? 0);
     setBoughtAtDraft(boughtAt ?? "");
     setIsbnDraft(isbn ?? "");
+    setPartsDraft(partsOf(hasObi, hasJacket, hasSlipcase));
   };
 
   // Seed local state from props ONLY when not editing — protects mid-edit
@@ -325,6 +348,7 @@ function VolumeImpl({
     setExtraCopiesDraft(extraCopies ?? 0);
     setBoughtAtDraft(boughtAt ?? "");
     setIsbnDraft(isbn ?? "");
+    setPartsDraft(partsOf(hasObi, hasJacket, hasSlipcase));
   }, [
     isbn,
     owned,
@@ -338,6 +362,9 @@ function VolumeImpl({
     extraCopies,
     boughtAt,
     wanted,
+    hasObi,
+    hasJacket,
+    hasSlipcase,
     isEditing,
   ]);
 
@@ -1019,6 +1046,8 @@ function VolumeImpl({
         setBoughtAt={setBoughtAtDraft}
         isbn={isbnDraft}
         setIsbn={setIsbnDraft}
+        parts={partsDraft}
+        setParts={setPartsDraft}
         isLoading={isLoading}
         onSave={handleSave}
         onCancel={handleCancel}

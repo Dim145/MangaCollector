@@ -332,6 +332,32 @@ describe("enqueueVolumeUpdate", () => {
     });
   });
 
+  it("keeps the box extras as booleans and carries them through a later edit", async () => {
+    await enqueueVolumeUpdate({
+      id: 32,
+      mal_id: 2,
+      owned: true,
+      has_obi: 1,
+      has_jacket: true,
+      has_slipcase: 0,
+    });
+    // the server column is NOT NULL boolean — a truthy 1 must not reach
+    // Dexie as a number, or the drawer reads back a checked box the
+    // server never confirmed.
+    expect(await db.volumes.get(32)).toMatchObject({
+      has_obi: true,
+      has_jacket: true,
+      has_slipcase: false,
+    });
+    await enqueueVolumeUpdate({ id: 32, mal_id: 2, owned: true, price: 7 });
+    expect((await db.outboxVolumes.get(32)).payload).toMatchObject({
+      price: 7,
+      has_obi: true,
+      has_jacket: true,
+      has_slipcase: false,
+    });
+  });
+
   const op = async (id) => db.outboxVolumes.get(id);
   const row = async (id) => db.volumes.get(id);
 

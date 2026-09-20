@@ -68,6 +68,11 @@ export default function VolumeDetailDrawer({
   setBoughtAt = () => {},
   isbn = "",
   setIsbn = () => {},
+  // 附 · What came in the box with the copy — obi band, dust jacket,
+  // slipcase. One object rather than three props: they are read and
+  // written together, and the drawer never touches one alone.
+  parts = null,
+  setParts = () => {},
   isLoading,
   onSave,
   onCancel,
@@ -669,6 +674,8 @@ export default function VolumeDetailDrawer({
                 setBoughtAt={setBoughtAt}
                 isbn={isbn}
                 setIsbn={setIsbn}
+                parts={parts}
+                setParts={setParts}
                 t={t}
               />
             )}
@@ -1028,6 +1035,16 @@ function ManualUpcomingControls({ id, volNum, onEdit, onAfterDelete, t }) {
 
 /* ══════════════ 物 · Physical copy ══════════════ */
 
+/* 附 · The extras a Japanese (and most French) edition ships with,
+   and that a second-hand copy usually lost. Kept apart from the
+   condition grade on purpose: a mint copy can still be missing its
+   obi, and that is what a collector is asked about first. */
+const VOLUME_PARTS = [
+  { id: "obi", glyph: "帯", key: "volume.partObi" },
+  { id: "jacket", glyph: "覆", key: "volume.partJacket" },
+  { id: "slipcase", glyph: "函", key: "volume.partSlipcase" },
+];
+
 const CONDITIONS = [
   { id: "new", glyph: "新", key: "volume.conditionNew" },
   { id: "like_new", glyph: "美", key: "volume.conditionLikeNew" },
@@ -1054,6 +1071,8 @@ function PhysicalSection({
   setBoughtAt,
   isbn,
   setIsbn,
+  parts,
+  setParts,
   t,
 }) {
   const isbnState =
@@ -1112,6 +1131,54 @@ function PhysicalSection({
             {t("volume.conditionUnrated")}
           </span>
         )}
+      </div>
+
+      <div className="mt-3">
+        <p
+          id={`${fieldId}-parts`}
+          className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-washi-dim"
+        >
+          {t("volume.partsLabel")}
+        </p>
+        <div
+          role="group"
+          aria-labelledby={`${fieldId}-parts`}
+          className="flex flex-wrap gap-1.5"
+        >
+          {VOLUME_PARTS.map((part) => {
+            const active = Boolean(parts?.[part.id]);
+            return (
+              <button
+                key={part.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() =>
+                  setParts({ ...(parts ?? {}), [part.id]: !active })
+                }
+                className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition pointer-coarse:min-h-11 ${
+                  active
+                    ? "border-ai/60 bg-ai/10 text-ai"
+                    : "border-border text-washi-muted hover:border-washi-dim hover:text-washi"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="font-jp text-[12px] leading-none"
+                >
+                  {part.glyph}
+                </span>
+                <span>{t(part.key)}</span>
+                {/* The state must survive a colour-blind reader and a
+                    greyscale screenshot: the tick is the shape half. */}
+                {active && (
+                  <span aria-hidden="true" className="text-[11px] leading-none">
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">

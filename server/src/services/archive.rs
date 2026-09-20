@@ -125,6 +125,9 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
                 store: v.store,
                 collector: v.collector,
                 wanted: v.wanted,
+                has_obi: v.has_obi,
+                has_jacket: v.has_jacket,
+                has_slipcase: v.has_slipcase,
                 read_at: v.read_at,
                 notes: v.notes,
                 in_coffret: v.coffret_id.is_some(),
@@ -262,8 +265,8 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
     let mut out = String::new();
     out.push_str(
         "\u{feff}series,mal_id,volume,owned,wanted,collector,read_on,price,store,\
-         bought_on,condition,location,isbn,extra_copies,notes,publisher,edition,\
-         edition_status,genres\n",
+         bought_on,condition,location,isbn,extra_copies,parts,notes,publisher,\
+         edition,edition_status,genres\n",
     );
     for series in &bundle.library {
         let mal = series.mal_id.map(|i| i.to_string()).unwrap_or_default();
@@ -276,7 +279,7 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
             // No per-volume detail — one summary row, so a series the
             // reader tracks without owning a single tome still appears.
             out.push_str(&format!(
-                "{name},{mal},,,,,,,,,,,,,,{publisher},{edition},{edition_status},{genres}\n"
+                "{name},{mal},,,,,,,,,,,,,,,{publisher},{edition},{edition_status},{genres}\n"
             ));
             continue;
         }
@@ -292,9 +295,21 @@ pub fn build_export_csv(bundle: &ExportBundle) -> String {
             let location = csv_escape(v.location.as_deref().unwrap_or(""));
             let isbn = v.isbn.as_deref().unwrap_or("");
             let notes = csv_escape(v.notes.as_deref().unwrap_or(""));
+            // 帯 · The parts, as one readable cell: "obi|jacket" beats
+            // three boolean columns a human has to decode.
+            let parts = [
+                v.has_obi.then_some("obi"),
+                v.has_jacket.then_some("jacket"),
+                v.has_slipcase.then_some("slipcase"),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join("|");
             out.push_str(&format!(
                 "{name},{mal},{vol},{owned},{wanted},{collector},{read},{price},\
-                 {store},{bought},{condition},{location},{isbn},{extra},{notes},\
+                 {store},{bought},{condition},{location},{isbn},{extra},{parts},\
+                 {notes},\
                  {publisher},{edition},{edition_status},{genres}\n",
                 vol = v.vol_num,
                 owned = v.owned,
@@ -822,6 +837,9 @@ pub async fn apply_import_merge(
                     store: Set(v.store.clone()),
                     collector: Set(v.collector),
                     wanted: Set(v.wanted),
+                    has_obi: Set(v.has_obi),
+                    has_jacket: Set(v.has_jacket),
+                    has_slipcase: Set(v.has_slipcase),
                     read_at: Set(v.read_at),
                     notes: Set(v.notes.clone()),
                     release_date: Set(v.release_date),

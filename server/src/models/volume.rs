@@ -17,6 +17,18 @@ pub struct Model {
     pub store: Option<String>,
     #[sea_orm(default)]
     pub collector: bool,
+    /// 帯 · The parts the copy still has. A Japanese edition ships with
+    /// an obi (the paper band, usually the first thing thrown away), a
+    /// dust jacket, and sometimes a slipcase; collectors grade them
+    /// apart from the book because they decide what a copy is worth.
+    /// False means "not here or not known", which is the honest state
+    /// for a shelf nobody has checked.
+    #[sea_orm(default)]
+    pub has_obi: bool,
+    #[sea_orm(default)]
+    pub has_jacket: bool,
+    #[sea_orm(default)]
+    pub has_slipcase: bool,
     /// 飛 · Does the reader want this tome at all? `false` means they
     /// decided to skip it — an artbook counted as a volume, a side
     /// story, a double they will not buy again. It stops being a gap
@@ -150,6 +162,10 @@ pub fn normalize_condition(raw: Option<String>) -> Result<Option<String>, crate:
 /// "clear" — 0 is it.
 #[derive(Debug, Default)]
 pub struct PhysicalPatch {
+    /// 帯 · The parts the copy still has — obi, jacket, slipcase.
+    pub has_obi: Option<bool>,
+    pub has_jacket: Option<bool>,
+    pub has_slipcase: Option<bool>,
     /// 飛 · Not physical, strictly: whether the reader wants this tome
     /// at all. It rides here because it is edited from the same drawer,
     /// travels through the same optional-field machinery, and lands in
@@ -166,7 +182,10 @@ pub struct PhysicalPatch {
 
 impl PhysicalPatch {
     pub fn is_empty(&self) -> bool {
-        self.wanted.is_none()
+        self.has_obi.is_none()
+            && self.has_jacket.is_none()
+            && self.has_slipcase.is_none()
+            && self.wanted.is_none()
             && self.condition.is_none()
             && self.location.is_none()
             && self.extra_copies.is_none()
@@ -216,6 +235,13 @@ pub struct UpdateVolumeRequest {
     /// in the run, no longer counted as missing.
     #[serde(default)]
     pub wanted: Option<bool>,
+    /// 帯 · The parts this copy still has.
+    #[serde(default)]
+    pub has_obi: Option<bool>,
+    #[serde(default)]
+    pub has_jacket: Option<bool>,
+    #[serde(default)]
+    pub has_slipcase: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_optional_text")]
     pub condition: Option<Option<String>>,
     #[serde(default, deserialize_with = "deserialize_optional_text")]
@@ -233,6 +259,9 @@ impl UpdateVolumeRequest {
     /// ownership / reading / loan fields for `update_by_id`.
     pub fn take_physical(&mut self) -> PhysicalPatch {
         PhysicalPatch {
+            has_obi: self.has_obi.take(),
+            has_jacket: self.has_jacket.take(),
+            has_slipcase: self.has_slipcase.take(),
             wanted: self.wanted.take(),
             condition: self.condition.take(),
             location: self.location.take(),

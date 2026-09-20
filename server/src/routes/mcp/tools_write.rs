@@ -230,6 +230,9 @@ impl McMcp {
                 None => None,
             };
             let patch = PhysicalPatch {
+                has_obi: input.has_obi,
+                has_jacket: input.has_jacket,
+                has_slipcase: input.has_slipcase,
                 wanted: input.wanted,
                 condition: dto::tri_state(input.condition.clone()),
                 location: dto::tri_state(input.location.clone()),
@@ -240,7 +243,8 @@ impl McMcp {
             if patch.is_empty() {
                 return Err(crate::errors::AppError::BadRequest(
                     "Nothing to do: set at least one of condition, location, \
-                     bought_on, isbn, extra_copies or wanted."
+                     bought_on, isbn, extra_copies, wanted, has_obi, \
+                     has_jacket or has_slipcase."
                         .into(),
                 ));
             }

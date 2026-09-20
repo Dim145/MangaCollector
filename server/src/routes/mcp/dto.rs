@@ -332,6 +332,15 @@ pub struct SetPhysicalCopy {
     /// "clear" — zero is it.
     #[serde(default)]
     pub extra_copies: Option<i32>,
+    /// 帯 · Which parts the copy still has: the obi (the paper band a
+    /// Japanese edition ships with), the dust jacket, the slipcase.
+    /// Omitted means "leave as it is", not "no".
+    #[serde(default)]
+    pub has_obi: Option<bool>,
+    #[serde(default)]
+    pub has_jacket: Option<bool>,
+    #[serde(default)]
+    pub has_slipcase: Option<bool>,
     /// 飛 · Whether the owner wants this tome at all. `false` marks it
     /// deliberately skipped: it keeps its place in the run but stops
     /// counting as missing, so the series can read as complete without

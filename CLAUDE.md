@@ -179,7 +179,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 086 tests across 58 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 087 tests across 58 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -422,7 +422,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 |---|---|
 | `/auth` | OAuth callbacks & session lifecycle |
 | `/api/library` | Manga library CRUD, reading progression (`reading_status`, dates, `times_read`; `POST /{mal_id}/reread`), edition status (`publication_status`) |
-| `/api/volume` | Volume tracking (including 飛 `wanted` — a tome deliberately skipped), bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`) |
+| `/api/volume` | Volume tracking (including 飛 `wanted` — a tome deliberately skipped), bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`, and 附 the box extras `has_obi` / `has_jacket` / `has_slipcase` — what the copy still has, asked apart from the grade because a mint copy can still have lost its obi) |
 | `/api/authors` | Author records, photos, refresh |
 | `/api/user`, `/api/account` | Profile, deletion, public slug; `GET /api/user/isbn/{isbn}` resolves a barcode through the server-side chain (see External Integrations) |
 | `/api/user/api-keys` | 鍵 · Mint / list / revoke the per-user keys that open the MCP endpoint, plus `GET /api-keys/scopes` (catalogue + whether the operator enabled `/mcp`) and `GET /api-keys/audit` (what agents did). Session-authenticated: a key never authenticates here, only on `/mcp` |
