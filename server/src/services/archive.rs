@@ -187,6 +187,7 @@ pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError
             created_on: Some(row.created_on),
             modified_on: Some(row.modified_on),
             reading_status: row.reading_status,
+            publication_status: row.publication_status,
             started_reading_at: row.started_reading_at,
             finished_reading_at: row.finished_reading_at,
             times_read: row.times_read,
@@ -734,6 +735,10 @@ pub async fn apply_import_merge(
             modified_on: Set(series.modified_on.unwrap_or(now)),
             // A bundle is attacker-authored: an unknown status is
             // dropped rather than failing the whole import.
+            publication_status: Set(crate::models::library::normalize_publication_status(
+                series.publication_status.clone(),
+            )
+            .unwrap_or(None)),
             reading_status: Set(crate::models::library::normalize_reading_status(
                 series.reading_status.clone(),
             )

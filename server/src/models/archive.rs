@@ -121,6 +121,8 @@ pub struct ExportSeries {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reading_status: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publication_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_reading_at: Option<chrono::NaiveDate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finished_reading_at: Option<chrono::NaiveDate>,

@@ -29,6 +29,10 @@ const AddUpcomingVolumeModal = lazy(
 import Skeleton from "./ui/Skeleton.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
 import Modal from "@/components/ui/Modal.jsx";
+import {
+  EditionStatusBadge,
+  EditionStatusPicker,
+} from "./mangaPage/EditionStatus.jsx";
 import PublisherEditionField, {
   PUBLISHER_PRESETS,
   EDITION_PRESETS,
@@ -125,6 +129,9 @@ export default function MangaPage({ manga, adult_content_level }) {
   // resolves, then keeps it synced through realtime pushes.
   const [publisher, setPublisher] = useState("");
   const [edition, setEdition] = useState("");
+  // 版 · What the edition itself is doing — staged with the two fields
+  // above and saved with them, not on every click.
+  const [publicationStatus, setPublicationStatus] = useState("");
   // 記憶 · Series-level review + public-visibility toggle. Same TDZ-
   // avoiding seed-from-"" pattern as publisher/edition above; the
   // effect a few lines below repopulates from the live Dexie row once
@@ -350,6 +357,7 @@ export default function MangaPage({ manga, adult_content_level }) {
     if (!isEditing) {
       setPublisher(liveLibraryRow?.publisher ?? "");
       setEdition(liveLibraryRow?.edition ?? "");
+      setPublicationStatus(liveLibraryRow?.publication_status ?? "");
       setReview(liveLibraryRow?.review ?? "");
       setReviewPublic(Boolean(liveLibraryRow?.review_public));
       setAuthor(liveLibraryRow?.author?.name ?? "");
@@ -407,6 +415,7 @@ export default function MangaPage({ manga, adult_content_level }) {
       // actually changed. Empty string is the canonical "clear this
       // column" value (sync.js trims and folds it to null before the
       // outbox enqueue; the server's sanitize_label finishes the job).
+      const prevPublicationStatus = liveLibraryRow?.publication_status ?? "";
       const prevPublisher = liveLibraryRow?.publisher ?? "";
       const prevEdition = liveLibraryRow?.edition ?? "";
       const prevReview = liveLibraryRow?.review ?? "";
@@ -419,6 +428,8 @@ export default function MangaPage({ manga, adult_content_level }) {
       const metaPatch = {};
       if (nextPublisher !== prevPublisher) metaPatch.publisher = nextPublisher;
       if (nextEdition !== prevEdition) metaPatch.edition = nextEdition;
+      if (publicationStatus !== prevPublicationStatus)
+        metaPatch.publication_status = publicationStatus;
       // The server treats `author` as free-text and resolves it to an
       // `author_id` via `resolve_author_from_text` (find or create).
       if (nextAuthor !== prevAuthor) metaPatch.author = nextAuthor;
@@ -927,8 +938,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                   Edit mode: two text inputs paired with a shared datalist
                   of common imprints so the user gets autocompletion
                   without any custom popup component. */}
-              {!isEditing && (publisher || edition) && (
-                <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+              {!isEditing && (publisher || edition || publicationStatus) && (
+                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
                   <span
                     aria-hidden="true"
                     className="font-jp text-xs text-hanko-bright"
@@ -962,6 +973,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                       {edition}
                     </Link>
                   )}
+                  {/* 版 · What the edition is doing, when the reader has
+                      said. Last on the line so the imprint stays the
+                      first thing read. */}
+                  <EditionStatusBadge status={publicationStatus} />
                 </div>
               )}
               {/* 作家 · Read-only author display when not editing.
@@ -1014,6 +1029,12 @@ export default function MangaPage({ manga, adult_content_level }) {
                       options={EDITION_PRESETS.map((key) =>
                         t(`manga.editionPreset_${key}`),
                       )}
+                    />
+                  </div>
+                  <div className="mt-4">
+                    <EditionStatusPicker
+                      value={publicationStatus}
+                      onChange={setPublicationStatus}
                     />
                   </div>
                   {/* 作家 · Author override with datalist autocomplete.

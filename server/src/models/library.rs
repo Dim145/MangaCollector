@@ -53,10 +53,27 @@ pub struct Model {
     /// Complete read-throughs so far. A re-read (`start_reread`) bumps
     /// it and clears every `read_at` so the emaki starts over.
     pub times_read: i32,
+    /// 版 · Where the *edition on the shelf* stands, which is not what
+    /// MyAnimeList tracks. `None` means "no opinion" and behaves
+    /// exactly as before. See `PUBLICATION_STATUSES`.
+    pub publication_status: Option<String>,
 }
 
 /// The five reading states a series can be in, by hand or derived.
 pub const READING_STATUSES: [&str; 5] = ["planned", "reading", "paused", "completed", "dropped"];
+
+/// 版 · What the reader's own edition is doing, as opposed to the
+/// Japanese original MAL reports. `ongoing` and `paused` still expect
+/// volumes; `completed` and `stopped` do not, which is what the
+/// calendar and the gap suggestions read.
+pub const PUBLICATION_STATUSES: [&str; 4] = ["ongoing", "paused", "completed", "stopped"];
+
+/// Is this edition finished, one way or the other? A series nobody will
+/// print another volume of should not be advertised as nearly complete,
+/// nor swept for upcoming releases.
+pub fn edition_is_closed(status: Option<&str>) -> bool {
+    matches!(status, Some("completed") | Some("stopped"))
+}
 
 /// Trim + lowercase + validate a reading status coming off the wire.
 /// `None`, empty and whitespace-only mean "clear"; anything that is not
@@ -76,6 +93,27 @@ pub fn normalize_reading_status(
         Err(crate::errors::AppError::BadRequest(format!(
             "Unknown reading status '{raw}' (expected one of {}).",
             READING_STATUSES.join(", ")
+        )))
+    }
+}
+
+/// Same contract as `normalize_reading_status`, for the edition's own
+/// status. Unknown values are a 400 rather than a silent drop: a client
+/// that invents a state should hear about it.
+pub fn normalize_publication_status(
+    raw: Option<String>,
+) -> Result<Option<String>, crate::errors::AppError> {
+    let Some(raw) = raw else { return Ok(None) };
+    let value = raw.trim().to_ascii_lowercase();
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if PUBLICATION_STATUSES.contains(&value.as_str()) {
+        Ok(Some(value))
+    } else {
+        Err(crate::errors::AppError::BadRequest(format!(
+            "Unknown publication status '{raw}' (expected one of {}).",
+            PUBLICATION_STATUSES.join(", ")
         )))
     }
 }
@@ -192,6 +230,8 @@ pub struct LibraryEntry {
     pub started_reading_at: Option<chrono::NaiveDate>,
     pub finished_reading_at: Option<chrono::NaiveDate>,
     pub times_read: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publication_status: Option<String>,
     /// Embedded author summary — None when the row has no recorded
     /// author OR when the FK target was deleted. Constructed by the
     /// service layer's enrichment pass (single batched lookup over
@@ -232,6 +272,7 @@ impl From<Model> for LibraryEntry {
             started_reading_at: row.started_reading_at,
             finished_reading_at: row.finished_reading_at,
             times_read: row.times_read,
+            publication_status: row.publication_status,
             // Author is filled in by the service layer's enrichment
             // pass — `From<Model>` alone can't JOIN. Default None
             // here; the listing services collect distinct author_ids,
@@ -372,6 +413,9 @@ pub struct UpdateLibraryRequest {
     /// omitted → leave, `null`/"" → clear, value → validate + set.
     #[serde(default, deserialize_with = "deserialize_optional_field")]
     pub reading_status: Option<Option<String>>,
+    /// 版 · The edition's own status — see `PUBLICATION_STATUSES`.
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub publication_status: Option<Option<String>>,
     #[serde(default, deserialize_with = "deserialize_optional_date")]
     pub started_reading_at: Option<Option<chrono::NaiveDate>>,
     #[serde(default, deserialize_with = "deserialize_optional_date")]
@@ -441,5 +485,66 @@ mod reading_status_tests {
             normalize_reading_status(Some("binge".into())),
             Err(crate::errors::AppError::BadRequest(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod publication_status_tests {
+    use super::{PUBLICATION_STATUSES, edition_is_closed, normalize_publication_status};
+
+    /*
+     * 版 · The status of the reader's own edition, which is not what
+     * MyAnimeList tracks. Two things are pinned here: the vocabulary a
+     * client may send, and which of those values mean "no more volumes
+     * are coming" — the calendar and the nightly sweep both read that
+     * answer, so getting it wrong either announces a volume nobody will
+     * print or silently stops announcing one that is.
+     */
+
+    #[test]
+    fn accepts_the_four_states_and_clears_on_empty() {
+        for state in PUBLICATION_STATUSES {
+            assert_eq!(
+                normalize_publication_status(Some(state.to_string())).unwrap(),
+                Some(state.to_string())
+            );
+        }
+        // Case and padding are the client's business, not ours.
+        assert_eq!(
+            normalize_publication_status(Some("  Completed ".into())).unwrap(),
+            Some("completed".into())
+        );
+        // Empty means "no opinion", which is the default state.
+        assert_eq!(normalize_publication_status(Some("".into())).unwrap(), None);
+        assert_eq!(
+            normalize_publication_status(Some("   ".into())).unwrap(),
+            None
+        );
+        assert_eq!(normalize_publication_status(None).unwrap(), None);
+    }
+
+    #[test]
+    fn refuses_a_state_it_does_not_know() {
+        // Loudly, not silently: a client that invents a state would
+        // otherwise see it accepted and dropped.
+        for invented in ["finished", "en cours", "cancelled", "ongoing "] {
+            let out = normalize_publication_status(Some(invented.to_string()));
+            if invented.trim() == "ongoing" {
+                assert!(out.is_ok(), "{invented:?} is just padded");
+                continue;
+            }
+            assert!(out.is_err(), "{invented:?} should be refused");
+        }
+    }
+
+    #[test]
+    fn only_completed_and_stopped_close_an_edition() {
+        assert!(edition_is_closed(Some("completed")));
+        assert!(edition_is_closed(Some("stopped")));
+        // Still expecting volumes — the sweep must keep looking.
+        assert!(!edition_is_closed(Some("ongoing")));
+        assert!(!edition_is_closed(Some("paused")));
+        // No opinion behaves exactly as before the column existed.
+        assert!(!edition_is_closed(None));
     }
 }

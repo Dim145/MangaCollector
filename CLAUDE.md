@@ -141,7 +141,7 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 160 tests across 34 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 163 tests across 34 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `http_cache.rs`, `handlers/cover.rs`,
   `observability.rs`, `util/{url,uuid,image,isbn}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users}.rs`,
@@ -171,7 +171,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 073 tests across 57 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 080 tests across 58 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -413,7 +413,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 | Prefix | Purpose |
 |---|---|
 | `/auth` | OAuth callbacks & session lifecycle |
-| `/api/library` | Manga library CRUD, reading progression (`reading_status`, dates, `times_read`; `POST /{mal_id}/reread`) |
+| `/api/library` | Manga library CRUD, reading progression (`reading_status`, dates, `times_read`; `POST /{mal_id}/reread`), edition status (`publication_status`) |
 | `/api/volume` | Volume tracking, bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`) |
 | `/api/authors` | Author records, photos, refresh |
 | `/api/user`, `/api/account` | Profile, deletion, public slug; `GET /api/user/isbn/{isbn}` resolves a barcode through the server-side chain (see External Integrations) |
@@ -501,6 +501,16 @@ stateless), so an AI client can read and curate one account's collection.
   `mcp_audit`,
   `location`, `session_meta`, `setting`, `snapshot`, `user`, `user_seal`,
   `volume`.
+- `user_libraries.publication_status` (版) is **the edition on the
+  shelf**, not the Japanese original MAL reports: `ongoing`, `paused`,
+  `completed`, `stopped`, or NULL for "no opinion". A closed edition
+  (`edition_is_closed`) drops out of the nightly upcoming sweep and out
+  of the calendar, and a `stopped` one out of the gap suggestions —
+  its volume count still comes from MAL, so it counts books nobody
+  will print. A field like this has to pass **four** whitelists to
+  reach the server (`useUpdateMangaMeta`'s destructure, its `fields`
+  map, `enqueueLibraryPatch`, the outbox flush's request builder);
+  miss one and the interface accepts the value and loses it.
 - `locations` is a **registry, not a foreign key**: a tome keeps naming
   its place in `user_volumes.location` (what the offline cache and the
   archive carry), and the table adds the note, the order and the identity

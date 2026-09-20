@@ -10,8 +10,8 @@ use crate::models::activity::event_types;
 use crate::models::library::{
     self, ActiveModel, AddCustomRequest, AddFromMangadexRequest, AddLibraryRequest, AuthorRef,
     EDITION_MAX_LEN, Entity as LibraryEntity, LibraryEntry, PUBLISHER_MAX_LEN, REVIEW_MAX_LEN,
-    UpdateLibraryRequest, entry_with_author, normalize_reading_status, sanitize_genres,
-    sanitize_label,
+    UpdateLibraryRequest, entry_with_author, normalize_publication_status,
+    normalize_reading_status, sanitize_genres, sanitize_label,
 };
 use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
 use crate::services::cache::CacheStore;
@@ -863,6 +863,7 @@ pub async fn apply_library_patch(
         && body.review_public.is_none()
         && body.author.is_none()
         && body.reading_status.is_none()
+        && body.publication_status.is_none()
         && body.started_reading_at.is_none()
         && body.finished_reading_at.is_none()
         && body.times_read.is_none()
@@ -970,6 +971,10 @@ pub async fn apply_library_patch(
             active.finished_reading_at = Set(Some(Utc::now().date_naive()));
         }
         active.reading_status = Set(status);
+    }
+    // 版 · What the edition itself is doing, which MAL cannot know.
+    if let Some(raw_status) = body.publication_status {
+        active.publication_status = Set(normalize_publication_status(raw_status)?);
     }
     if let Some(date) = body.started_reading_at {
         active.started_reading_at = Set(date);

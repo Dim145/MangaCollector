@@ -126,6 +126,7 @@ export function useUpdateMangaMeta() {
       review,
       review_public,
       author,
+      publication_status,
       reading_status,
       started_reading_at,
       finished_reading_at,
@@ -145,6 +146,15 @@ export function useUpdateMangaMeta() {
       // earlier revision destructured only publisher/edition/genres,
       // so a save with `review` set silently dropped the field on
       // the floor before reaching the outbox.
+      // 版 · The edition's own status. Note how many gates a field has
+      // to pass to reach the server: this destructure, the `fields`
+      // map, `enqueueLibraryPatch`'s normaliser and the flush's
+      // request builder. Four lists, and a field missing from any one
+      // of them is set in the interface and lost on the way — which is
+      // what happened to `review` before it, and to this one on its
+      // first attempt.
+      if (publication_status !== undefined)
+        fields.publication_status = publication_status;
       if (review !== undefined) fields.review = review;
       if (review_public !== undefined) fields.review_public = review_public;
       if (author !== undefined) fields.author = author;

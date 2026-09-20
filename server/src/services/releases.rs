@@ -605,6 +605,14 @@ pub async fn list_user_calendar(
             // surfacing a half-formed card.
             continue;
         };
+        // 版 · An edition the reader marked finished or abandoned is one
+        // they have told us will get no more volumes. Rows discovered
+        // before they said so stay in the table — a stop is often
+        // temporary, and undoing it should bring the dates back — but
+        // the calendar stops announcing them.
+        if crate::models::library::edition_is_closed(lib.publication_status.as_deref()) {
+            continue;
+        }
         // Genres on user_library are stored comma-separated. Match
         // the parsing helper in models::library::LibraryEntry to
         // avoid two divergent split implementations.
@@ -649,11 +657,25 @@ pub async fn distinct_followed_series(
     // mal_id, name FROM user_library` under the hood. Filter on
     // `mal_id > 0` so custom-entry rows (negative mal_id, no
     // MangaUpdates match possible) don't cost us a wasted API call.
+    // 版 · A reader who marked their edition finished or abandoned is
+    // telling us no more volumes are coming; asking upstream anyway
+    // spends a call to be told the Japanese original is still running,
+    // and then offers them a volume nobody will print.
+    //
+    // The filter sits on the rows, and `DISTINCT` does the rest: a
+    // series drops out of the sweep only when *every* reader who has it
+    // has closed it. The sweep is shared, so it must keep running while
+    // anyone still waits.
     let rows: Vec<(Option<i32>, String)> = LibraryEntity::find()
         .select_only()
         .column(library_mod::Column::MalId)
         .column(library_mod::Column::Name)
         .filter(library_mod::Column::MalId.gt(0))
+        .filter(
+            library_mod::Column::PublicationStatus
+                .is_null()
+                .or(library_mod::Column::PublicationStatus.is_in(["ongoing", "paused"])),
+        )
         .distinct()
         .into_tuple()
         .all(db)

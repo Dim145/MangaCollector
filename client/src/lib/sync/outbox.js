@@ -206,6 +206,16 @@ export async function enqueueLibraryPatch(mal_id, fields) {
       ? String(fields.reading_status)
       : null;
   }
+  // 版 · The edition's own status. Empty string means "clear it", the
+  // same contract publisher and edition use — the server folds it to
+  // NULL. Whitelisted here and in the request builder below: a field
+  // missing from either list is a field the reader can set and never
+  // see again, which is exactly how this one shipped the first time.
+  if ("publication_status" in fields) {
+    next.publication_status = fields.publication_status
+      ? String(fields.publication_status)
+      : null;
+  }
   for (const key of ["started_reading_at", "finished_reading_at"]) {
     if (!(key in fields)) continue;
     next[key] = fields[key] ? String(fields[key]).slice(0, 10) : null;
@@ -1062,6 +1072,7 @@ async function flushLibrary() {
         if ("author" in (op.payload ?? {})) meta.author = op.payload.author;
         for (const key of [
           "reading_status",
+          "publication_status",
           "started_reading_at",
           "finished_reading_at",
           "times_read",

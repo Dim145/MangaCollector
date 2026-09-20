@@ -382,6 +382,14 @@ export default {
     publisherPlaceholder: "Glénat, Viz, Kodansha…",
     publisherCollectionAria: "View every series published by {name}",
     editionLabel: "Edition",
+    // 版 · The state of the edition the reader collects, which is
+    // not what MyAnimeList reports about the Japanese original.
+    editionStatusLabel: "Edition status",
+    editionStatusOngoing: "Publishing",
+    editionStatusPaused: "On hold",
+    editionStatusCompleted: "Concluded",
+    editionStatusStopped: "Discontinued",
+    editionStatusHint: "What the edition on your shelf is doing — not what the Japanese original is. Concluded or discontinued, the calendar stops announcing volumes.",
     editionPlaceholder: "Standard, Kanzenban, Deluxe…",
     editionCollectionAria: "View every series in the {name} edition",
     reviewLabel: "Your review · 記憶",

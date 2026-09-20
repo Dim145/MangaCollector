@@ -396,6 +396,14 @@ export default {
     publisherPlaceholder: "Glénat, Kana, Pika…",
     publisherCollectionAria: "Voir toutes les séries publiées par {name}",
     editionLabel: "Édition",
+    // 版 · The state of the edition the reader collects, which is
+    // not what MyAnimeList reports about the Japanese original.
+    editionStatusLabel: "Statut de l'édition",
+    editionStatusOngoing: "En cours",
+    editionStatusPaused: "En pause",
+    editionStatusCompleted: "Terminée",
+    editionStatusStopped: "Arrêtée",
+    editionStatusHint: "Ce que fait l'édition que vous avez en rayon, et non l'originale japonaise. Terminée ou arrêtée, le calendrier cesse d'annoncer des tomes.",
     editionPlaceholder: "Standard, Kanzenban, Deluxe…",
     editionCollectionAria: "Voir toutes les séries dans l'édition {name}",
     reviewLabel: "Votre note · 記憶",

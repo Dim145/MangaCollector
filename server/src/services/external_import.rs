@@ -231,6 +231,9 @@ pub async fn fetch_mal_by_username(
             let started_reading_at = entry.start_date.as_deref().and_then(parse_loose_date);
             let finished_reading_at = entry.end_date.as_deref().and_then(parse_loose_date);
             series.push(ExportSeries {
+                // Nothing an external list knows says what the reader's
+                // own edition is doing; that is theirs to set.
+                publication_status: None,
                 mal_id: Some(entry.manga.mal_id),
                 mangadex_id: None,
                 name: entry.manga.title,
@@ -459,6 +462,7 @@ pub async fn fetch_anilist_by_username(
                 created_on: None,
                 modified_on: None,
                 reading_status: None,
+                publication_status: None,
                 started_reading_at: None,
                 finished_reading_at: None,
                 times_read: 0,
@@ -588,6 +592,7 @@ pub async fn fetch_mangadex_by_input(
                     created_on: None,
                     modified_on: None,
                     reading_status: None,
+                    publication_status: None,
                     started_reading_at: None,
                     finished_reading_at: None,
                     times_read: 0,
@@ -765,6 +770,7 @@ pub fn parse_yamtrack_csv(csv_text: &str) -> Result<ExportBundle, AppError> {
             created_on: None,
             modified_on: None,
             reading_status: None,
+            publication_status: None,
             started_reading_at: None,
             finished_reading_at: None,
             times_read: 0,
@@ -875,6 +881,7 @@ impl MalXmlEntry {
                 .collect::<String>()
         });
         Some(ExportSeries {
+            publication_status: None,
             mal_id: Some(mal_id),
             mangadex_id: None,
             name: title,

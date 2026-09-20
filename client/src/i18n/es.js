@@ -387,6 +387,14 @@ export default {
     publisherPlaceholder: "Norma, Panini, Ivréa…",
     publisherCollectionAria: "Ver todas las series publicadas por {name}",
     editionLabel: "Edición",
+    // 版 · The state of the edition the reader collects, which is
+    // not what MyAnimeList reports about the Japanese original.
+    editionStatusLabel: "Estado de la edición",
+    editionStatusOngoing: "En curso",
+    editionStatusPaused: "En pausa",
+    editionStatusCompleted: "Concluida",
+    editionStatusStopped: "Interrumpida",
+    editionStatusHint: "Lo que hace la edición que tienes en la estantería, no la original japonesa. Concluida o interrumpida, el calendario deja de anunciar tomos.",
     editionPlaceholder: "Estándar, Kanzenban, Deluxe…",
     editionCollectionAria: "Ver todas las series en la edición {name}",
     reviewLabel: "Tu reseña · 記憶",

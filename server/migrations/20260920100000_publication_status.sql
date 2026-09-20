@@ -1,0 +1,21 @@
+-- 版 · The status of the edition the reader is actually collecting.
+--
+-- `user_libraries` already carries MyAnimeList's view of a series, and
+-- that view is about the Japanese original: One Piece is "ongoing"
+-- there whatever happened to the edition on the reader's shelf. A
+-- series can be finished in French, stopped mid-run when a publisher
+-- drops it, or paused for a year while a licence is renegotiated — and
+-- none of that is visible anywhere today, so the calendar keeps
+-- expecting volumes that will never be printed and the gaps keep
+-- counting tomes nobody can buy.
+--
+-- Four values, all about the reader's edition and none about Japan:
+--   ongoing    — still being published
+--   paused     — halted, expected back
+--   completed  — the edition is finished
+--   stopped    — abandoned, no more volumes coming
+--
+-- NULL means "no opinion", which is what every existing row gets: the
+-- series then behaves exactly as it does today, following MAL.
+ALTER TABLE user_libraries
+    ADD COLUMN IF NOT EXISTS publication_status TEXT NULL;
