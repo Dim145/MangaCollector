@@ -257,6 +257,7 @@ export default defineConfig({
           "**/{ReadingChart,SpendingChart,MostValuedChart,CompositionPies}-*.js",
           "**/{en,fr,es}-*.js", // one of the three is ever active
           "**/{library,series,volumes,stats}-{800,1400}*.{jpg,webp,avif}", // landing
+          "**/*-vietnamese-*.woff2", // a slice en/fr/es never asks for
         ],
         // Skip the backend — we handle offline/sync at the app layer.
         // The trailing slashes on each pattern matter: without them
@@ -309,26 +310,10 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // Google Fonts stylesheets
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "google-fonts-stylesheets",
-            },
-          },
-          // Google Fonts webfont files
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "google-fonts-webfonts",
-              expiration: {
-                maxEntries: 30,
-                maxAgeSeconds: 60 * 60 * 24 * 365,
-              },
-            },
-          },
+          // 字 · No Google Fonts rules. The four families are served from
+          // this origin now (see `styles/fonts.css`), so they are
+          // ordinary build output: precached with the shell, or picked
+          // up by the `/assets/` rule above.
           // Jikan (MAL) API — read-only metadata, cache aggressively.
           // Bumped from 100 to 250 entries: a power user with a 200-
           // series library was evicting fresh entries on every refresh

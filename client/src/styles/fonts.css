@@ -1,0 +1,48 @@
+/*
+ * 字 · The four families, served from this origin.
+ *
+ * They came from Google's font API until now: two extra connections
+ * before a single letter could be drawn, 788 kB across eight files,
+ * and every reader's address handed to a third party on every visit —
+ * which sits badly with a self-hosted archive that collects nothing.
+ *
+ * The Latin three come from their `@fontsource` packages, still cut
+ * into the same unicode ranges, so a reader of a Latin script never
+ * downloads the Vietnamese or Cyrillic slices. Fraunces is the variable
+ * font with its weight and optical-size axes and nothing else: SOFT and
+ * WONK are never set anywhere here, and every axis a variable font
+ * carries is baked into every file the browser fetches.
+ *
+ * Noto Serif JP is ours, cut to the characters this interface draws —
+ * see `scripts/subset-jp-font.py`, and run it after adding a kanji.
+ * Japanese a reader types is not in it and falls back to the system's
+ * Mincho, which is what the stack below is for.
+ */
+
+@import "@fontsource-variable/fraunces/opsz.css";
+@import "@fontsource-variable/fraunces/opsz-italic.css";
+@import "@fontsource-variable/instrument-sans/wght.css";
+@import "@fontsource-variable/instrument-sans/wght-italic.css";
+/* Latin only for the monospace: it labels the interface, and its
+   Cyrillic, Greek and Latin-Extended slices were eight more @font-face
+   blocks in the render-blocking stylesheet for ranges this app never
+   draws. The Latin range carries œ and the accented Latin-1, so French
+   and Spanish are covered. */
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-600.css";
+
+@font-face {
+  font-family: "Noto Serif JP";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/noto-serif-jp-ui-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Serif JP";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/noto-serif-jp-ui-700.woff2") format("woff2");
+}

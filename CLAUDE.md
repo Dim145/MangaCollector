@@ -529,6 +529,19 @@ third-party fetch for a stranger, no bundled covers under someone
 else's copyright. Auth comes from `useAuth()` like the header — not
 from App's `googleUser`, which only a protected route ever sets.
 
+**Fonts are ours.** The four families are served from this origin —
+`client/src/styles/fonts.css`, via `@fontsource`, with Fraunces and
+Instrument Sans as variable fonts (note the family name carries the
+` Variable` suffix; asking for plain `"Fraunces"` silently draws
+Georgia). Noto Serif JP is **subsetted to the kanji this interface
+draws**: `python3 scripts/subset-jp-font.py` rescans `client/src` and
+rewrites the two woff2 files, so run it after adding a kanji and commit
+what it writes. Japanese a reader *types* is deliberately not covered
+and falls back to the system Mincho. Nothing is fetched from Google any
+more, which is also why the CSP no longer names `fonts.googleapis.com`.
+A first visit went from 788 kB across two third-party origins to 374 kB
+from ours.
+
 `/aide` is the help page: its prose lives in
 `client/src/content/help.{en,fr,es}.md` and is fetched with the page, not
 bundled — a small in-house reader parses it to plain objects that the

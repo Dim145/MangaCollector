@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./fonts.css";
 
 /* `tailwindcss-animate` plugin used to live here, but the maintenance
  * audit (2026-04) confirmed every animation in the project comes from
@@ -493,10 +494,23 @@
   --color-ai: var(--ai);
   --color-ai-muted: var(--ai-muted);
 
-  --font-display: "Fraunces", "Playfair Display", Georgia, serif;
-  --font-sans: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* 字 · "Fraunces Variable" is the family name the `@fontsource-variable`
+     package declares — the suffix is part of it, and asking for plain
+     "Fraunces" silently drew Georgia instead. The plain name stays in
+     the stack for anyone who has the font installed. */
+  --font-display:
+    "Fraunces Variable", "Fraunces", "Playfair Display", Georgia, serif;
+  --font-sans:
+    "Instrument Sans Variable", "Instrument Sans", "Inter", ui-sans-serif,
+    system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-jp: "Noto Serif JP", serif;
+  /* Our Noto Serif JP carries the interface's own kanji only (see
+     styles/fonts.css). Japanese a reader typed falls through to
+     whichever Mincho the system has — every desktop and phone has
+     one. */
+  --font-jp:
+    "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP",
+    serif;
 }
 
 /* ─────────────────────────────────────────────
@@ -2921,7 +2935,7 @@
     var(--gold) 100%
   );
   color: var(--ink-0);
-  font-family: "Fraunces", "Noto Serif JP", serif;
+  font-family: "Fraunces Variable", "Fraunces", "Noto Serif JP", serif;
   font-style: italic;
   font-weight: 600;
   font-size: 0.78rem;
@@ -3016,7 +3030,7 @@
       color-mix(in oklab, var(--chip-accent) 14%, transparent) 3.3px
     ),
     var(--chip-soft);
-  font-family: "Fraunces", "Noto Serif JP", serif;
+  font-family: "Fraunces Variable", "Fraunces", "Noto Serif JP", serif;
   font-style: italic;
   font-size: 0.8125rem;
   line-height: 1;

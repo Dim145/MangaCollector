@@ -180,25 +180,6 @@
         } catch (_) {
           /* private mode / quota — base palette stays in charge */
         }
-        // 字 · Promote the font stylesheet from `media="print"` (which
-        // makes it non-render-blocking) to `media="all"` once it has
-        // loaded. This used to be an `onload=""` attribute on the link,
-        // but an inline event handler is covered by neither a CSP hash
-        // nor a nonce — only by `unsafe-inline`, which the policy no
-        // longer grants. Doing it from a hashed block costs nothing:
-        // the hashes are computed from this file at container start.
-        try {
-          var fonts = document.getElementById("mc-fonts");
-          if (fonts) {
-            if (fonts.sheet) fonts.media = "all";
-            else
-              fonts.addEventListener("load", function () {
-                fonts.media = "all";
-              });
-          }
-        } catch (_) {
-          /* the noscript link below still applies the fonts */
-        }
       })();
     </script>
 
@@ -273,20 +254,6 @@
          downloads: dropping the two unused ones takes the six Fraunces
          subset files from 566 KB to 314 KB with no visual change. Weights
          300–900 and italic are all in use, so those ranges stay. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;600&family=Noto+Serif+JP:wght@400;700&display=swap"
-      rel="stylesheet"
-      media="print"
-      id="mc-fonts"
-    />
-    <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;600&family=Noto+Serif+JP:wght@400;700&display=swap"
-        rel="stylesheet"
-      />
-    </noscript>
 
     <title>MangaCollector — Your personal manga archive</title>
   </head>
