@@ -1495,7 +1495,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.16.0 · Lighter, and it knows your shelf",
+    version: "v2.16.1 · The same shelf, better locked",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",
