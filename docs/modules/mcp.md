@@ -241,8 +241,8 @@ accepted as a fallback for those that cannot set `Authorization`.
   bucket. The inner one is about fairness — one agent's retry loop must
   not throttle another's — and sits **behind** authentication, keyed on
   the verified key id. It used to sit in front, keyed on the prefix read
-  off the raw header; the prefix is public (the settings list and the
-  audit trail show it), so anyone who had seen one could send
+  off the raw header; the prefix is public (the settings list shows it,
+  and it is safe to log), so anyone who had seen one could send
   `mcp_<prefix>_x` once a second and keep its owner's agent on 429.
   Anything unverified shares one `anonymous` bucket, should the layers
   ever be rearranged.

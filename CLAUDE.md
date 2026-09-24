@@ -509,7 +509,7 @@ stateless), so an AI client can read and curate one account's collection.
   before it can spend a key lookup each. The per-key bucket sits
   *behind* authentication and is keyed on the **verified key id**. It
   used to sit ahead and trust the presented prefix, which is public —
-  it is shown in the settings list and the audit trail — so anyone who
+  the settings list shows it, and it is safe to log — so anyone who
   had seen it could drain the owner's budget by sending garbage under
   it. `guard.rs` pins that the bucket never comes from the header.
 - **`allowed_hosts` is extended, never assigned.** rmcp validates `Host`
