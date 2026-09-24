@@ -1,4 +1,5 @@
 mod auth;
+mod client_ip;
 mod config;
 mod db;
 mod errors;
@@ -21,11 +22,7 @@ use axum::extract::Request;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use http::{HeaderValue, Method, StatusCode};
-use tower_governor::{
-    GovernorLayer,
-    governor::GovernorConfigBuilder,
-    key_extractor::{PeerIpKeyExtractor, SmartIpKeyExtractor},
-};
+use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
@@ -96,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
     let rate_limit_period_seconds = config.rate_limit_period_seconds;
     let rate_limit_burst_size = config.rate_limit_burst_size;
     let trust_proxy_headers = config.trust_proxy_headers;
+    let trust_proxy_hops = config.trust_proxy_hops;
     let x_frame_options = config.x_frame_options.clone();
 
     // Database: create sqlx pool, run migrations, then wrap in SeaORM connection
@@ -136,12 +134,12 @@ async fn main() -> anyhow::Result<()> {
         // through *this* client is a fixed literal, so user input never
         // controls one — but if a trusted upstream ever issues an open
         // redirect, an unbounded follow could chain into an internal
-        // host (SSRF). Two hops covers legitimate CDN/host moves
-        // without giving a redirect chain room to pivot. The OIDC
-        // client sets `Policy::none()` separately (auth.rs), and so
-        // does the cover relay below — it is the one request whose
-        // target comes from a reader.
-        .redirect(reqwest::redirect::Policy::limited(2))
+        // host (SSRF). Two hops covers legitimate CDN/host moves; each
+        // one must go to https and to a public host — see
+        // `util::outbound`. The OIDC client sets `Policy::none()`
+        // separately (auth.rs), and so does the cover relay below — it
+        // is the one request whose target comes from a reader.
+        .redirect(crate::util::outbound::redirect_policy())
         .build()
         .expect("reqwest client builder should not fail with defaults");
 
@@ -199,7 +197,7 @@ async fn main() -> anyhow::Result<()> {
     let broker = match config.redis_url.as_deref() {
         Some(url) => {
             tracing::info!("Realtime sync: Redis-backed (scales across instances)");
-            crate::services::realtime::SyncBroker::with_redis(url).await
+            crate::services::realtime::SyncBroker::with_redis(url, &config.cache_prefix).await
         }
         None => {
             tracing::info!("Realtime sync: in-memory (single-instance deploys)");
@@ -210,6 +208,23 @@ async fn main() -> anyhow::Result<()> {
     // Session store backed by PostgreSQL (uses raw sqlx pool)
     let session_store = PostgresStore::new(pool.clone());
     session_store.migrate().await?;
+    // 期 · Expired sessions are deleted, hourly. Nothing did it before:
+    // an expired row stayed for good, and every anonymous visit to
+    // `/auth/oauth2` writes one (the OAuth state has to live somewhere
+    // until the callback), so the table grew with each visitor who
+    // never finished signing in.
+    {
+        use tower_sessions::session_store::ExpiredDeletion;
+        let store = session_store.clone();
+        tokio::spawn(async move {
+            if let Err(err) = store
+                .continuously_delete_expired(std::time::Duration::from_secs(3600))
+                .await
+            {
+                tracing::warn!(%err, "session cleanup task stopped");
+            }
+        });
+    }
 
     // Cookie-security posture — derived, not hard-coded:
     //   • Secure: only when the frontend is served over HTTPS. That's
@@ -461,7 +476,9 @@ async fn main() -> anyhow::Result<()> {
             let conf = GovernorConfigBuilder::default()
                 .per_second(rate_limit_period_seconds)
                 .burst_size(rate_limit_burst_size)
-                .key_extractor(SmartIpKeyExtractor)
+                .key_extractor(crate::client_ip::TrustedProxyKeyExtractor {
+                    hops: trust_proxy_hops,
+                })
                 .finish()
                 .expect(expect_valid);
             (None, Some(with_cleanup!(conf)))
@@ -469,7 +486,7 @@ async fn main() -> anyhow::Result<()> {
             let conf = GovernorConfigBuilder::default()
                 .per_second(rate_limit_period_seconds)
                 .burst_size(rate_limit_burst_size)
-                .key_extractor(PeerIpKeyExtractor)
+                .key_extractor(crate::client_ip::PeerKeyExtractor)
                 .finish()
                 .expect(expect_valid);
             (Some(with_cleanup!(conf)), None)

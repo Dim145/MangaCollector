@@ -1,9 +1,7 @@
 use axum::{
     Json,
-    body::Body,
     extract::{Multipart, Path, State},
-    http::header,
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use serde_json::json;
 
@@ -23,11 +21,6 @@ const MAX_AUTHOR_PHOTO_SIZE: usize = 5 * 1024 * 1024;
 
 const AUTHOR_PHOTO_FORMATS: &[ImageFormat] =
     &[ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::Webp];
-
-/// `private` cache lifetime for served author photos (5 days). Same
-/// reasoning as the poster cache: the URL is stable across users so
-/// intermediate caches must not store the response.
-const PRIVATE_IMAGE_CACHE_MAX_AGE_SEC: u32 = 60 * 60 * 24 * 5;
 
 /// Storage key shape for custom author photos. Stored under the
 /// owning user's namespace so deleting the user (or their custom
@@ -170,7 +163,7 @@ pub async fn upload_author_photo(
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?
+        .map_err(crate::errors::multipart_error)?
     {
         scanned += 1;
         if scanned > MAX_FIELDS_SCANNED {
@@ -183,7 +176,7 @@ pub async fn upload_author_photo(
                 field
                     .bytes()
                     .await
-                    .map_err(|e| AppError::BadRequest(e.to_string()))?,
+                    .map_err(crate::errors::multipart_error)?,
             );
             break;
         }
@@ -205,6 +198,15 @@ pub async fn upload_author_photo(
         return Err(AppError::BadRequest(
             "Unsupported image format (expected JPEG/PNG/WEBP)".into(),
         ));
+    }
+
+    // 所有 · Whose author this is, before anything is written. The
+    // ownership check used to come after the blob, in
+    // `set_custom_photo_url`: an upload for an id that was not the
+    // caller's was refused, but only once five megabytes had landed in
+    // storage, where nothing would ever point at them again.
+    if !author::is_own_custom_author(&state.db, user.id, mal_id).await? {
+        return Err(AppError::NotFound("Author not found".into()));
     }
 
     let path = author_photo_storage_path(user.id, mal_id);
@@ -251,6 +253,7 @@ pub async fn get_author_photo(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Response, AppError> {
     if mal_id >= 0 {
         return Err(AppError::NotFound("Photo not available".into()));
@@ -265,31 +268,6 @@ pub async fn get_author_photo(
         .get(&key)
         .await
         .map_err(|_| AppError::NotFound("Photo not set".into()))?;
-    // Detect format from bytes — the path uses `.jpg` for layout
-    // simplicity but uploads accept JPEG/PNG/WebP.
-    let content_type = image_util::detect(&data)
-        .map(ImageFormat::content_type)
-        .unwrap_or("image/jpeg");
-    let cache_control = format!("private, max-age={}", PRIVATE_IMAGE_CACHE_MAX_AGE_SEC);
-    let response = (
-        [
-            (
-                header::CONTENT_TYPE,
-                http::HeaderValue::from_str(content_type)
-                    .map_err(|e| AppError::Internal(format!("content-type header: {e}")))?,
-            ),
-            (
-                // `private` because the author photo is authenticated
-                // — same rationale as poster cache headers in
-                // handlers/storage.rs. ~5 day TTL covers most edits
-                // without staling forever.
-                header::CACHE_CONTROL,
-                http::HeaderValue::from_str(&cache_control)
-                    .map_err(|e| AppError::Internal(format!("cache-control header: {e}")))?,
-            ),
-        ],
-        Body::from(data),
-    )
-        .into_response();
-    Ok(response)
+    // 冷 · Revalidated on every use — see `private_image_response`.
+    Ok(image_util::private_image_response(&headers, data, None))
 }

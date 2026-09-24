@@ -137,8 +137,10 @@ describe("the landing page", () => {
   });
 
   it("greets a returning collector with their covers before the session check has answered", () => {
-    // The session is still unknown — but the device's cache, stamped for
-    // this account and wiped on logout, already holds a shelf.
+    // The session is still unknown — but this device remembers a
+    // signed-in profile, and its cache already holds that shelf.
+    useAuth.mockReturnValue({ ...STRANGER, status: { kind: "checking" } });
+    localStorage.setItem("mc:auth-user", JSON.stringify({ user: { id: 7 }, ts: 1 }));
     useLibrary.mockReturnValue({
       data: SHELF,
       isEmpty: false,
@@ -146,11 +148,38 @@ describe("the landing page", () => {
     });
     renderLanding();
     expect(screen.getAllByTestId("own-cover")).toHaveLength(8);
-    // The shelf follows the cache; the call to action follows the session.
+    // The call to action follows the session, which has not answered.
     expect(
       screen.getAllByRole("link", { name: en.getStarted }).length,
     ).toBeGreaterThan(0);
     expect(useLibrary).toHaveBeenCalledWith({ enabled: false });
+  });
+
+  it("draws nobody's shelf once the session has been answered with a 401", () => {
+    // 鍵 · A revoked or expired session: the probe said no. Whatever
+    // is still in the cache belongs to an account that is not here,
+    // and the next person at this device must not be shown it.
+    useAuth.mockReturnValue(STRANGER);
+    useLibrary.mockReturnValue({
+      data: SHELF,
+      isEmpty: false,
+      isInitialLoad: false,
+    });
+    renderLanding();
+    expect(screen.queryAllByTestId("own-cover")).toHaveLength(0);
+  });
+
+  it("does not guess from a cache alone while the probe is out", () => {
+    // Checking, but no remembered profile: nothing says this shelf is
+    // the visitor's.
+    useAuth.mockReturnValue({ ...STRANGER, status: { kind: "checking" } });
+    useLibrary.mockReturnValue({
+      data: SHELF,
+      isEmpty: false,
+      isInitialLoad: false,
+    });
+    renderLanding();
+    expect(screen.queryAllByTestId("own-cover")).toHaveLength(0);
   });
 
   it("falls back to the screenshots when the shelf is too thin to mean anything", () => {

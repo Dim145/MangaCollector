@@ -71,9 +71,8 @@ pub async fn import_mal(
     AuthenticatedUser(user): AuthenticatedUser,
     Json(body): Json<ExternalUsernameRequest>,
 ) -> Result<Json<ExternalImportResponse>, AppError> {
-    let bundle =
-        external_import::fetch_mal_by_username(&state.http_client, &body.username)
-            .await?;
+    let _turn = external_import::EXTERNAL_FETCHES.enter(user.id)?;
+    let bundle = external_import::fetch_mal_by_username(&state.http_client, &body.username).await?;
     let out = finalise_preview(&state, &user, bundle).await?;
     Ok(Json(out))
 }
@@ -97,11 +96,9 @@ pub async fn import_anilist(
     AuthenticatedUser(user): AuthenticatedUser,
     Json(body): Json<ExternalUsernameRequest>,
 ) -> Result<Json<ExternalImportResponse>, AppError> {
-    let bundle = external_import::fetch_anilist_by_username(
-        &state.http_client,
-        &body.username,
-    )
-    .await?;
+    let _turn = external_import::EXTERNAL_FETCHES.enter(user.id)?;
+    let bundle =
+        external_import::fetch_anilist_by_username(&state.http_client, &body.username).await?;
     let out = finalise_preview(&state, &user, bundle).await?;
     Ok(Json(out))
 }
@@ -112,9 +109,8 @@ pub async fn import_mangadex(
     AuthenticatedUser(user): AuthenticatedUser,
     Json(body): Json<ExternalListRequest>,
 ) -> Result<Json<ExternalImportResponse>, AppError> {
-    let bundle =
-        external_import::fetch_mangadex_by_input(&state.http_client, &body.input)
-            .await?;
+    let _turn = external_import::EXTERNAL_FETCHES.enter(user.id)?;
+    let bundle = external_import::fetch_mangadex_by_input(&state.http_client, &body.input).await?;
     let out = finalise_preview(&state, &user, bundle).await?;
     Ok(Json(out))
 }

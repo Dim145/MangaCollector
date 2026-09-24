@@ -801,9 +801,15 @@ function AboutBlock({ about, t }) {
 // ─── MAL chip ──────────────────────────────────────────────────────
 
 function MalChip({ url, t }) {
+  // The link comes from Jikan's answer, stored on a shared row. React 19
+  // refuses `javascript:` itself, but not `data:` or any other scheme,
+  // and the release link already holds this line: only http(s) renders.
+  const safeUrl =
+    typeof url === "string" && /^https?:\/\//i.test(url.trim()) ? url.trim() : null;
+  if (!safeUrl) return null;
   return (
     <a
-      href={url}
+      href={safeUrl}
       target="_blank"
       rel="noopener noreferrer"
       className="group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold/40 bg-gold/5 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.22em] text-gold transition hover:border-gold/70 hover:bg-gold/10 hover:text-gold-muted"

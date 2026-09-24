@@ -2433,7 +2433,7 @@ export default {
     dueDateHint: "Dejar vacío para un préstamo sin fecha.",
     friendPickerLabel: "Prestar a un amigo",
     friendPickerHint:
-      "Elige a alguien a quien sigues — el tomo aparecerá entre sus préstamos recibidos.",
+      "Amigos que te siguen también — el tomo aparecerá entre sus préstamos recibidos.",
     friendSelected: "Vinculado a la cuenta de {name}",
     linkedFriend: "Amigo vinculado",
     borrowedTitle: "Prestados por amigos",

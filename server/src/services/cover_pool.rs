@@ -140,17 +140,57 @@ fn host_allowed(host: &str, allowed: &[&str]) -> bool {
         .any(|s| host == *s || host.ends_with(&format!(".{s}")))
 }
 
+/// The one server-relative cover this app ever stores: a custom poster,
+/// `/api/user/storage/poster/{mal_id}` (a custom series has a negative
+/// id). Written by the upload handler and by the copy-from-a-friend
+/// path, and nothing else.
+pub fn is_own_poster_path(text: &str) -> bool {
+    let Some(id) = text.strip_prefix("/api/user/storage/poster/") else {
+        return false;
+    };
+    let digits = id.strip_prefix('-').unwrap_or(id);
+    !digits.is_empty() && digits.len() <= 10 && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// How another user's cover is shown to a viewer.
+///
+/// An external CDN address passes through. The owner's custom poster,
+/// stored as `/api/user/storage/poster/{id}`, would resolve against the
+/// *viewer's* library — the viewer's own cover for that series, or a
+/// 404 — so it becomes the owner's public poster path. Without a public
+/// profile there is nowhere to serve it from, and the answer is no
+/// cover rather than the wrong one.
+pub fn cover_seen_by_others(
+    image: Option<&str>,
+    owner_slug: Option<&str>,
+    mal_id: i32,
+) -> Option<String> {
+    let image = image?;
+    if is_own_poster_path(image) {
+        return owner_slug.map(|slug| format!("/api/public/u/{slug}/poster/{mal_id}"));
+    }
+    allowed_cover_url(Some(image)).filter(|url| !url.starts_with('/'))
+}
+
 /// A cover URL as it may be stored: `None` when blank or from a host we
 /// do not serve. `http://` on an allowed host is upgraded to `https://`
-/// (Google Books thumbnails still come as http). Server-relative paths
-/// (`/api/user/storage/...`) are kept as they are.
+/// (Google Books thumbnails still come as http).
+///
+/// 門 · A server-relative path is kept only when it is a custom poster.
+/// "Starts with `/`" used to be enough, and it was not a check at all:
+/// a browser reads `/\evil.test/a.jpg` (or `/<TAB>/evil.test/a.jpg`) as
+/// `https://evil.test/a.jpg`, so a cover stored that way loaded an
+/// image from any host on every follower's screen — a tracking pixel
+/// past the host allow-list. And a same-origin path such as
+/// `/api/user/export.json` made each viewer's browser request it with
+/// the viewer's own cookies.
 pub fn allowed_cover_url(raw: Option<&str>) -> Option<String> {
     let text = raw?.trim();
     if text.is_empty() {
         return None;
     }
-    if text.starts_with('/') && !text.starts_with("//") && !text.contains("..") {
-        return Some(text.to_string());
+    if text.starts_with('/') || text.starts_with('\\') {
+        return is_own_poster_path(text).then(|| text.to_string());
     }
     let mut url = url::Url::parse(text).ok()?;
     match url.scheme() {
@@ -185,7 +225,39 @@ pub fn is_whitelisted_poster_url(url: &str) -> bool {
 
 #[cfg(test)]
 mod allowlist_tests {
-    use super::allowed_cover_url;
+    use super::{allowed_cover_url, cover_seen_by_others};
+
+    #[test]
+    fn another_users_poster_is_shown_from_their_public_path() {
+        assert_eq!(
+            cover_seen_by_others(Some("/api/user/storage/poster/13"), Some("alex"), 13).as_deref(),
+            Some("/api/public/u/alex/poster/13")
+        );
+        // No public profile: no cover, rather than the viewer's own.
+        assert_eq!(
+            cover_seen_by_others(Some("/api/user/storage/poster/13"), None, 13),
+            None
+        );
+        // An external CDN cover passes through.
+        assert_eq!(
+            cover_seen_by_others(
+                Some("https://cdn.myanimelist.net/images/manga/1/1.jpg"),
+                None,
+                1
+            )
+            .as_deref(),
+            Some("https://cdn.myanimelist.net/images/manga/1/1.jpg")
+        );
+        // Anything stored before the allow-list was strict is dropped.
+        assert_eq!(
+            cover_seen_by_others(Some("/\\evil.test/a.jpg"), Some("alex"), 1),
+            None
+        );
+        assert_eq!(
+            cover_seen_by_others(Some("/api/user/export.json"), Some("alex"), 1),
+            None
+        );
+    }
 
     #[test]
     fn keeps_known_hosts_and_own_paths() {
@@ -248,6 +320,24 @@ mod allowlist_tests {
         );
         assert_eq!(allowed_cover_url(Some("//cdn.myanimelist.net/a.jpg")), None);
         assert_eq!(allowed_cover_url(Some("/api/../etc/passwd")), None);
+        // A browser reads these as `https://evil.test/a.jpg`.
+        assert_eq!(allowed_cover_url(Some("/\\evil.test/a.jpg")), None);
+        assert_eq!(allowed_cover_url(Some("/\t/evil.test/a.jpg")), None);
+        assert_eq!(allowed_cover_url(Some("\\\\evil.test/a.jpg")), None);
+        // Same origin, and still not a cover: it would be requested by
+        // every viewer's browser with the viewer's cookies.
+        assert_eq!(allowed_cover_url(Some("/api/user/export.json")), None);
+        assert_eq!(allowed_cover_url(Some("/api/user/calendar/ics-url")), None);
+        assert_eq!(
+            allowed_cover_url(Some("/api/user/storage/poster/13/../x")),
+            None
+        );
+        assert_eq!(allowed_cover_url(Some("/api/user/storage/poster/")), None);
+        // A custom series has a negative id.
+        assert_eq!(
+            allowed_cover_url(Some("/api/user/storage/poster/-120")),
+            Some("/api/user/storage/poster/-120".into())
+        );
         assert_eq!(allowed_cover_url(Some("javascript:alert(1)")), None);
         assert_eq!(allowed_cover_url(Some("   ")), None);
         assert_eq!(allowed_cover_url(None), None);

@@ -155,8 +155,8 @@ All four under the session-guarded `/api/user` nest
 | POST | `/api/user/locations` | `locations::create` | `locations::create` | Body `{name, note?}`. Idempotent: an existing place is returned rather than duplicated, and the note is written only when it differs. A blank name is a 400 (`"A place needs a name."`). Returns the row. |
 | PATCH | `/api/user/locations/{id}` | `locations::update` | `locations::update` | Body `LocationPatch`. A changed `name` **rewrites every tome filed under the old one** before renaming the row; blank → 400, already taken → 409. `note: ""` clears, `position` is floored at 0, `modified_on` is always bumped. 404 for another user's id. |
 | DELETE | `/api/user/locations/{id}` | `locations::remove` | `locations::remove` | Unfiles the tomes (`location = NULL`) and deletes the row; answers `{success, unfiled}`. The tomes are otherwise untouched. The photo blob goes too, best effort. 404 for another user's id. |
-| GET | `/api/user/locations/{id}/photo` | `locations::get_photo` | `locations::photo_taken_at` | The shelf itself, `private, max-age=5 days`. 404 when the place has no photo **or** is not the caller's — a stranger cannot tell the two apart. A stamp whose blob has vanished clears itself and answers 404 rather than 500. |
-| POST | `/api/user/locations/{id}/photo` | `locations::upload_photo` | `ops::locations::set_photo` | Multipart, one `photo` field, at most 8 fields scanned. JPEG/PNG/WebP by magic bytes, 4 MiB ceiling — the client has already scaled the image down (`lib/shelfPhoto.js`), so hitting the ceiling means it skipped that step. Answers `{success, photo_url}`. |
+| GET | `/api/user/locations/{id}/photo` | `locations::get_photo` | `locations::photo_taken_at` | The shelf itself, `private, no-cache` with a weak `ETag` (`util/image.rs::private_image_response`): the browser keeps it and revalidates for a 304, and nothing survives a logout in the HTTP cache (`Clear-Site-Data`). It used to be `max-age=5 days`, which a shared computer kept after the account left. 404 when the place has no photo **or** is not the caller's — a stranger cannot tell the two apart. A stamp whose blob has vanished clears itself and answers 404 rather than 500. |
+| POST | `/api/user/locations/{id}/photo` | `locations::upload_photo` | `ops::locations::set_photo` | Multipart, one `photo` field, at most 8 fields scanned. JPEG/PNG/WebP by magic bytes, 4 MiB ceiling — the client has already scaled the image down (`lib/shelfPhoto.js`), so hitting the ceiling means it skipped that step. The route's body limit is 6 MiB (`UPLOAD_BODY_LIMIT`), and a body over it is a 413, not a 400. Answers `{success, photo_url}`. |
 | DELETE | `/api/user/locations/{id}/photo` | `locations::delete_photo` | `ops::locations::set_photo` | Drops blob and stamp together. |
 
 `PATCH /api/user/volume` is the fifth writer: its `location` field is
@@ -289,7 +289,10 @@ for the rest of the physical-copy patch).
   inside the transaction, immediately before `COMMIT` — a `dry_run`
   never touches the registry. Details in `docs/modules/archive.md`.
 - **Account deletion** takes the registry through `user_id ON DELETE
-  CASCADE`; nothing in `users::delete_account` mentions the table.
+  CASCADE`, and `users::delete_account` removes the shelf photos from
+  storage first — the cascade deleted the rows and left every blob
+  behind, a photo of someone's home the operator kept after they asked
+  to be forgotten.
 - **`cacheLocations` drops the counts.** The Dexie row keeps only `id`,
   `name`, `note` and `position` — anything showing a number must derive
   it from `db.volumes`, or it will be stale offline.

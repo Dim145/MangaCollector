@@ -1,7 +1,15 @@
 use axum::{
-    routing::{delete, get, patch, post},
     Router,
+    extract::DefaultBodyLimit,
+    routing::{delete, get, patch, post},
 };
+
+/// 量 · What an image upload may weigh on the wire: the largest file an
+/// upload handler accepts (5 MiB) plus room for the multipart framing.
+/// The global body limit is sized for CSV imports and can be raised to a
+/// gibibyte; without this, each upload handler read that much into
+/// memory before its own ceiling got a say.
+const UPLOAD_BODY_LIMIT: usize = 6 * 1024 * 1024;
 
 use crate::handlers::{
     activity, api_keys, archive, auth as auth_handlers, author, calendar, coffret, compare, cover,
@@ -40,7 +48,8 @@ pub fn api_router() -> Router<AppState> {
             "/authors/{mal_id}/photo",
             get(author::get_author_photo)
                 .post(author::upload_author_photo)
-                .delete(author::delete_author_photo),
+                .delete(author::delete_author_photo)
+                .layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
         )
         // Read-only public profile — `/public/u/{slug}` — no auth.
         // Nested under /api by the main router but carries no session
@@ -176,7 +185,8 @@ fn user_router() -> Router<AppState> {
             "/locations/{id}/photo",
             get(locations::get_photo)
                 .post(locations::upload_photo)
-                .delete(locations::delete_photo),
+                .delete(locations::delete_photo)
+                .layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
         )
         .route("/volume/{mal_id}", get(volume::get_volumes_by_id))
         .route("/volume", patch(volume::update_volume))
@@ -195,7 +205,9 @@ fn user_router() -> Router<AppState> {
         )
         .route(
             "/snapshots/{id}/image",
-            get(snapshot::get_snapshot_image).post(snapshot::upload_snapshot_image),
+            get(snapshot::get_snapshot_image)
+                .post(snapshot::upload_snapshot_image)
+                .layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
         )
         // 友 Tomo · Follow + activity feed. Routes mounted under
         // `/user`, so public paths are `/api/user/follows/...`.
@@ -232,7 +244,10 @@ fn user_router() -> Router<AppState> {
         .route("/coffrets/{id}", delete(coffret::delete))
         // Storage routes
         .route("/storage/poster/{mal_id}", get(storage::get_poster))
-        .route("/storage/poster/{mal_id}", post(storage::upload_poster))
+        .route(
+            "/storage/poster/{mal_id}",
+            post(storage::upload_poster).layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
+        )
         // PATCH sets the series' image_url_jpg to a whitelisted URL (cover
         // picker). Co-located with the other poster operations so it lives
         // under a 3-segment literal path — no risk of structural overlap

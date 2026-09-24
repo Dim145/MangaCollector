@@ -14,6 +14,7 @@ vi.mock("@/lib/queryClient.js", () => ({
 const {
   cacheAllVolumes,
   cacheAuthor,
+  clearAllUserData,
   cacheCoffretsForManga,
   cacheLibrary,
   cacheLibraryEntry,
@@ -577,5 +578,50 @@ describe("end-to-end: the race the module header describes", () => {
     await cacheAllVolumes([volume(1, 2, { owned: true })]);
     expect((await db.volumes.get(1)).owned).toBe(true);
     expect(await db.volumes.count()).toBe(1);
+  });
+});
+
+
+/*
+ * 主 · Logging out on a shared device. The owner stamp is what tells
+ * the next sign-in whether the local caches are somebody else's: a
+ * foreign stamp wipes, an absent one adopts. So the stamp may only go
+ * once the tables really are empty.
+ */
+describe("clearAllUserData", () => {
+  it("empties every table and then drops the owner stamp", async () => {
+    await db.library.put(series(1));
+    await db.outboxVolumes.put({ id: 1, mal_id: 1, op: "update", payload: {}, ts: 1 });
+    localStorage.setItem("mc:owner", "7");
+    localStorage.setItem("mc:etag:library", "W/\"abc\"");
+    await clearAllUserData();
+    expect(await db.library.count()).toBe(0);
+    expect(await db.outboxVolumes.count()).toBe(0);
+    expect(localStorage.getItem("mc:owner")).toBeNull();
+    expect(localStorage.getItem("mc:etag:library")).toBeNull();
+  });
+
+  it("falls back to deleting the database when the wipe transaction fails, and keeps working", async () => {
+    await db.library.put(series(2));
+    localStorage.setItem("mc:owner", "7");
+    const spy = vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("closed by upgrade"));
+    await clearAllUserData();
+    spy.mockRestore();
+    // Reopened on the next access, and empty.
+    expect(await db.library.count()).toBe(0);
+    expect(localStorage.getItem("mc:owner")).toBeNull();
+  });
+
+  it("keeps the owner stamp when nothing could empty the tables", async () => {
+    await db.library.put(series(3));
+    localStorage.setItem("mc:owner", "7");
+    const tx = vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("closed"));
+    const del = vi.spyOn(db, "delete").mockRejectedValueOnce(new Error("blocked"));
+    await clearAllUserData();
+    tx.mockRestore();
+    del.mockRestore();
+    // The next account is then seen as foreign, and the wipe retried.
+    expect(localStorage.getItem("mc:owner")).toBe("7");
+    expect(await db.library.count()).toBe(1);
   });
 });

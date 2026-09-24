@@ -25,7 +25,22 @@ use tokio::sync::broadcast;
 
 use serde::{Deserialize, Serialize};
 
-const REDIS_CHANNEL: &str = "mc:sync";
+/// The pub/sub channel, before the instance's prefix is put in front.
+///
+/// 名 · Prefixed with `CACHE_PREFIX`, which exists precisely so two
+/// instances can share one Redis. Pub/sub ignores database numbers, so
+/// a bare `mc:sync` meant user 7 of one instance received user 7 of the
+/// other's events — series ids and timing of somebody else's shelf.
+const REDIS_CHANNEL_SUFFIX: &str = "sync";
+
+fn redis_channel(prefix: &str) -> String {
+    let prefix = prefix.trim_end_matches(':');
+    if prefix.is_empty() {
+        format!("mc:{REDIS_CHANNEL_SUFFIX}")
+    } else {
+        format!("{prefix}:{REDIS_CHANNEL_SUFFIX}")
+    }
+}
 const CHANNEL_BUFFER: usize = 256;
 
 /// Which part of the user's data just changed. Clients map these to
@@ -88,6 +103,7 @@ pub struct SyncEvent {
 pub struct SyncBroker {
     tx: broadcast::Sender<SyncEvent>,
     redis_publisher: Option<Arc<redis::Client>>,
+    redis_channel: String,
 }
 
 impl SyncBroker {
@@ -95,13 +111,17 @@ impl SyncBroker {
     /// sockets, nothing crosses machine boundaries.
     pub fn in_memory() -> Self {
         let (tx, _) = broadcast::channel(CHANNEL_BUFFER);
-        Self { tx, redis_publisher: None }
+        Self {
+            tx,
+            redis_publisher: None,
+            redis_channel: redis_channel(""),
+        }
     }
 
     /// Redis-backed broker. Tries to connect; on failure logs a
     /// warning and falls back to in-memory only (so dev without
     /// Redis still gets realtime locally).
-    pub async fn with_redis(url: &str) -> Self {
+    pub async fn with_redis(url: &str, prefix: &str) -> Self {
         let client = match redis::Client::open(url) {
             Ok(c) => Arc::new(c),
             Err(err) => {
@@ -114,9 +134,11 @@ impl SyncBroker {
         };
 
         let (tx, _) = broadcast::channel(CHANNEL_BUFFER);
+        let channel = redis_channel(prefix);
         let broker = Self {
             tx: tx.clone(),
             redis_publisher: Some(Arc::clone(&client)),
+            redis_channel: channel.clone(),
         };
 
         // Spawn the pubsub listener. It runs for the lifetime of the
@@ -124,11 +146,9 @@ impl SyncBroker {
         let client_for_task = Arc::clone(&client);
         tokio::spawn(async move {
             loop {
-                match run_pubsub_loop(&client_for_task, &tx).await {
+                match run_pubsub_loop(&client_for_task, &tx, &channel).await {
                     Ok(()) => {
-                        tracing::warn!(
-                            "realtime: pubsub loop exited cleanly, restarting"
-                        );
+                        tracing::warn!("realtime: pubsub loop exited cleanly, restarting");
                     }
                     Err(err) => {
                         tracing::warn!(%err, "realtime: pubsub loop failed, retrying in 2s");
@@ -177,7 +197,8 @@ impl SyncBroker {
             };
             let res: Result<(), redis::RedisError> = async {
                 let mut conn = client.get_multiplexed_async_connection().await?;
-                redis::AsyncCommands::publish::<_, _, ()>(&mut conn, REDIS_CHANNEL, &payload).await?;
+                redis::AsyncCommands::publish::<_, _, ()>(&mut conn, &self.redis_channel, &payload)
+                    .await?;
                 Ok(())
             }
             .await;
@@ -209,10 +230,11 @@ impl SyncBroker {
 async fn run_pubsub_loop(
     client: &redis::Client,
     tx: &broadcast::Sender<SyncEvent>,
+    channel: &str,
 ) -> Result<(), redis::RedisError> {
     let mut pubsub = client.get_async_pubsub().await?;
-    pubsub.subscribe(REDIS_CHANNEL).await?;
-    tracing::info!("realtime: subscribed to Redis channel '{}'", REDIS_CHANNEL);
+    pubsub.subscribe(channel).await?;
+    tracing::info!("realtime: subscribed to Redis channel '{}'", channel);
 
     use futures::StreamExt;
     let mut stream = pubsub.on_message();
@@ -293,5 +315,20 @@ mod wire_tests {
         let json = serde_json::to_string(&ev).unwrap();
         let back: SyncEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(back.mal_id, Some(-12));
+    }
+}
+
+#[cfg(test)]
+mod channel_tests {
+    use super::redis_channel;
+
+    /// 名 · Two instances sharing one Redis must not hear each other.
+    #[test]
+    fn each_instance_has_its_own_channel() {
+        assert_eq!(redis_channel(""), "mc:sync");
+        assert_eq!(redis_channel("blue"), "blue:sync");
+        // A prefix written with its separator is not doubled.
+        assert_eq!(redis_channel("blue:"), "blue:sync");
+        assert_ne!(redis_channel("blue"), redis_channel("green"));
     }
 }

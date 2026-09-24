@@ -106,7 +106,13 @@ async function enrich(c) {
   if (!slugged.ok && slugged.status !== 409) throw new Error(`friend slug → ${slugged.status}`);
   const fol = await c.api("POST", `/api/user/follows/${FRIEND}`);
   if (!fol.ok && fol.status !== 409) throw new Error(`follow ${FRIEND} → ${fol.status}`);
-  log.push(`follows ${FRIEND} (user ${friend.user.id})`);
+  // 友 · A loan can only be linked to a friend both ways, and a borrower
+  // only sees loans from people they follow — so the friend follows the
+  // source back, through the source's public profile.
+  const sourceSlug = await ensureSlug(c, SOURCE);
+  const back = await friend.api("POST", `/api/user/follows/${sourceSlug}`);
+  if (!back.ok && back.status !== 409) throw new Error(`${FRIEND} follow back → ${back.status}`);
+  log.push(`follows ${FRIEND} (user ${friend.user.id}), who follows back`);
 
   // loans + notes on the big series' first volumes
   const vols = (await c.json("GET", `/api/user/volume/${big.mal_id}`)).sort(by("vol_num"));
@@ -259,7 +265,12 @@ function diff(a, b) {
       const vb = B.volumes.find((x) => x.vol_num === va.vol_num);
       if (!vb) { bump("volumes.missing"); continue; }
       for (const f of Object.keys(va)) {
-        if (JSON.stringify(va[f]) !== JSON.stringify(vb[f])) bump(`volume.${f}`);
+        if (JSON.stringify(va[f]) !== JSON.stringify(vb[f])) {
+          bump(`volume.${f}`);
+          if (process.env.VERBOSE && (loss.get(`volume.${f}`) ?? 0) <= 2) {
+            console.log(`    volume.${f} on ${key} #${va.vol_num}: ${JSON.stringify(va[f])} → ${JSON.stringify(vb[f])}`);
+          }
+        }
       }
     }
     if (A.coffrets.length !== B.coffrets.length) bump("coffrets.count");
@@ -273,7 +284,16 @@ function diff(a, b) {
   }
   // the ledger: same rows, same count — a merge must not double them either
   const lb = new Set(b.ledger ?? []);
-  for (const row of a.ledger ?? []) if (!lb.has(row)) bump("ledger.row");
+  for (const row of a.ledger ?? []) {
+    if (lb.has(row)) continue;
+    bump("ledger.row");
+    // VERBOSE=1 prints what differs, not just how often.
+    if (process.env.VERBOSE) console.log(`    ledger only in source: ${row}`);
+  }
+  if (process.env.VERBOSE) {
+    const la = new Set(a.ledger ?? []);
+    for (const row of b.ledger ?? []) if (!la.has(row)) console.log(`    ledger only in target: ${row}`);
+  }
   if ((a.ledger?.length ?? 0) !== (b.ledger?.length ?? 0)) bump("ledger.count");
   // the places registry: names, notes and order must all come back
   const rb = new Set(b.registry ?? []);
@@ -338,6 +358,16 @@ function report(label, { loss, seriesMissing, extraInTarget }, a, b) {
   return false;
 }
 
+/** The account's public slug, set to `wanted` when it has none. */
+async function ensureSlug(client, wanted) {
+  const current = (await client.json("GET", "/api/user/public-slug"))?.slug;
+  if (current) return current;
+  const slug = wanted.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 32);
+  const set = await client.api("PATCH", "/api/user/public-slug", { slug });
+  if (!set.ok) throw new Error(`public slug ${slug} → ${set.status}`);
+  return (await client.json("GET", "/api/user/public-slug")).slug;
+}
+
 async function main() {
   console.log(`source: ${SOURCE} → target: ${TARGET}`);
   const src = await login(SOURCE);
@@ -348,10 +378,13 @@ async function main() {
   console.log(`✓ exported bundle v${bundle.version}: ${bundle.library.length} series`);
 
   const dst = await login(TARGET);
-  // A linked borrower travels as a public slug and is re-linked only when
-  // the importing account follows them — a restored account has to
-  // rebuild its follows first, as a real user would.
+  // A linked borrower travels as a public slug and is re-linked only
+  // between friends both ways — a restored account has to rebuild its
+  // follows first, as a real user would, and be followed back.
   await dst.api("POST", `/api/user/follows/${FRIEND}`);
+  const dstSlug = await ensureSlug(dst, TARGET);
+  const friendAgain = await login(FRIEND);
+  await friendAgain.api("POST", `/api/user/follows/${dstSlug}`);
   const preview = await dst.json("POST", "/api/user/import", { dry_run: false, bundle });
   console.log(`✓ imported into fresh user: added ${preview.added}, conflicts ${preview.skipped_conflict}, invalid ${preview.skipped_invalid}`);
 

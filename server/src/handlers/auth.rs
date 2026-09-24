@@ -219,11 +219,27 @@ pub async fn revoke_session(
     Ok(Json(json!({ "success": true })))
 }
 
+/// 冷 · `Clear-Site-Data: "cache"` — the browser's HTTP cache, for this
+/// origin. The client empties its own stores (IndexedDB, Cache Storage)
+/// on logout, but the HTTP cache is not reachable from script, and it
+/// held the account's JSON and images: a custom poster lives at the same
+/// URL for every account, so the next sign-in on a shared browser was
+/// shown the last one's cover, and `fetch(url, {cache: "force-cache"})`
+/// read the old collection back without a session. Only `"cache"`:
+/// `"storage"` would also unregister the service worker, and the
+/// client already clears what it owns. Browsers honour it over HTTPS.
+fn clear_site_cache() -> [(axum::http::HeaderName, axum::http::HeaderValue); 1] {
+    [(
+        axum::http::HeaderName::from_static("clear-site-data"),
+        axum::http::HeaderValue::from_static("\"cache\""),
+    )]
+}
+
 /// POST /auth/oauth2/logout
 pub async fn logout(
     State(state): State<AppState>,
     session: Session,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<impl axum::response::IntoResponse, AppError> {
     // Capture the id BEFORE delete: `session.delete()` resets the
     // session-id lock once it's done, so a `session.id()` after the
     // delete would give us None.
@@ -241,7 +257,10 @@ pub async fn logout(
         sessions::delete_meta(&state.db, &id).await;
     }
 
-    Ok(Json(json!({ "message": "Logged out successfully" })))
+    Ok((
+        clear_site_cache(),
+        Json(json!({ "message": "Logged out successfully" })),
+    ))
 }
 
 /// DELETE /api/user/account
@@ -255,14 +274,14 @@ pub async fn delete_account(
     State(state): State<AppState>,
     session: Session,
     AuthenticatedUser(user): AuthenticatedUser,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<impl axum::response::IntoResponse, AppError> {
     users::delete_account(&state.db, state.storage.clone(), user.id).await?;
     // Destroy the session after the DB wipe so we know the cleanup
     // succeeded before logging the user out. If session.delete() fails
     // after a successful wipe, the user is already deleted — the stale
     // session will 401 on the next request anyway.
     let _ = session.delete().await;
-    Ok(Json(json!({ "success": true })))
+    Ok((clear_site_cache(), Json(json!({ "success": true }))))
 }
 
 /// GET /auth/user

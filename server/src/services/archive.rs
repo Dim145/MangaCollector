@@ -357,21 +357,70 @@ pub(crate) fn csv_escape(s: &str) -> String {
 }
 
 /// True when `s` would be interpreted as a formula by a spreadsheet.
+///
+/// A leading `-` or `+` is a formula unless the *whole* cell is a
+/// number. Looking only at the next character let `-1+1+cmd|' /C
+/// calc'!A0` through as "a negative number", and a spreadsheet
+/// evaluates everything after the sign.
 fn starts_like_formula(s: &str) -> bool {
-    let mut chars = s.chars();
-    match chars.next() {
-        Some('=') | Some('+') | Some('@') | Some('\t') | Some('\r') => true,
-        // `-5` / `-3.2` are legit negative numbers; `-=…` / `-cmd` aren't.
-        Some('-') => !matches!(chars.next(), Some(c) if c.is_ascii_digit() || c == '.'),
+    match s.chars().next() {
+        Some('=') | Some('@') | Some('\t') | Some('\r') => true,
+        Some('-') | Some('+') => s.trim().parse::<f64>().is_err(),
         _ => false,
     }
 }
+
+/// 並 · Imports running right now. An import holds a pool connection and
+/// one transaction for its whole length; the pool has twenty
+/// connections, and twenty imports at once left nothing for every other
+/// request, which then failed on the pool's acquire timeout. Two at a
+/// time is more than a self-hosted instance sees legitimately; one per
+/// account covers the double-click.
+static IMPORTS: std::sync::LazyLock<crate::util::turnstile::Turnstile> =
+    std::sync::LazyLock::new(|| crate::util::turnstile::Turnstile::new(2, "import"));
+
+/// Postgres gives up on any single statement of an import after this.
+/// A bulk chunk takes milliseconds; a statement still running after two
+/// minutes is not a restore, it is the database being held.
+const IMPORT_STATEMENT_TIMEOUT: &str = "SET LOCAL statement_timeout = '120s'";
 
 /// Ceilings on what one import may contain. See `check_import_size`.
 const MAX_IMPORT_SERIES: usize = 20_000;
 const MAX_IMPORT_VOLUMES: usize = 400_000;
 const MAX_IMPORT_LOANS: usize = 200_000;
 const MAX_IMPORT_LOCATIONS: usize = 5_000;
+/// A box set groups a run of tomes; a real shelf has a few dozen at
+/// most. Each one costs an INSERT and an UPDATE over its range inside
+/// the import transaction, so they are counted like everything else.
+const MAX_IMPORT_COFFRETS: usize = 5_000;
+const MAX_COFFRETS_PER_SERIES: usize = 200;
+
+/// A free-text field from a bundle, bounded to what the live path allows
+/// and otherwise left exactly as it was — an empty string stays empty.
+///
+/// `sanitize_label` also trims and folds `""` into NULL, which is right
+/// for a label a form submits and wrong for a restore: the live path
+/// stores a volume's empty store as `""`, and a restore that returned
+/// NULL was not lossless — the round-trip verifier counted 748 such
+/// differences, and a replace-restore wrote them back into the account.
+fn capped(value: &Option<String>, max_chars: usize) -> Option<String> {
+    value
+        .as_ref()
+        .map(|text| text.chars().take(max_chars).collect())
+}
+
+/// The tomes an import will actually write for one series. A series
+/// that lists its tomes writes those; one that lists none gets a run of
+/// `volumes` rows generated for it — up to `MAX_VOLUMES_PER_SERIES`
+/// each, which is exactly what a size check counting only the listed
+/// tomes did not see.
+fn volumes_written(series: &ExportSeries) -> usize {
+    if series.volumes_detail.is_empty() {
+        crate::services::library::clamp_volumes(series.volumes).max(0) as usize
+    } else {
+        series.volumes_detail.len()
+    }
+}
 
 /// Refuse a bundle whose row counts are out of proportion with a real
 /// library, before any of it reaches a transaction.
@@ -386,9 +435,27 @@ fn check_import_size(bundle: &ExportBundle) -> Result<(), AppError> {
     if bundle.library.len() > MAX_IMPORT_SERIES {
         return Err(too_big("series", bundle.library.len(), MAX_IMPORT_SERIES));
     }
-    let volumes: usize = bundle.library.iter().map(|s| s.volumes_detail.len()).sum();
+    // 量 · What the import will write, not what the file lists: twenty
+    // thousand series of `"volumes": 10000` with no tome detail is a
+    // 2 MB file and two hundred million rows.
+    let volumes: usize = bundle.library.iter().map(volumes_written).sum();
     if volumes > MAX_IMPORT_VOLUMES {
         return Err(too_big("volumes", volumes, MAX_IMPORT_VOLUMES));
+    }
+    let coffrets: usize = bundle.library.iter().map(|s| s.coffrets.len()).sum();
+    if coffrets > MAX_IMPORT_COFFRETS {
+        return Err(too_big("box sets", coffrets, MAX_IMPORT_COFFRETS));
+    }
+    if let Some(crowded) = bundle
+        .library
+        .iter()
+        .find(|s| s.coffrets.len() > MAX_COFFRETS_PER_SERIES)
+    {
+        return Err(too_big(
+            "box sets in one series",
+            crowded.coffrets.len(),
+            MAX_COFFRETS_PER_SERIES,
+        ));
     }
     if bundle.loan_history.len() > MAX_IMPORT_LOANS {
         return Err(too_big(
@@ -488,18 +555,29 @@ async fn resolve_borrowers(
         .await
         .map_err(AppError::from)?;
     let ids: Vec<i32> = users.iter().map(|u| u.id).collect();
+    // 友 · Friends both ways, the rule the live lend path applies: the
+    // importer follows them, and they follow the importer back.
     let followed: std::collections::HashSet<i32> = FollowEntity::find()
         .filter(follow::Column::FollowerId.eq(user_id))
-        .filter(follow::Column::FollowingId.is_in(ids))
+        .filter(follow::Column::FollowingId.is_in(ids.clone()))
         .all(db)
         .await
         .map_err(AppError::from)?
         .into_iter()
         .map(|f| f.following_id)
         .collect();
+    let following_back: std::collections::HashSet<i32> = FollowEntity::find()
+        .filter(follow::Column::FollowingId.eq(user_id))
+        .filter(follow::Column::FollowerId.is_in(ids))
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .map(|f| f.follower_id)
+        .collect();
     Ok(users
         .into_iter()
-        .filter(|u| followed.contains(&u.id))
+        .filter(|u| followed.contains(&u.id) && following_back.contains(&u.id))
         .filter_map(|u| Some((u.public_slug?, u.id)))
         .collect())
 }
@@ -569,6 +647,7 @@ pub async fn apply_import_merge(
     // genuine backup never meets them, and reject the pathological ones
     // with a 400 instead of a transaction that runs for minutes.
     check_import_size(bundle)?;
+    let _turn = IMPORTS.enter(user.id)?;
 
     // Pre-fetch the current library once and index it by identity so
     // conflicts are detected without a query per series. The value is
@@ -609,6 +688,9 @@ pub async fn apply_import_merge(
     // empty BEGIN/ROLLBACK is negligible and the code path is simpler
     // without a `Option<DatabaseTransaction>` branch.
     let txn = db.begin().await.map_err(AppError::from)?;
+    txn.execute_unprepared(IMPORT_STATEMENT_TIMEOUT)
+        .await
+        .map_err(AppError::from)?;
 
     for series in &bundle.library {
         if series.name.trim().is_empty() || series.volumes < 0 {
@@ -741,15 +823,33 @@ pub async fn apply_import_merge(
         let lib_active = library::ActiveModel {
             user_id: Set(user.id),
             mal_id: Set(assigned_mal),
-            name: Set(series.name.clone()),
+            // 入 · A bundle is attacker-authored, and it used to skip the
+            // checks every live path applies: an uncapped name, publisher
+            // or review went straight into the row. Same helpers, same
+            // ceilings as the forms.
+            name: Set(crate::models::library::sanitize_label(
+                Some(series.name.clone()),
+                crate::models::library::SERIES_NAME_MAX_LEN,
+            )
+            // Never empty here: a nameless series was skipped above.
+            .unwrap_or_default()),
             volumes: Set(series_volumes),
             volumes_owned: Set(series_volumes_owned),
             image_url_jpg: Set(crate::services::cover_pool::allowed_cover_url(
                 series.image_url_jpg.as_deref(),
             )),
-            publisher: Set(series.publisher.clone()),
-            edition: Set(series.edition.clone()),
-            review: Set(series.review.clone()),
+            publisher: Set(crate::models::library::sanitize_label(
+                series.publisher.clone(),
+                crate::models::library::PUBLISHER_MAX_LEN,
+            )),
+            edition: Set(crate::models::library::sanitize_label(
+                series.edition.clone(),
+                crate::models::library::EDITION_MAX_LEN,
+            )),
+            review: Set(crate::models::library::sanitize_label(
+                series.review.clone(),
+                crate::models::library::REVIEW_MAX_LEN,
+            )),
             review_public: Set(series.review_public),
             author_id: Set(author_id),
             genres: Set(if genres_str.is_empty() {
@@ -832,6 +932,12 @@ pub async fn apply_import_merge(
             series
                 .volumes_detail
                 .iter()
+                // 巻 · Bounded like every live path: a volume number the
+                // app would never write is a defect in the file, and an
+                // unbounded one fed the nightly sweep's starting point.
+                .filter(|v| {
+                    (1..=crate::services::library::MAX_VOLUMES_PER_SERIES).contains(&v.vol_num)
+                })
                 .filter(|v| seen_vol_nums.insert(v.vol_num))
                 .map(|v| volume_mod::ActiveModel {
                     user_id: Set(user.id),
@@ -839,24 +945,39 @@ pub async fn apply_import_merge(
                     vol_num: Set(v.vol_num),
                     owned: Set(v.owned),
                     price: Set(v.price),
-                    store: Set(v.store.clone()),
+                    store: Set(capped(&v.store, crate::models::coffret::STORE_MAX_LEN)),
                     collector: Set(v.collector),
                     wanted: Set(v.wanted),
                     has_obi: Set(v.has_obi),
                     has_jacket: Set(v.has_jacket),
                     has_slipcase: Set(v.has_slipcase),
                     read_at: Set(v.read_at),
-                    notes: Set(v.notes.clone()),
+                    notes: Set(capped(&v.notes, crate::models::volume::NOTE_MAX_CHARS)),
                     release_date: Set(v.release_date),
-                    release_isbn: Set(v.release_isbn.clone()),
-                    release_url: Set(v.release_url.clone()),
-                    // `None` keeps the column's DB default ('manual').
-                    origin: match &v.origin {
-                        Some(o) => Set(o.clone()),
-                        None => sea_orm::ActiveValue::NotSet,
+                    release_isbn: Set(v
+                        .release_isbn
+                        .as_deref()
+                        .and_then(crate::util::isbn::normalize_isbn13)),
+                    // Every live path requires http(s); the client renders
+                    // this as a link on the strength of that rule.
+                    release_url: Set(crate::services::volume::sanitize_release_url(
+                        v.release_url.as_deref(),
+                    )),
+                    // One of the origins this server writes, or the column's
+                    // DB default ('manual'). The origin decides what the
+                    // nightly sweep may purge; a bundle does not get to
+                    // invent one.
+                    origin: match v.origin.as_deref() {
+                        Some(
+                            o @ ("manual" | "ann" | "mangaupdates" | "editor" | "googlebooks"),
+                        ) => Set(o.to_string()),
+                        _ => sea_orm::ActiveValue::NotSet,
                     },
                     announced_at: Set(v.announced_at),
-                    loaned_to: Set(v.loaned_to.clone()),
+                    loaned_to: Set(capped(
+                        &v.loaned_to,
+                        crate::models::volume::LOAN_BORROWER_MAX_CHARS,
+                    )),
                     loan_started_at: Set(v.loan_started_at),
                     loan_due_at: Set(v.loan_due_at),
                     loaned_to_user_id: Set(v
@@ -922,14 +1043,26 @@ pub async fn apply_import_merge(
         // by range, the same rule the live create path applies. (v1 left
         // volumes unlinked and the page could not group them.)
         for c in &series.coffrets {
+            // A box set spans tomes the app could hold, first to last.
+            let max = crate::services::library::MAX_VOLUMES_PER_SERIES;
+            if !(1..=max).contains(&c.vol_start)
+                || !(1..=max).contains(&c.vol_end)
+                || c.vol_start > c.vol_end
+            {
+                continue;
+            }
             let row = coffret::ActiveModel {
                 user_id: Set(user.id),
                 mal_id: Set(assigned_mal.unwrap_or(0)),
-                name: Set(c.name.clone()),
+                name: Set(c
+                    .name
+                    .chars()
+                    .take(crate::models::coffret::COFFRET_NAME_MAX_LEN)
+                    .collect()),
                 vol_start: Set(c.vol_start),
                 vol_end: Set(c.vol_end),
                 price: Set(c.price),
-                store: Set(c.store.clone()),
+                store: Set(capped(&c.store, crate::models::coffret::STORE_MAX_LEN)),
                 created_on: Set(c.created_on.unwrap_or(now)),
                 modified_on: Set(c.modified_on.unwrap_or(now)),
                 ..Default::default()
@@ -1235,6 +1368,25 @@ mod csv_tests {
             "must not start a cell with ="
         );
     }
+
+    #[test]
+    fn a_sign_followed_by_a_formula_is_not_a_number() {
+        for formula in [
+            "-1+1+cmd|' /C calc'!A0",
+            "+1+HYPERLINK(\"x\")",
+            "-2-A1",
+            "+cmd",
+        ] {
+            assert!(
+                csv_escape(formula).starts_with("\"'") || csv_escape(formula).starts_with('\''),
+                "{formula}"
+            );
+        }
+        // A plain signed number stays a number.
+        for number in ["-5", "-3.25", "+7", "-0.5"] {
+            assert_eq!(csv_escape(number), number);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1309,6 +1461,64 @@ mod import_guard_tests {
         let b = bundle_of(100, 5_000, 0);
         assert!(b.library.len() < MAX_IMPORT_SERIES);
         assert!(check_import_size(&b).is_err());
+    }
+
+    /// 量 · The tomes an import generates count as much as the ones it
+    /// lists. A series with no tome detail and `"volumes": 10000` used
+    /// to cost nothing against the ceiling and write ten thousand rows.
+    /// 入 · A restore keeps free text exactly as it was, only bounded:
+    /// `""` stays `""`. Folding it into NULL (what `sanitize_label` does
+    /// for a form) was caught by the round-trip verifier as 748 lost
+    /// values, then written back into the account by a replace-restore.
+    #[test]
+    fn a_restore_bounds_free_text_without_rewriting_it() {
+        assert_eq!(capped(&Some(String::new()), 80).as_deref(), Some(""));
+        assert_eq!(capped(&None, 80), None);
+        assert_eq!(
+            capped(&Some("  spaced  ".into()), 80).as_deref(),
+            Some("  spaced  ")
+        );
+        assert_eq!(
+            capped(&Some("é".repeat(100)), 80).map(|t| t.chars().count()),
+            Some(80)
+        );
+    }
+
+    #[test]
+    fn generated_tomes_count_against_the_ceiling() {
+        let mut b = bundle_of(50, 0, 0);
+        for s in &mut b.library {
+            s.volumes = 10_000;
+            s.volumes_detail.clear();
+        }
+        // 50 × 10 000 = 500 000, over the 400 000 ceiling, in a tiny file.
+        assert!(check_import_size(&b).is_err());
+        // A real series described the same way is fine.
+        let mut ok = bundle_of(3, 0, 0);
+        for s in &mut ok.library {
+            s.volumes = 110;
+            s.volumes_detail.clear();
+        }
+        assert!(check_import_size(&ok).is_ok());
+    }
+
+    #[test]
+    fn box_sets_are_counted_too() {
+        let coffret = || {
+            serde_json::from_str::<crate::models::archive::ExportCoffret>(
+                r#"{"name":"","vol_start":1,"vol_end":10000}"#,
+            )
+            .unwrap()
+        };
+        let mut crowded = bundle_of(1, 1, 0);
+        crowded.library[0].coffrets = (0..=MAX_COFFRETS_PER_SERIES).map(|_| coffret()).collect();
+        assert!(check_import_size(&crowded).is_err());
+
+        let mut spread = bundle_of(MAX_IMPORT_COFFRETS / MAX_COFFRETS_PER_SERIES + 1, 1, 0);
+        for s in &mut spread.library {
+            s.coffrets = (0..MAX_COFFRETS_PER_SERIES).map(|_| coffret()).collect();
+        }
+        assert!(check_import_size(&spread).is_err());
     }
 
     #[test]

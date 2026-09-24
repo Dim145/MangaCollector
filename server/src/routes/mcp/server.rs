@@ -115,9 +115,12 @@ impl McMcp {
     ) -> Result<rmcp::model::CallToolResult, ErrorData> {
         let call = ctx::authorize_unscoped(&self.state, &ctx, "whoami", &()).await?;
         let user = call.user();
+        // 名 · The name and the scopes, not the email. This tool needs no
+        // scope, so it answers any key — including one limited to
+        // `isbn:read` and handed to a third-party agent — and the email
+        // is exactly what `/auth/user` and the archive export leave out.
         let who = serde_json::json!({
             "name": user.name,
-            "email": user.email,
             "granted_scopes": call.scopes().to_strings(),
             "note": "Imports, account deletion, public-profile visibility, \
                      calendar tokens, uploads and session revocation are \

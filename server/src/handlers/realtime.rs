@@ -50,21 +50,57 @@ fn origin_allowed(headers: &axum::http::HeaderMap, expected: &str) -> bool {
     }
 }
 
+/// 量 · The largest frame this socket will read. The server sends
+/// events and reads nothing but control frames, so anything bigger is
+/// not a client of ours. The default is 64 MiB per message, buffered in
+/// full, and the HTTP body limit does not apply to frames: a few dozen
+/// sockets each sending one message were enough to run out of memory.
+const MAX_INBOUND_FRAME: usize = 4 * 1024;
+
 pub async fn ws_handler(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     ClientId(client_id): ClientId,
+    session: tower_sessions::Session,
     headers: axum::http::HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
     if !origin_allowed(&headers, &state.config.frontend_url) {
         return Err(AppError::Unauthorized);
     }
+    // `AuthenticatedUser` has already checked this session; the socket
+    // keeps its id so it can check again for as long as it is open.
+    let Some(session_id) = session.id().map(|id| id.to_string()) else {
+        return Err(AppError::Unauthorized);
+    };
     let broker = state.broker.clone();
+    let db = state.db.clone();
     let user_id = user.id;
-    Ok(ws.on_upgrade(move |socket| {
-        handle_socket(socket, broker, user_id, client_id)
-    }))
+    Ok(ws
+        .max_message_size(MAX_INBOUND_FRAME)
+        .max_frame_size(MAX_INBOUND_FRAME)
+        .on_upgrade(move |socket| {
+            handle_socket(socket, broker, db, session_id, user_id, client_id)
+        }))
+}
+
+/// 機 · Is the session this socket was opened with still allowed?
+///
+/// The same two checks `AuthenticatedUser` makes on every request: the
+/// meta row (deleted on revocation and with the account) and the
+/// upstream session's expiry. Checking only at the upgrade meant a
+/// revoked laptop's open tab kept receiving the user's events — series
+/// ids and timing — for as long as it answered pings. Fails closed: a
+/// database error closes the socket, and the client reconnects through
+/// the normal authenticated path.
+async fn session_still_allowed(db: &crate::db::Db, session_id: &str) -> bool {
+    use sea_orm::EntityTrait;
+    let meta = crate::models::session_meta::Entity::find_by_id(session_id.to_string())
+        .one(db)
+        .await
+        .map(|row| row.is_some())
+        .unwrap_or(false);
+    meta && crate::services::sessions_cleanup::upstream_session_alive(db, session_id).await
 }
 
 /// 源 · The SPA's per-tab client id, read from `X-Client-Id` (HTTP) or
@@ -114,6 +150,8 @@ impl<S: Send + Sync> axum::extract::FromRequestParts<S> for ClientId {
 async fn handle_socket(
     socket: WebSocket,
     broker: SyncBroker,
+    db: crate::db::Db,
+    session_id: String,
     user_id: i32,
     client_id: Option<String>,
 ) {
@@ -130,11 +168,47 @@ async fn handle_socket(
 
     // Forward-events task: subscribes to the broker and writes the
     // JSON payload of every matching event on the wire.
-    let send_task = {
+    let mut send_task = {
         let sender = sender.clone();
         let stop = stop.clone();
         tokio::spawn(async move {
-            while let Ok(event) = rx.recv().await {
+            loop {
+                let event = match rx.recv().await {
+                    Ok(event) => event,
+                    // 遅 · This socket fell behind a burst and missed some
+                    // events. Leaving the loop closed the socket, which
+                    // is the opposite of what a busy moment needs; what
+                    // it missed is repaired by telling the client to
+                    // refetch the collection, as an unscoped event does.
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        let resync = [
+                            crate::services::realtime::SyncKind::Library,
+                            crate::services::realtime::SyncKind::Volumes,
+                        ];
+                        let mut s = sender.lock().await;
+                        let mut ok = true;
+                        for kind in resync {
+                            let event = crate::services::realtime::SyncEvent {
+                                user_id,
+                                kind,
+                                mal_id: None,
+                                origin: None,
+                            };
+                            let Ok(payload) = serde_json::to_string(&event) else {
+                                continue;
+                            };
+                            if s.send(Message::Text(payload.into())).await.is_err() {
+                                ok = false;
+                                break;
+                            }
+                        }
+                        if !ok {
+                            break;
+                        }
+                        continue;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                };
                 if stop.load(Ordering::Relaxed) {
                     break;
                 }
@@ -165,7 +239,7 @@ async fn handle_socket(
 
     // Heartbeat task: pings the client periodically, kills the socket
     // when the silence exceeds `PONG_TIMEOUT`.
-    let ping_task = {
+    let mut ping_task = {
         let sender = sender.clone();
         let last_seen = last_seen.clone();
         let stop = stop.clone();
@@ -181,6 +255,9 @@ async fn handle_socket(
                 if elapsed > PONG_TIMEOUT {
                     break;
                 }
+                if !session_still_allowed(&db, &session_id).await {
+                    break;
+                }
                 let mut s = sender.lock().await;
                 if s.send(Message::Ping(Default::default())).await.is_err() {
                     break;
@@ -192,7 +269,7 @@ async fn handle_socket(
     // Inbound task: drain whatever the client sends. We expect only
     // control frames; anything else is ignored. Each frame refreshes
     // `last_seen` so the heartbeat task knows the peer is alive.
-    let recv_task = {
+    let mut recv_task = {
         let last_seen = last_seen.clone();
         let stop = stop.clone();
         tokio::spawn(async move {
@@ -213,11 +290,23 @@ async fn handle_socket(
 
     // Either side dying means the socket is no longer useful.
     tokio::select! {
-        _ = send_task => {}
-        _ = recv_task => {}
-        _ = ping_task => {}
+        _ = &mut send_task => {}
+        _ = &mut recv_task => {}
+        _ = &mut ping_task => {}
     }
     stop.store(true, Ordering::Relaxed);
+    // 閉 · End the other two now, and say goodbye. A spawned task is not
+    // cancelled when its handle is dropped: the survivors each kept a
+    // clone of the sender, so the connection stayed open — a socket
+    // whose session had just been revoked, or which had just sent a
+    // frame over the limit, lingered until the next ping tick or the
+    // next event. Aborting them drops their clones; the close frame
+    // tells the client, which reconnects through the authenticated
+    // path if it still may.
+    send_task.abort();
+    recv_task.abort();
+    ping_task.abort();
+    let _ = sender.lock().await.send(Message::Close(None)).await;
 }
 
 #[cfg(test)]

@@ -113,8 +113,24 @@ pub async fn nightly_upcoming_sweep(
 
         for (mal_id, name) in series {
             series_processed += 1;
+            // 名 · Who this lookup is for: the readers who stored the
+            // series under this very name. Both the starting volume and
+            // the write-back are scoped to them — see
+            // `user_ids_owning_series_named`.
+            let users =
+                match crate::services::releases::user_ids_owning_series_named(&db, mal_id, &name)
+                    .await
+                {
+                    Ok(u) => u,
+                    Err(err) => {
+                        errors += 1;
+                        tracing::debug!(%err, mal_id, "user_ids_owning_series_named failed");
+                        tokio::time::sleep(inter_series).await;
+                        continue;
+                    }
+                };
             let highest =
-                crate::services::releases::highest_known_vol_num_globally(&db, mal_id)
+                crate::services::releases::highest_known_vol_num_globally(&db, mal_id, &users)
                     .await
                     .unwrap_or(0);
             let start_vol = highest.saturating_add(1);
@@ -146,18 +162,7 @@ pub async fn nightly_upcoming_sweep(
                 continue;
             }
 
-            // Fan out per user.
-            let users =
-                match crate::services::releases::user_ids_owning_series(&db, mal_id).await {
-                    Ok(u) => u,
-                    Err(err) => {
-                        errors += 1;
-                        tracing::debug!(%err, mal_id, "user_ids_owning_series failed");
-                        tokio::time::sleep(inter_series).await;
-                        continue;
-                    }
-                };
-
+            // Fan out to the readers this lookup was made for.
             for uid in users {
                 match crate::services::releases::reconcile_user(&db, uid, mal_id, &discovered).await
                 {

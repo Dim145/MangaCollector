@@ -95,17 +95,20 @@ export function coverProxyEnabled() {
  * own `/api/...` poster paths, `data:` and `blob:` previews), and
  * anything already on this origin.
  */
+/**
+ * 門 · The two hosts the relay fetches from, and no others — the same
+ * pair the server rebuilds its request on (`handlers/cover.rs`). Any
+ * other address would be refused there anyway: sending it costs a 400
+ * and a second request for every such cover, so it is not sent.
+ */
+const RELAYED_HOSTS = new Set(["cdn.myanimelist.net", "uploads.mangadex.org"]);
+
 export function coverSrc(url) {
   if (!enabled || typeof url !== "string" || !url) return url;
-  if (!/^https?:\/\//i.test(url)) return url;
+  if (!/^https:\/\//i.test(url)) return url;
   try {
     const parsed = new URL(url);
-    if (
-      typeof location !== "undefined" &&
-      parsed.origin === location.origin
-    ) {
-      return url;
-    }
+    if (!RELAYED_HOSTS.has(parsed.hostname)) return url;
     return `/api/user/cover?src=${encodeURIComponent(parsed.toString())}`;
   } catch {
     return url;

@@ -5,8 +5,8 @@
 > nullable columns on the `user_volumes` row (`loaned_to`,
 > `loaned_to_user_id`, `loan_started_at`, `loan_due_at`), written by
 > the ordinary volume PATCH; the `loan_history` table is the ledger that
-> outlives the return. A borrower who is a followed friend sees the
-> volume on their own dashboard. Used by every signed-in user; the
+> outlives the return. A borrower who is a mutual friend — each
+> follows the other — sees the volume on their own dashboard. Used by every signed-in user; the
 > ledger is exportable as CSV and travels in the archive bundle.
 
 ## Mental model
@@ -36,11 +36,17 @@ convenience the FK drops (`SET NULL`) when the volume row is deleted or
 rebuilt; the identity is `(user_id, mal_id, vol_num, loaned_at)`.
 
 **Friends are a link, not a replacement.** `loaned_to` always carries
-the display handle. `loaned_to_user_id` is set only when the lender
-follows the borrower (`user_follows`, which itself requires the target
-to have a `public_slug`), and it is what makes the volume appear on the
-borrower's side (`/loans/borrowed`). Typing a name in the modal drops
-the link; a deleted borrower account leaves the handle behind.
+the display handle. `loaned_to_user_id` is set only when lender and
+borrower **follow each other** (`volume::mutual_follow` over
+`user_follows`, which itself requires the target to have a
+`public_slug`), and it is what makes the volume appear on the
+borrower's side (`/loans/borrowed`). A one-way follow used to be
+enough — and following needs nobody's consent, so anyone could write a
+row, with a series name and a handle of their choosing, into a
+stranger's "borrowed" page. The borrower's side is also filtered: it
+lists only lenders the borrower follows, so unfollowing someone is how
+a borrower makes their loans disappear. Typing a name in the modal
+drops the link; a deleted borrower account leaves the handle behind.
 
 **The client renders Dexie first.** The dashboard widget scans
 `db.volumes` for lent rows and joins `db.library`, so it works offline
@@ -125,7 +131,7 @@ flowchart TD
   D --> E{body.loan?}
   E -- omitted --> H[set_physical_details]
   E -- null --> F[set_loan None: clear the four columns<br/>was lent → close_open now]
-  E -- object --> G{owned? released? borrower non-empty?<br/>to_user_id followed?}
+  E -- object --> G{owned? released? borrower non-empty?<br/>to_user_id a mutual follow?}
   G -- no --> X[400]
   G -- yes --> G2[loaned_to, loan_due_at, loaned_to_user_id<br/>loan_started_at only if NULL]
   G2 --> G3{was already lent?}
@@ -174,12 +180,12 @@ All under the session-guarded `/api/user` nest. The four literal
 
 | Method | Path | Handler fn | Service fn | Notes |
 |---|---|---|---|---|
-| PATCH | `/api/user/volume` | `volume::update_volume` | `volume::update_by_id`, then `volume::set_loan`, then `set_physical_details` | `loan` rides on the ordinary volume PATCH (outbox-replayed). 400: not owned, upcoming, blank borrower, `to_user_id` not followed. Missing or foreign row → silent 200. Publishes `Volumes` scoped to the series. |
+| PATCH | `/api/user/volume` | `volume::update_volume` | `volume::update_by_id`, then `volume::set_loan`, then `set_physical_details` | `loan` rides on the ordinary volume PATCH (outbox-replayed). 400: not owned, upcoming, blank borrower, `to_user_id` not a mutual follow. Missing or foreign row → silent 200. Publishes `Volumes` scoped to the series. |
 | GET | `/api/user/volume/loans` | `volume::list_loans` | `volume::list_active_loans` | Every row with `loaned_to` and a `loan_started_at`, joined with the series name/cover and the friend's `public_slug`/`name`. Order: due asc, undated last, then started asc. `[]` when none. |
-| GET | `/api/user/volume/loans/borrowed` | `volume::list_borrowed` | `volume::list_borrowed` | Rows where `loaned_to_user_id = me`; series identity from the **lender's** library row; `lender_slug` / `lender_name` may be `null`. Same order. |
+| GET | `/api/user/volume/loans/borrowed` | `volume::list_borrowed` | `volume::list_borrowed` | Rows where `loaned_to_user_id = me` **and the borrower follows the lender**; series identity from the **lender's** library row, its cover through `cover_pool::cover_seen_by_others` (the lender's own poster becomes their public poster URL, or nothing — never the private path); `lender_slug` / `lender_name` may be `null`. Same order. |
 | GET | `/api/user/volume/loans/history?limit&mal_id` | `volume::list_loan_history` | `loan_history::list` | Newest first; `limit` default 200, clamped 1..=500 (`LIST_MAX`); optional series filter. Raw `loan_history::Model` rows. |
 | GET | `/api/user/volume/loans/export.csv?from&to` | `volume::export_loans_csv` | `loan_history::all_for_export` + `to_csv` | `from` / `to` are `YYYY-MM-DD`, inclusive on the lend date. Download `mangacollector-loans-{slug}-{yyyymmdd}.csv`, `text/csv; charset=utf-8`, `no-store`. |
-| GET / POST / DELETE | `/api/user/follows`, `/api/user/follows/{slug}` | `follow::*` | `services/follow.rs` | The link's precondition: `{user_id, public_slug, display_name}` rows the modal offers as chips; following needs the target's `public_slug`. |
+| GET / POST / DELETE | `/api/user/follows`, `/api/user/follows/{slug}` | `follow::*` | `services/follow.rs` | The link's precondition: `{user_id, public_slug, display_name, follows_back}` rows; the modal offers as chips only those with `follows_back`. Following needs the target's `public_slug`. |
 
 ## Client
 
@@ -198,8 +204,10 @@ All under the session-guarded `/api/user` nest. The four literal
   `<a href="/api/user/volume/loans/export.csv" download>` link.
 - `components/LoanModal.jsx` — mounted by `Volume.jsx`, reads the
   volume from Dexie by id. Friend chips from `useFollowList()`
-  (`/api/user/follows`, Dexie-cached); picking one sets `to_user_id` and
-  fills the name; typing clears the link. The borrower `<input>` has a
+  (`/api/user/follows`, Dexie-cached), kept to `follows_back` — the
+  only accounts the server would accept — and hidden altogether when
+  there are none; picking one sets `to_user_id` and fills the name;
+  typing clears the link. The borrower `<input>` has a
   `<datalist>` from `lib/loanHistory.js::knownBorrowers(history)` over
   `useLoanHistory({limit: 200})` and `maxLength={80}`; the due date is
   an `<input type=date>` turned into an ISO instant. Submits
@@ -242,7 +250,7 @@ All under the session-guarded `/api/user` nest. The four literal
   and the widget's Dexie filter requires both.
 - **Lending needs a real copy.** `set_loan` refuses a tome that is not
   owned or is upcoming (`release_date > now`), a blank borrower, and a
-  `to_user_id` the lender does not follow — each a 400. Returning
+  `to_user_id` that is not a mutual follow — each a 400. Returning
   (`loan: null`) is always allowed, even on a legacy row that is lent
   but unowned.
 - **Edits keep the lend date.** `loan_started_at` is minted once; an
@@ -272,7 +280,7 @@ All under the session-guarded `/api/user` nest. The four literal
   `loan_history` (pre-ledger) gets rows opened from the volumes' loan
   fields with `loaned_at = loan_started_at`.
 - **Borrower re-link on import** resolves slugs from the volumes'
-  `loaned_to_slug` only and keeps followed accounts only; a ledger row
+  `loaned_to_slug` only and keeps mutual follows only; a ledger row
   whose borrower is not on an open loan comes back with
   `borrower_slug = NULL` and no link
   (`services/archive.rs::import_series_history`). Details in
@@ -345,14 +353,16 @@ patch travels in the payload). `LoansWidget`, `LoanModal`,
 `useActiveLoans` and `useLoanHistory` are not covered.
 
 Local stack (`docs/test-stack.md`): `node scripts/verify-archive-roundtrip.mjs`
-gives `friend-alex` a public slug, follows them from the seeded user,
+gives `friend-alex` a public slug, follows them from the seeded user
+and has them follow back (the restored account gets a slug and the
+same follow-back before its import, or the link could not survive),
 lends three tomes of the biggest series (the first linked to that
 account), asserts the friend's `GET /api/user/volume/loans/borrowed`
 shows it exactly once, then proves the ledger survives a fresh-account
 merge and a same-account replace — including the loan it deliberately
 returned in between. By hand: log in as two usernames in two browsers,
-give the second a slug in Settings → public profile and follow it from
-the first; open a tome's drawer, "Lend this volume", pick the friend
+give both a slug in Settings → public profile and have each follow the
+other; open a tome's drawer, "Lend this volume", pick the friend
 chip — the second dashboard lists it under "Borrowed from friends" on
 its next refetch (there is no push); mark it returned and the folded
 "Ledger" keeps the row with both dates. `curl -b <session cookie>

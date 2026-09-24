@@ -2408,7 +2408,7 @@ export default {
     dueDateHint: "Leave empty for an open-ended loan.",
     friendPickerLabel: "Lend to a friend",
     friendPickerHint:
-      "Pick someone you follow — the volume will show under their borrowed books.",
+      "Friends who follow you back — the volume will show under their borrowed books.",
     friendSelected: "Linked to {name}'s account",
     linkedFriend: "Linked friend",
     borrowedTitle: "Borrowed from friends",

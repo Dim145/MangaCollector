@@ -503,23 +503,20 @@ pub async fn set_loan(
             if existing.loan_started_at.is_none() {
                 active.loan_started_at = Set(Some(now));
             }
-            // 友 · A linked borrower must be someone the lender follows —
-            // the only relationship the app knows, and it keeps a
-            // stranger's account from being pinned to a loan they never
-            // saw. Re-lending to a free-text name drops the link.
-            if let Some(friend) = p.to_user_id {
-                let follows = FollowEntity::find()
-                    .filter(follow::Column::FollowerId.eq(user_id))
-                    .filter(follow::Column::FollowingId.eq(friend))
-                    .one(&txn)
-                    .await
-                    .map_err(AppError::from)?
-                    .is_some();
-                if !follows {
-                    return Err(AppError::BadRequest(
-                        "A linked borrower must be someone you follow.".into(),
-                    ));
-                }
+            // 友 · A linked borrower must be a friend both ways: someone
+            // the lender follows *and* who follows the lender back.
+            // Following alone is one-sided — it needs nothing but the
+            // other person's public slug — so it let anyone pin loans,
+            // with a name and a cover of their choosing, onto a
+            // stranger's dashboard. `list_borrowed` checks the same
+            // consent when it reads. Re-lending to a free-text name
+            // drops the link.
+            if let Some(friend) = p.to_user_id
+                && !mutual_follow(&txn, user_id, friend).await?
+            {
+                return Err(AppError::BadRequest(
+                    "A linked borrower must be someone you follow who follows you back.".into(),
+                ));
             }
             active.loaned_to_user_id = Set(p.to_user_id);
             active.loan_due_at = Set(p.due_at);
@@ -869,10 +866,15 @@ pub async fn add_upcoming_manually(
 ) -> Result<Volume, AppError> {
     let now = Utc::now();
 
-    if vol_num < 1 {
-        return Err(AppError::BadRequest(
-            "vol_num must be a positive integer".into(),
-        ));
+    // 巻 · Bounded like every other volume number the server writes. An
+    // announcement of volume 2 147 483 647 was accepted, and the nightly
+    // sweep starts from the highest number it knows: past `i32::MAX`
+    // there is no next volume to look for.
+    if !(1..=crate::services::library::MAX_VOLUMES_PER_SERIES).contains(&vol_num) {
+        return Err(AppError::BadRequest(format!(
+            "vol_num must be between 1 and {}",
+            crate::services::library::MAX_VOLUMES_PER_SERIES
+        )));
     }
     if release_date <= now {
         return Err(AppError::BadRequest(
@@ -1142,6 +1144,34 @@ fn loan_order(
 /// caller. Series identity comes from the LENDER's library row — the
 /// borrower may not track the series at all — and the lender's public
 /// identity rides along so the widget can say who to give it back to.
+/// Do `a` and `b` follow each other? The app's only definition of a
+/// friend, and the consent a linked loan needs.
+async fn mutual_follow(
+    db: &impl sea_orm::ConnectionTrait,
+    a: i32,
+    b: i32,
+) -> Result<bool, AppError> {
+    use sea_orm::PaginatorTrait;
+    let edges = FollowEntity::find()
+        .filter(
+            sea_orm::Condition::any()
+                .add(
+                    sea_orm::Condition::all()
+                        .add(follow::Column::FollowerId.eq(a))
+                        .add(follow::Column::FollowingId.eq(b)),
+                )
+                .add(
+                    sea_orm::Condition::all()
+                        .add(follow::Column::FollowerId.eq(b))
+                        .add(follow::Column::FollowingId.eq(a)),
+                ),
+        )
+        .count(db)
+        .await
+        .map_err(AppError::from)?;
+    Ok(edges >= 2)
+}
+
 pub async fn list_borrowed(db: &Db, user_id: i32) -> Result<Vec<BorrowedVolume>, AppError> {
     let rows = VolumeEntity::find()
         .filter(volume::Column::LoanedToUserId.eq(user_id))
@@ -1149,6 +1179,28 @@ pub async fn list_borrowed(db: &Db, user_id: i32) -> Result<Vec<BorrowedVolume>,
         .all(db)
         .await
         .map_err(AppError::from)?;
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    // 友 · Only loans from people this reader follows. The link was
+    // written by the lender; showing it is the borrower's consent, and
+    // unfollowing a lender is how a borrower takes an unwanted loan off
+    // their page. Links written before the lend path asked for a mutual
+    // follow — or through an archive import — are held to the same
+    // rule here.
+    let lenders_followed: std::collections::HashSet<i32> = FollowEntity::find()
+        .filter(follow::Column::FollowerId.eq(user_id))
+        .filter(follow::Column::FollowingId.is_in(dedup_ids(rows.iter().map(|v| v.user_id))))
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .map(|f| f.following_id)
+        .collect();
+    let rows: Vec<_> = rows
+        .into_iter()
+        .filter(|v| lenders_followed.contains(&v.user_id))
+        .collect();
     if rows.is_empty() {
         return Ok(Vec::new());
     }
@@ -1176,12 +1228,21 @@ pub async fn list_borrowed(db: &Db, user_id: i32) -> Result<Vec<BorrowedVolume>,
         .into_iter()
         .filter_map(|v| {
             let started = v.loan_started_at?;
+            let lender = lenders.get(&v.user_id);
             let (series_name, series_image_url) = v
                 .mal_id
-                .and_then(|m| series.get(&(v.user_id, m)))
-                .map(|p| (Some(p.0.clone()), p.1.clone()))
+                .and_then(|m| series.get(&(v.user_id, m)).map(|p| (m, p)))
+                .map(|(m, p)| {
+                    // 門 · The lender's cover as the borrower can load it
+                    // — see `cover_seen_by_others`.
+                    let cover = crate::services::cover_pool::cover_seen_by_others(
+                        p.1.as_deref(),
+                        lender.and_then(|u| u.public_slug.as_deref()),
+                        m,
+                    );
+                    (Some(p.0.clone()), cover)
+                })
                 .unwrap_or((None, None));
-            let lender = lenders.get(&v.user_id);
             Some(BorrowedVolume {
                 volume_id: v.id,
                 mal_id: v.mal_id,

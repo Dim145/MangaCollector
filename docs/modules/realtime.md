@@ -155,7 +155,7 @@ flowchart TD
 
 | Route | Auth | Direction / body | Where |
 |---|---|---|---|
-| `GET /api/ws?client_id=<id>` | session cookie (`AuthenticatedUser`; anonymous → 401) | upgrade; server → client text frames of `SyncEvent`; server pings every 30 s and closes after 60 s without an inbound frame | `handlers/realtime.rs` |
+| `GET /api/ws?client_id=<id>` | session cookie (`AuthenticatedUser`; anonymous → 401) | upgrade; server → client text frames of `SyncEvent`; server pings every 30 s and closes after 60 s without an inbound frame, or at the first ping after the session was revoked or expired; a client frame over 4 KiB closes it | `handlers/realtime.rs` |
 | `GET /auth/provider` | none | connectivity probe, 5 s timeout, must answer JSON | `lib/connectivity.js` |
 | `GET /api/user/library`, `GET /api/user/library/{mal_id}` (`Vec` of 0..1), `GET /api/user/volume`, `GET /api/user/volume/{mal_id}`, `GET /api/user/settings` | session | refetch paths that refill Dexie | `outbox.js`, hooks |
 | `POST /api/user/library`, `PATCH /api/user/library/{mal_id}`, `PATCH /api/user/library/{mal_id}/{owned}`, `DELETE /api/user/library/{mal_id}`, `PATCH /api/user/storage/poster/{mal_id}` | session | replayed by `flushLibrary` | `handlers/library.rs` |
@@ -231,10 +231,19 @@ CORS and does not read it yet.
   are exempt), is counted by `tower_governor` like any other request when `RATE_LIMIT_ENABLED`, and needs
   the session cookie. The hook's header comment says a 401 means "stop trying", but the `close` handler only
   stops on codes 1000 / 1008 / 1011 — a refused upgrade is retried with backoff while the tab is visible.
-- **Broker.** `tokio::sync::broadcast` with a 256-event buffer; the forwarding loop is
-  `while let Ok(event) = rx.recv()`, so a socket that falls more than 256 events behind stops being served
-  and has to reconnect. With Redis, publishes go through channel `mc:sync` only and are re-injected locally
-  by the subscriber loop (reconnects every 2 s); a failed Redis publish falls back to the in-process channel.
+  After the upgrade, the session is re-checked at every ping (`session_still_allowed`: the `session_meta` row,
+  deleted on revocation, and the upstream session's expiry) — checking only at the upgrade let a revoked
+  laptop's open tab keep receiving the user's events for as long as it answered pings. A client frame is
+  capped at 4 KiB (`MAX_INBOUND_FRAME`; the client only ever sends pings), where the default was 64 MiB
+  buffered per socket. When one of the three per-socket tasks ends, the other two are aborted and a Close
+  frame is sent: a spawned task is not cancelled with its handle, and the survivors kept the connection open.
+- **Broker.** `tokio::sync::broadcast` with a 256-event buffer. A socket that falls more than 256 events
+  behind (`RecvError::Lagged`) is sent an unscoped `library` and `volumes` event — a full refetch — and keeps
+  being served; it used to leave the loop and close, the opposite of what a busy moment needs. With Redis,
+  publishes go through channel `{CACHE_PREFIX}:sync` (`mc:sync` when the prefix is empty) only and are
+  re-injected locally by the subscriber loop (reconnects every 2 s); a failed Redis publish falls back to the
+  in-process channel. The prefix is in the name because pub/sub ignores database numbers: under a bare
+  `mc:sync`, two instances sharing one Redis delivered each other's events to the same user ids.
 - **Activity coalescer** (`services/activity_coalescer.rs`, `AppState.activity`, 5 s window): `volume_owned` ↔
   `volume_unowned` (keyed user, mal_id, vol_num) and `series_added` ↔ `series_removed` (user, mal_id) cancel each
   other inside the window; a surviving entry lands with its original `created_on`. It runs on the same mutation path
@@ -269,7 +278,7 @@ passes an id matching no socket, and every real device gets the event.
 | File | Role |
 |---|---|
 | `server/src/handlers/realtime.rs` | `ws_handler`, `ClientId` extractor, per-socket send / ping / recv tasks, own-echo skip |
-| `server/src/services/realtime.rs` | `SyncKind`, `SyncEvent`, `SyncBroker` (in-memory or Redis `mc:sync`) |
+| `server/src/services/realtime.rs` | `SyncKind`, `SyncEvent`, `SyncBroker` (in-memory or Redis `{CACHE_PREFIX}:sync`) |
 | `server/src/routes/api.rs` | mounts `GET /api/ws` (outside the `/user` nest) |
 | `server/src/main.rs` | picks the broker from `REDIS_URL`; CORS allow-list for `x-client-id`, `idempotency-key` |
 | `server/src/services/ops/` | 書 · write orchestrations — service call **plus** its fan-out, for every write path with more than one caller (`library`, `volume`, `locations`). The handlers there are thin shells; a `#[cfg(test)]` guard in `ops/mod.rs` refuses a `broker` reference in them |
@@ -289,9 +298,11 @@ passes an id matching no socket, and every real device gets the event.
 
 ## Tests & verification
 
-**Rust** — `cd server && cargo test realtime` and `cargo test activity_coalescer` (9 tests):
+**Rust** — `cd server && cargo test realtime` and `cargo test activity_coalescer` (10 tests):
 - `services/realtime.rs::wire_tests` — the wire shape: both optional fields serialise, are omitted (not
   `null`) when absent, an old `{user_id, kind}` frame still decodes, negative custom ids round-trip.
+- `services/realtime.rs::channel_tests` — each `CACHE_PREFIX` gets its own Redis channel, and an empty one
+  falls back to `mc:sync`.
 - `handlers/realtime.rs::client_id_tests` — `ClientId::sanitize` accepts the UUID and base36 shapes,
   rejects short / long / foreign characters, inclusive 8..=64 bounds.
 - `services/activity_coalescer.rs::tests` — `classify` pairs only. The timing behaviour (cancel within

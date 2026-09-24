@@ -4,10 +4,8 @@
 //! fan-out; see that module's header for why.
 use axum::{
     Json,
-    body::Body,
     extract::{Multipart, Path, State},
-    http::header,
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -27,11 +25,6 @@ use crate::util::image::{self as image_util, ImageFormat};
 const MAX_PHOTO_SIZE: usize = 4 * 1024 * 1024;
 
 const PHOTO_FORMATS: &[ImageFormat] = &[ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::Webp];
-
-/// Same five days the poster and author-photo handlers use. `private`
-/// matters as much here: `/api/user/locations/3/photo` is the same
-/// string for every user who happens to have a place with id 3.
-const PRIVATE_IMAGE_CACHE_MAX_AGE_SEC: u32 = 60 * 60 * 24 * 5;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateLocationRequest {
@@ -90,6 +83,7 @@ pub async fn get_photo(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<i64>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Response, AppError> {
     // Reading the row is also the ownership check: it 404s on a place
     // that is not this user's, which is what a stranger should see.
@@ -114,26 +108,10 @@ pub async fn get_photo(
             return Err(AppError::NotFound("Place photo blob missing.".into()));
         }
     };
-    let content_type = image_util::detect(&data)
-        .map(ImageFormat::content_type)
-        .unwrap_or("image/jpeg");
-    let cache_control = format!("private, max-age={PRIVATE_IMAGE_CACHE_MAX_AGE_SEC}");
-    Ok((
-        [
-            (
-                header::CONTENT_TYPE,
-                axum::http::HeaderValue::from_str(content_type)
-                    .map_err(|e| AppError::Internal(format!("content-type header: {e}")))?,
-            ),
-            (
-                header::CACHE_CONTROL,
-                axum::http::HeaderValue::from_str(&cache_control)
-                    .map_err(|e| AppError::Internal(format!("cache-control header: {e}")))?,
-            ),
-        ],
-        Body::from(data),
-    )
-        .into_response())
+    // 冷 · Revalidated on every use — see `private_image_response`. The
+    // `?v=` in the URL already changes with every upload; this is what
+    // keeps a signed-out browser from showing the shelf from its cache.
+    Ok(image_util::private_image_response(&headers, data, None))
 }
 
 /// POST /api/user/locations/{id}/photo — multipart, one `photo` field.
@@ -153,7 +131,7 @@ pub async fn upload_photo(
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?
+        .map_err(crate::errors::multipart_error)?
     {
         scanned += 1;
         if scanned > MAX_FIELDS_SCANNED {
@@ -166,7 +144,7 @@ pub async fn upload_photo(
                 field
                     .bytes()
                     .await
-                    .map_err(|e| AppError::BadRequest(e.to_string()))?,
+                    .map_err(crate::errors::multipart_error)?,
             );
             break;
         }

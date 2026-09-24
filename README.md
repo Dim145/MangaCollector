@@ -273,6 +273,14 @@ The supplied `docker-compose.yml` uses Traefik v2 in plain HTTP for local dev. *
 - PWA install prompts (`beforeinstallprompt` is gated on secure context)
 - OAuth callback security
 
+`docker-compose.prod.yml` publishes both containers on **loopback only**
+(`127.0.0.1:3000`, `127.0.0.1:5173`), so the proxy on the same host is
+the only way in. If your proxy runs on another machine, publish on the
+interface it reaches and firewall everything else. Behind a proxy, set
+`TRUST_PROXY_HEADERS=true` — and `TRUSTED_PROXY_HOPS` when several
+proxies are chained — or every reader shares the proxy's rate-limit
+bucket.
+
 ---
 
 ## Why I built this

@@ -2460,7 +2460,7 @@ export default {
     dueDateHint: "Laisser vide pour un prêt sans date de retour.",
     friendPickerLabel: "Prêter à un ami",
     friendPickerHint:
-      "Choisissez quelqu'un que vous suivez — le tome apparaîtra dans ses emprunts.",
+      "Les amis qui vous suivent en retour — le tome apparaîtra dans leurs emprunts.",
     friendSelected: "Lié au compte de {name}",
     linkedFriend: "Ami lié",
     borrowedTitle: "Empruntés à des amis",

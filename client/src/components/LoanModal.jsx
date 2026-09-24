@@ -46,7 +46,14 @@ export default function LoanModal({ open, volumeId, onClose }) {
   const [borrower, setBorrower] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [borrowerUserId, setBorrowerUserId] = useState(null);
-  const { data: friends = [] } = useFollowList();
+  const { data: following = [] } = useFollowList();
+  // 友 · Only friends both ways can be linked to a loan — the server
+  // refuses a one-way follow, and a borrower only sees loans from people
+  // they follow. Offering the others would end in an error.
+  const friends = useMemo(
+    () => following.filter((f) => f.follows_back),
+    [following],
+  );
   // 帳 · Names this shelf has lent to before — a datalist, so a repeat
   // borrower is one keystroke away and typed exactly as last time.
   const { data: history = [] } = useLoanHistory({ limit: 200 });

@@ -5,7 +5,9 @@
 //! ## Shape
 //!
 //! ```text
-//! POST /mcp ──▶ require_enabled ──▶ governor (per API key) ──▶ authenticate
+//! POST /mcp ──▶ require_enabled ──▶ governor (per address) ──▶ authenticate
+//!                                                                    │
+//!                                                  governor (per verified key)
 //!                                                                    │
 //!                                                     rmcp StreamableHttpService
 //!                                                                    │
@@ -52,11 +54,7 @@ use axum::{Json, Router, http::StatusCode, routing::get};
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::never::NeverSessionManager,
 };
-use tower_governor::{
-    GovernorLayer,
-    governor::GovernorConfigBuilder,
-    key_extractor::{PeerIpKeyExtractor, SmartIpKeyExtractor},
-};
+use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 
 use crate::state::AppState;
 
@@ -132,52 +130,47 @@ pub fn router(state: AppState) -> Router<AppState> {
     // `.layer()` wraps what it is called on, so the LAST one applied is
     // the OUTERMOST. Built inside-out here, a request sees:
     //
-    //     require_enabled  →  governor  →  authenticate  →  transport
+    //   require_enabled → governor(address) → authenticate → governor(key) → transport
     //
     // That order is deliberate. The kill-switch is first because a
     // disabled feature should cost a config read and nothing else. The
-    // limiter sits *ahead* of authentication so a flood of bad
-    // credentials is shed before it can spend a key lookup each — its
-    // bucket key comes straight off the raw header, so it needs no
-    // resolved principal to do its job.
+    // address limiter sits ahead of authentication so a flood of bad
+    // credentials is shed before it can spend a key lookup each. The
+    // key limiter sits *behind* it, keyed on the verified key id: ahead
+    // of it, it trusted the public prefix, and anyone who had seen a
+    // prefix could drain its owner's budget — see `guard::ApiKeyBucket`.
     // The absolute path, not `/` + a nest: this router is `merge`d into
     // the top-level one (see `main.rs`), which prefixes nothing.
-    let mut mcp =
-        Router::new()
-            .route_service(PATH, service)
-            .layer(axum::middleware::from_fn_with_state(
-                state.clone(),
-                guard::authenticate,
-            ));
+    let mut mcp = Router::new().route_service(PATH, service);
+
+    let expect_valid = "valid MCP governor configuration (both knobs clamped ≥ 1 in config.rs)";
+
+    // Evict limiter state that has not been hit recently. Without it the
+    // per-key and per-address maps grow for as long as the process lives.
+    // A macro rather than a function because the bounds would name
+    // `governor`, which is only a transitive dependency; `main.rs`
+    // sidesteps it the same way.
+    macro_rules! with_cleanup {
+        ($name:literal, $conf:expr) => {{
+            let conf = Arc::new($conf);
+            let limiter = conf.limiter().clone();
+            crate::services::jobs::spawn_supervised($name, async move {
+                let interval = std::time::Duration::from_secs(60);
+                loop {
+                    tokio::time::sleep(interval).await;
+                    limiter.retain_recent();
+                }
+            });
+            conf
+        }};
+    }
 
     if state.config.rate_limit_enabled {
-        let expect_valid = "valid MCP governor configuration (both knobs clamped ≥ 1 in config.rs)";
-
-        // Evict limiter state that has not been hit recently. Without
-        // it the per-key and per-IP maps grow for as long as the process
-        // lives — a small leak, but one a prober rotating prefixes would
-        // be delighted to feed. A macro rather than a function because
-        // the bounds would name `governor`, which is only a transitive
-        // dependency; `main.rs` sidesteps it the same way.
-        macro_rules! with_cleanup {
-            ($name:literal, $conf:expr) => {{
-                let conf = Arc::new($conf);
-                let limiter = conf.limiter().clone();
-                crate::services::jobs::spawn_supervised($name, async move {
-                    let interval = std::time::Duration::from_secs(60);
-                    loop {
-                        tokio::time::sleep(interval).await;
-                        limiter.retain_recent();
-                    }
-                });
-                conf
-            }};
-        }
-
-        // ── Per key ──────────────────────────────────────────────
+        // ── Per key, behind authentication ───────────────────────
         // Fairness: each credential gets its own budget, so several
         // clients behind one NAT do not share one and a single agent's
-        // retry loop cannot throttle the rest.
+        // retry loop cannot throttle the rest. Keyed on the verified key
+        // id, so only the key's holder can spend it.
         let per_key = with_cleanup!(
             "mcp_governor_key_cleanup",
             GovernorConfigBuilder::default()
@@ -188,21 +181,21 @@ pub fn router(state: AppState) -> Router<AppState> {
                 .expect(expect_valid)
         );
         mcp = mcp.layer(GovernorLayer::new(per_key));
+    }
 
-        // ── Per IP, outside it ───────────────────────────────────
-        // 抜 · The per-key bucket alone is escapable, and by design:
-        // `ApiKeyBucket` reads the prefix off the raw header without
-        // checking it exists, precisely so it can shed bad credentials
-        // *before* spending a key lookup on each. The consequence is
-        // that a caller who rotates the prefix — `mcp_…01_x`,
-        // `mcp_…02_x` — gets a fresh bucket every time and the limiter
-        // stops limiting, which is the opposite of what it is there
-        // for.
-        //
-        // An address-keyed backstop closes that: the prefix is the
-        // attacker's to choose, the source address is not. It sits
-        // outside so a flood is dropped before it reaches either the
-        // key bucket or the database.
+    // Authentication wraps the key limiter (so the limiter sees a
+    // verified principal) and sits inside the address limiter below.
+    mcp = mcp.layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        guard::authenticate,
+    ));
+
+    if state.config.rate_limit_enabled {
+        // ── Per address, ahead of authentication ─────────────────
+        // 抜 · What sheds a flood of bad credentials before each one
+        // costs a key lookup: the source address is the one thing a
+        // caller cannot choose. (The key's prefix, which the per-key
+        // bucket used to trust, is theirs to rotate.)
         //
         // Which extractor is correct depends on the deployment and the
         // two are harmful in each other's, exactly as in `main.rs` —
@@ -218,7 +211,9 @@ pub fn router(state: AppState) -> Router<AppState> {
                 GovernorConfigBuilder::default()
                     .per_second(state.config.mcp.rate_limit_per_second)
                     .burst_size(ip_burst)
-                    .key_extractor(SmartIpKeyExtractor)
+                    .key_extractor(crate::client_ip::TrustedProxyKeyExtractor {
+                        hops: state.config.trust_proxy_hops,
+                    })
                     .finish()
                     .expect(expect_valid)
             );
@@ -229,7 +224,7 @@ pub fn router(state: AppState) -> Router<AppState> {
                 GovernorConfigBuilder::default()
                     .per_second(state.config.mcp.rate_limit_per_second)
                     .burst_size(ip_burst)
-                    .key_extractor(PeerIpKeyExtractor)
+                    .key_extractor(crate::client_ip::PeerKeyExtractor)
                     .finish()
                     .expect(expect_valid)
             );

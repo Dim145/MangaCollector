@@ -155,9 +155,21 @@ pub async fn list_following(
         .await
         .map_err(AppError::from)?;
 
+    // 友 · Who among them follows the caller back — one query, then a set.
+    let followers: std::collections::HashSet<i32> = FollowEntity::find()
+        .filter(follow::Column::FollowingId.eq(follower_id))
+        .filter(follow::Column::FollowerId.is_in(rows.iter().map(|r| r.user_id)))
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .map(|f| f.follower_id)
+        .collect();
+
     Ok(rows
         .into_iter()
         .map(|r| FollowedUser {
+            follows_back: followers.contains(&r.user_id),
             user_id: r.user_id,
             public_slug: r.public_slug,
             display_name: r.display_name,
@@ -295,11 +307,19 @@ pub async fn feed(db: &Db, follower_id: i32, limit: u64) -> Result<Vec<FeedEntry
         // An event about a series the actor keeps off their public
         // surface stays off their followers' feeds too: the adult
         // opt-out and the Birthday-mode wishlist horizon, the same two
-        // gates `build_public_profile` applies. An event whose series
-        // isn't in their library any more has nothing left to hide.
+        // gates `build_public_profile` applies.
+        //
+        // 公開 · An event about a series that is no longer in their
+        // library is *not* shown: it was once judged "nothing left to
+        // hide", but the activity row keeps the series' name, so
+        // deleting an adult series published it — its own
+        // `series_removed` event, and every older event about it that
+        // the gate had been hiding until then. Without the row there is
+        // nothing to judge the event by, so it stays hidden. Events
+        // about no series at all are judged on their own.
         .filter(|r| {
             let Some(owned) = r.entry_volumes_owned else {
-                return true;
+                return r.mal_id.is_none();
             };
             let genres: Vec<String> = r
                 .entry_genres
@@ -480,19 +500,22 @@ pub async fn compute_overlap(db: &Db, user_id: i32) -> Result<OverlapResponse, A
         ) {
             continue;
         }
-        let entry = tally.entry(mal_id).or_insert_with(|| {
-            (
-                0,
-                row.name.clone(),
-                row.image_url_jpg.clone(),
-                genres.clone(),
-            )
-        });
+        // 門 · The friend's cover as the *viewer* can load it: their
+        // custom poster through their public path, an external CDN
+        // address as it is, anything else not at all.
+        let cover = crate::services::cover_pool::cover_seen_by_others(
+            row.image_url_jpg.as_deref(),
+            owner.public_slug.as_deref(),
+            mal_id,
+        );
+        let entry = tally
+            .entry(mal_id)
+            .or_insert_with(|| (0, row.name.clone(), cover.clone(), genres.clone()));
         entry.0 += 1;
         // Keep the first non-empty image_url we see — bookkeeping
         // detail, the rail just needs *a* cover.
-        if entry.2.is_none() && row.image_url_jpg.is_some() {
-            entry.2 = row.image_url_jpg.clone();
+        if entry.2.is_none() && cover.is_some() {
+            entry.2 = cover;
         }
     }
 

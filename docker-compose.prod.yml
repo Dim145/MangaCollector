@@ -8,8 +8,15 @@ networks:
 services:
   server:
     build: ./server
+    # 門 · Loopback only. The reverse proxy in front is the way in; a
+    # port published on every interface bypasses it — and host firewalls
+    # like UFW, whose rules Docker's own chains skip. Reached directly,
+    # `X-Forwarded-For` is whatever the caller writes, so with
+    # TRUST_PROXY_HEADERS=true the rate limiter would key on a value the
+    # caller chooses. A proxy on the host reaches 127.0.0.1; a proxy in
+    # another container should join this network and use `server:3000`.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     env_file:
       - ./server/.env
     restart: unless-stopped
@@ -29,7 +36,7 @@ services:
     # This was `5173:5173` — the container port nothing binds — so the
     # published port answered nothing at all.
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"
     restart: unless-stopped
     read_only: true
     security_opt:

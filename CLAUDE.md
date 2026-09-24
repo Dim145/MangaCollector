@@ -27,8 +27,14 @@ reference. See `docs/modules/realtime.md` § "Who publishes".
 
 **Auth:** `openidconnect` 4 — Google OAuth 2.0 or generic OpenID Connect,
 selected by `AUTH_MODE`. Sessions are PostgreSQL-backed via `tower-sessions`
-+ `tower-sessions-sqlx-store`. The `AuthenticatedUser` extractor in
-`server/src/auth.rs` is the authz gate on protected routes.
++ `tower-sessions-sqlx-store`; an hourly task deletes the expired rows,
+which nothing did before. The `AuthenticatedUser` extractor in
+`server/src/auth.rs` is the authz gate on protected routes. Logout and
+account deletion answer with `Clear-Site-Data: "cache"` so a shared
+browser does not keep the account's private images in its HTTP cache,
+and the client wipes its own caches (Dexie, the service-worker image
+caches, the stored ETags) on the way out — and on a 401/403 once a
+device holds someone's shelf.
 
 **Database:** PostgreSQL. SeaORM for all business logic; a raw sqlx pool is
 kept alongside it purely for the session store and for migrations.
@@ -37,9 +43,30 @@ kept alongside it purely for the session store and for migrations.
 filesystem fallback when `STORAGE_DIR` is set instead.
 
 **Realtime:** Axum WebSocket at `/api/ws` — per-user broadcast that pushes
-cache invalidations for cross-device sync.
+cache invalidations for cross-device sync. A client frame is capped at
+4 KiB (it only ever sends pings), the session is re-checked every 30 s
+ping so a revoked device loses its socket, and a subscriber that falls
+behind the broadcast gets a full resync instead of silently missed
+events.
 
-**Rate limiting:** `tower_governor`, controlled by the `RATE_LIMIT_*` vars.
+**Rate limiting:** `tower_governor`, controlled by the `RATE_LIMIT_*`
+vars, keyed by `client_ip.rs` (peer address, or the right
+`X-Forwarded-For` entry behind `TRUST_PROXY_HEADERS`). Work that holds
+something scarce is also queued per account through `util/turnstile.rs`:
+one archive import per account and two per instance (its transaction
+under a 120 s statement timeout), and the same for imports by username,
+which call Jikan / AniList / MangaDex on the instance's behalf (a
+MangaDex list stops at 150 s or at the first 429).
+
+**Outbound requests:** the shared client follows at most two redirects,
+and only to `https` on a public host (`util/outbound.rs`); the cover
+relay follows none.
+
+**Uploads:** image routes take 6 MiB (`UPLOAD_BODY_LIMIT`, per route in
+`routes/api.rs`) rather than the global `MAX_BODY_SIZE_MB`, and answer
+413 when it is exceeded. Private images (posters, snapshots, author and
+shelf photos) are served `private, no-cache` with a weak `ETag` — a
+replaced image is never shown stale and an unchanged one costs a 304.
 
 **HTTP caching:** `CompressionLayer` (gzip + brotli) wraps the whole
 app, and `http_cache::etag_middleware` gives every JSON `GET` under
@@ -78,9 +105,10 @@ CORS exposed headers.
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET_NAME`, `S3_REGION`, `S3_USE_SSL`, `S3_USE_PATH_STYLE` | S3/MinIO storage backend |
 | `STORAGE_DIR` | Local-filesystem storage backend instead of S3 |
 | `REDIS_URL` | Optional response cache; unset = cache-less |
-| `CACHE_PREFIX` | Key prefix for the Redis cache |
+| `CACHE_PREFIX` | Key prefix for the Redis cache, and the realtime channel's name (`{CACHE_PREFIX}:sync`) — two instances sharing one Redis no longer hear each other's invalidations, whose payloads name user ids |
 | `RATE_LIMIT_ENABLED`, `RATE_LIMIT_PERIOD_SECONDS`, `RATE_LIMIT_BURST_SIZE` | `tower_governor` tuning |
 | `TRUST_PROXY_HEADERS` | `true` behind a reverse proxy you control, so the rate limiter keys on `X-Forwarded-For` instead of the socket's peer address. Default `false`. Wrong either way is bad: unset behind a proxy, everyone shares one bucket; set without one, the header is forged and the limiter does nothing. |
+| `TRUSTED_PROXY_HOPS` | 源 · How many proxies you run in a row (default 1, clamped to [1, 5]). The client is the address that many places from the **right** of `X-Forwarded-For` — the one your proxy appended. The stock extractor read the leftmost entry, which is the one the client wrote, so a random value per request minted a fresh bucket per request. IPv6 is bucketed by /64 (`client_ip.rs`) |
 | `MAX_BODY_SIZE_MB` | Optional, default 10, clamped to [1, 1024] |
 | `X_FRAME_OPTIONS` | Frame-ancestors header value |
 | `APP_UNSECURE_HEALTHCHECK` | `true` allows non-loopback `/api/health` |
@@ -141,9 +169,10 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 174 tests across 35 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 195 tests across 38 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `http_cache.rs`, `handlers/cover.rs`,
-  `observability.rs`, `util/{url,uuid,image,isbn}.rs`,
+  `observability.rs`, `client_ip.rs`,
+  `util/{url,uuid,image,isbn,outbound,turnstile}.rs`,
   `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
   `services/api_keys.rs` pins the MCP credential rules — the scope
@@ -156,14 +185,25 @@ docker compose build
   `services/users.rs` pins `row_publicly_visible` — the one predicate
   every cross-user surface asks before showing a row (adult opt-out AND
   the Birthday-mode wishlist horizon, independently); `archive.rs` also
-  pins the import ceilings and the ledger index.
+  pins the import ceilings — counting the tomes a series' `volumes`
+  would *generate* and the box sets, not only the rows the bundle lists
+  — that a restore bounds free text without rewriting it (an empty
+  store stays empty), and the ledger index.
   `services/archive.rs` also pins the **spreadsheet export**: a BOM so
   Excel reads the accents, dates as days rather than instants, one line
   per tome carrying the copy (price, grade, shelf, barcode, purchase
   day, doubles) and not just its price, and a formula hidden in a
   series name neutralised.
   `services/cover_pool.rs` pins the cover-URL allowlist (host match,
-  `http`→`https`, no credentials, own posters pass); `loan_history.rs`
+  `http`→`https`, no credentials, and of the same-origin paths only the
+  owner's own poster — `/\evil.test/x` is another host to a browser);
+  `handlers/cover.rs` pins that the relay only ever fetches a URL it
+  **rebuilt** from a literal origin and parsed numbers (a MAL image
+  path, a pair of MangaDex UUIDs), never the one it was handed — that
+  is what closed CodeQL's `rust/request-forgery`; `client_ip.rs` which
+  `X-Forwarded-For` entry the limiter trusts; `util/outbound.rs` that
+  a redirect never takes a server request into a private network;
+  `loan_history.rs`
   the loans CSV (statuses, BOM, date bounds); `locations.rs` the note
   hygiene; `settings.rs` pins the currency catalogue — which character
   groups the thousands and which marks the fraction, a pair that was
@@ -179,7 +219,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 107 tests across 60 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 116 tests across 60 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -461,16 +501,17 @@ stateless), so an AI client can read and curate one account's collection.
   (`main.rs`). MCP clients send no `Origin`, so `csrf_origin_guard`
   would 403 every tool call. Skipping it is safe because the endpoint
   accepts **no cookie** — there is no ambient authority to abuse. It
-  also skips the per-IP limiter and brings its own, keyed on the key's
-  public prefix, so clients behind one NAT don't share a bucket.
-- **Layer order** is `require_enabled → governor(IP) → governor(key) →
-  authenticate → transport`: a disabled feature costs a config read, and
-  a flood of bad credentials is shed before it can spend a key lookup
-  each. Two limiters because the per-key bucket is escapable by design —
-  it trusts the presented prefix so it can shed before authenticating,
-  so a caller rotating prefixes gets a fresh bucket each time; the
-  address-keyed backstop outside it (six times looser) is what the
-  caller cannot choose.
+  also skips the app-wide per-IP limiter and brings its own two.
+- **Layer order** is `require_enabled → governor(IP) → authenticate →
+  governor(key) → transport`: a disabled feature costs a config read,
+  and a flood of bad credentials is shed by the address limiter (six
+  times looser than the key's, so several agents behind one NAT fit)
+  before it can spend a key lookup each. The per-key bucket sits
+  *behind* authentication and is keyed on the **verified key id**. It
+  used to sit ahead and trust the presented prefix, which is public —
+  it is shown in the settings list and the audit trail — so anyone who
+  had seen it could drain the owner's budget by sending garbage under
+  it. `guard.rs` pins that the bucket never comes from the header.
 - **`allowed_hosts` is extended, never assigned.** rmcp validates `Host`
   to block DNS rebinding and ships loopback-only; assigning the list
   drops those defaults and 403s everything silently.
@@ -492,6 +533,9 @@ stateless), so an AI client can read and curate one account's collection.
 - **Audit**: one `mcp_audit_log` row per call — tool, outcome
   (`ok|denied|error`), duration, and a **digest** of the arguments,
   never their content. Read back at `GET /api/user/api-keys/audit`.
+- **Nothing personal an agent does not need.** `whoami` answers the
+  display name and the scopes the key carries, not the account's
+  e-mail: every tool result lands in a model provider's context.
 - **A tool description is an API.** Closed vocabularies
   (`READING_STATUSES`, `VOLUME_CONDITIONS`) must be spelled out exactly
   as the server accepts them; written from memory they were wrong twice,
@@ -560,8 +604,20 @@ only checks magic bytes and a 4 MiB ceiling.
   with the volume (`volume_id` goes `NULL`). It travels in the archive
   bundle and is what "already lent N times" and the borrower suggestions
   read from.
+- A loan **linked to another account** (`borrower_user_id`) needs a
+  **mutual follow**, checked on lend and again on archive restore
+  (`volume::mutual_follow`). Following is one-sided and needs nobody's
+  consent, so on its own it let anyone write a row into a stranger's
+  "borrowed" page; the page itself only lists lenders the borrower
+  follows, so unfollowing is how a borrower hides one. The loan sheet
+  offers only friends with `follows_back`.
 - Custom (non-MAL) series use a **negative `mal_id`**, allocated from a
   sequence to stay race-free.
+- Whatever one account shows another goes through the visibility rule:
+  public totals count only the series the visitor may see, the friends
+  feed drops an event whose series is gone rather than naming it, and a
+  cover is rewritten to the owner's public poster URL
+  (`cover_pool::cover_seen_by_others`) instead of the private path.
 
 ## Frontend (`client/src/`)
 
@@ -626,7 +682,17 @@ chronologically on reconnect. Routing via React Router 7.
   (`:8080`) and the direct server/client mappings are bound to loopback.
   `AUTH_CLIENT_SECRET` and the other real secrets come from the
   environment — compose refuses to start without them.
-- `docker-compose.prod.yml` — prod: server + client only.
+- `docker-compose.prod.yml` — prod: server + client only, published on
+  **loopback** (`127.0.0.1:3000`, `127.0.0.1:5173`): the reverse proxy in
+  front is the way in. Published on every interface, the server was
+  reachable around the proxy — and with `TRUST_PROXY_HEADERS` on, a
+  direct caller could forge `X-Forwarded-For`.
+- `client/docker-entrypoint.sh` templates the operator's variables into
+  `index.html` and the CSP; each value must match a pattern of its own
+  and carry no line break. `grep` matches line by line, so a value
+  spanning two lines used to pass on the strength of one of them and
+  template the other in as it was — out of the JS string, or as a
+  header of its own.
 - Backend image: multi-stage `rust:alpine` → static musl binary in
   `FROM scratch`, running as `USER 65532:65532`.
 - Frontend image: `node:24-alpine` build → `nginx:alpine`. The nginx master

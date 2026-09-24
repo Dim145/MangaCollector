@@ -125,15 +125,21 @@ pub async fn authenticate(State(state): State<AppState>, mut req: Request, next:
     next.run(req).await
 }
 
-/// Rate-limit bucket key: the *public* prefix of the presented key.
+/// Rate-limit bucket key: the id of the key `authenticate` verified.
 ///
 /// The IP-based extractor the rest of the app uses is wrong here — a
 /// household or a CGNAT carrier would share one bucket, and a single
 /// agent's retry loop would throttle everyone behind it. Keying on the
-/// prefix gives each credential its own budget.
+/// credential gives each its own budget.
 ///
-/// Only the prefix is used, never the secret: bucket keys live in memory
-/// and are the sort of thing that ends up in a debug dump.
+/// 鍵 · The *verified* key, not the presented prefix. The bucket used to
+/// be charged before authentication, keyed on the prefix off the raw
+/// header — and the prefix is public by design (shown in settings, safe
+/// to log). Anyone who had seen it could send `mcp_<prefix>_x` once a
+/// second and keep the owner's agent on 429 indefinitely. Charged after
+/// authentication, only the key's holder can spend its budget; a flood
+/// of bad credentials is the per-address limiter's to shed, which it
+/// always was — a rotating prefix escaped this bucket anyway.
 #[derive(Clone)]
 pub struct ApiKeyBucket;
 
@@ -144,14 +150,13 @@ impl KeyExtractor for ApiKeyBucket {
         &self,
         req: &axum::http::Request<B>,
     ) -> Result<Self::Key, tower_governor::GovernorError> {
-        // `mcp_<prefix>_<secret>` → `mcp_<prefix>`. Anything unparseable,
-        // a missing header included, shares one "anonymous" bucket —
-        // which is exactly where credential-probing traffic belongs.
-        Ok(presented(req.headers())
-            .and_then(|token| token.strip_prefix(api_keys::TOKEN_MARKER))
-            .and_then(|rest| rest.split('_').next())
-            .filter(|prefix| !prefix.is_empty())
-            .map(|prefix| format!("{}{prefix}", api_keys::TOKEN_MARKER))
+        // Only ever reached behind `authenticate`, which 401s anything it
+        // cannot verify; "anonymous" is the fail-closed answer should the
+        // layers ever be rearranged.
+        Ok(req
+            .extensions()
+            .get::<api_keys::ApiKeyPrincipal>()
+            .map(|principal| format!("key:{}", principal.key_id))
             .unwrap_or_else(|| "anonymous".to_string()))
     }
 }
@@ -205,16 +210,33 @@ mod tests {
         assert_eq!(presented(r.headers()), None);
     }
 
+    /// 鍵 · The bucket belongs to the key `authenticate` verified. The
+    /// prefix a caller presents is public — shown in settings, safe to
+    /// log — so a bucket keyed on it could be drained by anyone who had
+    /// seen it.
     #[test]
-    fn the_bucket_is_the_public_prefix_and_never_the_secret() {
-        let key = ApiKeyBucket
-            .extract(&req(&[(
-                "authorization",
-                "Bearer mcp_0123456789ab_not-a-real-secret",
-            )]))
-            .unwrap();
-        assert_eq!(key, "mcp_0123456789ab");
+    fn the_bucket_is_the_verified_key_and_never_the_presented_prefix() {
+        let user: crate::models::user::Model = serde_json::from_value(serde_json::json!({
+            "id": 7, "created_on": "2026-01-01T00:00:00Z", "modified_on": "2026-01-01T00:00:00Z",
+            "name": null, "email": null, "google_id": null, "public_slug": null,
+            "public_show_adult": false, "wishlist_public_until": null, "calendar_token": null
+        }))
+        .unwrap();
+        let mut verified = req(&[("authorization", "Bearer mcp_0123456789ab_not-a-real-secret")]);
+        verified.extensions_mut().insert(api_keys::ApiKeyPrincipal {
+            user,
+            key_id: "k-42".into(),
+            prefix: "0123456789ab".into(),
+            scopes: Default::default(),
+        });
+        let key = ApiKeyBucket.extract(&verified).unwrap();
+        assert_eq!(key, "key:k-42");
         assert!(!key.contains("not-a-real-secret"));
+
+        // Someone else's prefix, presented without the secret, does not
+        // select that key's bucket.
+        let forged = req(&[("authorization", "Bearer mcp_0123456789ab_x")]);
+        assert_eq!(ApiKeyBucket.extract(&forged).unwrap(), "anonymous");
     }
 
     #[test]

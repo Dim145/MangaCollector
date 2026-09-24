@@ -25,6 +25,20 @@ use crate::services::cover_pool::allowed_cover_url;
 /// the preview (which reports `total_in_file`).
 const MAX_ENTRIES: usize = 500;
 
+/// 並 · Imports that call somebody else's API, running now. Each one is a
+/// stream of requests to Jikan, AniList or MangaDex from this instance's
+/// address; thirty at once from one caller was a hundred and twenty
+/// requests a second at MangaDex, whose limit is five, and the ban that
+/// follows breaks search, covers and refresh for every user. One per
+/// account, two per instance.
+pub static EXTERNAL_FETCHES: std::sync::LazyLock<crate::util::turnstile::Turnstile> =
+    std::sync::LazyLock::new(|| crate::util::turnstile::Turnstile::new(2, "external import"));
+
+/// How long one MangaDex list import may take, all calls included. At
+/// four a second, 500 titles is about two minutes; past this, what has
+/// been gathered is returned rather than holding the request open.
+const MANGADEX_IMPORT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(150);
+
 /// Per-request timeout for outbound calls (Jikan, AniList, MangaDex).
 /// The shared `reqwest::Client` from `main.rs` carries a 30 s default,
 /// but a paginated MAL fetch can chain up to 50 pages × 25 entries —
@@ -573,7 +587,12 @@ pub async fn fetch_mangadex_by_input(
     // infrequent enough that the TTL savings aren't worth surprising
     // users with stale names/covers.
     let mut series = Vec::new();
+    let deadline = std::time::Instant::now() + MANGADEX_IMPORT_DEADLINE;
     for id in &manga_ids {
+        if std::time::Instant::now() >= deadline {
+            tracing::info!(gathered = series.len(), "mangadex import: deadline reached");
+            break;
+        }
         match crate::services::mangadex_api::get_by_id(client, None, id).await {
             Ok(Some(m)) => {
                 series.push(ExportSeries {
@@ -601,6 +620,15 @@ pub async fn fetch_mangadex_by_input(
                 });
             }
             Ok(None) => { /* silently skip 404s — user may have pasted a dead UUID */ }
+            // 礼 · Told to slow down: stop, and hand back what we have.
+            // Carrying on at the same pace is how an instance gets banned.
+            Err(err) if err.is::<crate::services::mangadex_api::RateLimited>() => {
+                tracing::info!(
+                    gathered = series.len(),
+                    "mangadex import: rate limited, stopping"
+                );
+                break;
+            }
             Err(_) => { /* transient error, skip */ }
         }
         // MangaDex rate-limit: 5 req/s. 250ms between requests is safe.

@@ -89,6 +89,12 @@ pub struct Config {
     /// is over-strict rather than unprotected. The shipped compose
     /// files put Traefik in front and set it to `true`.
     pub trust_proxy_headers: bool,
+    /// How many reverse proxies stand in front, when
+    /// `trust_proxy_headers` is on (`TRUSTED_PROXY_HOPS`, default 1).
+    /// The client is the address that many places from the right of
+    /// `X-Forwarded-For` — the one the proxy chain appended, never the
+    /// leftmost one the client wrote. See `client_ip.rs`.
+    pub trust_proxy_hops: usize,
     /// Value served in the `X-Frame-Options` response header for every
     /// response. Default `DENY` (refuse all iframing). Set to
     /// `SAMEORIGIN` if a first-party subdomain legitimately needs to
@@ -271,6 +277,11 @@ impl Config {
                 .ok()
                 .map(|s| s.eq_ignore_ascii_case("true"))
                 .unwrap_or(false),
+            trust_proxy_hops: std::env::var("TRUSTED_PROXY_HOPS")
+                .ok()
+                .and_then(|s| s.trim().parse::<usize>().ok())
+                .unwrap_or(1)
+                .clamp(1, 5),
             x_frame_options: std::env::var("X_FRAME_OPTIONS")
                 .ok()
                 .filter(|s| !s.trim().is_empty())

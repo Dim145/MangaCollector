@@ -8,11 +8,14 @@ vi.mock("./axios", () => ({
   },
   resetSessionLostLatch: vi.fn(),
 }));
-vi.mock("@/lib/db.js", () => ({ clearAllUserData: vi.fn(() => Promise.resolve()) }));
+vi.mock("@/lib/db.js", () => ({
+  clearAllUserData: vi.fn(() => Promise.resolve()),
+  clearReadCaches: vi.fn(() => Promise.resolve()),
+}));
 
 const axiosMod = await import("./axios");
 const axios = axiosMod.default;
-const { clearAllUserData } = await import("@/lib/db.js");
+const { clearAllUserData, clearReadCaches } = await import("@/lib/db.js");
 const {
   checkAuthStatus,
   clearCachedUser,
@@ -131,6 +134,31 @@ describe("getAuthStatus", () => {
     axios.get.mockRejectedValueOnce(httpError(status));
     await getAuthStatus();
     expect(getCachedUser()).toBeNull();
+  });
+
+  /*
+   * 鍵 · A 401 means the session is gone — expired, or revoked from
+   * another device. What this device read of the account goes with it,
+   * so the public landing cannot keep drawing that shelf; what it still
+   * has to send (the outbox) stays, and so does the owner stamp that
+   * keeps the outbox from flushing into anyone else.
+   */
+  it("forgets the account's cached rows when the session is answered with a 401", async () => {
+    axios.get.mockResolvedValueOnce({ status: 200, data: USER });
+    await getAuthStatus(); // stamps the device for USER
+    clearReadCaches.mockClear();
+    axios.get.mockRejectedValueOnce(httpError(401));
+    await getAuthStatus();
+    expect(clearReadCaches).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("mc:owner")).not.toBeNull();
+  });
+
+  it("has nothing to forget on a device no account ever filled", async () => {
+    localStorage.removeItem("mc:owner");
+    clearReadCaches.mockClear();
+    axios.get.mockRejectedValueOnce(httpError(401));
+    await getAuthStatus();
+    expect(clearReadCaches).not.toHaveBeenCalled();
   });
 
   it("falls back to the cached user when the network is down", async () => {

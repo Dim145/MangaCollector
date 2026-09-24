@@ -297,18 +297,31 @@ pub async fn highest_known_vol_num(
 pub async fn highest_known_vol_num_globally(
     db: &Db,
     mal_id: i32,
+    users: &[i32],
 ) -> Result<i32, AppError> {
     use sea_orm::QuerySelect;
     use sea_orm::sea_query::Expr;
+    if users.is_empty() {
+        return Ok(0);
+    }
+    // 巻 · Among the readers this lookup is for, and never a number a
+    // reader typed: a manual announcement is somebody's claim, not a
+    // volume that exists, and one far enough ahead — up to `i32::MAX`,
+    // before it was bounded — stopped discovery for everyone else.
     let row: Option<Option<i32>> = VolumeEntity::find()
         .select_only()
         .column_as(Expr::col(volume::Column::VolNum).max(), "max_vol")
         .filter(volume::Column::MalId.eq(mal_id))
+        .filter(volume::Column::UserId.is_in(users.iter().copied()))
+        .filter(volume::Column::Origin.ne("manual"))
         .into_tuple()
         .one(db)
         .await
         .map_err(AppError::from)?;
-    Ok(row.flatten().unwrap_or(0))
+    Ok(row
+        .flatten()
+        .unwrap_or(0)
+        .clamp(0, crate::services::library::MAX_VOLUMES_PER_SERIES))
 }
 
 /// Diff `discovered` against the user's existing `user_volumes` rows
@@ -688,17 +701,25 @@ pub async fn distinct_followed_series(
         .collect())
 }
 
-/// User ids that have a given series in their library. Drives the
-/// per-user reconcile fan-out from the nightly sweep.
-pub async fn user_ids_owning_series(
+/// 名 · The readers of `mal_id` who stored it under exactly `name` — the
+/// only ones a lookup made with that name may write into.
+///
+/// The sweep searches upstream by title, and the title is whatever each
+/// reader's row says: a name any account can set when adding a series.
+/// Writing the answer into *every* owner of the id let one account
+/// rename a series and fill everybody else's calendar with another
+/// series' volumes. Now a lookup lands only where its name came from.
+pub async fn user_ids_owning_series_named(
     db: &Db,
     mal_id: i32,
+    name: &str,
 ) -> Result<Vec<i32>, AppError> {
     use sea_orm::QuerySelect;
     let rows: Vec<i32> = LibraryEntity::find()
         .select_only()
         .column(library_mod::Column::UserId)
         .filter(library_mod::Column::MalId.eq(mal_id))
+        .filter(library_mod::Column::Name.eq(name))
         .into_tuple()
         .all(db)
         .await

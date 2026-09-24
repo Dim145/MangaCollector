@@ -46,6 +46,22 @@ describe("coverSrc", () => {
     }
   });
 
+  it("only relays the two hosts the server will fetch from", () => {
+    setCoverProxy(true);
+    for (const direct of [
+      "https://books.google.com/books/content?id=x&zoom=1",
+      "https://covers.openlibrary.org/b/id/1-L.jpg",
+      "https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/x.jpg",
+      // A lookalike is not the host, and neither is its parent domain.
+      "https://cdn.myanimelist.net.evil.test/a.jpg",
+      "https://myanimelist.net/images/manga/1.jpg",
+      // The server refuses plain http on the right host too.
+      "http://cdn.myanimelist.net/images/manga/2/253146l.jpg",
+    ]) {
+      expect(coverSrc(direct)).toBe(direct);
+    }
+  });
+
   it("survives a URL it cannot parse", () => {
     setCoverProxy(true);
     expect(coverSrc("https://")).toBe("https://");

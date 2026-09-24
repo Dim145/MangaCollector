@@ -824,8 +824,53 @@ export async function readStreak() {
  *      that survives the redirect back to `/` unless explicitly
  *      removed.
  */
+/**
+ * 鍵 · Forget what this device read of an account whose session is gone,
+ * but keep what the account still has to *send*.
+ *
+ * A session that expired or was revoked from another device answers
+ * 401, and until now only the cached profile went: the shelf, prices,
+ * notes, borrowers and places stayed in IndexedDB, and the public
+ * landing page kept drawing that shelf for whoever opened it next.
+ * Every read cache goes here. The outbox stays — a collector whose
+ * session merely expired while offline edits were queued would lose
+ * them otherwise — and so does the owner stamp, which is what keeps
+ * that outbox from ever flushing into a different account (a foreign
+ * sign-in wipes it; the same account's sign-in sends it).
+ */
+export async function clearReadCaches() {
+  try {
+    const readTables = db.tables.filter((t) => !t.name.startsWith("outbox"));
+    await db.transaction("rw", readTables, async () => {
+      await Promise.all(readTables.map((table) => table.clear()));
+    });
+  } catch (err) {
+    console.warn("[db] clearReadCaches failed:", err?.message);
+  }
+  if (typeof caches !== "undefined") {
+    await Promise.all(
+      ["user-posters", "public-posters", "snapshot-images"].map((name) =>
+        caches.delete(name).catch(() => false),
+      ),
+    ).catch(() => {});
+  }
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("mc:etag:")) localStorage.removeItem(key);
+    }
+  } catch {
+    /* private mode */
+  }
+}
+
 export async function clearAllUserData() {
   // 1) Dexie
+  // 主 · Whether the tables really are empty. The owner stamp below is
+  // only removed when they are: an unstamped device is one the next
+  // sign-in *adopts*, so removing the stamp over a failed wipe handed
+  // the previous account's shelf — and its queued writes — to whoever
+  // signed in next.
+  let dexieCleared = false;
   try {
     // Clear EVERY table via `db.tables` rather than a hand-maintained
     // list. The previous explicit list had silently fallen behind the
@@ -839,8 +884,20 @@ export async function clearAllUserData() {
     await db.transaction("rw", db.tables, async () => {
       await Promise.all(db.tables.map((table) => table.clear()));
     });
+    dexieCleared = true;
   } catch (err) {
     console.warn("[db] clearAllUserData (Dexie) failed:", err?.message);
+    // A transaction that cannot run (a database closed by a newer
+    // tab's upgrade, a quota error) still leaves one way to empty it:
+    // drop the whole database. `disableAutoOpen: false` matters: Dexie
+    // 4 defaults it to true on delete, and every later query would then
+    // fail until the page was reloaded.
+    try {
+      await db.delete({ disableAutoOpen: false });
+      dexieCleared = true;
+    } catch (again) {
+      console.warn("[db] clearAllUserData (Dexie delete) failed:", again?.message);
+    }
   }
 
   // 2) Workbox / service worker runtime caches. We delete ALL caches
@@ -875,11 +932,13 @@ export async function clearAllUserData() {
     // has no business outliving the session that typed it in — least
     // of all on a shared device where the next person signs in.
     localStorage.removeItem("mc:google-books-key");
-    // 主 · The device's owner stamp. Cleared last: whoever refills
-    // these caches stamps it again (see lib/owner.js), and leaving a
-    // stale id behind would make the next sign-in look like an
-    // account switch and wipe a freshly-populated cache.
-    localStorage.removeItem("mc:owner");
+    // 主 · The device's owner stamp. Cleared last, and only over empty
+    // tables: whoever refills these caches stamps it again (see
+    // lib/owner.js), and leaving a stale id behind would make the next
+    // sign-in look like an account switch and wipe a freshly-populated
+    // cache. Over tables that are *not* empty the stamp stays, so the
+    // next account is seen as foreign and the wipe is retried then.
+    if (dexieCleared) localStorage.removeItem("mc:owner");
     // 冷 · The conditional-refresh tags and the relay's remembered
     // session. Both are about the account that just left: a tag whose
     // rows are gone would be answered `304` against an empty table

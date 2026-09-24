@@ -34,7 +34,26 @@ set -eu
 # that isn't is dropped with a word on stderr rather than templated in.
 reject_unsafe() {
     # $1 = variable name (for the message), $2 = value, $3 = ERE it must match
-    if [ -n "$2" ] && ! printf '%s' "$2" | grep -Eq "$3"; then
+    [ -n "$2" ] || return 0
+    # grep matches line by line: a value spanning two lines passed as
+    # soon as ONE of them matched, and the other line was templated in
+    # as it was — out of the JS string in index.html, or as a header of
+    # its own in the CSP. None of these values has any business
+    # containing a line break, so any CR or LF refuses the whole value.
+    #
+    # The newline is written literally: `$(printf '\n')` would be empty,
+    # command substitution strips trailing newlines, and an empty
+    # pattern refuses everything.
+    nl='
+'
+    cr=$(printf '\r')
+    case "$2" in
+        *"$nl"*|*"$cr"*)
+            echo "[entrypoint] $1 spans several lines — ignoring it." >&2
+            return 1
+            ;;
+    esac
+    if ! printf '%s' "$2" | grep -Eq "$3"; then
         echo "[entrypoint] $1 is not a valid value — ignoring it." >&2
         return 1
     fi

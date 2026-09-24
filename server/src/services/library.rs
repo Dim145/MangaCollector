@@ -241,6 +241,14 @@ pub async fn add_to_user_library(
     let volumes = clamp_volumes(req.volumes);
     let volumes_owned = clamp_volumes(req.volumes_owned.unwrap_or(0)).min(volumes);
     let mal_id = req.mal_id;
+    // 名 · Every add path funnels through here, so this is where the name
+    // is trimmed and bounded — and refused when there is none.
+    let Some(series_name) = crate::models::library::sanitize_label(
+        Some(req.name.clone()),
+        crate::models::library::SERIES_NAME_MAX_LEN,
+    ) else {
+        return Err(AppError::BadRequest("A series needs a name.".into()));
+    };
 
     // Validate any incoming `mangadex_id` here as well, not just in
     // the dedicated `/library/mangadex` handler — generic POST
@@ -341,7 +349,7 @@ pub async fn add_to_user_library(
         modified_on: Set(now),
         user_id: Set(user_id),
         mal_id: Set(mal_id),
-        name: Set(req.name),
+        name: Set(series_name),
         volumes: Set(volumes),
         volumes_owned: Set(volumes_owned),
         image_url_jpg: Set(image_url_final),
@@ -358,6 +366,23 @@ pub async fn add_to_user_library(
     // Create one volume row per volume
     for vol_num in 1..=volumes {
         volume::add_volume_tx(&txn, user_id, row.mal_id.unwrap_or(0), vol_num).await?;
+    }
+    // 数 · `volumes_owned` is a counter of owned *rows*, derived — never a
+    // number a caller supplies (see CLAUDE.md, Database). The rows above
+    // are all created unowned, so a request that said "3 owned" left a
+    // series showing 3/10 on the shelf and on the public profile with
+    // nothing owned behind it, until the next flip recounted it. Read
+    // as "owned up to N" — what an archive import already does for a
+    // series without tome detail — so the count and the rows agree.
+    if volumes_owned > 0 {
+        VolumeEntity::update_many()
+            .col_expr(volume_mod::Column::Owned, true.into())
+            .filter(volume_mod::Column::UserId.eq(user_id))
+            .filter(volume_mod::Column::MalId.eq(row.mal_id.unwrap_or(0)))
+            .filter(volume_mod::Column::VolNum.lte(volumes_owned))
+            .exec(&txn)
+            .await
+            .map_err(AppError::from)?;
     }
 
     // Capture row state we'll need after the txn commits before
@@ -470,7 +495,15 @@ pub async fn refresh_from_mangadex(
 
     let md_data = crate::services::mangadex_api::get_by_id(http_client, cache, &mangadex_id)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?
+        .map_err(|e| {
+            // Told to slow down is transient, and the client retries on
+            // exactly this status; anything else is ours to look at.
+            if e.is::<crate::services::mangadex_api::RateLimited>() {
+                AppError::UpstreamUnavailable(e.to_string())
+            } else {
+                AppError::Internal(e.to_string())
+            }
+        })?
         .ok_or_else(|| AppError::NotFound("MangaDex info not found".into()))?;
 
     let now = Utc::now();

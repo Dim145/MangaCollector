@@ -11,10 +11,8 @@
 
 use axum::{
     Json,
-    body::Body,
     extract::{Multipart, Path, State},
-    http::header,
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use serde_json::json;
 
@@ -29,11 +27,6 @@ use crate::util::image::{self as image_util, ImageFormat};
 /// Image cap — 5 MiB. The shelf renderer produces ~600 KB PNGs in
 /// practice; the cap is a DoS guard, not a budget.
 const MAX_SNAPSHOT_IMAGE_SIZE: usize = 5 * 1024 * 1024;
-
-/// `private` cache lifetime for served snapshots (5 days). See the
-/// comment in `handlers/storage.rs` for why intermediate caches must
-/// not store these responses.
-const PRIVATE_IMAGE_CACHE_MAX_AGE_SEC: u32 = 60 * 60 * 24 * 5;
 
 const SNAPSHOT_FORMATS: &[ImageFormat] = &[ImageFormat::Png, ImageFormat::Jpeg];
 
@@ -104,7 +97,7 @@ pub async fn upload_snapshot_image(
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?
+        .map_err(crate::errors::multipart_error)?
     {
         scanned += 1;
         if scanned > MAX_FIELDS_SCANNED {
@@ -117,7 +110,7 @@ pub async fn upload_snapshot_image(
                 field
                     .bytes()
                     .await
-                    .map_err(|e| AppError::BadRequest(e.to_string()))?,
+                    .map_err(crate::errors::multipart_error)?,
             );
             break;
         }
@@ -155,6 +148,7 @@ pub async fn get_snapshot_image(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(id): Path<i32>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Response, AppError> {
     let stored = snapshot::current_image_path(&state.db, user.id, id).await?;
     if stored.is_none() {
@@ -166,27 +160,7 @@ pub async fn get_snapshot_image(
         .get(&key)
         .await
         .map_err(|_| AppError::NotFound("Snapshot image not set".into()))?;
-    // Detect format from bytes — uploads accept PNG OR JPEG, so the
-    // served Content-Type can't be hard-coded.
-    let content_type = image_util::detect(&data)
-        .map(ImageFormat::content_type)
-        .unwrap_or("image/png");
-    let cache_control = format!("private, max-age={}", PRIVATE_IMAGE_CACHE_MAX_AGE_SEC);
-    let response = (
-        [
-            (
-                header::CONTENT_TYPE,
-                http::HeaderValue::from_str(content_type)
-                    .map_err(|e| AppError::Internal(format!("content-type header: {e}")))?,
-            ),
-            (
-                header::CACHE_CONTROL,
-                http::HeaderValue::from_str(&cache_control)
-                    .map_err(|e| AppError::Internal(format!("cache-control header: {e}")))?,
-            ),
-        ],
-        Body::from(data),
-    )
-        .into_response();
-    Ok(response)
+    // 冷 · Revalidated on every use, so a print is not readable from
+    // the browser's cache after its owner has logged out.
+    Ok(image_util::private_image_response(&headers, data, None))
 }

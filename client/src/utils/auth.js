@@ -1,6 +1,6 @@
 import axios, { resetSessionLostLatch } from "./axios";
-import { clearAllUserData } from "@/lib/db.js";
-import { isForeignOwner, writeOwner } from "@/lib/owner.js";
+import { clearAllUserData, clearReadCaches } from "@/lib/db.js";
+import { isForeignOwner, readOwner, writeOwner } from "@/lib/owner.js";
 
 /*
  * Auth strategy — survive server outages without bouncing the user to login.
@@ -209,6 +209,11 @@ export const getAuthStatus = async () => {
     const status = error?.response?.status;
     if (status === 401 || status === 403) {
       clearCachedUser();
+      // 鍵 · The session is gone (expired, or revoked from another
+      // device). What this device read of it goes too — see
+      // `clearReadCaches` for what stays and why. Awaited, so nothing
+      // renders from the old account's rows once the answer is in.
+      if (readOwner() != null) await clearReadCaches();
       return { kind: "unauthenticated" };
     }
     const cached = readCachedUser();

@@ -31,6 +31,9 @@ pub struct FollowedUser {
     pub public_slug: String,
     pub display_name: Option<String>,
     pub followed_at: chrono::DateTime<chrono::Utc>,
+    /// 友 · Whether they follow the caller back — a friend both ways,
+    /// which is what a loan can be linked to.
+    pub follows_back: bool,
 }
 
 /// 重 · A series the requesting user owns AND at least one followed

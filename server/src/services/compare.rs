@@ -18,12 +18,29 @@ async fn load_entries(db: &Db, user_id: i32) -> Result<Vec<LibraryEntry>, AppErr
     Ok(rows.into_iter().map(LibraryEntry::from).collect())
 }
 
-async fn total_owned_volumes(db: &Db, user_id: i32) -> Result<i64, AppError> {
+/// Owned tomes of `user_id`, counted only in `series` when given.
+///
+/// 公開 · The other side of a comparison is counted over the series it
+/// is allowed to show, not over every volume: the headline minus the
+/// visible cards would otherwise be the number of tomes kept in the
+/// series the owner chose to hide.
+async fn total_owned_volumes(
+    db: &Db,
+    user_id: i32,
+    series: Option<&std::collections::HashSet<i32>>,
+) -> Result<i64, AppError> {
     let rows = VolumeEntity::find()
         .filter(volume_mod::Column::UserId.eq(user_id))
         .all(db)
         .await?;
-    Ok(rows.iter().filter(|v| v.owned).count() as i64)
+    Ok(rows
+        .iter()
+        .filter(|v| v.owned)
+        .filter(|v| match series {
+            None => true,
+            Some(shown) => v.mal_id.is_some_and(|mal| shown.contains(&mal)),
+        })
+        .count() as i64)
 }
 
 fn to_entry(entry: &LibraryEntry) -> CompareEntry {
@@ -155,8 +172,10 @@ pub async fn compare_users(
         .unwrap_or_else(|| other_slug.clone().unwrap_or_default());
     let other_slug_ref = other_slug.as_deref().unwrap_or(&other_name);
 
-    let me_owned = total_owned_volumes(db, me.id).await?;
-    let other_owned = total_owned_volumes(db, other.id).await?;
+    let me_owned = total_owned_volumes(db, me.id, None).await?;
+    let theirs_shown: std::collections::HashSet<i32> =
+        theirs.iter().filter_map(|entry| entry.mal_id).collect();
+    let other_owned = total_owned_volumes(db, other.id, Some(&theirs_shown)).await?;
 
     Ok(CompareResponse {
         me: CompareUser {

@@ -216,7 +216,7 @@ pub async fn fetch_all_covers_for_manga(
 
     let status = response.status();
     if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
+        let body = log_excerpt(response.text().await.unwrap_or_default());
         tracing::warn!(mangadex_id, %status, body, "mangadex: non-2xx on /cover");
         return Ok(Vec::new());
     }
@@ -304,13 +304,20 @@ pub async fn get_by_id(
         .get(url)
         .header("User-Agent", USER_AGENT)
         .query(&[("includes[]", "cover_art")])
+        .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
         .context("Failed to reach MangaDex API")?;
 
     let status = response.status();
+    // 礼 · "Slow down" is not "not found": a caller walking a list has to
+    // be able to tell, and stop, rather than carry on at the same pace
+    // until the instance's address is banned for everyone.
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        return Err(anyhow::Error::new(RateLimited));
+    }
     if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
+        let body = log_excerpt(response.text().await.unwrap_or_default());
         tracing::warn!(mangadex_id, %status, body, "mangadex: non-2xx response on byId");
         return Ok(None);
     }
@@ -365,12 +372,12 @@ async fn fetch_mangadex_search(
         // Same rationale as mal_api.rs::search_by_title — bail on real
         // upstream trouble so merged_search can flag `degraded` and the
         // client routes into transient/retry UI instead of "no results".
-        let body = response.text().await.unwrap_or_default();
+        let body = log_excerpt(response.text().await.unwrap_or_default());
         tracing::warn!(%status, body, "mangadex: 5xx/429 on search");
         anyhow::bail!("MangaDex search non-success status: {status}");
     }
     if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
+        let body = log_excerpt(response.text().await.unwrap_or_default());
         tracing::warn!(%status, body, "mangadex: non-2xx response on search");
         return Ok(Vec::new());
     }
@@ -461,4 +468,30 @@ fn into_result(entry: MdManga) -> MangadexResult {
         status: attrs.status,
         content_rating: attrs.content_rating,
     }
+}
+
+/// MangaDex answered 429. Carried as its own error so a caller walking a
+/// list can stop instead of reading it as one missing title.
+#[derive(Debug)]
+pub struct RateLimited;
+
+impl std::fmt::Display for RateLimited {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("MangaDex rate limit reached")
+    }
+}
+
+impl std::error::Error for RateLimited {}
+
+/// The start of an upstream error body, for a log line. A whole body is
+/// whatever the upstream chose to send — kilobytes of HTML from a proxy
+/// in front of it, sometimes — written into the logs verbatim.
+fn log_excerpt(body: String) -> String {
+    const LIMIT: usize = 300;
+    if body.chars().count() <= LIMIT {
+        return body;
+    }
+    let mut cut: String = body.chars().take(LIMIT).collect();
+    cut.push('…');
+    cut
 }

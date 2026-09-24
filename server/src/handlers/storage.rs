@@ -1,9 +1,7 @@
 use axum::{
-    body::Body,
-    extract::{Multipart, Path, State},
-    http::header,
-    response::{IntoResponse, Response},
     Json,
+    extract::{Multipart, Path, State},
+    response::Response,
 };
 use serde_json::json;
 
@@ -36,16 +34,12 @@ fn is_custom_poster(image_url: Option<&str>) -> bool {
 /// for a high-res cover scan.
 const MAX_POSTER_SIZE: usize = 5 * 1024 * 1024;
 
-/// `private` cache lifetime for served blobs (5 days). Same value
-/// used by the snapshot and author-photo handlers — see comment at
-/// the call site for why intermediate caches must not store these.
-const PRIVATE_IMAGE_CACHE_MAX_AGE_SEC: u32 = 60 * 60 * 24 * 5;
-
 /// GET /api/user/storage/poster/:mal_id
 pub async fn get_poster(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
     Path(mal_id): Path<i32>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Response, AppError> {
     let entries = library::get_user_manga(&state.db, mal_id, user.id).await?;
     let entry = entries
@@ -112,45 +106,15 @@ pub async fn get_poster(
     let disposition = format!("inline; filename=\"{}_poster\"", mal_id)
         .parse()
         .map_err(|e| AppError::Internal(format!("disposition header: {e}")))?;
-    // Detect format from the actual bytes — the path uses `.jpg` for
-    // legacy reasons but the upload accepts JPEG/PNG/WebP. Serving
-    // the wrong Content-Type combined with `nosniff` breaks rendering
-    // in some browsers. Default to image/jpeg if detection fails
-    // (the upload validator should have rejected anything else, but
-    // a stored blob from before the validator was added might still
-    // be lurking).
-    let content_type = image_util::detect(&data)
-        .map(ImageFormat::content_type)
-        .unwrap_or("image/jpeg");
-    let cache_control = format!("private, max-age={}", PRIVATE_IMAGE_CACHE_MAX_AGE_SEC);
-    let response = (
-        [
-            (
-                header::CONTENT_TYPE,
-                http::HeaderValue::from_str(content_type)
-                    .map_err(|e| AppError::Internal(format!("content-type header: {e}")))?,
-            ),
-            (header::CONTENT_DISPOSITION, disposition),
-            (
-                // `private` is critical: the URL `/api/user/storage/
-                // poster/{mal_id}` is stable across users (two users who
-                // both have a custom poster for the same MAL id produce
-                // the same URL string), so without `private` an upstream
-                // proxy (Traefik, CDN, corporate gateway) could share a
-                // cached response across sessions and serve user A's
-                // cover to user B. `private` forbids intermediate caches
-                // from storing the response — only the end-user's
-                // browser keeps it, scoped to their own session.
-                header::CACHE_CONTROL,
-                http::HeaderValue::from_str(&cache_control)
-                    .map_err(|e| AppError::Internal(format!("cache-control header: {e}")))?,
-            ),
-        ],
-        Body::from(data),
-    )
-        .into_response();
-
-    Ok(response)
+    // 冷 · `private, no-cache` + a validator — see
+    // `private_image_response`. This URL is the same string for every
+    // account that has a custom poster for this series, so a cache that
+    // did not ask again served the previous account's cover.
+    Ok(image_util::private_image_response(
+        &headers,
+        data,
+        Some(disposition),
+    ))
 }
 
 /// POST /api/user/storage/poster/:mal_id
@@ -173,7 +137,7 @@ pub async fn upload_poster(
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|e| AppError::BadRequest(e.to_string()))?
+        .map_err(crate::errors::multipart_error)?
     {
         scanned += 1;
         if scanned > MAX_FIELDS_SCANNED {
@@ -186,7 +150,7 @@ pub async fn upload_poster(
                 field
                     .bytes()
                     .await
-                    .map_err(|e| AppError::BadRequest(e.to_string()))?,
+                    .map_err(crate::errors::multipart_error)?,
             );
             break;
         }

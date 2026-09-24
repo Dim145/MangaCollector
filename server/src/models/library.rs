@@ -122,6 +122,11 @@ pub fn normalize_publication_status(
 /// to comfortably hold "Édition originale collector" or longest known
 /// imprint names without letting a malicious client paste a megabyte.
 pub const PUBLISHER_MAX_LEN: usize = 80;
+/// 名 · A series title, in characters. MyAnimeList's longest run to a
+/// couple of hundred (light-novel adaptations); this is the ceiling, not
+/// a budget. Uncapped, a name could be a megabyte, stored once and sent
+/// to every visitor of the profile, the comparison and the feed.
+pub const SERIES_NAME_MAX_LEN: usize = 300;
 pub const EDITION_MAX_LEN: usize = 60;
 /// Per-row review cap. 5 000 chars holds a comfortable few paragraphs
 /// while keeping the public profile rendering predictable. Mirrored in

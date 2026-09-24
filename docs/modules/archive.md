@@ -152,7 +152,7 @@ Import — `apply_import_merge(db, user, bundle, dry_run, mode)`:
 ```mermaid
 flowchart TD
   A[version > 2 → 400] --> B[index live library by series_key → live mal_id]
-  B --> C[resolve_borrowers: slugs on volumes_detail<br/>kept when the user exists AND is followed]
+  B --> C[resolve_borrowers: slugs on volumes_detail<br/>kept when the user exists AND is a mutual follow]
   C --> D[BEGIN]
   D --> E{per series}
   E -- blank name or volumes < 0 --> F[skipped_invalid]
@@ -256,7 +256,9 @@ bundle to `/api/user/import`.
   the live series being touched.
 - **Borrower re-link.** `resolve_borrowers` collects slugs from
   `volumes_detail[].loaned_to_slug` only and keeps those that exist here
-  *and* are followed by the importer — the rule `set_loan` applies. A
+  *and* follow the importer as the importer follows them — the rule
+  `set_loan` applies. A bundle is a file anyone can write, so a one-way
+  follow would let it plant loans on a stranger's "borrowed" page. A
   ledger row whose `borrower_slug` is not also on a currently lent
   volume is imported with `borrower_user_id = NULL` **and**
   `borrower_slug = NULL` (`slug = borrower_user_id.and(…)` in
@@ -273,8 +275,13 @@ bundle to `/api/user/import`.
   upgrades `http://`) on `COVER_HOSTS` — `myanimelist.net`,
   `mangadex.org`, the wixmp host, `anilist.co`, `books.google.com`,
   `googleusercontent.com`, `covers.openlibrary.org`, `openlibrary.org`
-  — matched exactly or as a `.suffix`, plus server-relative `/…` paths
-  without `//` or `..`; userinfo, other schemes and unknown hosts become
+  — matched exactly or as a `.suffix`. Of the same-origin paths only
+  one shape passes, the account's own poster
+  (`/api/user/storage/poster/{mal_id}`). The rule used to be "starts
+  with `/`, no `//`, no `..`", which let through `/\evil.test/x` — a
+  browser reads the backslash as a slash and fetches another host —
+  and any API route, which an `<img>` then requested with the
+  visitor's cookie. Userinfo, other schemes and unknown hosts become
   `None` (the series is kept, the cover lost). The client CSP `img-src`
   in `client/security-headers.conf` names specific hosts (`cdn.myanimelist.net`,
   `uploads.mangadex.org`, `mangadex.org`, `s4.anilist.co`,
@@ -314,11 +321,32 @@ bundle to `/api/user/import`.
   runs every validation; only the library index and
   `resolve_borrowers` run outside the transaction.
 - **Size.** The bundle is one JSON body, so `MAX_BODY_SIZE_MB` (default
-  10) is the practical ceiling; volume inserts are chunked by 500 to
-  stay under Postgres' 65 535 parameters per statement.
-- **CSV.** `csv_escape` prefixes `=`, `+`, `@`, TAB, CR and a `-` not
-  followed by a digit or `.` with `'`, so a series called
-  `=HYPERLINK(…)` stays text in a spreadsheet. The loans CSV reuses it.
+  10) is the first ceiling; volume inserts are chunked by 500 to stay
+  under Postgres' 65 535 parameters per statement. `check_import_size`
+  then counts what the import would *write*, not what the file lists:
+  20 000 series, 400 000 tomes — including the `1..=volumes` a series
+  without `volumes_detail` synthesises, which a few kilobytes of JSON
+  used to turn into millions of rows — 200 000 loans, 5 000 places and
+  5 000 box sets (200 per series).
+- **One at a time.** An import holds a pool connection and a
+  transaction for its whole length, and the pool has twenty: twenty
+  imports at once left nothing for any other request. `IMPORTS`
+  (`util/turnstile.rs`) admits one per account and two per instance —
+  a refusal is a 409 — and the transaction runs under
+  `SET LOCAL statement_timeout = '120s'`.
+- **Bounded, not rewritten.** Every free-text field is cut to the
+  length the live path allows (`capped`), and otherwise left exactly
+  as it was: an empty store stays an empty string. Routing them through
+  `sanitize_label`, which folds `""` to `NULL`, looked tidier and made
+  a restore lossy — the verifier caught it on 748 volumes. The series
+  name is the exception (it must not be blank, `SERIES_NAME_MAX_LEN`);
+  the release fields go through the live path's own checks (ISBN
+  normalised, URL sanitised, `origin` only from the known list).
+- **CSV.** `csv_escape` prefixes `=`, `@`, TAB, CR, and a `-` or `+`
+  unless the *whole* cell parses as a number, with `'`, so a series
+  called `=HYPERLINK(…)` stays text in a spreadsheet. Looking only at
+  the character after the sign let `-1+1+cmd|' /C calc'!A0` through as
+  a negative number. The loans CSV reuses it.
 - Any new column on `user_libraries`, `user_volumes`, `coffrets`,
   `loan_history` or `locations` must be added to the bundle *and* to
   the field lists in `scripts/verify-archive-roundtrip.mjs`, which fails
@@ -371,7 +399,7 @@ inflation, non-ASCII intact).
 Local stack (`docs/test-stack.md`): with the stack up and seeded,
 `node scripts/verify-archive-roundtrip.mjs` enriches the seeded user
 (series fields, reading progression, three loans — one linked to a
-followed `friend-alex` account — notes, the physical copy and two real
+`friend-alex` account that follows back — notes, the physical copy and two real
 ISBNs, a pencilled upcoming volume, a coffret, an annotated place),
 exports, imports into a fresh `restore-check-*` user in merge mode,
 then damages the source (fields cleared, a loan returned, a note and a

@@ -464,6 +464,18 @@ pub async fn set_custom_photo_url(
 /// Resolve a custom author's storage key from its URL — used by the
 /// photo replace / delete paths to remove the previous blob before
 /// writing the new one.
+/// Is `mal_id` one of this user's own custom authors? The gate a photo
+/// upload has to pass *before* it writes anything to storage.
+pub async fn is_own_custom_author(db: &Db, user_id: i32, mal_id: i32) -> Result<bool, AppError> {
+    Ok(AuthorEntity::find()
+        .filter(author::Column::UserId.eq(user_id))
+        .filter(author::Column::MalId.eq(mal_id))
+        .one(db)
+        .await
+        .map_err(AppError::from)?
+        .is_some())
+}
+
 pub async fn current_photo_path(
     db: &Db,
     user_id: i32,

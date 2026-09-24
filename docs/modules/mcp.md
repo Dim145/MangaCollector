@@ -96,9 +96,10 @@ sequenceDiagram
 
     C->>G: POST /mcp  (Authorization: Bearer mcp_…)
     G->>G: MCP_ENABLED? → 403 feature_disabled
-    G->>G: governor, bucketed on the key prefix
+    G->>G: governor, bucketed on the source address
     G->>G: resolve the key → ApiKeyPrincipal into extensions
     Note over G,C: no key → 401 + WWW-Authenticate → metadata doc
+    G->>G: governor, bucketed on the verified key id
     G->>T: request
     T->>X: tools/call, Parts copied into the MCP extensions
     X->>X: read the principal, check the scope, start the clock
@@ -147,7 +148,7 @@ and the handler's own `ctx::authorize` is what stops it.
 
 | Tool | Scope |
 |---|---|
-| `whoami` | — any valid key |
+| `whoami` | — any valid key. Answers the display name and the key's scopes, **not the e-mail**: a key limited to `isbn:read` and handed to a third-party agent still reaches it |
 | `search_library`, `list_series`, `get_series`, `get_volumes`, `missing_volumes` | `library:read` |
 | `list_loans`, `loan_history` | `loans:read` |
 | `list_locations` | `locations:read` |
@@ -230,17 +231,21 @@ accepted as a fallback for those that cannot set `Authorization`.
   safe *because* the endpoint accepts no cookie: CSRF is an attack on
   ambient authority, and a bearer credential a browser will not attach on
   its own has none to abuse.
-- **Two limiters, and each covers the other's hole.** The inner one is
-  keyed on the key prefix — several clients behind one NAT would
-  otherwise share a bucket and one agent's retry loop would throttle the
-  rest. But `ApiKeyBucket` reads the prefix off the raw header without
-  checking it exists, *by design*, so it can shed bad credentials before
-  spending a key lookup on each — which means a caller who rotates the
-  prefix gets a fresh bucket every time and the limiter stops limiting.
-  So an address-keyed backstop sits outside it, six times looser: the
-  prefix is the caller's to choose, the source address is not. It
-  inherits the `TRUST_PROXY_HEADERS` caveat from `main.rs` — behind a
-  proxy you must set it, or every client shares the proxy's bucket.
+- **Two limiters, on either side of authentication.** The outer one is
+  keyed on the source address and sheds a flood of bad credentials
+  before each costs a key lookup — the address is the one thing a
+  caller cannot choose. It is six times looser than the key's, so
+  several agents behind one NAT fit, and it inherits the
+  `TRUST_PROXY_HEADERS` / `TRUSTED_PROXY_HOPS` caveat from `main.rs`:
+  behind a proxy you must set it, or every client shares the proxy's
+  bucket. The inner one is about fairness — one agent's retry loop must
+  not throttle another's — and sits **behind** authentication, keyed on
+  the verified key id. It used to sit in front, keyed on the prefix read
+  off the raw header; the prefix is public (the settings list and the
+  audit trail show it), so anyone who had seen one could send
+  `mcp_<prefix>_x` once a second and keep its owner's agent on 429.
+  Anything unverified shares one `anonymous` bucket, should the layers
+  ever be rearranged.
 - **`allowed_hosts` is pushed onto, never assigned.** rmcp validates
   `Host` to block DNS rebinding and ships accepting loopback only;
   assigning the list *replaces* those defaults and 403s everything
@@ -317,8 +322,8 @@ accepted as a fallback for those that cannot set `Authorization`.
 | `MCP_ENABLED` | `false` | Opt-in switch. Reads `== "true"`, so a typo leaves it closed |
 | `MCP_ALLOWED_HOSTS` | — | Extra `Host` values, comma-separated, on top of rmcp's loopback defaults |
 | `MCP_ALLOWED_ORIGINS` | — | Empty = unchecked, which is right for a cookie-less endpoint |
-| `MCP_RATE_LIMIT_PER_SECOND` | `1` | Per-key token refill |
-| `MCP_RATE_LIMIT_BURST` | `20` | Per-key burst — an agent fires a flurry of reads per question |
+| `MCP_RATE_LIMIT_PER_SECOND` | `1` | Per-key token refill (the per-address backstop shares it) |
+| `MCP_RATE_LIMIT_BURST` | `20` | Per-key burst — an agent fires a flurry of reads per question. The per-address backstop gets six times this |
 
 Traefik and the client nginx both route `/mcp` and the `.well-known`
 path as **exact paths**, not prefixes: `PathPrefix(/mcp)` would also
@@ -336,9 +341,9 @@ command the settings panel prints works verbatim under `pnpm dev`.
   parses; the digest is stable and is not the secret.
 - `routes/mcp/guard.rs` — Bearer wins over `X-Api-Key` and its scheme is
   matched case-insensitively (RFC 6750 §2.1; clients do send `bearer`),
-  Basic auth is not a credential, the bucket is the public prefix and
-  never the secret, unparseable credentials share one bucket, and the
-  401 points at the metadata document.
+  Basic auth is not a credential, the bucket is the verified key and
+  never the prefix a caller presents, unparseable credentials share one
+  bucket, and the 401 points at the metadata document.
 - `routes/mcp/ctx.rs` — a list becomes `{count, items}`, a scalar becomes
   `{value}`, a payload cannot close its own fence, control characters go
   but layout survives, oversized payloads say they were truncated while

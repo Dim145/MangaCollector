@@ -313,9 +313,17 @@ pub async fn build_public_profile(
     let mut per_series: HashMap<i32, (i64, i64, HashSet<i32>)> = HashMap::new();
     let mut total_owned: i64 = 0;
     let mut total_read: i64 = 0;
+    // 公開 · The totals count only the series this page shows. Counted
+    // over every volume, they let a visitor subtract the visible cards
+    // from the headline and learn how many tomes the owner keeps in
+    // the series they chose to hide.
+    let visible: HashSet<i32> = library.iter().filter_map(|entry| entry.mal_id).collect();
     for v in &volumes {
+        let shown = v.mal_id.is_some_and(|mal| visible.contains(&mal));
         if v.owned {
-            total_owned += 1;
+            if shown {
+                total_owned += 1;
+            }
             if let Some(mal) = v.mal_id {
                 let e = per_series.entry(mal).or_default();
                 e.0 += 1;
@@ -325,7 +333,9 @@ pub async fn build_public_profile(
             }
         }
         if v.read_at.is_some() {
-            total_read += 1;
+            if shown {
+                total_read += 1;
+            }
             if let Some(mal) = v.mal_id {
                 per_series.entry(mal).or_default().2.insert(v.vol_num);
             }
@@ -711,6 +721,21 @@ pub async fn delete_account(
         .map_err(AppError::from)?;
     let author_mal_ids: Vec<i32> = author_rows.iter().map(|a| a.mal_id).collect();
 
+    // 写 · Places that carry a shelf photo → their blobs. The rows go
+    // with the user (FK cascade) and nothing else points at the files,
+    // so a list taken now is the only record of them: without it,
+    // photos of the inside of someone's home outlived "delete my
+    // account".
+    let place_photo_ids: Vec<i64> = crate::models::location::Entity::find()
+        .filter(crate::models::location::Column::UserId.eq(user_id))
+        .filter(crate::models::location::Column::PhotoUpdatedAt.is_not_null())
+        .all(db)
+        .await
+        .map_err(AppError::from)?
+        .into_iter()
+        .map(|place| place.id)
+        .collect();
+
     // tower_sessions session ids — gathered from user_session_meta
     // BEFORE the cascade wipes them. Postgres won't tell us which raw
     // session blobs to nuke once the meta row is gone.
@@ -786,6 +811,12 @@ pub async fn delete_account(
             tracing::warn!(user_id, mal_id, error = %e, "delete_account: author photo removal failed");
         }
     }
+    for place_id in &place_photo_ids {
+        let path = crate::services::locations::photo_storage_path(user_id, *place_id);
+        if let Err(e) = storage.remove(&path).await {
+            tracing::warn!(user_id, place_id, error = %e, "delete_account: place photo removal failed");
+        }
+    }
     for sid in &session_ids {
         // 始末 · Use the shared helper, which targets the real
         // `"tower_sessions"."session"` table. The previous raw
@@ -805,6 +836,7 @@ pub async fn delete_account(
         posters = library_mal_ids.len(),
         snapshots = snapshot_ids.len(),
         author_photos = author_mal_ids.len(),
+        place_photos = place_photo_ids.len(),
         sessions = session_ids.len(),
         "account deleted"
     );

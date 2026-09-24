@@ -1,5 +1,6 @@
 import { useT } from "@/i18n/index.jsx";
 import { useAuth } from "@/hooks/useAuth.js";
+import { getCachedUser } from "@/utils/auth.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import CoverImage from "@/components/ui/CoverImage.jsx";
 
@@ -70,7 +71,7 @@ export default function About() {
   // used to hand this page App's `googleUser`, which only a protected
   // route ever sets — so a signed-in visitor who *landed* here was
   // greeted as a stranger until they had been somewhere else first.
-  const { isAuthenticated: isAuthed } = useAuth();
+  const { isAuthenticated: isAuthed, status } = useAuth();
 
   // Dexie is read either way (instant, no request); the network
   // revalidation only runs for a signed-in visitor. The shelf follows
@@ -81,8 +82,17 @@ export default function About() {
   // so a returning collector never sees the spread flash before their
   // covers. The call to action, by contrast, follows the session.
   const { data: library } = useLibrary({ enabled: isAuthed });
+  // 鍵 · Whose shelf this may be. Signed in, or signed in as far as an
+  // offline device can tell, or — while the probe is still out — a
+  // device that remembers a signed-in profile. A device whose session
+  // was answered with a 401 has neither the profile nor, since
+  // `clearReadCaches`, the rows; this keeps the probe's own few
+  // hundred milliseconds from drawing somebody else's covers for
+  // whoever opened the page.
+  const mayShowShelf =
+    isAuthed || (status?.kind === "checking" && getCachedUser() != null);
   const shelf =
-    library.length >= MIN_SHELF
+    mayShowShelf && library.length >= MIN_SHELF
       ? [...library]
           // Most recently touched first — "what you were just doing",
           // not the arbitrary MAL-id order the cache happens to hold.

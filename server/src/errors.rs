@@ -24,6 +24,12 @@ pub enum AppError {
     #[error("{0}")]
     Forbidden(String),
 
+    /// 413 — the body is over the route's limit. Kept apart from a 400:
+    /// a client can tell the reader "this file is too big" instead of
+    /// "something about this request is wrong".
+    #[error("{0}")]
+    PayloadTooLarge(String),
+
     #[error("Database error: {0}")]
     Database(String),
 
@@ -83,7 +89,8 @@ impl IntoResponse for AppError {
             AppError::NotFound(msg)
             | AppError::BadRequest(msg)
             | AppError::Conflict(msg)
-            | AppError::Forbidden(msg) => {
+            | AppError::Forbidden(msg)
+            | AppError::PayloadTooLarge(msg) => {
                 tracing::debug!(error = %msg, "client error");
             }
             AppError::Unauthorized => {}
@@ -121,6 +128,10 @@ impl IntoResponse for AppError {
             ),
             AppError::Forbidden(msg) => (
                 StatusCode::FORBIDDEN,
+                json!({ "success": false, "error": msg }),
+            ),
+            AppError::PayloadTooLarge(msg) => (
+                StatusCode::PAYLOAD_TOO_LARGE,
                 json!({ "success": false, "error": msg }),
             ),
             AppError::Database(_) | AppError::Storage(_) | AppError::Internal(_) => (
@@ -202,6 +213,17 @@ pub fn panic_response(err: Box<dyn std::any::Any + Send + 'static>) -> Response 
         "non-string panic payload".to_string()
     };
     AppError::Internal(format!("handler panicked: {detail}")).into_response()
+}
+
+/// 量 · A multipart read that failed, as the status it deserves. Hitting
+/// a route's body limit mid-stream is a 413 — the upload is too big —
+/// not a malformed request; anything else stays a 400.
+pub fn multipart_error(err: axum::extract::multipart::MultipartError) -> AppError {
+    if err.status() == StatusCode::PAYLOAD_TOO_LARGE {
+        AppError::PayloadTooLarge("This file is too large to upload.".into())
+    } else {
+        AppError::BadRequest(err.body_text())
+    }
 }
 
 #[cfg(test)]
