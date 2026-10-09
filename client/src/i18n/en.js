@@ -1495,7 +1495,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.16.1 · The same shelf, better locked",
+    version: "v2.16.2 · MyAnimeList, from whichever source answers",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",

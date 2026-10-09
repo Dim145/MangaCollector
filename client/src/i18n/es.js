@@ -1514,7 +1514,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.16.1 · La misma estantería, mejor cerrada",
+    version: "v2.16.2 · MyAnimeList, desde la fuente que responde",
     heroStart: "Cada",
     heroAccent: "tomo",
     heroEnd1: ",",

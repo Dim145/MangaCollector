@@ -1533,7 +1533,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.16.1 · La même étagère, mieux fermée",
+    version: "v2.16.2 · MyAnimeList, par la source qui répond",
     heroStart: "Chaque",
     heroAccent: "tome",
     heroEnd1: ",",
