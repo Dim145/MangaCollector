@@ -2,14 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { db } from "@/lib/db.js";
+import { MAL_UNAVAILABLE, getMal, isMissing } from "@/lib/malData.js";
 
 /**
  * Avatar picker data source — fetches character portraits for the user's
- * top-N series directly from Jikan and caches them locally.
+ * top-N series through our server (`lib/malData.js`, Jikan behind it: the
+ * official MyAnimeList API has no characters) and caches them locally.
  *
  * Strategy mirrors useMalRecommendations:
  *   1. Pick the top `sourceLimit` series by volumes_owned.
- *   2. For each, fetch `/v4/manga/{id}/characters` — 30-day Dexie cache.
+ *   2. For each, fetch its characters — 30-day Dexie cache.
  *   3. Aggregate into a `groups` array so the picker can render grouped tiles.
  *
  * Jikan limits to 3 req/s; we gap calls by `THROTTLE_MS` to stay well inside.
@@ -44,23 +46,16 @@ async function writeCached(mal_id, seriesName, characters) {
 }
 
 async function fetchCharacters(mal_id) {
-  const res = await fetch(
-    `https://api.jikan.moe/v4/manga/${mal_id}/characters`,
-    { headers: { Accept: "application/json" } },
-  );
-  if (!res.ok) throw new Error(`Jikan ${res.status}`);
-  const data = await res.json();
+  const data = await getMal(`${mal_id}/characters`);
 
-  // Response: { data: [{ character: { mal_id, name, images }, role }] }
+  // Response: { characters: [{ mal_id, name, role, image_url }] }
   const roleWeight = { Main: 0, Supporting: 1 };
-  return (data.data ?? [])
+  return (data?.characters ?? [])
     .map((row) => ({
-      mal_id: row.character?.mal_id,
-      name: row.character?.name,
+      mal_id: row.mal_id,
+      name: row.name,
       role: row.role ?? "Supporting",
-      imageUrl:
-        row.character?.images?.jpg?.image_url ??
-        row.character?.images?.webp?.image_url,
+      imageUrl: row.image_url,
     }))
     .filter(
       (c) =>
@@ -108,11 +103,12 @@ export function useAvatarChoices({ sourceLimit = 10 } = {}) {
             await writeCached(src.mal_id, src.name, characters);
             await new Promise((r) => setTimeout(r, THROTTLE_MS));
           } catch (err) {
-            if (String(err?.message).includes("429")) {
-              setError("jikan-rate-limit");
+            // No upstream answered: stop, cache nothing, retry next open.
+            if (!isMissing(err)) {
+              setError(MAL_UNAVAILABLE);
               break;
             }
-            // 404 / transient — cache empty so we don't retry on every open
+            // 404 — cache empty so we don't retry on every open
             await writeCached(src.mal_id, src.name, []);
           }
         }

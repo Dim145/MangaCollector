@@ -19,6 +19,8 @@ use std::time::Duration;
 use crate::errors::AppError;
 use crate::models::archive::{EXPORT_VERSION, ExportBundle, ExportSeries, ExportUser};
 use crate::services::cover_pool::allowed_cover_url;
+use crate::services::jikan_compat;
+use crate::services::mal_api::{self, ListFailure, OfficialListEntry};
 
 /// Hard cap to keep external imports sane and stay well inside rate
 /// limits. Any list longer is truncated and the client is informed via
@@ -49,20 +51,10 @@ const MANGADEX_IMPORT_DEADLINE: std::time::Duration = std::time::Duration::from_
 const EXTERNAL_FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 
 /* ══════════════════════════════════════════════════════════════════
- *  MyAnimeList — via Jikan (unofficial REST gateway for MAL).
- *  Endpoint: GET /v4/users/{username}/mangalist?page={n}
+ *  MyAnimeList — the official API when `MAL_CLIENT_ID` is set
+ *  (GET /v2/users/{username}/mangalist), else Jikan at `JIKAN_API_URL`
+ *  (GET /users/{username}/mangalist?page={n}).
  * ══════════════════════════════════════════════════════════════════ */
-
-#[derive(Debug, Deserialize)]
-struct JikanListResponse {
-    data: Vec<JikanListEntry>,
-    pagination: JikanPagination,
-}
-
-#[derive(Debug, Deserialize)]
-struct JikanPagination {
-    has_next_page: bool,
-}
 
 #[derive(Debug, Deserialize)]
 struct JikanListEntry {
@@ -143,14 +135,65 @@ pub async fn fetch_mal_by_username(
     if user.is_empty() {
         return Err(AppError::BadRequest("MAL username is empty.".into()));
     }
-    // MAL / Jikan usernames are restricted to [A-Za-z0-9_-]. Validating
-    // up-front means we can safely interpolate the raw string into the
-    // URL without pulling a percent-encoder dep.
+    // MAL / Jikan usernames are restricted to [A-Za-z0-9_-]. Validated
+    // up-front so a refusal names the problem; the URL builder would
+    // percent-encode anything else anyway.
     if !is_safe_handle(user) {
         return Err(AppError::BadRequest(
             "Username contains invalid characters.".into(),
         ));
     }
+
+    // 源 · The official API first, when a client id is configured: one
+    // request reads the whole public list. An unknown user is an
+    // answer. A refusal is ambiguous — a private list, or a client id
+    // MAL does not accept — so Jikan is asked as for any failure, and
+    // the refusal is what the reader hears if Jikan cannot answer
+    // either.
+    let mut official_refused = false;
+    if let Some(answer) =
+        mal_api::official_user_mangalist(client, user, MAX_ENTRIES, EXTERNAL_FETCH_TIMEOUT).await
+    {
+        match answer {
+            Ok(entries) => {
+                let series = entries
+                    .into_iter()
+                    .take(MAX_ENTRIES)
+                    .map(series_from_official_list)
+                    .collect();
+                return Ok(wrap_bundle("MyAnimeList", series));
+            }
+            Err(ListFailure::NotFound) => {
+                return Err(AppError::NotFound("MAL user not found".into()));
+            }
+            Err(ListFailure::Refused) => {
+                tracing::warn!("MyAnimeList API refused the list; asking Jikan");
+                official_refused = true;
+            }
+            Err(ListFailure::Unavailable(err)) => {
+                tracing::warn!(error = %err, "MyAnimeList API list failed; asking Jikan");
+            }
+        }
+    }
+
+    match mal_list_from_jikan(client, user).await {
+        Err(err) if official_refused && !matches!(err, AppError::NotFound(_)) => {
+            tracing::warn!(error = %err, "Jikan could not read the list either");
+            Err(AppError::BadRequest(
+                "MyAnimeList would not share this list: it is private, or the \
+                 instance's MAL_CLIENT_ID was refused."
+                    .into(),
+            ))
+        }
+        other => other,
+    }
+}
+
+/// The same list through Jikan, page by page.
+async fn mal_list_from_jikan(
+    client: &reqwest::Client,
+    user: &str,
+) -> Result<ExportBundle, AppError> {
     // Hard pagination ceiling. With 25 entries/page (Jikan default)
     // and our MAX_ENTRIES=500 cap, a legitimate user won't need more
     // than ~20 pages. Anything beyond is either a very pathological
@@ -171,12 +214,10 @@ pub async fn fetch_mal_by_username(
             );
             break;
         }
-        let url = format!(
-            "https://api.jikan.moe/v4/users/{}/mangalist?page={}",
-            user, page
-        );
+        let page_param = page.to_string();
         let resp = client
-            .get(&url)
+            .get(mal_api::upstream().jikan_url(&["users", user, "mangalist"]))
+            .query(&[("page", page_param.as_str())])
             .timeout(EXTERNAL_FETCH_TIMEOUT)
             .send()
             .await
@@ -190,37 +231,21 @@ pub async fn fetch_mal_by_username(
                 resp.status()
             )));
         }
-        let body: JikanListResponse = resp
+        let body: serde_json::Value = resp
             .json()
             .await
             .map_err(|e| AppError::BadRequest(format!("MAL parse error: {e}")))?;
+        // 互 · A mirror in another dialect is read as Jikan v4.
+        let entries: Vec<JikanListEntry> = jikan_compat::data_list(&body, jikan_compat::list_entry)
+            .into_iter()
+            .map(serde_json::from_value)
+            .collect::<Result<_, _>>()
+            .map_err(|e| AppError::BadRequest(format!("MAL parse error: {e}")))?;
 
-        for entry in body.data {
+        for entry in entries {
             if series.len() >= MAX_ENTRIES {
                 break;
             }
-            // `volumes` from Jikan/MAL is the published total. `None`
-            // means MAL doesn't know (unfinished or metadata gap), in
-            // which case the previous `unwrap_or(0)` forced the clamp
-            // `r.min(0)` below → `owned = 0` regardless of what the
-            // user actually read. Silently discarding the user's
-            // progress at import time is a data-loss footgun.
-            //
-            // New behaviour: when total is unknown, trust the
-            // `read_volumes` count the source shipped, only capping
-            // negatives to zero. If MAL later publishes a total, the
-            // user can re-run the import or edit the value manually.
-            let total = entry.manga.volumes;
-            let owned = match (entry.read_volumes, total) {
-                (Some(r), Some(t)) => r.min(t).max(0),
-                (Some(r), None) => r.max(0),
-                (None, _) => 0,
-            };
-            // Track at least what the user owns: the importer creates one
-            // row per tracked volume and clamps `volumes_owned` to that
-            // count, so an unknown total (0) would have thrown the read
-            // count away again on insert.
-            let total = total.unwrap_or(0).max(owned);
             let mut genres = Vec::new();
             if let Some(gs) = entry.manga.genres {
                 for g in gs {
@@ -237,41 +262,20 @@ pub async fn fetch_mal_by_username(
                 .images
                 .and_then(|i| i.jpg)
                 .and_then(|j| j.image_url);
-            let reading_status = entry
-                .reading_status
-                .as_ref()
-                .and_then(|s| s.to_reading())
-                .map(String::from);
-            let started_reading_at = entry.start_date.as_deref().and_then(parse_loose_date);
-            let finished_reading_at = entry.end_date.as_deref().and_then(parse_loose_date);
-            series.push(ExportSeries {
-                // Nothing an external list knows says what the reader's
-                // own edition is doing; that is theirs to set.
-                publication_status: None,
-                mal_id: Some(entry.manga.mal_id),
-                mangadex_id: None,
-                name: entry.manga.title,
-                volumes: total,
-                volumes_owned: owned,
-                image_url_jpg: allowed_cover_url(image.as_deref()),
+            series.push(series_from_list_entry(ListEntry {
+                mal_id: entry.manga.mal_id,
+                title: entry.manga.title,
+                total: entry.manga.volumes,
+                read: entry.read_volumes,
                 genres,
-                publisher: None,
-                edition: None,
-                review: None,
-                review_public: false,
-                author: None,
-                created_on: None,
-                modified_on: None,
-                reading_status,
-                started_reading_at,
-                finished_reading_at,
-                times_read: 0,
-                volumes_detail: Vec::new(),
-                coffrets: Vec::new(),
-            });
+                image,
+                reading_status: entry.reading_status.as_ref().and_then(|s| s.to_reading()),
+                started: entry.start_date.as_deref(),
+                finished: entry.end_date.as_deref(),
+            }));
         }
 
-        if !body.pagination.has_next_page {
+        if !jikan_compat::has_next_page(&body) {
             break;
         }
         page += 1;
@@ -279,6 +283,91 @@ pub async fn fetch_mal_by_username(
         tokio::time::sleep(std::time::Duration::from_millis(350)).await;
     }
     Ok(wrap_bundle("MyAnimeList", series))
+}
+
+/// One entry of a MyAnimeList list, whichever upstream it came from.
+struct ListEntry<'a> {
+    mal_id: i32,
+    title: String,
+    /// The published total; `None` when MAL does not know it.
+    total: Option<i32>,
+    read: Option<i32>,
+    genres: Vec<String>,
+    image: Option<String>,
+    reading_status: Option<&'static str>,
+    started: Option<&'a str>,
+    finished: Option<&'a str>,
+}
+
+fn series_from_list_entry(entry: ListEntry<'_>) -> ExportSeries {
+    // `total` is the published total. `None` means MAL doesn't know
+    // (unfinished or metadata gap), in which case the previous
+    // `unwrap_or(0)` forced the clamp `r.min(0)` below → `owned = 0`
+    // regardless of what the user actually read. Silently discarding
+    // the user's progress at import time is a data-loss footgun.
+    //
+    // When the total is unknown, trust the read count the source
+    // shipped, only capping negatives to zero. If MAL later publishes
+    // a total, the user can re-run the import or edit the value
+    // manually.
+    let owned = match (entry.read, entry.total) {
+        (Some(r), Some(t)) => r.min(t).max(0),
+        (Some(r), None) => r.max(0),
+        (None, _) => 0,
+    };
+    // Track at least what the user owns: the importer creates one row
+    // per tracked volume and clamps `volumes_owned` to that count, so
+    // an unknown total (0) would have thrown the read count away again
+    // on insert.
+    let total = entry.total.unwrap_or(0).max(owned);
+    ExportSeries {
+        // Nothing an external list knows says what the reader's own
+        // edition is doing; that is theirs to set.
+        publication_status: None,
+        mal_id: Some(entry.mal_id),
+        mangadex_id: None,
+        name: entry.title,
+        volumes: total,
+        volumes_owned: owned,
+        image_url_jpg: allowed_cover_url(entry.image.as_deref()),
+        genres: entry.genres,
+        publisher: None,
+        edition: None,
+        review: None,
+        review_public: false,
+        author: None,
+        created_on: None,
+        modified_on: None,
+        reading_status: entry.reading_status.map(String::from),
+        started_reading_at: entry.started.and_then(parse_loose_date),
+        finished_reading_at: entry.finished.and_then(parse_loose_date),
+        times_read: 0,
+        volumes_detail: Vec::new(),
+        coffrets: Vec::new(),
+    }
+}
+
+fn series_from_official_list(entry: OfficialListEntry) -> ExportSeries {
+    // The same groups the Jikan path keeps: genres and explicit genres.
+    let (mut genres, explicit, _demographics) = mal_api::split_genres(&entry.node.genres);
+    genres.extend(explicit);
+    let image = entry.node.image_url();
+    let status = entry.list_status;
+    series_from_list_entry(ListEntry {
+        mal_id: entry.node.id,
+        title: entry.node.title,
+        // MAL's 0 is "not known yet".
+        total: entry.node.num_volumes.filter(|n| *n > 0),
+        read: status.as_ref().and_then(|s| s.num_volumes_read),
+        genres,
+        image,
+        reading_status: status
+            .as_ref()
+            .and_then(|s| s.status.as_deref())
+            .and_then(mal_status_to_reading),
+        started: status.as_ref().and_then(|s| s.start_date.as_deref()),
+        finished: status.as_ref().and_then(|s| s.finish_date.as_deref()),
+    })
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -848,7 +937,8 @@ fn mal_status_to_reading(raw: &str) -> Option<&'static str> {
     match raw.trim().to_ascii_lowercase().as_str() {
         "reading" | "1" => Some("reading"),
         "completed" | "2" => Some("completed"),
-        "on-hold" | "on hold" | "3" => Some("paused"),
+        // Jikan writes "On-Hold", the official API `on_hold`.
+        "on-hold" | "on hold" | "on_hold" | "3" => Some("paused"),
         "dropped" | "4" => Some("dropped"),
         "plan to read" | "plan_to_read" | "6" => Some("planned"),
         _ => None,

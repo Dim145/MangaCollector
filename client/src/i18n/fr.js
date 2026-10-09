@@ -1687,7 +1687,7 @@ export default {
       "Suggestions basées sur les séries dont vous possédez le plus de tomes, issues des recommandations de lecteurs MyAnimeList.",
     rotating: "Le panneau pivote — passez la souris pour le mettre en pause",
     rateLimited:
-      "MyAnimeList nous limite pour l'instant — reviens dans une minute et les suggestions apparaîtront.",
+      "MyAnimeList ne répond pas pour l'instant — reviens plus tard et les suggestions apparaîtront.",
     recommendedBy: "Par {n} de vos séries",
     viewOnMal: "Voir sur MAL",
     ownedLabel: "Combien de tomes possédez-vous déjà ?",
@@ -1723,8 +1723,8 @@ export default {
     emptyNoLibrary: "Aucune source",
     emptyNoLibraryHint:
       "Ajoutez une série à votre bibliothèque et ses personnages apparaîtront ici.",
-    emptyRateLimit: "MyAnimeList nous limite",
-    emptyRateLimitHint: "Revenez dans une minute, la galerie se chargera.",
+    emptyRateLimit: "MyAnimeList ne répond pas",
+    emptyRateLimitHint: "Revenez plus tard, la galerie se chargera.",
     emptyNoMain: "Aucun personnage principal trouvé",
     emptyNoMainHint:
       "Désactivez le filtre pour voir aussi les personnages secondaires.",
@@ -2276,14 +2276,13 @@ export default {
     goToLibrary: "Voir ma bibliothèque",
     genericError: "Une erreur est survenue.",
     // MyAnimeList
-    malInputKind: "Par pseudo MAL · via Jikan",
+    malInputKind: "Par pseudo MAL",
     malBlurb:
       "Importez votre mangalist MAL en fournissant simplement votre pseudo. Profil public requis.",
     malInputTitle: "Votre pseudo MyAnimeList",
     malInputLabel: "Pseudo",
     malPlaceholder: "ex. Xinil",
-    malHint:
-      "Pseudo MAL publique. L'API Jikan sera utilisée pour parcourir votre mangalist.",
+    malHint: "Pseudo MAL public. Votre liste publique est lue sur MyAnimeList.",
     // MangaDex
     mdInputKind: "Par UUID de liste · API publique",
     mdBlurb:

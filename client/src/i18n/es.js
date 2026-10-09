@@ -1667,7 +1667,7 @@ export default {
       "Sugerencias basadas en las series de las que más tomos tienes, tomadas de las recomendaciones de lectores de MyAnimeList.",
     rotating: "El panel rota — pasa el ratón por encima para pausar",
     rateLimited:
-      "MyAnimeList nos está limitando ahora — vuelve en un minuto y las sugerencias aparecerán.",
+      "MyAnimeList no responde ahora — vuelve más tarde y las sugerencias aparecerán.",
     recommendedBy: "Por {n} de tus series",
     viewOnMal: "Ver en MAL",
     ownedLabel: "¿Cuántos tomos ya tienes?",
@@ -1702,8 +1702,8 @@ export default {
     emptyNoLibrary: "Sin fuentes",
     emptyNoLibraryHint:
       "Añade una serie a tu biblioteca y sus personajes aparecerán aquí.",
-    emptyRateLimit: "MyAnimeList nos está limitando",
-    emptyRateLimitHint: "Vuelve en un minuto y la galería se cargará.",
+    emptyRateLimit: "MyAnimeList no responde",
+    emptyRateLimitHint: "Vuelve más tarde y la galería se cargará.",
     emptyNoMain: "No se encontraron personajes principales",
     emptyNoMainHint:
       "Desactiva el filtro para ver también personajes secundarios.",
@@ -2251,14 +2251,14 @@ export default {
     importAnother: "Importar otro servicio",
     goToLibrary: "Ir a mi biblioteca",
     genericError: "Algo salió mal.",
-    malInputKind: "Por usuario MAL · vía Jikan",
+    malInputKind: "Por usuario MAL",
     malBlurb:
       "Importa tu mangalist MAL proporcionando tu nombre de usuario. Perfil público requerido.",
     malInputTitle: "Tu usuario MyAnimeList",
     malInputLabel: "Usuario",
     malPlaceholder: "ej. Xinil",
     malHint:
-      "Nombre de usuario MAL público. Se usa la API Jikan para recorrer tu mangalist.",
+      "Nombre de usuario MAL público. Tu lista pública se lee desde MyAnimeList.",
     mdInputKind: "Por UUID de lista · API pública",
     mdBlurb:
       "Pega la URL o el UUID de una lista pública de MangaDex. Las series se obtienen vía la API oficial.",

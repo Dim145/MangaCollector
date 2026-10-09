@@ -5,6 +5,7 @@ import SettingsContext from "@/SettingsContext.js";
 import { useAddManga } from "@/hooks/useLibrary.js";
 import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { useT } from "@/i18n/index.jsx";
+import { getMal } from "@/lib/malData.js";
 
 /**
  * Add-from-recommendation modal. Fetches the full MAL details for the
@@ -61,15 +62,12 @@ export default function MalRecommendationModal({
     setFetchError(null);
     (async () => {
       try {
-        const res = await fetch(
-          `https://api.jikan.moe/v4/manga/${rec.mal_id}`,
-          { headers: { Accept: "application/json" } },
-        );
-        if (!res.ok) throw new Error(`Jikan ${res.status}`);
-        const data = await res.json();
+        // 源 · Through our server, which asks the upstream the
+        // operator configured; the answer keeps Jikan's shape.
+        const data = await getMal(`${rec.mal_id}`);
         if (cancelled) return;
         fetchedForRef.current = rec.mal_id;
-        setFullData(data.data);
+        setFullData(data);
       } catch (err) {
         if (!cancelled) setFetchError(err?.message ?? "fetch failed");
       } finally {

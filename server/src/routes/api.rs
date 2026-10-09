@@ -28,6 +28,18 @@ pub fn api_router() -> Router<AppState> {
         .route("/public-config", get(public_config::get_public_config))
         // Unified search endpoint — merges MAL + MangaDex results
         .route("/external/search", get(external::search))
+        // 源 · MyAnimeList data the browser used to fetch from Jikan
+        // itself — through the server, so the operator's upstream
+        // (`JIKAN_API_URL`, `MAL_CLIENT_ID`) applies there too.
+        .route("/external/mal/{mal_id}", get(external::mal_manga))
+        .route(
+            "/external/mal/{mal_id}/recommendations",
+            get(external::mal_recommendations),
+        )
+        .route(
+            "/external/mal/{mal_id}/characters",
+            get(external::mal_characters),
+        )
         // 作家 · Author endpoints. The same `/authors/{mal_id}`
         // shape covers both shared MAL authors (cache-aside via
         // Jikan, positive mal_id) and custom authors owned by the

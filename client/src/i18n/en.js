@@ -1648,7 +1648,7 @@ export default {
       "Based on the series you own most of, drawn from MyAnimeList reader picks.",
     rotating: "The deck is shuffling — hover to pause",
     rateLimited:
-      "MyAnimeList is throttling us right now — come back in a minute and suggestions will populate.",
+      "MyAnimeList isn't answering right now — come back later and suggestions will populate.",
     recommendedBy: "By {n} of your series",
     viewOnMal: "View on MAL",
     ownedLabel: "How many volumes do you already own?",
@@ -1683,8 +1683,8 @@ export default {
     emptyNoLibrary: "No sources yet",
     emptyNoLibraryHint:
       "Add a series to your library and their characters will appear here.",
-    emptyRateLimit: "MyAnimeList is throttling us",
-    emptyRateLimitHint: "Come back in a minute and the gallery will populate.",
+    emptyRateLimit: "MyAnimeList isn't answering",
+    emptyRateLimitHint: "Come back later and the gallery will populate.",
     emptyNoMain: "No main characters found",
     emptyNoMainHint:
       "Toggle the filter off to browse supporting characters as well.",
@@ -2229,13 +2229,13 @@ export default {
     importAnother: "Import another service",
     goToLibrary: "Go to my library",
     genericError: "Something went wrong.",
-    malInputKind: "By MAL username · via Jikan",
+    malInputKind: "By MAL username",
     malBlurb:
       "Import your MAL mangalist by giving your username. Public profile required.",
     malInputTitle: "Your MyAnimeList username",
     malInputLabel: "Username",
     malPlaceholder: "e.g. Xinil",
-    malHint: "Public MAL username. The Jikan API walks your mangalist.",
+    malHint: "Public MAL username. Your public list is read from MyAnimeList.",
     mdInputKind: "By list UUID · public API",
     mdBlurb:
       "Paste a public MangaDex list URL or UUID. Series are fetched via the official API.",

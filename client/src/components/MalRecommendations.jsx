@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Skeleton from "./ui/Skeleton.jsx";
 import { useMalRecommendations } from "@/hooks/useMalRecommendations.js";
 import { useT } from "@/i18n/index.jsx";
+import { MAL_UNAVAILABLE } from "@/lib/malData.js";
 // Only mounts when a tile is clicked — deferred out of the profile chunk.
 const MalRecommendationModal = lazy(
   () => import("./MalRecommendationModal.jsx"),
@@ -148,7 +149,7 @@ export default function MalRecommendations() {
       </h2>
       <p className="mt-1 text-xs text-washi-muted">{t("recs.byline")}</p>
 
-      {error === "jikan-rate-limit" && !recs.length && (
+      {error === MAL_UNAVAILABLE && !recs.length && (
         <p className="mt-4 rounded-lg border border-gold/20 bg-gold/5 p-3 text-xs text-washi-muted">
           {t("recs.rateLimited")}
         </p>

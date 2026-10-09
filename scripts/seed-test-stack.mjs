@@ -9,7 +9,8 @@
  *   node scripts/seed-test-stack.mjs --big --only-big   # skip the core set
  *
  * Requires: docker-compose.test-stack.yml up, the server running with
- * server/test-stack.env, and network access to api.jikan.moe.
+ * server/test-stack.env, and network access to Jikan — api.jikan.moe, or
+ * the mirror named by JIKAN_API_URL (the same variable the server reads).
  *
  * How it authenticates — the app's own OAuth flow, end to end, against
  * the mock provider. No real credentials exist anywhere in this path:
@@ -34,6 +35,7 @@
  * `node:https` with minimal headers instead — that path is 200 every
  * time while the same URL through `fetch` is 504 every time.
  */
+import http from "node:http";
 import https from "node:https";
 import { assertLocalTarget } from "./lib/stack-client.mjs";
 
@@ -170,10 +172,17 @@ async function api(method, path, body) {
   return res;
 }
 
+// 源 · The same variable as the server: a Jikan mirror when the public
+// instance is down. The base carries the version (`…/v4`).
+const JIKAN_BASE = (process.env.JIKAN_API_URL || "https://api.jikan.moe/v4")
+  .trim()
+  .replace(/\/+$/, "");
 let lastJikan = 0;
 function httpsJson(url) {
+  // A self-hosted mirror may well be plain http on the local network.
+  const transport = url.startsWith("http:") ? http : https;
   return new Promise((resolve, reject) => {
-    https
+    transport
       .get(
         url,
         {
@@ -201,7 +210,7 @@ async function jikan(path) {
   // Three attempts (2 s, 4 s, 6 s backoff): tolerant of a blip, quick
   // to hand a cold id over to the MangaDex fallback when MAL is slow.
   for (let attempt = 0; attempt < 3; attempt++) {
-    const { status, body } = await httpsJson(`https://api.jikan.moe/v4${path}`);
+    const { status, body } = await httpsJson(`${JIKAN_BASE}${path}`);
     last = status;
     // 429 = our pacing slipped; 5xx = Jikan's upstream is struggling.
     if (status === 429 || status >= 500) {

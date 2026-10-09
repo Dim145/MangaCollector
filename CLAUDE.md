@@ -115,6 +115,8 @@ CORS exposed headers.
 | `APP_ENABLE_DOTENV` | Whether to load `.env` at startup |
 | `EXTERNAL_PROXY_URL`, `EXTERNAL_PROXY_TIMEOUT_SECS` | Release-calendar proxy (see `docs/release-calendar-proxy.md`) |
 | `GOOGLE_BOOKS_API_KEY` | Optional, for ISBN lookups |
+| `JIKAN_API_URL` | 源 · Base of a Jikan v4 gateway, version included (`https://jikan.example.org/v4`). Empty = the public `https://api.jikan.moe/v4`, which has spent long stretches hanging until every call times out. Mirrors that keep Jikan's routes but not its JSON are read too — jikan-edge (`https://jikan.lucashdo.com/v1`: camelCase, flattened, `{ data, meta }`) is translated item by item in `services/jikan_compat.rs`. `http` is accepted for a mirror on your network; a base with a query, a fragment or credentials is refused at startup (logged) and the default used |
+| `MAL_CLIENT_ID` | 源 · A MyAnimeList API client id. Set and non-empty, search, series details, alternate covers, recommendations and the import by username go to the official API v2 first, with Jikan as the fallback when it *fails* (a 404 is an answer). Authors and characters stay on Jikan — the official API has neither. Public endpoints need no client secret and no user login, so there is no `MAL_CLIENT_SECRET`. Sent as `X-MAL-CLIENT-ID`, marked sensitive, never logged |
 | `PROXY_COVERS` | 影 · Relay covers through the server instead of the browser fetching them from MAL/MangaDex, so those CDNs stop seeing every reader's address. Default `false` — it moves the bytes onto the operator's connection. Works for MyAnimeList; MangaDex refuses a server client outright (`ENHANCE_YOUR_CALM` on the first stream, any concurrency), and the browser falls back to fetching those directly. Doing better needs a server-side cover cache |
 | `MCP_ENABLED` | 接 · Opt-in switch for `/mcp`. Default `false` — it hands an agent write access to a whole library |
 | `MCP_ALLOWED_HOSTS` | Extra `Host` values the MCP transport answers to, comma-separated. rmcp ships loopback-only and validates `Host` against DNS rebinding, so a real deployment must name itself here or every request is refused |
@@ -169,11 +171,11 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 195 tests across 38 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 218 tests across 40 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `http_cache.rs`, `handlers/cover.rs`,
   `observability.rs`, `client_ip.rs`,
   `util/{url,uuid,image,isbn,outbound,turnstile}.rs`,
-  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users}.rs`,
+  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users,mal_api,jikan_compat}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
   `services/api_keys.rs` pins the MCP credential rules — the scope
   vocabulary, that the read-only preset really is read-only, that a
@@ -194,6 +196,21 @@ docker compose build
   per tome carrying the copy (price, grade, shelf, barcode, purchase
   day, doubles) and not just its price, and a formula hidden in a
   series name neutralised.
+  `services/mal_api.rs` pins the MyAnimeList source choice against a
+  local mock of both upstreams: the official API answers first and only
+  with the client id, a 500 or a refused id falls back to Jikan, a 404
+  does not, and a refused id is logged with MAL's own reason
+  ("Invalid client id"); an official answer reads like Jikan's (MAL's `0` volumes is
+  `None`, themes dropped from the single `genres` list, authors as
+  "Family, Given"); a Jikan base with a query or credentials is refused;
+  the client id never appears in `Debug`. `services/jikan_compat.rs`
+  pins the translation of jikan-edge's dialect on its real answers (a
+  manga, a search result, covers, recommendations, characters, a person
+  with a family-first name and a `Jan 1, 1975` birthday, a list entry
+  whose `progress` is chapters and so never becomes a volume count) and
+  that a Jikan v4 item passes through untouched. The mock binds a loopback
+  port, which the local sandbox refuses (EPERM) — run those seven outside
+  it; CI binds fine.
   `services/cover_pool.rs` pins the cover-URL allowlist (host match,
   `http`→`https`, no credentials, and of the same-origin paths only the
   owner's own poster — `/\evil.test/x` is another host to a browser);
@@ -219,7 +236,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 116 tests across 60 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 120 tests across 61 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -468,6 +485,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 | `/api/library` | Manga library CRUD, reading progression (`reading_status`, dates, `times_read`; `POST /{mal_id}/reread`), edition status (`publication_status`) |
 | `/api/volume` | Volume tracking (including 飛 `wanted` — a tome deliberately skipped), bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`, and 附 the box extras `has_obi` / `has_jacket` / `has_slipcase` — what the copy still has, asked apart from the grade because a mint copy can still have lost its obi) |
 | `/api/authors` | Author records, photos, refresh |
+| `/api/external` | `search?q=` (MAL + MangaDex merged), and 源 `mal/{id}`, `mal/{id}/recommendations`, `mal/{id}/characters` — what the browser used to fetch from Jikan itself, now from whichever upstream the operator configured |
 | `/api/user`, `/api/account` | Profile, deletion, public slug; `GET /api/user/isbn/{isbn}` resolves a barcode through the server-side chain (see External Integrations) |
 | `/api/user/api-keys` | 鍵 · Mint / list / revoke the per-user keys that open the MCP endpoint, plus `GET /api-keys/scopes` (catalogue + whether the operator enabled `/mcp`) and `GET /api-keys/audit` (what agents did). Session-authenticated: a key never authenticates here, only on `/mcp` |
 | `/api/user/locations` | The places registry — list with per-place counts, create, rename (cascades to the tomes filed there), annotate, reorder, delete (unfiles them), and 写 the shelf's own photo at `/{id}/photo` (GET / POST multipart / DELETE) |
@@ -717,7 +735,19 @@ chronologically on reconnect. Routing via React Router 7.
 
 ## External Integrations
 
-- **MyAnimeList** (via Jikan) — primary metadata source
+- **MyAnimeList** — primary metadata source, through Jikan at
+  `JIKAN_API_URL` (Jikan v4 or a mirror in another dialect, see
+  `services/jikan_compat.rs`; a Jikan search is sent without `limit`,
+  which jikan-edge refuses, and cut to ten), or the official API v2 when
+  `MAL_CLIENT_ID` is set
+  (`services/mal_api.rs`, which reshapes official answers into Jikan's
+  structs so no caller knows the difference). The browser never calls
+  either: recommendations, characters and the recommendation sheet's
+  details come from `/api/external/mal/…` (`client/src/lib/malData.js`),
+  and the CSP no longer names `api.jikan.moe`. A shared author's page
+  is Jikan-only; when Jikan is down at add time the series still gets
+  its author, recorded by name alone with an epoch `fetched_at` so the
+  first visit revalidates it
 - **MangaDex** — fallback search and enrichment
 - **ISBN resolvers** — 叢 they answer with a **series and a volume
   number**, not just a title: a national library catalogues a manga

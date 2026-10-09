@@ -324,23 +324,24 @@ pub async fn add_to_user_library(
     // (warm cache is ~5 ms via CacheStore). The user is already
     // in a "saving…" state — preferable to a multi-day gap before
     // they discover the author needs a manual refresh.
-    let probed_author_mal_id: Option<i32> = match (req.author_mal_id, mal_id) {
-        (Some(mid), _) if mid > 0 => Some(mid),
+    let probed_author: Option<(i32, Option<String>)> = match (req.author_mal_id, mal_id) {
+        (Some(mid), _) if mid > 0 => Some((mid, None)),
         (_, Some(series_mid)) if series_mid > 0 => {
             match get_manga_from_mal(http_client, cache, series_mid).await {
-                Ok(Some(data)) => data
-                    .authors
-                    .as_ref()
-                    .and_then(|list| list.iter().find(|a| !a.name.trim().is_empty()))
-                    .and_then(|a| a.mal_id)
-                    .filter(|id| *id > 0),
+                Ok(Some(data)) => data.primary_author().and_then(|a| {
+                    a.mal_id
+                        .filter(|id| *id > 0)
+                        .map(|id| (id, Some(flip_author_name(&a.name))))
+                }),
                 _ => None,
             }
         }
         _ => None,
     };
-    let resolved_author_id = match probed_author_mal_id {
-        Some(mid) => author::find_or_create_shared_author_id(db, http_client, mid).await?,
+    let resolved_author_id = match probed_author {
+        Some((mid, name)) => {
+            author::find_or_create_shared_author_id(db, http_client, mid, name.as_deref()).await?
+        }
         None => None,
     };
 
@@ -1307,10 +1308,7 @@ pub async fn update_infos_from_mal(
     // The first non-empty author wins on collaborations — see the
     // MalAuthor docstring on why we don't try to capture co-authors
     // in v1.
-    let primary_author = mal_data
-        .authors
-        .as_ref()
-        .and_then(|list| list.iter().find(|a| !a.name.trim().is_empty()));
+    let primary_author = mal_data.primary_author();
     let resolved_author_mal_id: Option<i32> =
         primary_author.and_then(|a| a.mal_id).filter(|id| *id > 0);
     // Resolve the FK target up-front so each library row's update
@@ -1319,9 +1317,11 @@ pub async fn update_infos_from_mal(
     // without one but with a typed name, we fall back to the
     // free-text resolver (find-or-create custom). On both lookup
     // and fetch failures the FK stays None — the user can retry the
-    // refresh later.
+    // refresh later — unless MyAnimeList gave the author's name, which
+    // is then recorded alone until Jikan can fill in the rest.
     let resolved_author_id: Option<i32> = if let Some(mid) = resolved_author_mal_id {
-        author::find_or_create_shared_author_id(db, http_client, mid).await?
+        let known_name = primary_author.map(|a| flip_author_name(&a.name));
+        author::find_or_create_shared_author_id(db, http_client, mid, known_name.as_deref()).await?
     } else if let Some(a) = primary_author {
         let flipped = flip_author_name(&a.name);
         author::resolve_author_from_text(db, user_id, &flipped).await?

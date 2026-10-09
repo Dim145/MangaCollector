@@ -317,22 +317,10 @@ export default defineConfig({
           // this origin now (see `styles/fonts.css`), so they are
           // ordinary build output: precached with the shell, or picked
           // up by the `/assets/` rule above.
-          // Jikan (MAL) API — read-only metadata, cache aggressively.
-          // Bumped from 100 to 250 entries: a power user with a 200-
-          // series library was evicting fresh entries on every refresh
-          // because Jikan responses include character lookups that
-          // count against the same bucket.
-          {
-            urlPattern: /^https:\/\/api\.jikan\.moe\/.*/i,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "jikan-api",
-              expiration: {
-                maxEntries: 250,
-                maxAgeSeconds: 60 * 60 * 24 * 7,
-              },
-            },
-          },
+          // 源 · No Jikan rule. The browser no longer calls Jikan: the
+          // recommendations, characters and details it showed come
+          // from `/api/external/mal/…`, cached in Dexie, so the
+          // operator's choice of upstream applies there too.
           // MAL CDN covers — switched from CacheFirst to SWR so a
           // cover that gets refreshed on MAL's side eventually
           // propagates here. Users still see the cached image

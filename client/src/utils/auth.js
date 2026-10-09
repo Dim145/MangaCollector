@@ -76,7 +76,7 @@ function clearCachedUser() {
  * never sees the previous one's data through the cache.
  *
  * Limited to private buckets only — `mal-covers` / `mangadex-covers` /
- * `jikan-api` / `google-fonts-*` are public and outliving them across
+ * `google-fonts-*` are public and outliving them across
  * a logout is a feature (the next user gets a warm cache for assets
  * that aren't tied to anyone's identity).
  *

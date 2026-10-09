@@ -3,6 +3,7 @@ import Modal from "./ui/Modal.jsx";
 import { useAvatarChoices } from "@/hooks/useAvatarChoices.js";
 import { useUpdateSettings, useUserSettings } from "@/hooks/useSettings.js";
 import { useT } from "@/i18n/index.jsx";
+import { MAL_UNAVAILABLE } from "@/lib/malData.js";
 
 /**
  * 顔 · Avatar picker — circular ledger with hanko seals.
@@ -118,7 +119,7 @@ export default function AvatarPicker({ open, onClose }) {
   // help — there's literally no data to filter from).
   const initialEmpty = !hasSources
     ? "no-library"
-    : error === "jikan-rate-limit" && groups.length === 0
+    : error === MAL_UNAVAILABLE && groups.length === 0
       ? "rate-limit"
       : null;
 

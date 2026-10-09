@@ -136,6 +136,10 @@ services:
       MAX_BODY_SIZE_MB: 50
       REDIS_URL: redis://redis:6379/1
       CACHE_PREFIX: mangacollect/
+      # 源 · MyAnimeList sources — see server/.env.example. Empty: the
+      # public Jikan, and no official API.
+      JIKAN_API_URL: ${JIKAN_API_URL:-}
+      MAL_CLIENT_ID: ${MAL_CLIENT_ID:-}
       NODE_ENV: "production"
       PORT: 3000
       AUTH_MODE: openidconnect

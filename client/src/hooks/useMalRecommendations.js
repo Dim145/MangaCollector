@@ -2,21 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { db } from "@/lib/db.js";
+import { MAL_UNAVAILABLE, getMal, isMissing } from "@/lib/malData.js";
 
 /**
- * R2 — Related-manga recommendations powered by Jikan.
+ * R2 — Related-manga recommendations from MyAnimeList readers, through
+ * our server (`lib/malData.js`).
  *
  * Strategy:
  *   1. Pick the user's "signal" series — those with the most volumes owned,
  *      capped at `sourceLimit`. These are the strongest signals for taste.
- *   2. For each, fetch `/manga/{id}/recommendations` from Jikan — cached in
- *      Dexie for 30 days so we don't hammer the API on every render.
+ *   2. For each, fetch its recommendations — cached in Dexie for 30 days
+ *      so we don't hammer the upstream on every render.
  *   3. Aggregate across sources: score = Σ votes across all source series.
  *   4. Filter out manga the user already owns.
  *   5. Return top `limit` by score.
  *
- * Jikan rate limit: 3 req/s (hard) / 60 req/min. We serialize calls with a
- * 450 ms gap, well within the per-second budget.
+ * Jikan, when the server falls back to it, allows 3 req/s (hard) /
+ * 60 req/min. We serialize calls with a 450 ms gap, well within the
+ * per-second budget.
  */
 
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -46,19 +49,12 @@ async function writeCached(mal_id, recommendations) {
 }
 
 async function fetchRecs(mal_id) {
-  const res = await fetch(
-    `https://api.jikan.moe/v4/manga/${mal_id}/recommendations`,
-    { headers: { Accept: "application/json" } },
-  );
-  if (!res.ok) throw new Error(`Jikan ${res.status}`);
-  const data = await res.json();
-  // Each item has { entry: { mal_id, title, images, … }, votes, url }
-  return (data.data ?? []).map((it) => ({
-    mal_id: it.entry?.mal_id,
-    title: it.entry?.title,
-    image_url:
-      it.entry?.images?.jpg?.image_url ??
-      it.entry?.images?.jpg?.small_image_url,
+  const data = await getMal(`${mal_id}/recommendations`);
+  // Each item is { mal_id, title, image_url, votes }.
+  return (data?.recommendations ?? []).map((it) => ({
+    mal_id: it.mal_id,
+    title: it.title,
+    image_url: it.image_url,
     votes: it.votes ?? 1,
   }));
 }
@@ -99,12 +95,14 @@ export function useMalRecommendations({ sourceLimit = 10, limit = 8 } = {}) {
             await writeCached(mal_id, recs);
             await new Promise((r) => setTimeout(r, THROTTLE_MS));
           } catch (err) {
-            // Stop on 429 — Jikan is throttling us, try next session
-            if (String(err?.message).includes("429")) {
-              setError("jikan-rate-limit");
+            // No upstream answered (down, throttled, offline): stop and
+            // try again next session — remembering an empty list here
+            // would hide the real one for 30 days.
+            if (!isMissing(err)) {
+              setError(MAL_UNAVAILABLE);
               break;
             }
-            // 404 / transient — just skip this source
+            // 404 — nothing to recommend from this source.
             await writeCached(mal_id, []);
           }
         }

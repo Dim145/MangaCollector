@@ -73,6 +73,11 @@ async fn main() -> anyhow::Result<()> {
 
     // Load configuration
     let config = config::Config::from_env()?;
+    // 源 · Where MyAnimeList data comes from, for the life of the process.
+    services::mal_api::configure(services::mal_api::Upstream::from_settings(
+        config.jikan_api_url.as_deref(),
+        config.mal_client_id.as_deref(),
+    ));
     let port = config.port;
     let frontend_url = config.frontend_url.clone();
     // Pull out the security / rate-limit tunables before `config` is

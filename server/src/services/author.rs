@@ -4,9 +4,12 @@
 //!
 //!   1. SHARED MAL CACHE — `get_or_fetch_author(db, http, user_id, mal_id)`
 //!      with `mal_id > 0`. Cache-aside over Jikan's
-//!      `/people/{mal_id}/full`. Rows live in `authors WHERE
-//!      user_id IS NULL`, written once per real author and shared
-//!      by every user. Stale rows (>7d) revalidate in background.
+//!      `/people/{mal_id}/full` (at `JIKAN_API_URL` — the official
+//!      MyAnimeList API has no people endpoint, so this stays on
+//!      Jikan even when `MAL_CLIENT_ID` is set). Rows live in
+//!      `authors WHERE user_id IS NULL`, written once per real author
+//!      and shared by every user. Stale rows (>7d) revalidate in
+//!      background.
 //!
 //!   2. CUSTOM AUTHOR CRUD — `create_custom_author`, `update_custom_author`,
 //!      `delete_author`, `set_custom_photo`. Operates on rows where
@@ -31,7 +34,6 @@ use serde::Deserialize;
 
 use crate::db::Db;
 use crate::errors::AppError;
-use crate::util::url::build_url;
 use crate::models::author::{
     self, AUTHOR_ABOUT_MAX_LEN, AUTHOR_NAME_MAX_LEN, ActiveModel, AuthorDetail,
     Entity as AuthorEntity,
@@ -48,11 +50,6 @@ const STALE_AFTER: Duration = Duration::from_secs(7 * 24 * 3600);
 /// Per-request timeout when calling Jikan. The page renders the
 /// fallback (cached or empty) on any error.
 const FETCH_TIMEOUT: Duration = Duration::from_secs(8);
-
-#[derive(Debug, Deserialize)]
-struct JikanPersonResponse {
-    data: Option<JikanPersonData>,
-}
 
 #[derive(Debug, Deserialize)]
 struct JikanPersonData {
@@ -175,13 +172,11 @@ async fn fetch_and_upsert_shared(
     http: &reqwest::Client,
     mal_id: i32,
 ) -> Result<Option<AuthorDetail>, AppError> {
-    // 安 · URL constructed via `Url::path_segments_mut` so CodeQL's
-    // request-forgery taint analysis sees the sanitizer (i32 Display
-    // only emits digits, but the builder is defence in depth).
-    let url = build_url(
-        "https://api.jikan.moe/v4/people",
-        &[&mal_id.to_string(), "full"],
-    )?;
+    // 安 · Segments pushed through `Url::path_segments_mut` on the
+    // configured Jikan base (i32 Display only emits digits, but the
+    // builder is defence in depth).
+    let url =
+        crate::services::mal_api::upstream().jikan_url(&["people", &mal_id.to_string(), "full"]);
     let resp = http
         .get(url)
         .timeout(FETCH_TIMEOUT)
@@ -199,18 +194,19 @@ async fn fetch_and_upsert_shared(
         )));
     }
 
-    let body: JikanPersonResponse = resp
+    let body: serde_json::Value = resp
         .json()
         .await
         .map_err(|e| AppError::BadRequest(format!("Jikan author parse error: {e}")))?;
-    let Some(data) = body.data else {
+    // 互 · A mirror in another dialect is read as Jikan v4.
+    let person = crate::services::jikan_compat::person(body["data"].clone());
+    if person.is_null() {
         return Ok(None);
-    };
+    }
+    let data: JikanPersonData = serde_json::from_value(person)
+        .map_err(|e| AppError::BadRequest(format!("Jikan author parse error: {e}")))?;
 
-    let image_url = data
-        .images
-        .and_then(|i| i.jpg)
-        .and_then(|j| j.image_url);
+    let image_url = data.images.and_then(|i| i.jpg).and_then(|j| j.image_url);
     let birthday = data.birthday.as_deref().and_then(parse_birthday);
     let now = Utc::now();
 
@@ -527,10 +523,19 @@ fn parse_birthday(raw: &str) -> Option<DateTime<Utc>> {
 /// returns `Ok(None)` rather than failing the parent operation. The
 /// library row stays unlinked; the user can retry the refresh later
 /// to populate the FK. We log at warn level so this isn't silent.
+///
+/// `known_name` is the author's name as the series' own MyAnimeList
+/// answer gave it (Western order). When Jikan cannot be reached it is
+/// what keeps the series attributed: a shared row is written with the
+/// name alone and an epoch `fetched_at`, so the first visit to the
+/// author's page revalidates it — photo, biography and all — once Jikan
+/// answers again. Without it, a series added through the official API
+/// while Jikan is down would have no author at all.
 pub async fn find_or_create_shared_author_id(
     db: &Db,
     http: &reqwest::Client,
     mal_id: i32,
+    known_name: Option<&str>,
 ) -> Result<Option<i32>, AppError> {
     if mal_id <= 0 {
         return Ok(None);
@@ -548,8 +553,40 @@ pub async fn find_or_create_shared_author_id(
         return Ok(Some(id));
     }
     if let Err(err) = fetch_and_upsert_shared(db, http, mal_id).await {
-        tracing::warn!(mal_id, %err, "author cache: cold-cache fetch failed; FK left null");
-        return Ok(None);
+        let name = known_name
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+            .map(|n| n.chars().take(AUTHOR_NAME_MAX_LEN).collect::<String>());
+        let Some(name) = name else {
+            tracing::warn!(mal_id, %err, "author cache: cold-cache fetch failed; FK left null");
+            return Ok(None);
+        };
+        tracing::warn!(
+            mal_id,
+            %err,
+            "author cache: cold-cache fetch failed; recording the name alone"
+        );
+        let placeholder = ActiveModel {
+            user_id: Set(None),
+            mal_id: Set(mal_id),
+            name: Set(name),
+            given_name: Set(None),
+            family_name: Set(None),
+            image_url: Set(None),
+            about: Set(None),
+            birthday: Set(None),
+            favorites: Set(0),
+            mal_url: Set(Some(format!("https://myanimelist.net/people/{mal_id}"))),
+            // The epoch: stale from the start, so it is revalidated.
+            fetched_at: Set(DateTime::<Utc>::UNIX_EPOCH),
+            ..Default::default()
+        };
+        // A concurrent request may have written the row first (partial
+        // unique index on `mal_id WHERE user_id IS NULL`); the lookup
+        // below finds it either way.
+        if let Err(err) = placeholder.insert(db).await {
+            tracing::debug!(mal_id, %err, "author cache: placeholder not written");
+        }
     }
     let after = AuthorEntity::find()
         .filter(author::Column::UserId.is_null())

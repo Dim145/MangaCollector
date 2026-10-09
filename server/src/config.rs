@@ -108,6 +108,17 @@ pub struct Config {
     /// unset for development / low-volume instances — calls fall
     /// back to anonymous and tolerate the lower limit.
     pub google_books_api_key: Option<String>,
+    /// 源 · `JIKAN_API_URL` — the base of a Jikan v4 gateway, version
+    /// included (`https://jikan.example.org/v4`), for when the public
+    /// one is down or slow. Raw here; `mal_api::Upstream::from_settings`
+    /// validates it and falls back to `https://api.jikan.moe/v4`.
+    pub jikan_api_url: Option<String>,
+    /// 源 · `MAL_CLIENT_ID` — a MyAnimeList API client id. Set and not
+    /// empty, it switches search, series details, covers,
+    /// recommendations and the import by username to the official API
+    /// (Jikan stays the fallback, and the only source for authors and
+    /// characters). The public endpoints need no client secret.
+    pub mal_client_id: Option<String>,
     /// Optional URL of the manga-release-proxy sidecar (e.g.
     /// `http://manga-release-proxy:3001`). Acts as the master switch
     /// for the calendar / upcoming-volume feature: when unset, the
@@ -289,6 +300,14 @@ impl Config {
             google_books_api_key: std::env::var("GOOGLE_BOOKS_API_KEY")
                 .ok()
                 .filter(|s| !s.trim().is_empty()),
+            jikan_api_url: std::env::var("JIKAN_API_URL")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+            mal_client_id: std::env::var("MAL_CLIENT_ID")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
             // Proxy URL doubles as the master switch for the calendar
             // feature. Trim + reject empty so a stray
             // `EXTERNAL_PROXY_URL=` (no value) treats the calendar as

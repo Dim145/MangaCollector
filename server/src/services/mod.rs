@@ -14,6 +14,7 @@ pub mod follow;
 pub mod genres;
 pub mod google_books_api;
 pub mod isbn_resolver;
+pub mod jikan_compat;
 pub mod jobs;
 pub mod library;
 pub mod loan_history;

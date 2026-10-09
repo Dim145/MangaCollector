@@ -72,7 +72,7 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 - **3 languages** — English / French / Spanish (server-stored, localStorage-cached); each language is its own lazy-loaded code-split chunk so visitors download only what they need
 - **Seasonal atmosphere** — opt-in ambient particles (sakura / fireflies / leaves / snow) that drift across the page based on the current season, astronomically accurate; honours `prefers-reduced-motion`
 - **3D shelf view (棚)** — optional perspective tilt for the volume shelf with per-row offsets and a wood-grain backdrop; honours `prefers-reduced-motion`
-- **Custom avatar** — pick a character portrait from the series you own (live from MAL via Jikan), with live search and per-series chip-rail navigation
+- **Custom avatar** — pick a character portrait from the series you own (live from MyAnimeList, through the server), with live search and per-series chip-rail navigation
 - **Seals** — 31 unlockable milestone trophies across 9 categories, 5 ink tiers (sumi → hanko → moegi → kin → shikkoku); newly-earned ones play an in-grid spotlight ceremony with a tier-aware ceremonial chime exactly once
 - **Daily streak (連)** — current and best activity streak surfaced as a chip on the dashboard; server-computed, Dexie-cached, offline-friendly
 - **Configurable sound + haptics** — opt-in audio cues (Web Audio API, no asset downloads) and vibration on key actions; centralised through `SyncToaster` so notifications, sync events and ceremonies share one envelope shape
@@ -110,7 +110,7 @@ It works **offline-first**, is **installable on iOS / Android / Desktop**, and s
 | Local cache | **Dexie 9** (IndexedDB) + `dexie-react-hooks` — library, volumes, settings, seals, streak, bulk-mark outbox |
 | Charts | Recharts 3 |
 | Virtualization | `@tanstack/react-virtual` (windowed manga grid past 100 entries, overscan tuned for View Transitions compatibility) |
-| PWA | `vite-plugin-pwa` (peer-dep override against Vite 8 until upstream 1.3.0 lands) + Workbox runtime caching (Google Fonts, MAL CDN, Jikan API, user posters) |
+| PWA | `vite-plugin-pwa` (peer-dep override against Vite 8 until upstream 1.3.0 lands) + Workbox runtime caching (MAL CDN, user posters) |
 | Barcode | Native `BarcodeDetector` API with the **`barcode-detector`** WASM polyfill as a unified fallback |
 | i18n | Custom `I18nProvider` + `useT` hook, 3 dictionaries — each language is its own lazy-loaded code-split chunk; a custom Vite plugin injects `<link rel="modulepreload">` for the active language at HTML parse time so the lazy-load adds no RTT cost |
 | Animation | View Transitions API (browsers that support it) + WAAPI for ceremony / micro-interactions |
@@ -233,6 +233,8 @@ All server config lives in environment variables (see [`server/.env.example`](se
 | `STORAGE_DIR` | If set, use local filesystem for poster uploads |
 | `S3_*` | If set instead, use S3/MinIO for poster uploads |
 | `REDIS_URL` | Optional. When set (e.g. `redis://redis:6379/1`), enables the response cache layer; otherwise the server runs cache-less |
+| `JIKAN_API_URL` | Optional. Base of a Jikan v4 gateway, version included (e.g. `https://jikan.example.org/v4`, or jikan-edge's `https://jikan.lucashdo.com/v1`), when the public `api.jikan.moe` is down or slow |
+| `MAL_CLIENT_ID` | Optional. A [MyAnimeList API](https://myanimelist.net/apiconfig) client id: search, series details, covers, recommendations and the import by username then use the official API, with Jikan as the fallback. No client secret needed |
 | `APP_UNSECURE_HEALTHCHECK` | Set to `true` to allow non-loopback `/api/health` (e.g. for Uptime Kuma) |
 | `SENTRY_DSN` *or* `BUGSINK_DSN` | Optional, mutually exclusive. Enables wire-compatible error tracking on the backend. Setting both refuses to start |
 | `UMAMI_HOST` + `UMAMI_WEBSITE_ID` | Optional. Set on the **frontend** container; rendered into `index.html` at container start (envsubst) to enable Umami analytics. Both unset = no tracking |
