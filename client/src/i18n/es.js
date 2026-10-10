@@ -1525,7 +1525,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.16.2 · MyAnimeList, desde la fuente que responde",
+    version: "v2.16.3 · El próximo tomo, apuntado desde cualquier sitio",
     heroStart: "Cada",
     heroAccent: "tomo",
     heroEnd1: ",",

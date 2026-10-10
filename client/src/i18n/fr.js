@@ -1545,7 +1545,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.16.2 · MyAnimeList, par la source qui répond",
+    version: "v2.16.3 · Le prochain tome, noté de partout",
     heroStart: "Chaque",
     heroAccent: "tome",
     heroEnd1: ",",
