@@ -11,6 +11,12 @@ import { useT } from "@/i18n/index.jsx";
 const CalendarSubscribeModal = lazy(() =>
   import("./CalendarSubscribeModal.jsx"),
 );
+// 来 · Noting an upcoming volume from here: pick the series, then the
+// same form the series page uses. Both lazy, like the subscribe modal.
+const UpcomingSeriesPicker = lazy(() => import("./UpcomingSeriesPicker.jsx"));
+const AddUpcomingVolumeModal = lazy(() =>
+  import("./AddUpcomingVolumeModal.jsx"),
+);
 
 /**
  * 暦 · CalendarPage — the upcoming-volume timeline.
@@ -53,6 +59,12 @@ export default function CalendarPage() {
 
   // ── Subscribe modal ─────────────────────────────────────────────
   const [subscribeOpen, setSubscribeOpen] = useState(false);
+
+  // ── Add an upcoming volume ──────────────────────────────────────
+  // Two steps: `pickerOpen` while the reader chooses the series, then
+  // `picked` ({ manga, highest }) holds it while the form is open.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [picked, setPicked] = useState(null);
 
   // ── View toggle ─────────────────────────────────────────────────
   // Agenda is the canonical view; Month grid is a denser power-user
@@ -205,6 +217,7 @@ export default function CalendarPage() {
           online={online}
           onRefetch={refetch}
           onSubscribe={() => setSubscribeOpen(true)}
+          onAddUpcoming={() => setPickerOpen(true)}
           t={t}
         />
 
@@ -214,7 +227,12 @@ export default function CalendarPage() {
         ) : isError ? (
           <ErrorState onRetry={refetch} t={t} />
         ) : filteredReleases.length === 0 ? (
-          <EmptyState hasQuery={Boolean(trimmedQuery)} t={t} />
+          <EmptyState
+            hasQuery={Boolean(trimmedQuery)}
+            online={online}
+            onAddUpcoming={() => setPickerOpen(true)}
+            t={t}
+          />
         ) : view === "agenda" ? (
           <AgendaView
             byMonth={byMonth}
@@ -244,6 +262,34 @@ export default function CalendarPage() {
             />
           </Suspense>
         )}
+
+        {/* 来 · Add an upcoming volume: the series first, then the form
+            with the next number proposed. The calendar reads its range
+            from the server, not from `db.volumes` where the form writes,
+            so a save refetches it. */}
+        {pickerOpen && (
+          <Suspense fallback={null}>
+            <UpcomingSeriesPicker
+              open={pickerOpen}
+              onClose={() => setPickerOpen(false)}
+              onPick={(row) => {
+                setPickerOpen(false);
+                setPicked(row);
+              }}
+            />
+          </Suspense>
+        )}
+        {picked && (
+          <Suspense fallback={null}>
+            <AddUpcomingVolumeModal
+              open
+              onClose={() => setPicked(null)}
+              manga={picked.manga}
+              highestKnownVolNum={picked.highest}
+              onSaved={() => refetch()}
+            />
+          </Suspense>
+        )}
       </div>
     </DefaultBackground>
   );
@@ -264,6 +310,7 @@ function Toolbar({
   online = true,
   onRefetch,
   onSubscribe,
+  onAddUpcoming,
   t,
 }) {
   return (
@@ -358,6 +405,40 @@ function Toolbar({
           );
         })}
       </div>
+
+      {/* 来 · Add an upcoming volume — the reader picks the series, then
+          the form the series page uses. Needs the server to save, so it
+          is disabled offline like the subscribe button beside it. */}
+      <button
+        type="button"
+        onClick={onAddUpcoming}
+        disabled={!online}
+        title={
+          online
+            ? t("calendar.addUpcomingTitle")
+            : t("manga.upcomingAddManualOfflineHint")
+        }
+        aria-label={
+          online
+            ? t("calendar.addUpcomingTitle")
+            : t("manga.upcomingAddManualOfflineHint")
+        }
+        className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border border-moegi/40 bg-moegi/10 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider pointer-coarse:min-h-11 text-moegi transition hover:border-moegi/70 hover:bg-moegi/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-moegi/40 disabled:hover:bg-moegi/10"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          className="h-3.5 w-3.5"
+          aria-hidden="true"
+        >
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        <span className="hidden sm:inline">{t("calendar.addUpcoming")}</span>
+      </button>
 
       {/* Subscribe — opens the ICS modal. Moegi-styled to align with
           the rest of the calendar's anticipation-tier vocabulary; the
@@ -875,7 +956,7 @@ function ErrorState({ onRetry, t }) {
   );
 }
 
-function EmptyState({ hasQuery, t }) {
+function EmptyState({ hasQuery, online = true, onAddUpcoming, t }) {
   // 暦 · Calendar empty state — accent ai (indigo) so it reads
   // as "scheduled / archive blue" rather than the dashboard's
   // hanko cinnabar. The kanji 静 (sei = quiet/still) carries the
@@ -903,15 +984,31 @@ function EmptyState({ hasQuery, t }) {
         {hasQuery ? t("calendar.emptySearchBody") : t("calendar.emptyBody")}
       </p>
       {!hasQuery && (
-        <Link
-          to="/dashboard"
-          className="mt-5 inline-flex items-center gap-2 rounded-full border border-ai/40 bg-ai/5 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-ai transition hover:border-ai hover:bg-ai/15"
-        >
-          <span aria-hidden className="font-jp text-[13px] font-bold leading-none">
-            本
-          </span>
-          {t("calendar.emptyCta")}
-        </Link>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 rounded-full border border-ai/40 bg-ai/5 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-ai transition hover:border-ai hover:bg-ai/15 pointer-coarse:min-h-11"
+          >
+            <span aria-hidden className="font-jp text-[13px] font-bold leading-none">
+              本
+            </span>
+            {t("calendar.emptyCta")}
+          </Link>
+          {/* 来 · An empty calendar is exactly when a reader who knows
+              of an announced volume wants to note it. */}
+          <button
+            type="button"
+            onClick={onAddUpcoming}
+            disabled={!online}
+            title={online ? undefined : t("manga.upcomingAddManualOfflineHint")}
+            className="inline-flex items-center gap-2 rounded-full border border-moegi/40 bg-moegi/5 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-moegi transition hover:border-moegi hover:bg-moegi/15 disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
+          >
+            <span aria-hidden className="font-jp text-[13px] font-bold leading-none">
+              来
+            </span>
+            {t("calendar.emptyAddCta")}
+          </button>
+        </div>
       )}
     </MarginaliaPaper>
   );

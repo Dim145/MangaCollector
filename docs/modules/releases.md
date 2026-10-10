@@ -98,7 +98,9 @@ Manual pencilling and graduation to an owned tome:
 
 ```mermaid
 flowchart TD
-  A[MangaPage edit menu<br/>online only] --> B[AddUpcomingVolumeModal<br/>date sent as YYYY-MM-DDT23:59:59Z]
+  A[MangaPage actions menu<br/>any series, online only] --> B[AddUpcomingVolumeModal<br/>date sent as YYYY-MM-DDT23:59:59Z]
+  A2[CalendarPage button or empty state<br/>any series, online only] --> A3[UpcomingSeriesPicker<br/>series from db.library, next number from db.volumes]
+  A3 --> B
   B --> C[POST /api/user/library/mal_id/volumes/upcoming]
   C --> D[add_upcoming_manually<br/>vol_num at least 1, future date, series in library, ISBN/URL normalised]
   D -- row exists --> E[409]
@@ -152,7 +154,19 @@ Route table: `server/src/routes/api.rs`.
   current month plus 6 or 12 months; text filter on `manga_name`; a card
   navigates to the MangaPage with `state.openVolumeId`. `parseReleaseDate`
   reads the `YYYY-MM-DD` prefix into a local date so the day never shifts
-  with the viewer's timezone.
+  with the viewer's timezone. 来 A "＋ Upcoming volume" button in the
+  toolbar (and a second one in the empty state) opens
+  `UpcomingSeriesPicker`, then `AddUpcomingVolumeModal` on the series
+  picked, with `onSaved` refetching the range — the calendar reads the
+  server's answer per range, not `db.volumes`, where the form writes.
+  Disabled offline, like the subscribe button.
+- `components/UpcomingSeriesPicker.jsx` + `lib/upcomingPicker.js` — the
+  series to note a volume for: every library series with a `mal_id`,
+  custom ones included, sorted by name, searched without case or accents
+  (`foldForSearch`), each with the number its next volume would carry
+  (the highest `vol_num` among its rows, else its announced count, + 1 —
+  the rule the series page uses for its own form). All read from Dexie,
+  so the list is instant; only the save needs the server.
 - `hooks/useUpcomingCalendar.js` — Dexie live row for the range plus
   React Query `["calendar-upcoming", from, until]` (`staleTime` 60 s),
   mirrored into `calendarUpcoming`; exposes `source: "cache" | "live"`.
@@ -160,8 +174,17 @@ Route table: `server/src/routes/api.rs`.
   copy, `webcal://` link, Google Calendar add-by-URL, regenerate with an
   in-flow confirm. The toolbar button is disabled offline.
 - `components/AddUpcomingVolumeModal.jsx` — create/edit form used by
-  `MangaPage.jsx` (create; menu item disabled offline, offered on custom
-  series too) and by the drawer (edit). Hooks in `hooks/useVolumes.js`:
+  `MangaPage.jsx` (create, from the "Add an upcoming volume" entry of the
+  actions menu behind the edit button's caret; disabled offline), by the
+  calendar (create, after the picker) and by the drawer (edit). The caret
+  renders for every series: on a custom one (no MAL id, no MangaDex id)
+  the menu holds this entry alone, without the "sync metadata" heading or
+  the sync and refresh entries, which need an upstream to ask. It used to
+  render only with an upstream reference, which left custom series no
+  way to note an upcoming volume from their page. The success toast
+  formats the date in UTC,
+  like the form: the day is stored as 23:59:59Z, and local time east of
+  UTC read it as the next day. Hooks in `hooks/useVolumes.js`:
   `useAddUpcomingVolume`, `useUpdateUpcomingVolume`,
   `useDeleteUpcomingVolume` — plain mutations, no outbox, each writes the
   server's row into `db.volumes` directly.
@@ -286,8 +309,13 @@ Client (`pnpm test`): `lib/navCounters.test.js` (`countReleasesThisMonth`),
 `utils/user.test.js` (`refreshUpcoming` URL, including negative ids),
 `utils/librarySort.test.js` (`upcoming` sort key), `utils/libraryStats.test.js`
 (doubles ignore upcoming rows), `lib/scanLookup.test.js` (`release_isbn`
-match). `useUpcomingCalendar`, `CalendarPage` and the two modals are not
-covered.
+match), `lib/upcomingPicker.test.js` (the next number — rows over the
+announced count, the count when there are no rows — the order by name, a
+search that ignores case and accents). `useUpcomingCalendar`,
+`CalendarPage` and the modals are not covered; the calendar flow was
+checked end to end in a browser (empty library, three custom series,
+search, the form proposing the next number, the release showing without
+a reload).
 
 Local stack (`docs/test-stack.md`): start it, seed with
 `node scripts/seed-test-stack.mjs`, pencil a tome from a MangaPage edit

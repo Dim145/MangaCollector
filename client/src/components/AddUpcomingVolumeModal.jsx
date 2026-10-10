@@ -31,6 +31,10 @@ export default function AddUpcomingVolumeModal({
   // When `editingVolume` is provided, the modal flips to edit mode.
   // Shape: { id, vol_num, release_date, release_isbn, release_url }
   editingVolume = null,
+  // Called with the saved volume just before the modal closes. The
+  // calendar uses it to refetch its range, which `db.volumes` — where
+  // the mutation writes — does not feed.
+  onSaved,
 }) {
   const t = useT();
   const isEditing = Boolean(editingVolume);
@@ -152,6 +156,7 @@ export default function AddUpcomingVolumeModal({
           date: niceDate,
         }),
       });
+      onSaved?.(resultVol);
       onClose();
     } catch (err) {
       // Translate the server's status into a friendly message. Inline
@@ -402,10 +407,14 @@ function tomorrow() {
 function formatDateForToast(iso) {
   if (!iso) return "";
   try {
+    // UTC, like `formatDateForInput`: the day is stored as 23:59:59Z,
+    // which local time east of UTC reads as the next day — the toast
+    // said "31 Oct" for a release the calendar showed on the 30th.
     return new Date(iso).toLocaleDateString(undefined, {
       year: "numeric",
       month: "short",
       day: "numeric",
+      timeZone: "UTC",
     });
   } catch {
     return "";

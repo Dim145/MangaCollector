@@ -256,6 +256,18 @@ export default {
     emptyBody:
       "Dès qu'une série de votre bibliothèque a un tome annoncé — par vous ou par la synchro nocturne — il atterrit ici.",
     emptyCta: "Parcourir ma bibliothèque",
+    emptyAddCta: "Ajouter un tome à venir",
+    addUpcoming: "Tome à venir",
+    addUpcomingTitle: "Noter un tome annoncé pour l'une de vos séries",
+    pickSeriesTitle: "Pour quelle série ?",
+    pickSeriesLead:
+      "Choisissez-la dans votre bibliothèque ; son numéro et sa date viennent ensuite.",
+    pickSeriesSearch: "Chercher dans votre bibliothèque…",
+    pickSeriesNext: "prochain : tome {n}",
+    pickSeriesNoMatch: "Aucune série ne correspond.",
+    pickSeriesNoLibrary:
+      "Votre bibliothèque est vide : ajoutez d'abord une série.",
+    pickSeriesAddCta: "Ajouter une série",
     emptySearchEyebrow: "AUCUNE CORRESPONDANCE · 静",
     emptySearchTitle: "Aucune sortie ne correspond au filtre",
     emptySearchBody:
@@ -515,13 +527,13 @@ export default {
     upcomingRefreshHint:
       "Rechercher les tomes annoncés via MangaUpdates et les ajouter à cette série.",
     upcomingOfflineHint: "Reconnectez-vous pour chercher les tomes à venir.",
-    upcomingAddManual: "Ajouter manuellement · 来",
+    upcomingAddManual: "Ajouter un tome à venir · 来",
     upcomingAddManualHint:
-      "Pencillez vous-même un tome annoncé : numéro, date de sortie, ISBN ou URL de précommande facultatifs.",
+      "Notez vous-même un tome annoncé : son numéro et sa date de sortie, et si vous les avez, son ISBN et son lien de précommande.",
     upcomingAddManualOfflineHint:
       "Reconnectez-vous pour ajouter un tome à venir.",
     upcomingModalEyebrow: "TOME À VENIR · 来",
-    upcomingModalTitle: "Pencillez un tome à venir",
+    upcomingModalTitle: "Noter un tome à venir",
     upcomingModalLead:
       "Tout ce que vous notez ici reste sous votre main — l'auto-rafraîchissement n'écrasera jamais une fiche manuelle.",
     upcomingModalSeries: "Série",
@@ -574,7 +586,7 @@ export default {
     refreshMalTitle: "Actualiser les métadonnées depuis MyAnimeList",
     refreshMangadexTitle: "Actualiser les métadonnées depuis MangaDex",
     refreshOffline: "Nécessite une connexion",
-    syncMenuLabel: "Actions de synchronisation",
+    syncMenuLabel: "Plus d'actions",
     syncMenuHeading: "Synchroniser les métadonnées",
     syncFromMal: "Depuis MyAnimeList",
     syncFromMangadex: "Depuis MangaDex",

@@ -1169,10 +1169,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                 {!isEditing ? (
                   <>
                     {/* Split-button: main pill enters edit mode; caret
-                        opens the sync actions menu. The caret is rendered
-                        ONLY when at least one external ref exists —
-                        custom-only series don't have anything to sync
-                        from, so the caret would be dead weight. */}
+                        opens the actions menu. Rendered for every series:
+                        a custom one has nothing to sync from, but the
+                        menu's "add an upcoming volume" is the only way to
+                        note one from its own page. */}
                     <div
                       ref={splitButtonRef}
                       data-edit-menu
@@ -1180,11 +1180,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                     >
                       <button
                         onClick={() => setIsEditing(true)}
-                        className={`inline-flex flex-1 items-center justify-center gap-1.5 bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-on-hanko shadow-lg transition hover:bg-hanko-deep active:scale-95 sm:flex-none ${
-                          manga.mal_id > 0 || liveMangadexId
-                            ? "rounded-l-full"
-                            : "rounded-full"
-                        }`}
+                        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-l-full bg-hanko px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-on-hanko shadow-lg transition hover:bg-hanko-deep active:scale-95 sm:flex-none"
                       >
                         <svg
                           viewBox="0 0 24 24"
@@ -1199,42 +1195,40 @@ export default function MangaPage({ manga, adult_content_level }) {
                         </svg>
                         {t("common.edit")}
                       </button>
-                      {(manga.mal_id > 0 || liveMangadexId) && (
-                        <button
-                          onClick={() => {
-                            setEditMenuOpen((prev) => {
-                              const next = !prev;
-                              if (next && splitButtonRef.current) {
-                                const r =
-                                  splitButtonRef.current.getBoundingClientRect();
-                                setEditMenuPos({
-                                  top: r.bottom + 6,
-                                  left: r.left,
-                                });
-                              }
-                              return next;
-                            });
-                          }}
-                          disabled={refreshing}
-                          aria-label={t("manga.syncMenuLabel")}
-                          aria-expanded={editMenuOpen}
-                          aria-haspopup="menu"
-                          className="inline-flex items-center justify-center rounded-r-full border-l border-hanko-deep/60 bg-hanko px-2.5 py-2.5 text-on-hanko shadow-lg transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
+                      <button
+                        onClick={() => {
+                          setEditMenuOpen((prev) => {
+                            const next = !prev;
+                            if (next && splitButtonRef.current) {
+                              const r =
+                                splitButtonRef.current.getBoundingClientRect();
+                              setEditMenuPos({
+                                top: r.bottom + 6,
+                                left: r.left,
+                              });
+                            }
+                            return next;
+                          });
+                        }}
+                        disabled={refreshing}
+                        aria-label={t("manga.syncMenuLabel")}
+                        aria-expanded={editMenuOpen}
+                        aria-haspopup="menu"
+                        className="inline-flex items-center justify-center rounded-r-full border-l border-hanko-deep/60 bg-hanko px-2.5 py-2.5 text-on-hanko shadow-lg transition hover:bg-hanko-deep active:scale-95 disabled:opacity-60"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className={`h-3.5 w-3.5 transition-transform duration-200 ${editMenuOpen ? "rotate-180" : ""}`}
+                          aria-hidden="true"
                         >
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className={`h-3.5 w-3.5 transition-transform duration-200 ${editMenuOpen ? "rotate-180" : ""}`}
-                            aria-hidden="true"
-                          >
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
-                        </button>
-                      )}
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </button>
                     </div>
                     <button
                       onClick={() => setConfirmDelete(true)}
@@ -1730,9 +1724,13 @@ export default function MangaPage({ manga, adult_content_level }) {
             }}
             className="min-w-[240px] overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl backdrop-blur animate-fade-up"
           >
-            <p className="border-b border-border/60 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim">
-              {t("manga.syncMenuHeading")}
-            </p>
+            {/* The heading names the sync entries below it; a custom
+                series has none, only the upcoming one. */}
+            {(manga.mal_id > 0 || liveMangadexId) && (
+              <p className="border-b border-border/60 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim">
+                {t("manga.syncMenuHeading")}
+              </p>
+            )}
             {manga.mal_id > 0 && (
               <button
                 role="menuitem"

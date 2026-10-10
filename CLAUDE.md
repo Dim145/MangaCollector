@@ -236,7 +236,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 120 tests across 61 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 126 tests across 62 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -259,7 +259,9 @@ docker compose build
     EAN-13 checksums, label text fitting), `gridDensity` (the two grid
     shapes — a test parses the Tailwind class string against the lane
     table so the plain and windowed paths cannot drift), `markdown` (the
-    help pages' reader) and `barcode` (what a camera says it can do).
+    help pages' reader), `barcode` (what a camera says it can do) and
+    `upcomingPicker` (来 the series the calendar offers for a new
+    upcoming volume, and the number it proposes).
     `lib/isbnResolve.test.js` pins the lookup order — Dexie cache, then
     the server's resolver, then the browser's own direct fallback only
     when the server is unreachable.
