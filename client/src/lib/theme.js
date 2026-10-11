@@ -19,6 +19,16 @@ const THEME_META = {
   light: "#f3efe6",
 };
 
+// 地 · The page's own ground, as `index.html`'s bootstrap paints it on
+// <html> before the stylesheet lands (`--background` resolved). Safari
+// 26+ ignores `theme-color` and tints its bars from what sits under
+// them, the page background included — set once at boot, a reader who
+// switched themes got a dark bar over a white page until the next load.
+const PAGE_BACKGROUND = {
+  dark: "#020101",
+  light: "#ffffff",
+};
+
 let autoMql = null;
 let autoHandler = null;
 
@@ -38,6 +48,8 @@ function setResolvedTheme(resolved) {
     document.head.appendChild(meta);
   }
   meta.setAttribute("content", THEME_META[resolved] ?? THEME_META.dark);
+
+  root.style.backgroundColor = PAGE_BACKGROUND[resolved] ?? PAGE_BACKGROUND.dark;
 
   // Hint UA for form controls (scrollbars, date pickers, etc.)
   root.style.colorScheme = resolved;

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
@@ -5,6 +6,7 @@ import { db } from "@/lib/db.js";
 import { libraryQuery } from "@/lib/coreQueries.js";
 import { refetchLibraryEntry, refetchVolumes } from "@/lib/sync/outbox.js";
 import { deriveListState } from "@/lib/queryState.js";
+import { lastRead, rememberRead } from "@/lib/warmReads.js";
 import {
   enqueueLibraryDelete,
   enqueueLibraryPatch,
@@ -29,7 +31,11 @@ import {
  *                     Use to show the empty state.
  */
 export function useLibrary({ enabled = true } = {}) {
-  const data = useLiveQuery(() => db.library.toArray(), []);
+  const live = useLiveQuery(() => db.library.toArray(), []);
+  // 温 · Until Dexie answers, the answer it gave last time — see
+  // `lib/warmReads.js`.
+  useEffect(() => rememberRead("library", live), [live]);
+  const data = live ?? lastRead("library");
 
   // `enabled: false` keeps the Dexie read (instant, offline, no request)
   // and skips the network revalidation. The landing page uses it for a

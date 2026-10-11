@@ -13,8 +13,9 @@ the characters the source contains.
     python3 scripts/subset-jp-font.py
 
 Run it after adding a kanji to the interface, and commit the two files
-it writes. It scans `client/src` for CJK, adds the Japanese punctuation block,
-and writes one woff2 per weight in use.
+it writes. It scans `client/src` (and `client/index.html`) for CJK outside
+comments and tests, adds the Japanese punctuation block, and writes one
+woff2 per weight in use.
 
 Source and licence: `@fontsource/noto-serif-jp`, SIL Open Font Licence
 1.1, which allows a subset to be redistributed under the same licence —
@@ -46,17 +47,42 @@ CJK = re.compile(r"[　-〿぀-ヿ㐀-䶿一-鿿ｦ-ﾟ]")
 ALWAYS = "".join(chr(c) for c in range(0x3000, 0x3040))
 
 
+# 註 · Comments are not the interface. The source marks its sections
+# with a kanji each (`// 遷 · …`), and scanned as text those shipped as
+# glyphs nobody is ever shown — 44 of them by October 2026, 8 kB a
+# weight. A `//` comment is one that starts a line or follows a space,
+# so `https://` in a string survives; JSX comments are block comments.
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+LINE_COMMENT = re.compile(r"(^|[ \t])//[^\n]*", re.M)
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
+
+
+def drawable(path: pathlib.Path, text: str) -> str:
+    if path.suffix in {".js", ".jsx"}:
+        return LINE_COMMENT.sub(r"\1", BLOCK_COMMENT.sub("", text))
+    if path.suffix == ".css":
+        return BLOCK_COMMENT.sub("", text)
+    if path.suffix == ".html":
+        return HTML_COMMENT.sub("", text)
+    return text
+
+
 def scan() -> set[str]:
     found: set[str] = set(ALWAYS)
     for path in SRC.rglob("*"):
         if path.suffix not in {".js", ".jsx", ".css", ".md", ".html"}:
             continue
-        if not path.is_file():
+        # Tests are not shipped.
+        if not path.is_file() or ".test." in path.name:
             continue
         try:
-            found.update(CJK.findall(path.read_text(encoding="utf-8")))
+            found.update(CJK.findall(drawable(path, path.read_text(encoding="utf-8"))))
         except (UnicodeDecodeError, OSError):
             continue
+    # index.html lives beside `src`: its boot shell draws the header.
+    index = SRC.parent / "index.html"
+    if index.is_file():
+        found.update(CJK.findall(drawable(index, index.read_text(encoding="utf-8"))))
     return found
 
 

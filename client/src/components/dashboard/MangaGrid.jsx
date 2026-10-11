@@ -18,6 +18,8 @@ function MangaGrid({
   // 先 · True when this shelf is the one a fresh visit opens on — its
   // first covers are then worth preloading next time.
   recordLcp = false,
+  // What the list is, for a screen reader ("Your series").
+  label,
 }) {
   const { density } = useGridDensity();
   const cardProps = {
@@ -47,15 +49,21 @@ function MangaGrid({
         ? 2
         : lanesForWidth(density, window.innerWidth);
     return (
-      <div className={gridClass}>
+      <div role="list" aria-label={label} className={gridClass}>
         {filtered.map((manga, i) => (
+          <div
+            // Custom series can share `mal_id = null` until the server
+            // mints a negative id, so we prefer the Dexie primary key.
+            key={manga.id ?? manga.mal_id ?? `idx-${i}`}
+            role="listitem"
+            aria-setsize={filtered.length}
+            aria-posinset={i + 1}
+            className="min-w-0"
+          >
           <Manga
             coverSizes={coverSizes}
             priority={i < firstRow}
             lcpHintRank={recordLcp && i < 2 ? i : undefined}
-            // Custom series can share `mal_id = null` until the server
-            // mints a negative id, so we prefer the Dexie primary key.
-            key={manga.id ?? manga.mal_id ?? `idx-${i}`}
             manga={manga}
             adult_content_level={cardProps.adult_content_level}
             allCollector={cardProps.allCollectorSet.has(manga.mal_id)}
@@ -66,6 +74,7 @@ function MangaGrid({
             onToggleSelect={onToggleSelect}
             onEnterSelection={onEnterSelection}
           />
+          </div>
         ))}
       </div>
     );
@@ -75,6 +84,7 @@ function MangaGrid({
       filtered={filtered}
       coverSizes={coverSizes}
       recordLcp={recordLcp}
+      label={label}
       {...cardProps}
     />
   );

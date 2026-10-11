@@ -20,6 +20,11 @@ import { sounds } from "@/lib/sounds.js";
 import { useT } from "@/i18n/index.jsx";
 
 import CoverImg from "@/components/ui/CoverImg.jsx";
+import { prefersReducedMotion, springEasing } from "@/lib/motion.js";
+import { announce } from "@/lib/announce.js";
+
+// Damping 0.9 (Material 3 Expressive, spatial): computed once.
+const OWNED_SPRING = springEasing({ zeta: 0.9 });
 /**
  * Volume card. When `locked=true` (volume belongs to a coffret) every write-path
  * is disabled — the coffret header is the single source of truth for owned /
@@ -117,14 +122,20 @@ function VolumeImpl({
   const coverButtonRef = useRef(null);
 
   function playOwnedFeedback(toOwned) {
-    coverButtonRef.current?.animate(
-      [
-        { transform: "scale(1)" },
-        { transform: "scale(1.08)" },
-        { transform: "scale(1)" },
-      ],
-      { duration: 240, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
-    );
+    // 押 · A stamp pressed then released on a damped spring (`OWNED_SPRING`):
+    // the cover sinks a little and settles, with one overshoot too small
+    // to read as a bounce. It was a 1.08 swell on an elastic curve. Not
+    // at all for a reader who asked for less motion — this animation is
+    // started from script, where the stylesheet's rule never reaches.
+    if (!prefersReducedMotion()) {
+      coverButtonRef.current?.animate(
+        [
+          { transform: toOwned ? "scale(0.94)" : "scale(0.97)" },
+          { transform: "scale(1)" },
+        ],
+        { duration: 420, easing: OWNED_SPRING },
+      );
+    }
     if (toOwned) {
       setTickKey((k) => k + 1);
       setTickVisible(true);
@@ -239,9 +250,10 @@ function VolumeImpl({
     setOwnedStatus(next);
     // Same frame as the colour shift so the feedback lands with the
     // click/swipe, not 200 ms later when the network resolves.
-    next ? haptics.bump() : haptics.tap();
+    next ? haptics.check() : haptics.tap();
     next ? sounds.bump() : sounds.tap();
     playOwnedFeedback(next);
+    announce(t(next ? "volume.announceOwned" : "volume.announceNotOwned", { n: volNum }));
     await persist(next, price, purchaseLocation, collectorStatus, true);
   }
 
@@ -423,6 +435,20 @@ function VolumeImpl({
   // keep working unchanged.
   const isLent = ownedStatus && !isUpcoming && Boolean(loanedTo);
   const loanStatus = isLent ? classifyLoanStatus(loanDueAt) : null;
+  // 名 · What pressing the volume button does — or, for a tome that
+  // cannot be pressed, why — said after the number the button shows.
+  const tileAction = isUpcoming
+    ? t("volume.upcomingAria", { date: formatShortDate(releaseDate) })
+    : locked
+      ? t("volume.lockedAria")
+      : isLent
+        ? t("loans.stampAria", {
+            status: t(`loans.status${capitalize(loanStatus)}`),
+            borrower: loanedTo,
+          })
+        : ownedStatus
+          ? t("volume.markNotOwned")
+          : t("volume.markOwned");
 
   // 飛 · Skipped only reads on a tome the reader does not own.
   const skipped = !ownedStatus && wantedDraft === false && !isUpcoming;
@@ -478,6 +504,7 @@ function VolumeImpl({
         <span className="absolute -right-2 -top-2 z-20">
           <Tooltip text={t("volume.collectorTitle")} placement="top">
             <span
+              role="img"
               aria-label={t("volume.collectorTitle")}
               className="grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_2px_12px_rgba(201,169,97,0.6)] ring-1 ring-gold/80"
               style={{ transform: "rotate(-8deg)" }}
@@ -496,6 +523,7 @@ function VolumeImpl({
         <span className="absolute -left-2 -top-2 z-20">
           <Tooltip text={t("volume.skippedOption")} placement="top">
             <span
+              role="img"
               aria-label={t("volume.skippedOption")}
               className="grid h-5 w-5 place-items-center rounded-full bg-ink-1 font-jp text-[10px] font-bold leading-none text-washi-muted ring-1 ring-washi/30"
               style={{ transform: "rotate(-8deg)" }}
@@ -519,6 +547,7 @@ function VolumeImpl({
             placement="top"
           >
             <span
+              role="img"
               aria-label={t("volume.doublesTooltip", {
                 n: 1 + Number(extraCopies),
                 x: Number(extraCopies),
@@ -541,6 +570,7 @@ function VolumeImpl({
             placement="top"
           >
             <span
+              role="img"
               aria-label={t("volume.upcomingTooltip", {
                 date: formatShortDate(releaseDate),
               })}
@@ -565,17 +595,8 @@ function VolumeImpl({
             ref={coverButtonRef}
             onClick={toggleOwned}
             disabled={isEditing || isLoading || locked || isUpcoming}
-            aria-label={
-              isUpcoming
-                ? t("volume.upcomingAria", {
-                    date: formatShortDate(releaseDate),
-                  })
-                : locked
-                  ? t("volume.lockedAria")
-                  : ownedStatus
-                    ? t("volume.markNotOwned")
-                    : t("volume.markOwned")
-            }
+            // 名 · Named by what it shows — the volume number — and then
+            // what pressing it does, in words (`tileAction`, sr-only).
             title={
               isUpcoming
                 ? t("volume.upcomingTooltip", {
@@ -733,7 +754,12 @@ function VolumeImpl({
                 badge so the volume number stays readable on top
                 of the stamp's outer ring. */}
             {ownedStatus && !isUpcoming && (
-              <LoanStamp loanedTo={loanedTo} loanDueAt={loanDueAt} size="lg" />
+              <LoanStamp
+                loanedTo={loanedTo}
+                loanDueAt={loanDueAt}
+                size="lg"
+                decorative
+              />
             )}
 
             <span
@@ -754,28 +780,18 @@ function VolumeImpl({
             >
               {volNum}
             </span>
+            <span className="sr-only">
+              {" — "}
+              {tileAction}
+            </span>
           </button>
         ) : (
           <button
             ref={coverButtonRef}
             onClick={toggleOwned}
             disabled={isEditing || isLoading || locked || isUpcoming}
-            aria-label={
-              isUpcoming
-                ? t("volume.upcomingAria", {
-                    date: formatShortDate(releaseDate),
-                  })
-                : locked
-                  ? t("volume.lockedAria")
-                  : isLent
-                    ? t("loans.stampAria", {
-                        status: t(`loans.status${capitalize(loanStatus)}`),
-                        borrower: loanedTo,
-                      })
-                    : ownedStatus
-                      ? t("volume.markNotOwned")
-                      : t("volume.markOwned")
-            }
+            // 名 · Named by what it shows ("vols 12", or "#12" when lent)
+            // and then what pressing it does, in words (`tileAction`).
             title={
               isUpcoming
                 ? t("volume.upcomingTooltip", {
@@ -812,6 +828,7 @@ function VolumeImpl({
                   }}
                 />
                 <span
+                  aria-hidden="true"
                   className="relative font-jp text-lg font-bold leading-none"
                   style={{ transform: "rotate(-6deg)" }}
                 >
@@ -831,6 +848,10 @@ function VolumeImpl({
                 </span>
               </>
             )}
+            <span className="sr-only">
+              {" — "}
+              {tileAction}
+            </span>
           </button>
         )}
 
@@ -1150,7 +1171,6 @@ function VolumeImpl({
                   type="button"
                   onClick={openDetails}
                   disabled={locked}
-                  aria-label={t("volume.noteIndicatorAria")}
                   className={`ml-auto inline-flex items-center gap-1 rounded-full border border-hanko/20 bg-hanko/5 px-2 py-0.5 font-mono text-[9px] pointer-coarse:py-1.5 uppercase tracking-wider text-hanko-bright transition hover:border-hanko/45 hover:bg-hanko/10 hover:text-hanko-bright ${
                     locked ? "cursor-default opacity-60 hover:bg-hanko/5" : ""
                   }`}

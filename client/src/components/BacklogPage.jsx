@@ -1,5 +1,5 @@
 import { useContext, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import CoverImage from "./ui/CoverImage.jsx";
 import MarginaliaPaper from "./ui/MarginaliaPaper.jsx";
@@ -8,6 +8,7 @@ import { hasToBlurImage } from "@/utils/library.js";
 import SettingsContext from "@/SettingsContext.js";
 import { useT } from "@/i18n/index.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
+import BackLink from "@/components/ui/BackLink.jsx";
 
 /**
  * 積読 Tsundoku · The pile of unread books — laid bare.
@@ -53,6 +54,9 @@ export default function BacklogPage() {
   return (
     <DefaultBackground>
       <div className="relative mx-auto max-w-4xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+        <BackLink to="/profile" className="mb-6">
+          {t("common.backToProfile")}
+        </BackLink>
         {/* ── Atmosphere — gold bloom top-left, hanko bloom bottom-
               right. -z-10 so they sit behind text + cards. */}
         <span
@@ -111,17 +115,6 @@ export default function BacklogPage() {
           </>
         )}
 
-        <footer className="mt-12 text-center">
-          <Link
-            to="/dashboard"
-            className="group inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim transition hover:text-washi"
-          >
-            <span className="transition-transform group-hover:-translate-x-0.5">
-              ←
-            </span>
-            {t("backlog.backToDashboard")}
-          </Link>
-        </footer>
       </div>
     </DefaultBackground>
   );
@@ -147,6 +140,11 @@ function BacklogSkeleton({ t }) {
       className="relative mx-auto max-w-4xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12"
     >
       <span className="sr-only">{t("common.loading")}…</span>
+      {/* The same way back as the page it stands in for, so nothing moves
+          when the data lands. */}
+      <BackLink to="/profile" className="mb-6">
+        {t("common.backToProfile")}
+      </BackLink>
       <header className="relative mb-10 md:mb-14">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-8 sm:items-center">
           <Skeleton className="h-32 w-32 rounded-2xl sm:h-48 sm:w-48" />
@@ -382,14 +380,13 @@ function SpineCard({
       style={{
         transform: `rotate(${isHovered ? "0deg" : restTilt}) translateY(${isHovered ? "-3px" : "0"}) translateZ(0)`,
       }}
-      aria-label={t("backlog.spineAria", { name: series.name ?? "—" })}
     >
       {/* Heat band — coloured edge on the LEFT, width grows with
           stale months. Visual reads as "this book has been sitting
           here longer than that one" without needing labels. */}
       <span
         aria-hidden="true"
-        className="absolute inset-y-0 left-0 transition-all duration-300"
+        className="meter-fill meter-under absolute inset-y-0 left-0 transition-all duration-300"
         style={{
           width: `${heatWidthPct}%`,
           background: heat.bandGradient,

@@ -45,6 +45,7 @@ export default function VirtualMangaGrid({
   shelf3d,
   coverSizes,
   recordLcp = false,
+  label,
 }) {
   const { density } = useGridDensity();
   const { parentRef, lanes, scrollMargin, virtualizer, measureRow } =
@@ -65,6 +66,11 @@ export default function VirtualMangaGrid({
   return (
     <div
       ref={parentRef}
+      // 数 · A list whose items carry their rank and its length: only a
+      // window of the shelf is in the document, and a screen reader
+      // still says "12 of 128" (`aria-setsize` / `aria-posinset`).
+      role="list"
+      aria-label={label}
       style={{
         height: virtualizer.getTotalSize(),
         position: "relative",
@@ -79,6 +85,7 @@ export default function VirtualMangaGrid({
             key={virtualRow.key}
             data-index={virtualRow.index}
             ref={measureRow}
+            role="none"
             // Per-row 3D class — applies the same tilt + wood-grain
             // baseline as the simple grid's `.shelf-3d` does. Skipped
             // in selection mode for the same reason as the simple
@@ -103,8 +110,14 @@ export default function VirtualMangaGrid({
             }}
           >
             {rowItems.map((manga, i) => (
-              <Manga
+              <div
                 key={manga.id ?? manga.mal_id ?? `idx-${start + i}`}
+                role="listitem"
+                aria-setsize={filtered.length}
+                aria-posinset={start + i + 1}
+                className="min-w-0"
+              >
+              <Manga
                 manga={manga}
                 coverSizes={coverSizes}
                 priority={virtualRow.index === 0}
@@ -120,6 +133,7 @@ export default function VirtualMangaGrid({
                 onToggleSelect={onToggleSelect}
                 onEnterSelection={onEnterSelection}
               />
+              </div>
             ))}
           </div>
         );

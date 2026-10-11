@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground";
 import Modal from "./ui/Modal.jsx";
 import { useLibrary } from "@/hooks/useLibrary.js";
@@ -15,6 +14,7 @@ import { useT, useLang } from "@/i18n/index.jsx";
 import { renderShelfSnapshotBlob } from "@/lib/shelfSnapshot.js";
 import { formatShortDate } from "@/utils/date.js";
 import { computeLibraryStats } from "@/utils/libraryStats.js";
+import BackLink from "@/components/ui/BackLink.jsx";
 
 /**
  * 印影 Inei · Snapshot history gallery.
@@ -67,6 +67,9 @@ export default function SnapshotsPage() {
   return (
     <DefaultBackground>
       <div className="relative mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+        <BackLink to="/profile" className="mb-6">
+          {t("common.backToProfile")}
+        </BackLink>
         {/* ── Atmosphere ── two darkroom-glow orbs offset diagonally
             so the page reads as a developed contact sheet under
             warm lamp light. */}
@@ -126,17 +129,6 @@ export default function SnapshotsPage() {
           />
         )}
 
-        <footer className="mt-12 text-center md:mt-16">
-          <Link
-            to="/dashboard"
-            className="group inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim transition hover:text-washi"
-          >
-            <span className="transition-transform group-hover:-translate-x-0.5">
-              ←
-            </span>
-            {t("snapshots.backToDashboard")}
-          </Link>
-        </footer>
 
         {captureOpen && (
           <CaptureModal
@@ -251,11 +243,20 @@ function Plate({ snapshot, index, onView, t, lang }) {
   const imgUrl = snapshot.has_image
     ? `/api/user/snapshots/${snapshot.id}/image`
     : null;
+  // 欠 · A print whose image does not load (gone from storage, a failed
+  // upload recorded as done) showed an empty black frame; it shows the
+  // same seal as a print without an image instead.
+  const [broken, setBroken] = useState(false);
 
   return (
     <button
       type="button"
-      onClick={onView}
+      // Opening the print is where its image can be uploaded again: the
+      // plate tries it once more on the way back.
+      onClick={() => {
+        setBroken(false);
+        onView();
+      }}
       className="inei-plate group relative block w-full overflow-hidden rounded-md border border-border/80 bg-ink-1/40 text-left shadow-[0_18px_40px_-22px_rgba(0,0,0,0.85)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-gold/40 hover:shadow-[0_26px_50px_-22px_rgba(201,169,97,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
       style={{ transform: `rotate(${restTilt})` }}
       // 触 · Mirror hover & focus into the JS transform so keyboard
@@ -275,17 +276,17 @@ function Plate({ snapshot, index, onView, t, lang }) {
       onBlur={(e) => {
         e.currentTarget.style.transform = `rotate(${restTilt})`;
       }}
-      aria-label={t("snapshots.openAria", { name: snapshot.name })}
     >
       {/* Photographic plate — 4:5 aspect ratio matches the actual
           PNG output of `shelfSnapshot.js` so the thumbnail feels
           authentic, not a cropped detail. */}
       <div className="relative aspect-[4/5] w-full overflow-hidden bg-gradient-to-br from-ink-2 to-ink-3">
-        {imgUrl ? (
+        {imgUrl && !broken ? (
           <img
             src={imgUrl}
             alt=""
             loading="lazy"
+            onError={() => setBroken(true)}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
@@ -323,9 +324,10 @@ function Plate({ snapshot, index, onView, t, lang }) {
 
       {/* Inscribed footer — title + stats triad */}
       <div className="px-4 pt-3 pb-4">
-        <h3 className="line-clamp-1 font-display text-base font-semibold italic text-washi">
+        {/* Text, not a heading: the plate is a button. */}
+        <span className="line-clamp-1 block font-display text-base font-semibold italic text-washi">
           {snapshot.name}
-        </h3>
+        </span>
         {snapshot.notes && (
           <p className="mt-1 line-clamp-1 font-display text-[12px] italic text-washi-muted">
             {snapshot.notes}
@@ -466,7 +468,7 @@ function CaptureModal({ library, userName, lang, onClose, t }) {
               maxLength={2000}
               rows={3}
               placeholder={t("snapshots.notesPlaceholder")}
-              className="w-full resize-y rounded-md border border-border bg-ink-0/60 px-3 py-2 font-serif text-sm leading-relaxed text-washi placeholder:italic placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+              className="w-full resize-y rounded-md border border-border bg-ink-0/60 px-3 py-2 font-serif text-sm leading-relaxed text-washi placeholder:italic placeholder:text-washi-dim transition field-sizing-content min-h-20 max-h-[50vh] focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
             />
           </label>
         </div>
@@ -560,6 +562,9 @@ function DetailModal({
   const imgUrl = snapshot.has_image
     ? `/api/user/snapshots/${snapshot.id}/image`
     : null;
+  // An image that does not load gets the missing-image state and its
+  // retry, as a print without one does.
+  const [broken, setBroken] = useState(false);
 
   async function handleDelete() {
     await del.mutateAsync(snapshot.id);
@@ -631,10 +636,11 @@ function DetailModal({
         )}
 
         <div className="bg-ink-0/40 p-4">
-          {imgUrl ? (
+          {imgUrl && !broken ? (
             <img
               src={imgUrl}
               alt={snapshot.name}
+              onError={() => setBroken(true)}
               className="mx-auto max-h-[70vh] w-auto max-w-full rounded-sm shadow-2xl"
             />
           ) : (
@@ -662,9 +668,6 @@ function DetailModal({
                 onClick={handleRetry}
                 disabled={retrying || !online}
                 title={
-                  !online ? t("snapshots.captureOfflineHint") : undefined
-                }
-                aria-label={
                   !online ? t("snapshots.captureOfflineHint") : undefined
                 }
                 className="inline-flex items-center gap-2 rounded-full border border-gold/55 bg-gold/8 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.28em] text-gold transition hover:border-gold hover:bg-gold/15 disabled:cursor-not-allowed disabled:opacity-50"

@@ -14,11 +14,15 @@ import { bootstrapLanguage, loadLanguage } from "./i18n/index.jsx";
 import { preloadPageFor } from "./routePages.js";
 import { noteBootShell } from "./lib/bootShell.js";
 import { getCachedUser } from "./utils/auth.js";
+import { watchDynamicType } from "./lib/dynamicType.js";
 
 // Apply the user's last-known theme + accent before React mounts so
 // the first paint never flashes the wrong palette. The authoritative
 // values arrive a bit later from the server-side settings.
 bootstrapThemeFromStorage();
+// 字 · The root follows iOS's text size (`lib/dynamicType.js`) — before the
+// first render, so the page is laid out once at the reader's size.
+watchDynamicType();
 bootstrapAccentFromStorage();
 
 // 共有 · Capture deep-link query params (PWA shortcut, Web Share Target)

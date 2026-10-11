@@ -474,7 +474,7 @@ function HeroSeals({ isCurrent, isPending, t }) {
             text={t("coverPicker.currentBadgeTitle")}
             placement="left"
           >
-            <span
+            <span role="img"
               className="grid h-10 w-10 place-items-center rounded-md bg-gradient-to-br from-gold to-gold-muted text-ink-0 shadow-[0_4px_14px_rgba(201,169,97,0.6)] ring-1 ring-gold/80"
               style={{ transform: "rotate(-6deg)" }}
               aria-label={t("coverPicker.currentBadgeTitle")}
@@ -492,7 +492,7 @@ function HeroSeals({ isCurrent, isPending, t }) {
             text={t("coverPicker.selectedBadgeTitle")}
             placement="left"
           >
-            <span
+            <span role="img"
               className="grid h-10 w-10 place-items-center rounded-md bg-gradient-to-br from-moegi to-moegi-muted text-ink-0 shadow-[0_4px_14px_rgba(0,0,0,0.5)] ring-1 ring-moegi/80"
               style={{ transform: "rotate(6deg)" }}
               aria-label={t("coverPicker.selectedBadgeTitle")}

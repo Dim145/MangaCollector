@@ -5,6 +5,10 @@ import Skeleton from "./ui/Skeleton.jsx";
 import MarginaliaPaper from "./ui/MarginaliaPaper.jsx";
 import { useUpcomingCalendar } from "@/hooks/useUpcomingCalendar.js";
 import { useOnline } from "@/hooks/useOnline.js";
+import { useLibrary } from "@/hooks/useLibrary.js";
+import { useAllVolumes } from "@/hooks/useVolumes.js";
+import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint.js";
+import { seriesAwaitingDate } from "@/lib/upcomingPicker.js";
 import { useT } from "@/i18n/index.jsx";
 
 import CoverImg from "@/components/ui/CoverImg.jsx";
@@ -90,6 +94,18 @@ export default function CalendarPage() {
   // ── Filter state ────────────────────────────────────────────────
   const [query, setQuery] = useState("");
   const trimmedQuery = query.trim().toLowerCase();
+  // 版元 · Publisher, read from the reader's own library rows (the
+  // releases carry the series, not its publisher). "" = all of them.
+  const [publisher, setPublisher] = useState("");
+  const { data: library } = useLibrary();
+  const publisherByMal = useMemo(() => {
+    const map = new Map();
+    for (const m of library ?? []) {
+      const name = (m.publisher ?? "").trim();
+      if (name) map.set(m.mal_id, name);
+    }
+    return map;
+  }, [library]);
 
   // ── Data ────────────────────────────────────────────────────────
   const { releases, isLoading, isError, refetch, isFetching, source } =
@@ -102,12 +118,30 @@ export default function CalendarPage() {
   //     when the live query failed but Dexie still has data
   const online = useOnline();
 
-  const filteredReleases = useMemo(() => {
-    if (!trimmedQuery) return releases;
-    return releases.filter((r) =>
-      r.manga_name.toLowerCase().includes(trimmedQuery),
+  // The publishers this window's releases come from; the filter only
+  // shows when there is a choice to make.
+  const publishers = useMemo(() => {
+    const set = new Set();
+    for (const r of releases) {
+      const name = publisherByMal.get(r.mal_id);
+      if (name) set.add(name);
+    }
+    return [...set].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
     );
-  }, [releases, trimmedQuery]);
+  }, [releases, publisherByMal]);
+  const activePublisher = publishers.includes(publisher) ? publisher : "";
+
+  const filteredReleases = useMemo(() => {
+    let out = releases;
+    if (trimmedQuery) {
+      out = out.filter((r) => r.manga_name.toLowerCase().includes(trimmedQuery));
+    }
+    if (activePublisher) {
+      out = out.filter((r) => publisherByMal.get(r.mal_id) === activePublisher);
+    }
+    return out;
+  }, [releases, trimmedQuery, activePublisher, publisherByMal]);
 
   // ── Group by month for both views ───────────────────────────────
   const byMonth = useMemo(() => groupByMonth(filteredReleases), [filteredReleases]);
@@ -154,8 +188,11 @@ export default function CalendarPage() {
           </p>
 
           {/* 統計 · Tiny stat strip — count + days to next release. */}
-          <div className="mt-6 flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-[11px] uppercase tracking-[0.2em] text-washi-dim">
-            <span>
+          {/* 一 · One row on a phone too — value over label, three columns:
+              stacked in a column the strip took ~120 px above the
+              toolbar. */}
+          <div className="mt-6 grid grid-cols-3 gap-x-3 font-mono text-[11px] uppercase tracking-[0.08em] text-washi-dim sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-6 sm:gap-y-2 sm:tracking-[0.2em]">
+            <span className="flex flex-col sm:block">
               <span className="font-display text-2xl italic font-semibold not-italic text-washi">
                 {totalCount}
               </span>{" "}
@@ -166,13 +203,13 @@ export default function CalendarPage() {
                 one item to three — and wrapped to three lines on a
                 phone — the moment the releases arrived, pushing the
                 whole calendar down. A dash holds the place instead. */}
-            <span>
+            <span className="flex flex-col sm:block">
               <span className="font-display text-2xl italic font-semibold not-italic text-moegi tabular-nums">
                 {daysToNext != null ? `J−${daysToNext}` : "—"}
               </span>{" "}
               {t("calendar.statNext")}
             </span>
-            <span>
+            <span className="flex flex-col sm:block">
               <span className="font-display text-2xl italic font-semibold not-italic text-washi tabular-nums">
                 {byMonth.length > 0 ? byMonth.length : "—"}
               </span>{" "}
@@ -212,6 +249,9 @@ export default function CalendarPage() {
           setView={setView}
           query={query}
           setQuery={setQuery}
+          publishers={publishers}
+          publisher={activePublisher}
+          setPublisher={setPublisher}
           windowMonths={windowMonths}
           setWindowMonths={setWindowMonths}
           isFetching={isFetching}
@@ -237,6 +277,7 @@ export default function CalendarPage() {
         ) : view === "agenda" ? (
           <AgendaView
             byMonth={byMonth}
+            nextId={nextRelease?.id}
             today={today}
             navigate={navigate}
             t={t}
@@ -246,6 +287,18 @@ export default function CalendarPage() {
             byMonth={byMonth}
             today={today}
             navigate={navigate}
+            t={t}
+          />
+        )}
+
+        {/* 未定 · Series still coming out with no date — below the
+            releases, mounted after the first paint: it reads every
+            volume on the device to know which series have one. */}
+        {!isLoading && !isError && (
+          <AwaitingDate
+            online={online}
+            onNote={(row) => setPicked({ manga: row.manga, highest: row.highest })}
+            today={today}
             t={t}
           />
         )}
@@ -305,6 +358,9 @@ function Toolbar({
   setView,
   query,
   setQuery,
+  publishers = [],
+  publisher = "",
+  setPublisher,
   windowMonths,
   setWindowMonths,
   isFetching,
@@ -343,6 +399,34 @@ function Toolbar({
           className="w-full rounded-full border border-border bg-ink-0/40 py-2 pl-9 pr-4 text-sm pointer-coarse:py-3 text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
         />
       </label>
+
+      {/* 版元 · Publisher — a native select, only when the window holds
+          releases from two publishers or more. */}
+      {publishers.length > 1 && (
+        <label className="relative flex-shrink-0">
+          <span className="sr-only">{t("calendar.publisherAria")}</span>
+          <select
+            value={publisher}
+            onChange={(e) => setPublisher(e.target.value)}
+            className={`max-w-[12rem] appearance-none truncate rounded-full border bg-ink-0/40 py-2 pl-4 pr-8 font-mono text-[11px] uppercase tracking-wider transition pointer-coarse:py-3 focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20 ${
+              publisher ? "border-gold/60 text-washi" : "border-border text-washi-muted"
+            }`}
+          >
+            <option value="">{t("calendar.publisherAll")}</option>
+            {publishers.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-washi-dim"
+          >
+            ▾
+          </span>
+        </label>
+      )}
 
       {/* Window picker — chip group. The active chip carries the
           hanko ink, others sit muted. Six chips would crowd the bar
@@ -419,11 +503,6 @@ function Toolbar({
             ? t("calendar.addUpcomingTitle")
             : t("manga.upcomingAddManualOfflineHint")
         }
-        aria-label={
-          online
-            ? t("calendar.addUpcomingTitle")
-            : t("manga.upcomingAddManualOfflineHint")
-        }
         className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border border-moegi/40 bg-moegi/10 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider pointer-coarse:min-h-11 text-moegi transition hover:border-moegi/70 hover:bg-moegi/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-moegi/40 disabled:hover:bg-moegi/10"
       >
         <svg
@@ -438,7 +517,11 @@ function Toolbar({
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
-        <span className="hidden sm:inline">{t("calendar.addUpcoming")}</span>
+        {/* The words name the button at every width — hidden from sight
+            on a phone, not from a screen reader — and the sentence in
+            `title` describes it, so a voice command can say what it
+            sees (WCAG 2.5.3). */}
+        <span className="sr-only sm:not-sr-only">{t("calendar.addUpcoming")}</span>
       </button>
 
       {/* Subscribe — opens the ICS modal. Moegi-styled to align with
@@ -523,7 +606,7 @@ function Toolbar({
 // Agenda view — kakemono scroll
 // ─────────────────────────────────────────────────────────────────
 
-function AgendaView({ byMonth, today, navigate, t }) {
+function AgendaView({ byMonth, nextId, today, navigate, t }) {
   return (
     <div
       className="relative space-y-14 animate-fade-up"
@@ -543,6 +626,7 @@ function AgendaView({ byMonth, today, navigate, t }) {
           label={label}
           kanji={kanji}
           releases={releases}
+          nextId={nextId}
           today={today}
           navigate={navigate}
           t={t}
@@ -553,7 +637,7 @@ function AgendaView({ byMonth, today, navigate, t }) {
   );
 }
 
-function MonthBlock({ label, kanji, releases, today, navigate, t, delayMs }) {
+function MonthBlock({ label, kanji, releases, nextId, today, navigate, t, delayMs }) {
   return (
     <section
       className="relative animate-fade-up"
@@ -591,6 +675,7 @@ function MonthBlock({ label, kanji, releases, today, navigate, t, delayMs }) {
           <ReleaseCard
             key={rel.id}
             release={rel}
+            isNext={rel.id === nextId}
             today={today}
             navigate={navigate}
             t={t}
@@ -602,7 +687,7 @@ function MonthBlock({ label, kanji, releases, today, navigate, t, delayMs }) {
   );
 }
 
-function ReleaseCard({ release, today, navigate, t, tilt = 0 }) {
+function ReleaseCard({ release, isNext = false, today, navigate, t, tilt = 0 }) {
   const releaseDate = useMemo(
     () => parseReleaseDate(release.release_date),
     [release.release_date],
@@ -629,7 +714,6 @@ function ReleaseCard({ release, today, navigate, t, tilt = 0 }) {
         manga: { mal_id: release.mal_id, name: release.manga_name },
         openVolumeId: release.id,
       },
-      viewTransition: true,
     });
   };
 
@@ -664,12 +748,8 @@ function ReleaseCard({ release, today, navigate, t, tilt = 0 }) {
               ? "border-sakura/50"
               : "border-border hover:border-moegi/35"
         }`}
-        aria-label={t("calendar.cardAria", {
-          name: release.manga_name,
-          n: release.vol_num,
-          date: formatLocaleLong(release.release_date),
-        })}
       >
+        <span className="sr-only">{formatLocaleLong(release.release_date)}</span>
         {/* Date block — three-line stack: number, weekday, month.
             Number gets monumental display type so the eye lands on
             it first and the rest decodes in seconds. */}
@@ -767,6 +847,15 @@ function ReleaseCard({ release, today, navigate, t, tilt = 0 }) {
                 ? t("calendar.today")
                 : t("calendar.countdownDays", { n: days })}
             </span>
+            {/* 次 · The release the header's countdown counts to. */}
+            {isNext && !isToday && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-gold">
+                <span aria-hidden="true" className="font-jp text-[11px] font-bold leading-none">
+                  次
+                </span>
+                {t("calendar.next")}
+              </span>
+            )}
             {release.origin && release.origin !== "manual" && (
               <span className="font-mono text-[10px] text-washi-dim">
                 {t("calendar.via", { source: release.origin })}
@@ -890,7 +979,6 @@ function MonthGrid({ label, kanji, releases, today, navigate, t }) {
                         manga: { mal_id: rel.mal_id, name: rel.manga_name },
                         openVolumeId: rel.id,
                       },
-                      viewTransition: true,
                     })
                   }
                   title={`${rel.manga_name} · ${t("calendar.volumeLabel", { n: rel.vol_num })}`}
@@ -1013,6 +1101,96 @@ function EmptyState({ hasQuery, online = true, onAddUpcoming, t }) {
         </div>
       )}
     </MarginaliaPaper>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// No date yet
+// ─────────────────────────────────────────────────────────────────
+
+const AWAITING_PREVIEW = 6;
+
+function AwaitingDate(props) {
+  // The volume table is read only once the releases are on screen.
+  const painted = useAfterFirstPaint();
+  return painted ? <AwaitingDateList {...props} /> : null;
+}
+
+function AwaitingDateList({ online, onNote, today, t }) {
+  const { data: library } = useLibrary();
+  const { data: volumes } = useAllVolumes();
+  const rows = useMemo(
+    () => seriesAwaitingDate(library, volumes, today),
+    [library, volumes, today],
+  );
+  const [all, setAll] = useState(false);
+  if (rows.length === 0) return null;
+  const shown = all ? rows : rows.slice(0, AWAITING_PREVIEW);
+  return (
+    <section aria-labelledby="calendar-awaiting" className="mt-16 animate-fade-up">
+      <div className="flex items-baseline gap-3">
+        <span aria-hidden="true" className="font-jp text-2xl font-bold leading-none text-washi-dim">
+          未定
+        </span>
+        <h2
+          id="calendar-awaiting"
+          className="font-display text-2xl font-semibold italic leading-tight text-washi"
+        >
+          {t("calendar.awaitingTitle")}
+        </h2>
+        <span className="ml-auto font-mono text-[11px] uppercase tracking-wider text-washi-dim">
+          {t("calendar.awaitingCount", { n: rows.length })}
+        </span>
+      </div>
+      <p className="mt-2 max-w-2xl text-sm text-washi-muted">{t("calendar.awaitingIntro")}</p>
+      {/* `grid-cols-1`, not the implicit column: that one is as wide as a
+          long title, and pushed the button off a phone's screen. */}
+      <ul className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {shown.map((row) => (
+          <li
+            key={row.manga.mal_id}
+            className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-ink-1/40 p-2.5"
+          >
+            <span className="relative h-12 w-8 flex-shrink-0 overflow-hidden rounded-sm border border-border bg-ink-2">
+              {row.manga.image_url_jpg ? (
+                <CoverImg
+                  referrerPolicy="no-referrer"
+                  src={row.manga.image_url_jpg}
+                  sizes="32px"
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover"
+                />
+              ) : null}
+            </span>
+            <span className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-washi">
+              {row.manga.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => onNote(row)}
+              disabled={!online}
+              title={online ? undefined : t("manga.upcomingAddManualOfflineHint")}
+              className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-moegi/40 bg-moegi/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-moegi transition hover:border-moegi/70 hover:bg-moegi/20 disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
+            >
+              <span aria-hidden="true">+</span>
+              {t("calendar.awaitingNote", { n: row.next })}
+              <span className="sr-only"> — {row.manga.name}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {rows.length > AWAITING_PREVIEW && (
+        <button
+          type="button"
+          onClick={() => setAll((v) => !v)}
+          aria-expanded={all}
+          className="mt-3 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-washi-muted transition hover:text-washi pointer-coarse:min-h-11"
+        >
+          {all ? t("calendar.awaitingShowFewer") : t("calendar.awaitingShowAll", { n: rows.length })}
+        </button>
+      )}
+    </section>
   );
 }
 

@@ -41,7 +41,11 @@ export default function BulkActionsBar({ library, selectedIds, onClose }) {
     [library, selectedIds],
   );
 
-  if (count === 0) return null;
+  // 選 · Shown from the moment selection starts, empty included: entered
+  // from the visible "Select" button there is nothing picked yet, and a
+  // reader who unpicked everything stayed in selection mode — every tap
+  // toggling instead of opening — with no bar and no way out but Escape.
+  const empty = count === 0;
 
   // Generic dispatcher: enqueue per-series bulk-mark ops. The
   // optimistic local update inside `enqueueBulkMark` makes the
@@ -95,14 +99,19 @@ export default function BulkActionsBar({ library, selectedIds, onClose }) {
             </span>
             {t("bulk.countSelected", { n: count })}
           </span>
+          {empty && (
+            <span className="font-display text-sm italic text-washi-muted">
+              {t("bulk.hint")}
+            </span>
+          )}
 
           {!confirmingDelete && (
             <>
               <button
                 type="button"
                 onClick={() => runBulkMark({ owned: true })}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-full border border-hanko/40 bg-hanko/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/20 disabled:opacity-50"
+                disabled={busy || empty}
+                className="inline-flex items-center gap-1.5 rounded-full pointer-coarse:min-h-11 border border-hanko/40 bg-hanko/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/20 disabled:opacity-50"
               >
                 <span className="font-jp text-[12px] not-uppercase">完</span>
                 {t("bulk.markOwned")}
@@ -110,8 +119,8 @@ export default function BulkActionsBar({ library, selectedIds, onClose }) {
               <button
                 type="button"
                 onClick={() => runBulkMark({ owned: false })}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-ink-0/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-washi-muted transition hover:text-washi disabled:opacity-50"
+                disabled={busy || empty}
+                className="inline-flex items-center gap-1.5 rounded-full pointer-coarse:min-h-11 border border-border bg-ink-0/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-washi-muted transition hover:text-washi disabled:opacity-50"
               >
                 <span className="font-jp text-[12px] not-uppercase">空</span>
                 {t("bulk.markUnowned")}
@@ -119,8 +128,8 @@ export default function BulkActionsBar({ library, selectedIds, onClose }) {
               <button
                 type="button"
                 onClick={() => runBulkMark({ read: true })}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-full border border-moegi/50 bg-moegi/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-moegi transition hover:bg-moegi/20 disabled:opacity-50"
+                disabled={busy || empty}
+                className="inline-flex items-center gap-1.5 rounded-full pointer-coarse:min-h-11 border border-moegi/50 bg-moegi/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-moegi transition hover:bg-moegi/20 disabled:opacity-50"
               >
                 <span className="font-jp text-[12px] not-uppercase">読</span>
                 {t("bulk.markRead")}
@@ -128,8 +137,8 @@ export default function BulkActionsBar({ library, selectedIds, onClose }) {
               <button
                 type="button"
                 onClick={() => runBulkMark({ read: false })}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-ink-0/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-washi-muted transition hover:text-washi disabled:opacity-50"
+                disabled={busy || empty}
+                className="inline-flex items-center gap-1.5 rounded-full pointer-coarse:min-h-11 border border-border bg-ink-0/40 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-washi-muted transition hover:text-washi disabled:opacity-50"
               >
                 <span className="font-jp text-[12px] not-uppercase">未</span>
                 {t("bulk.markUnread")}
@@ -137,8 +146,8 @@ export default function BulkActionsBar({ library, selectedIds, onClose }) {
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-full border border-hanko/30 bg-hanko/5 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/15 disabled:opacity-50"
+                disabled={busy || empty}
+                className="inline-flex items-center gap-1.5 rounded-full pointer-coarse:min-h-11 border border-hanko/30 bg-hanko/5 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-hanko-bright transition hover:bg-hanko/15 disabled:opacity-50"
               >
                 <span className="font-jp text-[12px] not-uppercase">削</span>
                 {t("bulk.delete")}
@@ -147,7 +156,7 @@ export default function BulkActionsBar({ library, selectedIds, onClose }) {
                 type="button"
                 onClick={onClose}
                 disabled={busy}
-                className="ml-auto inline-flex items-center rounded-full border border-transparent px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-washi-dim transition hover:text-washi"
+                className="ml-auto inline-flex items-center rounded-full border border-transparent px-3 py-1.5 pointer-coarse:min-h-11 font-mono text-[11px] uppercase tracking-wider text-washi-dim transition hover:text-washi"
               >
                 {t("bulk.cancel")}
               </button>

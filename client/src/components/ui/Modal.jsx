@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@/hooks/useFocusTrap.js";
 import { useTopLayer } from "@/hooks/useTopLayer.js";
+import { useT } from "@/i18n/index.jsx";
 
 export default function Modal({
   children,
@@ -9,6 +10,7 @@ export default function Modal({
   additionalClasses = "",
   handleClose,
 }) {
+  const t = useT();
   // Decouple DOM lifecycle from the `popupOpen` prop:
   //   - opening:  mount immediately, play entry animation
   //   - closing:  flag `leaving=true`, play exit animation, unmount after it
@@ -114,7 +116,10 @@ export default function Modal({
       // max sizes, Canvas colours) is undone, `flex` only while open
       // (an author `display` would otherwise show a closed dialog), and
       // `::backdrop` stays clear — the dim and the blur are this element.
-      className={`fixed inset-0 m-0 h-full max-h-none w-full max-w-none items-center justify-center border-0 bg-ink-0/80 p-4 text-inherit backdrop-blur-md backdrop:bg-transparent open:flex focus:outline-none ${overlayAnim}`}
+      // 留 · Clipped: a modal `<dialog>` scrolls by default, and a panel
+      // arriving translated made it scroll under its own entrance — see
+      // `VolumeDetailDrawer.jsx`. The content scrolls inside, never this.
+      className={`fixed inset-0 m-0 h-full max-h-none w-full max-w-none overflow-clip items-center justify-center border-0 bg-ink-0/80 p-4 text-inherit backdrop-blur-md backdrop:bg-transparent open:flex focus:outline-none ${overlayAnim}`}
       onClick={(e) => {
         if (e.target !== e.currentTarget) return;
         handleClose?.();
@@ -124,7 +129,7 @@ export default function Modal({
       {handleClose && (
         <button
           onClick={handleClose}
-          aria-label="Close"
+          aria-label={t("common.close")}
           className="absolute top-4 right-4 grid h-10 w-10 place-items-center rounded-full border border-border bg-ink-1/80 text-washi hover:text-on-hanko backdrop-blur transition hover:bg-hanko hover:border-hanko"
         >
           <svg

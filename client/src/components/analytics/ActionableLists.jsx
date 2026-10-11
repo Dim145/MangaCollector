@@ -72,7 +72,6 @@ function GapsPanel({ middleGaps, loading, t, library }) {
                   series &&
                   navigate("/mangapage", {
                     state: { manga: series },
-                    viewTransition: true,
                   })
                 }
                 className="group flex w-full items-center gap-3 rounded-lg border border-border bg-ink-2/40 p-3 text-left transition hover:border-hanko/40 hover:bg-ink-2/60"
@@ -176,7 +175,6 @@ function StalePanel({ stale, loading, t, library }) {
                   series &&
                   navigate("/mangapage", {
                     state: { manga: series },
-                    viewTransition: true,
                   })
                 }
                 className="group flex w-full items-center gap-3 rounded-lg border border-border bg-ink-2/40 p-3 text-left transition hover:border-gold/40 hover:bg-ink-2/60"

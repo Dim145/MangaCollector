@@ -1,6 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/i18n/index.jsx";
+import { tagCounts } from "./dashboard/viewOptions.js";
+import {
+  POPOVER_PANEL_CLASS,
+  useAnchoredPopover,
+} from "@/hooks/useAnchoredPopover.js";
 
 /**
  * Tag filter for the Dashboard — Proposition B layout.
@@ -42,23 +47,7 @@ export function FilterButton({
   const [query, setQuery] = useState("");
 
   // Whole-library tag counts — picking a tag doesn't reshuffle neighbours.
-  const tags = useMemo(() => {
-    const counts = new Map();
-    for (const m of library) {
-      for (const g of m.genres ?? []) {
-        const name = (g ?? "").trim();
-        if (!name) continue;
-        counts.set(name, (counts.get(name) ?? 0) + 1);
-      }
-    }
-    return [...counts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort(
-        (a, b) =>
-          b.count - a.count ||
-          a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-      );
-  }, [library]);
+  const tags = useMemo(() => tagCounts(library), [library]);
 
   const filteredTags = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -66,54 +55,15 @@ export function FilterButton({
     return tags.filter((x) => x.name.toLowerCase().includes(q));
   }, [tags, query]);
 
-  // Live-track the button's bounding rect so the popover follows it during
-  // scroll/resize. useLayoutEffect so the first paint already has correct
-  // coords (no flash at the placeholder -9999px). We write directly to the
-  // DOM via popoverRef (no setState) — scroll listeners fire at composition
-  // rate, so the popover stays glued to the button without re-renders.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const reposition = () => {
-      const btn = buttonRef.current;
-      const pop = popoverRef.current;
-      if (!btn || !pop) return;
-      const r = btn.getBoundingClientRect();
-      pop.style.top = `${r.bottom + 8}px`;
-      pop.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
-    };
-    reposition();
-    // `capture: true` catches scrolls on any ancestor (grid container,
-    // window, etc.) — we want the popover to track the button across every
-    // scroll context that could move it.
-    window.addEventListener("scroll", reposition, {
-      capture: true,
-      passive: true,
-    });
-    window.addEventListener("resize", reposition);
-    return () => {
-      window.removeEventListener("scroll", reposition, { capture: true });
-      window.removeEventListener("resize", reposition);
-    };
-  }, [open]);
-
-  // Outside-click + Escape dismiss.
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e) => {
-      if (buttonRef.current?.contains(e.target)) return;
-      if (e.target.closest?.("[data-tag-popover]")) return;
-      setOpen(false);
-    };
-    const onKey = (e) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keyup", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keyup", onKey);
-    };
-  }, [open]);
+  // 錨 · A native popover under the button (top layer, light dismiss,
+  // next in the Tab order), with the hand-placed fallback where the
+  // browser lacks it — see `hooks/useAnchoredPopover.js`.
+  useAnchoredPopover({
+    open,
+    onClose: () => setOpen(false),
+    buttonRef,
+    panelRef: popoverRef,
+  });
 
   // Reset in-panel search when the popover closes.
   useEffect(() => {
@@ -131,18 +81,14 @@ export function FilterButton({
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        aria-label={
-          activeCount > 0
-            ? t("dashboard.openFiltersActive", {
-                n: activeCount,
-                label: t("dashboard.tagsSelected"),
-              })
-            : t("dashboard.openFilters")
-        }
+        // 名 · Named by its visible word ("Filters", plus the count when
+        // there is one) — see Header's brand link for why.
         aria-haspopup="dialog"
         aria-expanded={open}
         title={t("dashboard.genreFilterLabel")}
-        className={`relative inline-flex flex-1 items-center justify-center gap-2 rounded-full border px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition sm:flex-none ${
+        // 題 · From `sm:` up; a phone reaches the genres through the
+        // dashboard's filter sheet.
+        className={`relative hidden items-center justify-center gap-2 rounded-full border px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition sm:inline-flex ${
           activeCount > 0 || open
             ? "border-hanko/60 bg-hanko/15 text-washi hover:bg-hanko/25"
             : "border-border bg-ink-1/60 text-washi-muted hover:border-hanko/50 hover:text-washi"
@@ -167,14 +113,13 @@ export function FilterButton({
             className="animate-stamp grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-hanko px-1.5 font-mono text-[10px] font-bold tabular-nums text-on-hanko shadow-[0_0_0_2px_var(--ink-0)]"
           >
             {activeCount}
+            <span className="sr-only"> {t("dashboard.tagsSelected")}</span>
           </span>
         )}
       </button>
 
-      {/* Popover — portaled, live-tracked to the button's bounding rect.
-          Initial top/right are set to -9999px so the first frame doesn't
-          flash at the page origin before the layout-effect repositions it
-          (the effect sets the real coords synchronously before paint). */}
+      {/* Popover — portalled; placed under the button by the hook before
+          the first paint. */}
       {open &&
         createPortal(
           <div
@@ -184,10 +129,6 @@ export function FilterButton({
             aria-modal="false"
             aria-labelledby="tag-popover-title"
             style={{
-              position: "fixed",
-              top: -9999,
-              right: -9999,
-              zIndex: 2147483620,
               width: "min(calc(100vw - 16px), 340px)",
               // 遷 · Pin the popover to its own VT snapshot so the
               // tag-toggle View Transition (which hoists every Manga
@@ -201,7 +142,7 @@ export function FilterButton({
               // the cards so it always wins z-order during the morph.
               viewTransitionName: "tag-popover",
             }}
-            className="animate-slide-down flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl"
+            className={`${POPOVER_PANEL_CLASS} animate-slide-down flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl`}
           >
             {/* Decorative watermark kanji — sits behind content, top-right */}
             <span
@@ -337,9 +278,9 @@ export function FilterButton({
  * <ActiveChips> — row of removable chips shown only when tags are active
  * ═══════════════════════════════════════════════════════════════════ */
 
-export function ActiveChips({ activeTags, onToggle, onClear }) {
+export function ActiveChips({ activeTags, onToggle, onClear, phoneChips = [] }) {
   const t = useT();
-  if (activeTags.size === 0) return null;
+  if (activeTags.size === 0 && phoneChips.length === 0) return null;
 
   // Stable-ish ordering — alpha inside the chip row so chips don't swap
   // positions as they're added/removed (which would be disorienting).
@@ -349,22 +290,46 @@ export function ActiveChips({ activeTags, onToggle, onClear }) {
 
   return (
     <div
-      className="mb-5 flex flex-wrap items-center gap-2 animate-fade-in"
+      role="group"
+      className={`mb-5 flex-wrap items-center gap-2 animate-fade-in ${
+        activeTags.size === 0 ? "flex sm:hidden" : "flex"
+      }`}
       aria-label={t("dashboard.activeFiltersLabel")}
     >
-      <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
+      <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-washi-dim sm:text-[10px] sm:tracking-[0.3em]">
         {t("dashboard.filteredBy")}
       </span>
+      {/* 名 · Each chip is named by what it shows, then what a tap does —
+          a voice command says the word it reads (WCAG 2.5.3). */}
+      {phoneChips.map((chip) => (
+        <button
+          key={chip.id}
+          type="button"
+          onClick={chip.onRemove}
+          className="mizuhiki-chip sm:hidden"
+        >
+          <MizuhikiKnot />
+          {chip.glyph && (
+            <span aria-hidden="true" className="font-jp">
+              {chip.glyph}
+            </span>
+          )}
+          <span>{chip.label}</span>
+          <span className="sr-only">, {t("common.remove")}</span>
+          <MizuhikiFray />
+        </button>
+      ))}
       {list.map((name) => (
         <button
           key={name}
           type="button"
           onClick={() => onToggle(name)}
-          aria-label={t("dashboard.removeChip", { name })}
+          title={t("dashboard.removeChip", { name })}
           className="mizuhiki-chip"
         >
           <MizuhikiKnot />
           <span className="capitalize">{name}</span>
+          <span className="sr-only">, {t("common.remove")}</span>
           <MizuhikiFray />
         </button>
       ))}

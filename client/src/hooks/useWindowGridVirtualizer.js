@@ -4,6 +4,7 @@ import {
   useWindowVirtualizer,
 } from "@tanstack/react-virtual";
 import { markScrollAdjustment } from "@/lib/scrollAdjusting.js";
+import { noteRestoreLaidOut, restoringTo } from "@/lib/scrollMemory.js";
 
 /**
  * 寸 · Row heights learnt by measurement, kept across mounts.
@@ -169,6 +170,16 @@ export function useWindowGridVirtualizer({
     scrollMargin,
     rangeExtractor,
     scrollToFn: instantWindowScroll,
+    // 先 · Created while a "back" is putting the page somewhere, the
+    // grid lays out the rows of that place, not of the offset the page
+    // still sits at for one more instant (see `restoringTo`) — and says
+    // so, so the restore does not wait for a height it already has.
+    initialOffset: () => {
+      const target = restoringTo();
+      if (target == null) return window.scrollY;
+      noteRestoreLaidOut();
+      return target;
+    },
   });
 
   const measureRow = useCallback(

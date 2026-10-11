@@ -149,6 +149,8 @@ const BOTTOM_NAV_ITEMS_BASE = [
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
+  // 跳 · Whether the last change of `scrolled` came from a jump.
+  const [jumped, setJumped] = useState(false);
   const [arrivedFromShell] = useState(bootShellShown);
   const t = useT();
   // Shared auth state via TanStack Query — this is the same cache
@@ -171,11 +173,40 @@ export default function Header() {
     label: t(`nav.${item.key}`),
   }));
 
+  // 跳 · The header's backdrop fades in as the page leaves its top. A
+  // jump is not a scroll anyone watches — the library put back where
+  // the reader left it, a page opening at its top — and the fade then
+  // played for 300 ms over a shelf that was already in place, covers
+  // showing through the bar, on every return from a series. A change
+  // that comes with a jump is made at once; the fade is for a scroll.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
+    let lastY = window.scrollY;
+    let current = lastY > 8;
+    let raf = 0;
+    setScrolled(current);
+    const onScroll = () => {
+      const y = window.scrollY;
+      const jump = Math.abs(y - lastY) > 160;
+      lastY = y;
+      const next = y > 8;
+      if (next === current) return;
+      current = next;
+      if (jump) {
+        setJumped(true);
+        cancelAnimationFrame(raf);
+        // Two frames: the new background lands without a transition,
+        // then the transition is back for the next real scroll.
+        raf = requestAnimationFrame(() => {
+          raf = requestAnimationFrame(() => setJumped(false));
+        });
+      }
+      setScrolled(next);
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   return (
@@ -200,7 +231,7 @@ export default function Header() {
         // over scrolling content so every scroll frame re-composites
         // the blur. 24px → 12px radius is ~4× cheaper and visually
         // indistinguishable at the density of content behind a header.
-        className={`sticky top-0 z-40 transition-all duration-300 ${
+        className={`sticky top-0 z-40 ${jumped ? "" : "transition-all duration-300"} ${
           scrolled
             ? "bg-ink-0/85 backdrop-blur-md border-b border-border"
             : "bg-transparent border-b border-transparent"
@@ -208,12 +239,14 @@ export default function Header() {
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
           {/* Brand */}
+          {/* 名 · Named by what it shows ("Archive MangaCollector"): an
+              `aria-label` that says something else fails WCAG 2.5.3 —
+              a reader using voice control says what they see. */}
           <a
             href="/"
             className="group flex min-h-11 items-center gap-2.5 tap-none"
-            aria-label="MangaCollector home"
           >
-            <div className="relative">
+            <div className="relative" aria-hidden="true">
               {/* 金 · The brand mark gets a `gold-shimmer-strong`
                   sweep on top of the hanko fill — a slow gilded
                   highlight, twice on arrival and again on hover
@@ -243,7 +276,7 @@ export default function Header() {
           {isAuthenticated && (
             <nav
               className="hidden md:flex items-center gap-1 rounded-full border border-border bg-ink-1/50 p-1 backdrop-blur"
-              aria-label="Main"
+              aria-label={t("nav.mainAria")}
             >
               {TOP_NAV_ITEMS.map((item) => (
                 <NavLink
@@ -307,7 +340,7 @@ export default function Header() {
           // while route transitions are in flight on mobile.
           style={{ viewTransitionName: "app-bottom-nav" }}
           className="fixed bottom-0 left-0 right-0 z-40 md:hidden"
-          aria-label="Main mobile"
+          aria-label={t("nav.mainAria")}
         >
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-ink-0 via-ink-0/80 to-transparent" />
           <div
@@ -316,7 +349,8 @@ export default function Header() {
             // the app (it sits over scrolling content and on every
             // page). `shadow-2xl` already contributes a GPU cost so
             // we don't stack a heavy blur on top of it.
-            className="relative mx-3 mb-3 flex items-center justify-around gap-1 rounded-2xl border border-border bg-ink-1/92 p-1.5 shadow-2xl"
+            // Under 360 px the bar gives its margins to the labels.
+            className="relative mx-3 mb-3 flex items-center justify-around gap-1 rounded-2xl border border-border bg-ink-1/92 p-1.5 shadow-2xl max-[22.5rem]:mx-1.5 max-[22.5rem]:gap-0 max-[22.5rem]:px-0.5"
             style={{
               paddingBottom: `calc(0.375rem + env(safe-area-inset-bottom))`,
             }}
@@ -332,7 +366,10 @@ export default function Header() {
                 // name it was announced as an anonymous link.
                 aria-label={item.featured ? item.label : undefined}
                 className={({ isActive }) =>
-                  `relative flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[10px] font-medium uppercase tracking-wider tap-none transition ${
+                  // 窄 · Under 360 px the labels lose their tracking and a
+                  // point: at 320 (WCAG's reflow width) the French row ran
+                  // past the frame and cut its last entry.
+                  `relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[10px] font-medium uppercase tracking-wider tap-none transition max-[22.5rem]:text-[9px] max-[22.5rem]:tracking-normal ${
                     isActive
                       ? "text-washi"
                       : "text-washi-dim active:bg-washi/10"
@@ -371,7 +408,13 @@ export default function Header() {
                         >
                           {item.icon}
                         </span>
-                        <span>{item.label}</span>
+                        {/* Under 360 px a long word (BIBLIOTHÈQUE) is
+                            hyphenated in the reader's language, or broken
+                            as a last resort, rather than running under its
+                            neighbour. */}
+                        <span className="max-w-full text-center max-[22.5rem]:hyphens-auto max-[22.5rem]:leading-[1.15] max-[22.5rem]:[overflow-wrap:anywhere]">
+                          {item.label}
+                        </span>
                         <NavBadge
                           count={counters[item.key] ?? 0}
                           label={t(`nav.badge_${item.key}`, {
@@ -402,11 +445,12 @@ function NavBadge({ count, label }) {
   if (!count) return null;
   return (
     <span
-      aria-label={label}
       title={label}
       className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-hanko px-1 font-mono text-[9px] font-bold leading-none tabular-nums text-on-hanko shadow-[0_0_0_2px_var(--ink-0)]"
     >
-      {count > 99 ? "99+" : count}
+      <span aria-hidden="true">{count > 99 ? "99+" : count}</span>
+      {/* Part of the link's name, after its word: "Library, 2 overdue loans". */}
+      <span className="sr-only">, {label}</span>
     </span>
   );
 }

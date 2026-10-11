@@ -167,7 +167,6 @@ export default function ActivityFeed({ limit = 20 }) {
                 m &&
                 navigate("/mangapage", {
                   state: { manga: m, adult_content_level },
-                  viewTransition: true,
                 })
               }
               lang={lang}

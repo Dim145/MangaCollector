@@ -27,10 +27,15 @@ function renderMenu(props) {
   return onChange;
 }
 
+// The button is named by what it shows — the key, then the direction —
+// so a voice-control user can say it (WCAG 2.5.3).
+const sortButton = () => screen.getByRole("button", { name: /^(title|date added), (ascending|descending)$/i });
+
 describe("SortMenu", () => {
   it("names the current order on the button and opens a radio list", () => {
     renderMenu();
-    const btn = screen.getByRole("button", { name: /open sort menu/i });
+    const btn = sortButton();
+    expect(btn).toHaveAccessibleName("Title, Ascending");
     expect(btn).toHaveTextContent("Title");
     expect(btn).toHaveTextContent("↑");
     fireEvent.click(btn);
@@ -44,21 +49,21 @@ describe("SortMenu", () => {
 
   it("picks a key with its natural direction", () => {
     const onChange = renderMenu();
-    fireEvent.click(screen.getByRole("button", { name: /open sort menu/i }));
+    fireEvent.click(sortButton());
     fireEvent.click(screen.getByRole("radio", { name: /date added/i }));
     expect(onChange).toHaveBeenCalledWith({ key: "added", dir: "desc" });
   });
 
   it("ignores a click on the key that is already selected", () => {
     const onChange = renderMenu();
-    fireEvent.click(screen.getByRole("button", { name: /open sort menu/i }));
+    fireEvent.click(sortButton());
     fireEvent.click(screen.getByRole("radio", { name: /title/i }));
     expect(onChange).not.toHaveBeenCalled();
   });
 
   it("flips the direction from the footer", () => {
     const onChange = renderMenu({ sort: { key: "added", dir: "desc" } });
-    const btn = screen.getByRole("button", { name: /open sort menu/i });
+    const btn = sortButton();
     expect(btn).toHaveTextContent("Date added");
     expect(btn).toHaveTextContent("↓");
     fireEvent.click(btn);
@@ -69,7 +74,7 @@ describe("SortMenu", () => {
 
   it("closes on Escape", () => {
     renderMenu();
-    fireEvent.click(screen.getByRole("button", { name: /open sort menu/i }));
+    fireEvent.click(sortButton());
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.keyUp(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

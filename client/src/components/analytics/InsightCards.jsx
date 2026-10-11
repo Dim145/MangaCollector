@@ -316,7 +316,7 @@ function MilestoneCard({ milestones, loading, t }) {
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-ink-2">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-hanko to-hanko-bright transition-all"
+              className="meter-fill h-full rounded-full bg-gradient-to-r from-hanko to-hanko-bright transition-all"
               style={{ width: `${pct}%` }}
             />
           </div>

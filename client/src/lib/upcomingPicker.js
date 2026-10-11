@@ -51,3 +51,48 @@ export function seriesForUpcoming(library, volumes, query = "") {
       a.manga.name.localeCompare(b.manga.name, undefined, { sensitivity: "base" }),
     );
 }
+
+/** A local calendar day as `YYYY-MM-DD`, the shape `release_date` starts with. */
+export function isoDay(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * 未定 · Series still coming out whose next volume has no date on the
+ * shelf — what the calendar lists under "No date yet", each with a way
+ * to note the volume once its publisher announces it.
+ *
+ * "Still coming out" is what the shelf can tell: an edition the reader
+ * marked `ongoing`, or one with no opinion whose MyAnimeList total is
+ * unknown — MAL gives no volume count to a series still being published.
+ * A completed, stopped or paused edition awaits nothing, and a series
+ * with a volume dated today or later already has its date.
+ */
+export function seriesAwaitingDate(library, volumes, today = new Date()) {
+  const todayIso = isoDay(today);
+  const dated = new Set();
+  for (const v of volumes ?? []) {
+    if (v?.release_date && String(v.release_date).slice(0, 10) >= todayIso) {
+      dated.add(v.mal_id);
+    }
+  }
+  const highest = highestVolumeBySeries(volumes);
+  return (library ?? [])
+    .filter((m) => typeof m?.mal_id === "number" && m.name)
+    .filter((m) =>
+      m.publication_status === "ongoing"
+        ? true
+        : m.publication_status == null && !(m.volumes > 0),
+    )
+    .filter((m) => !dated.has(m.mal_id))
+    .map((m) => {
+      const known = highest.get(m.mal_id) ?? Math.max(0, m.volumes ?? 0);
+      return { manga: m, highest: known, next: known + 1 };
+    })
+    .sort((a, b) =>
+      a.manga.name.localeCompare(b.manga.name, undefined, { sensitivity: "base" }),
+    );
+}

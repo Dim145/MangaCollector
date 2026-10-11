@@ -3,9 +3,12 @@ import { useLocation, useNavigationType } from "react-router-dom";
 import {
   RESTORE_ASSERT_MS,
   RESTORE_WAIT_MS,
+  announceRestore,
   canHold,
+  endRestore,
   readScroll,
   remembersScroll,
+  restoreLaidOut,
   writeScroll,
 } from "@/lib/scrollMemory.js";
 import { isScrollAdjusting } from "@/lib/scrollAdjusting.js";
@@ -60,6 +63,15 @@ const INPUT_EVENTS = ["wheel", "touchmove", "keydown"];
  *      treating those as intent cancelled the restore and, worse, wrote
  *      the unrestored position over the memory.
  *
+ *      It places the position before the first frame whenever it can:
+ *      the target is announced while the shell renders, so the grid's
+ *      first render already lays out the rows the reader comes back to
+ *      (`restoringTo`), and the page is put there from the layout effect
+ *      — before paint — as soon as it is tall enough. The library's own
+ *      reads start from their last answer (`lib/warmReads.js`), so on a
+ *      "back" that is the very first frame: no skeleton, no shelf top,
+ *      no jump. The frame-by-frame wait remains for a cold start.
+ *
  *   3. Nothing is recorded until the restore has had its say. The mount
  *      is full of scrolls that are not the reader's, and persisting them
  *      wrote `0` — or the previous page's offset — over the position we
@@ -77,6 +89,21 @@ export function useScrollMemory() {
   const armedRef = useRef(false);
   // Does the page we are on keep its position at all?
   const remembersRef = useRef(remembersScroll(location.pathname));
+
+  // 先 · Said while rendering, before the page under the shell renders:
+  // its grid reads it to lay out the right rows from the start. Once per
+  // entry — a later render of the shell, after the restore has landed,
+  // must not send a grid created then back to the target.
+  const announcedRef = useRef(null);
+  if (announcedRef.current !== location.key) {
+    announcedRef.current = location.key;
+    announceRestore(
+      location.key,
+      navType === "POP" && remembersScroll(location.pathname)
+        ? readScroll(location.key)
+        : null,
+    );
+  }
 
   useLayoutEffect(() => {
     if (typeof window === "undefined" || !window.history) return;
@@ -183,10 +210,16 @@ export function useScrollMemory() {
     if (!target) {
       // Nothing remembered (an entry from before this build, or one left
       // at the top): the top, not the previous page's offset.
+      endRestore(location.key);
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       arm();
       return undefined;
     }
+
+    // Said again here: the announcement made while rendering is cleared
+    // by a cleanup (development runs every effect twice), and a grid
+    // created after this point must still start from the target.
+    announceRestore(location.key, target);
 
     let raf = 0;
     let cancelled = false;
@@ -206,6 +239,7 @@ export function useScrollMemory() {
     const stop = () => {
       cancelled = true;
       cancelAnimationFrame(raf);
+      endRestore(location.key);
       for (const ev of INPUT_EVENTS) window.removeEventListener(ev, onInput);
     };
     // Only listened to once the position is in place (see below).
@@ -220,21 +254,32 @@ export function useScrollMemory() {
       }
     };
 
+    // Put the page where it was, once it can hold the position (or the
+    // wait is over), and let the grid that started from the announced
+    // target read the real offset from now on.
+    const settle = (now) => {
+      place();
+      placed = true;
+      placedAt = now;
+      endRestore(location.key);
+      // Whoever follows the scroll hears about the move in this frame,
+      // not the next: the browser's own `scroll` event comes a frame
+      // later, and the first frame back showed the previous page's
+      // header over the shelf — or, where the page landed short of the
+      // target, a grid still laid out for the target. After the layout
+      // effects, before paint: a grid that re-renders from it may flush.
+      queueMicrotask(() => window.dispatchEvent(new Event("scroll")));
+      listenForReader();
+    };
+
     const tick = () => {
       if (cancelled) return;
       const now = performance.now();
       if (!placed) {
-        const ready = canHold(
-          document.documentElement.scrollHeight,
-          window.innerHeight,
-          target,
-        );
-        if (ready || now - started > RESTORE_WAIT_MS) {
-          place();
-          placed = true;
-          placedAt = now;
-          listenForReader();
-        }
+        const ready =
+          canHold(document.documentElement.scrollHeight, window.innerHeight, target) ||
+          restoreLaidOut();
+        if (ready || now - started > RESTORE_WAIT_MS) settle(now);
         raf = requestAnimationFrame(tick);
         return;
       }
@@ -249,6 +294,15 @@ export function useScrollMemory() {
       stop();
       arm();
     };
+    // Already tall enough — the shelf rendered from its last reads in
+    // this very commit: placed now, before the first frame is painted.
+    // (A grid laid out for the target has its height: no waiting on it.)
+    if (
+      canHold(document.documentElement.scrollHeight, window.innerHeight, target) ||
+      restoreLaidOut()
+    ) {
+      settle(started);
+    }
     raf = requestAnimationFrame(tick);
 
     // The cleanup runs on the next navigation — and on the simulated

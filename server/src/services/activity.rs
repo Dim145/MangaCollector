@@ -90,12 +90,12 @@ pub async fn record_at(
 
 /// 連 · Distinct activity days + streak summary.
 ///
-/// `current_streak` counts the number of consecutive UTC days
-/// ending at TODAY (or YESTERDAY — if the user did nothing today
-/// yet, the streak isn't broken until midnight UTC) where the user
-/// has at least one activity-log entry.
+/// `current_streak` counts the run of UTC days with activity that is
+/// still alive: it ends today, or yesterday (the day is not over until
+/// midnight UTC), or the day before with yesterday's absence still
+/// forgivable (see `streak_of`).
 ///
-/// `best_streak` is the maximum consecutive run ever recorded.
+/// `best_streak` is the longest run ever recorded, under the same rule.
 /// Useful for the heatmap subtitle ("personal best: 47 days").
 ///
 /// `last_active_date` is the most recent UTC day with activity,
@@ -106,6 +106,56 @@ pub struct StreakInfo {
     pub current_streak: i32,
     pub best_streak: i32,
     pub last_active_date: Option<chrono::NaiveDate>,
+}
+
+/// Active days a run needs between two forgiven absences.
+pub const STREAK_GRACE_EVERY: i32 = 7;
+
+/// 恕 · `(current, best)` for a set of active days.
+///
+/// A run is a sequence of active days; a single missed day does not end
+/// it once the run has `STREAK_GRACE_EVERY` active days since its start
+/// or since the last forgiven day — one per week of activity. The missed
+/// day itself does not count. Two missed days in a row always end it.
+///
+/// A lost streak undoes weeks of habit for one bad day, and studies of
+/// streak mechanics (Duolingo's freeze, the research on "what-the-hell"
+/// effects) find that this is what drives readers away rather than
+/// back; a grace that has to be earned keeps the count honest.
+pub fn streak_of(
+    days: &std::collections::BTreeSet<chrono::NaiveDate>,
+    today: chrono::NaiveDate,
+) -> (i32, i32) {
+    let mut best = 0i32;
+    let mut run = 0i32;
+    // Active days since the run began or last used its grace.
+    let mut earned = 0i32;
+    let mut prev: Option<chrono::NaiveDate> = None;
+    for &d in days {
+        match prev.map(|p| d.signed_duration_since(p).num_days()) {
+            Some(1) => {
+                run += 1;
+                earned += 1;
+            }
+            Some(2) if earned >= STREAK_GRACE_EVERY => {
+                run += 1;
+                earned = 1;
+            }
+            _ => {
+                run = 1;
+                earned = 1;
+            }
+        }
+        best = best.max(run);
+        prev = Some(d);
+    }
+    let alive = match prev.map(|last| today.signed_duration_since(last).num_days()) {
+        Some(0 | 1) => true,
+        // Yesterday is missing, but today can still bridge it.
+        Some(2) => earned >= STREAK_GRACE_EVERY,
+        _ => false,
+    };
+    (if alive { run } else { 0 }, best)
 }
 
 pub async fn compute_streak(db: &Db, user_id: i32) -> Result<StreakInfo, AppError> {
@@ -120,65 +170,16 @@ pub async fn compute_streak(db: &Db, user_id: i32) -> Result<StreakInfo, AppErro
         .await
         .map_err(AppError::from)?;
 
-    if rows.is_empty() {
-        return Ok(StreakInfo {
-            current_streak: 0,
-            best_streak: 0,
-            last_active_date: None,
-        });
-    }
-
-    let mut days: std::collections::BTreeSet<chrono::NaiveDate> = rows
+    let days: std::collections::BTreeSet<chrono::NaiveDate> = rows
         .into_iter()
         .map(|r| r.created_on.date_naive())
         .collect();
-
-    let last = days.iter().next_back().copied();
-    let today = Utc::now().date_naive();
-
-    // Best streak — single pass through the sorted set.
-    let mut best = 0i32;
-    let mut run = 0i32;
-    let mut prev: Option<chrono::NaiveDate> = None;
-    for &d in days.iter() {
-        run = match prev {
-            Some(p) if d.signed_duration_since(p).num_days() == 1 => run + 1,
-            _ => 1,
-        };
-        if run > best {
-            best = run;
-        }
-        prev = Some(d);
-    }
-
-    // Current streak — walk backwards from today/yesterday.
-    let mut current = 0i32;
-    // Allow a one-day grace at the start of the day (UTC) so the
-    // streak doesn't visually "break" between midnight and the
-    // user's first activity of the new day.
-    let anchor = if days.contains(&today) {
-        Some(today)
-    } else {
-        let yesterday = today.pred_opt();
-        yesterday.filter(|d| days.contains(d))
-    };
-    if let Some(mut d) = anchor {
-        loop {
-            if !days.remove(&d) {
-                break;
-            }
-            current += 1;
-            match d.pred_opt() {
-                Some(p) => d = p,
-                None => break,
-            }
-        }
-    }
+    let (current, best) = streak_of(&days, Utc::now().date_naive());
 
     Ok(StreakInfo {
         current_streak: current,
         best_streak: best,
-        last_active_date: last,
+        last_active_date: days.iter().next_back().copied(),
     })
 }
 
@@ -314,5 +315,94 @@ pub async fn check_volume_milestone(conn: &impl ConnectionTrait, user_id: i32) {
             }
             Err(_) => break,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{STREAK_GRACE_EVERY, streak_of};
+    use chrono::NaiveDate;
+    use std::collections::BTreeSet;
+
+    fn day(n: i64) -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 1, 1).unwrap() + chrono::Duration::days(n)
+    }
+
+    /// Active on the given day offsets.
+    fn days(offsets: &[i64]) -> BTreeSet<NaiveDate> {
+        offsets.iter().map(|&n| day(n)).collect()
+    }
+
+    fn range(from: i64, to: i64) -> Vec<i64> {
+        (from..=to).collect()
+    }
+
+    #[test]
+    fn nothing_counts_nothing() {
+        assert_eq!(streak_of(&BTreeSet::new(), day(0)), (0, 0));
+    }
+
+    #[test]
+    fn a_run_ending_today_or_yesterday_is_alive() {
+        let three = days(&[7, 8, 9]);
+        assert_eq!(streak_of(&three, day(9)), (3, 3));
+        assert_eq!(streak_of(&three, day(10)), (3, 3));
+        // Two days later, a short run has no grace to bridge yesterday.
+        assert_eq!(streak_of(&three, day(11)), (0, 3));
+    }
+
+    #[test]
+    fn one_missed_day_is_forgiven_after_a_week_of_activity() {
+        // Days 0–7 (eight days), day 8 missed, days 9–10.
+        let mut offsets = range(0, 7);
+        offsets.extend([9, 10]);
+        // The missed day does not count: 8 + 2.
+        assert_eq!(streak_of(&days(&offsets), day(10)), (10, 10));
+    }
+
+    #[test]
+    fn the_grace_has_to_be_earned() {
+        // Five days, a miss, three days: two runs.
+        let mut offsets = range(0, 4);
+        offsets.extend([6, 7, 8]);
+        assert_eq!(streak_of(&days(&offsets), day(8)), (3, 5));
+    }
+
+    #[test]
+    fn a_second_miss_within_the_week_ends_the_run() {
+        // Eight days, miss (forgiven), two days, miss again (not yet earned).
+        let mut offsets = range(0, 7);
+        offsets.extend([9, 10, 12, 13]);
+        assert_eq!(streak_of(&days(&offsets), day(13)), (2, 10));
+    }
+
+    #[test]
+    fn two_missed_days_in_a_row_always_end_it() {
+        let mut offsets = range(0, 9);
+        offsets.extend([12]);
+        assert_eq!(streak_of(&days(&offsets), day(12)), (1, 10));
+    }
+
+    #[test]
+    fn a_missed_yesterday_can_still_be_bridged_today() {
+        // A week's run that ended the day before yesterday stays alive:
+        // acting today would bridge yesterday.
+        let week = days(&range(0, STREAK_GRACE_EVERY as i64 - 1));
+        let last = STREAK_GRACE_EVERY as i64 - 1;
+        assert_eq!(
+            streak_of(&week, day(last + 2)),
+            (STREAK_GRACE_EVERY, STREAK_GRACE_EVERY)
+        );
+        // A day later it is gone.
+        assert_eq!(streak_of(&week, day(last + 3)), (0, STREAK_GRACE_EVERY));
+    }
+
+    #[test]
+    fn grace_comes_back_after_another_week() {
+        // 7 days, miss, 7 days, miss, 1 day: both misses forgiven.
+        let mut offsets = range(0, 6);
+        offsets.extend(range(8, 14));
+        offsets.extend([16]);
+        assert_eq!(streak_of(&days(&offsets), day(16)), (15, 15));
     }
 }

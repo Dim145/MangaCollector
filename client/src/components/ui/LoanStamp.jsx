@@ -41,6 +41,9 @@ export default function LoanStamp({
   loanedTo,
   loanDueAt = null,
   size = "lg",
+  // 名 · True where the control around the stamp already says the loan
+  // in words (a volume button): the stamp then stays out of its name.
+  decorative = false,
 }) {
   const t = useT();
   const status = classify(loanDueAt);
@@ -97,7 +100,7 @@ export default function LoanStamp({
     // left when a loan stamp is present).
     return (
       <span
-        aria-label={ariaLabel}
+        {...(decorative ? { "aria-hidden": "true" } : { role: "img", "aria-label": ariaLabel })}
         title={ariaLabel}
         className={`pointer-events-none absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full font-jp text-[10px] font-bold leading-none ${
           status === "overdue" ? "animate-pulse-glow" : ""
@@ -121,7 +124,7 @@ export default function LoanStamp({
   // holds at any scale.
   return (
     <span
-      aria-label={ariaLabel}
+      {...(decorative ? { "aria-hidden": "true" } : { role: "img", "aria-label": ariaLabel })}
       title={ariaLabel}
       className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center ${
         status === "overdue" ? "animate-pulse-glow" : ""

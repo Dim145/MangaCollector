@@ -153,7 +153,12 @@ export default function UpcomingSeriesPicker({ open, onClose, onPick }) {
                           height={48}
                         />
                       ) : (
-                        <span className="font-display text-sm italic text-hanko-bright/50">
+                        // A stand-in for a missing cover: decorative, so
+                        // a watermark's opacity and hidden from readers.
+                        <span
+                          aria-hidden="true"
+                          className="font-display text-sm italic text-hanko-bright/40"
+                        >
                           巻
                         </span>
                       )}

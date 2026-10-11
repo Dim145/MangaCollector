@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CoverImage from "./CoverImage.jsx";
+import { forgetSeenCovers } from "@/lib/seenCovers.js";
 import { setCoverProxy } from "@/lib/covers.js";
 
 /*
@@ -27,6 +28,7 @@ class ImmediateObserver {
 let errorSpy;
 
 beforeEach(() => {
+  forgetSeenCovers();
   globalThis.IntersectionObserver = ImmediateObserver;
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -183,3 +185,47 @@ describe("CoverImage", () => {
   });
 });
 
+describe("CoverImage — a cover already drawn", () => {
+  // A windowed grid remounts the tiles that come back into its window,
+  // and the library remounts on every return from a series: a cover
+  // the reader has just seen must not flash its swatch again.
+  const never = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+
+  it("is drawn at its next mount at once: no observer wait, no fade", () => {
+    const first = render(<CoverImage src="https://cdn/seen.jpg" alt="x" paletteSeed={7} />);
+    fireEvent.load(screen.getByRole("img"));
+    first.unmount();
+
+    globalThis.IntersectionObserver = never;
+    render(<CoverImage src="https://cdn/seen.jpg" alt="x" paletteSeed={7} />);
+    const img = screen.getByRole("img");
+    expect(img).toHaveClass("opacity-100");
+    expect(img).not.toHaveClass("opacity-0");
+    expect(img).toHaveAttribute("loading", "eager");
+    // Decoded with the frame that shows it: no hole while it decodes.
+    expect(img).toHaveAttribute("decoding", "sync");
+  });
+
+  it("still waits, and fades in, the first time", () => {
+    render(<CoverImage src="https://cdn/fresh.jpg" alt="x" paletteSeed={7} />);
+    expect(screen.getByRole("img")).toHaveClass("opacity-0");
+  });
+
+  it("does not count a cover that only loaded through a fallback", () => {
+    setCoverProxy(true);
+    const url = "https://cdn.myanimelist.net/images/manga/1/259070l.jpg";
+    const first = render(<CoverImage src={url} alt="x" />);
+    fireEvent.error(screen.getByRole("img"));
+    fireEvent.load(screen.getByRole("img"));
+    first.unmount();
+    setCoverProxy(false);
+
+    globalThis.IntersectionObserver = never;
+    render(<CoverImage src={url} alt="x" />);
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+});

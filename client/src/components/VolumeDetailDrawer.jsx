@@ -175,7 +175,14 @@ export default function VolumeDetailDrawer({
       }
       // Whole-viewport overlay, the browser's dialog box undone — see
       // `ui/Modal.jsx` for why `flex` waits for `open`.
-      className={`fixed inset-0 m-0 h-full max-h-none w-full max-w-none items-stretch justify-end border-0 bg-ink-0/70 p-0 text-inherit backdrop-blur-[3px] backdrop:bg-transparent open:flex ${overlayAnim}`}
+      //
+      // 留 · `overflow-clip`: a modal `<dialog>` scrolls (the browser
+      // gives it `overflow: auto`), and the panel arriving translated by
+      // its own width made it 416 px wide to scroll. Focus given to the
+      // panel then scrolled it into view; the slide went on under that
+      // scroll, and the panel overshot to the middle of the screen and
+      // jumped back when the animation ended. Clipped, it cannot scroll.
+      className={`fixed inset-0 m-0 h-full max-h-none w-full max-w-none items-stretch justify-end overflow-clip border-0 bg-ink-0/70 p-0 text-inherit backdrop-blur-[3px] backdrop:bg-transparent open:flex ${overlayAnim}`}
       onMouseDown={(e) => {
         backdropMouseDownRef.current = e.target === e.currentTarget;
       }}
@@ -804,7 +811,7 @@ function NoteField({ fieldId, value, onChange, t }) {
         maxLength={NOTE_MAX_CHARS_CLIENT}
         placeholder={t("volume.notePlaceholder")}
         spellCheck
-        className="block w-full resize-y rounded-lg border border-border bg-ink-1 px-3 py-2 font-serif text-sm leading-relaxed text-washi placeholder:italic placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+        className="block w-full resize-y rounded-lg border border-border bg-ink-1 px-3 py-2 font-serif text-sm leading-relaxed text-washi placeholder:italic placeholder:text-washi-dim transition field-sizing-content min-h-36 max-h-[50vh] focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
       />
       <p className="mt-1.5 text-[10px] italic text-washi-muted">
         {t("volume.noteHint")}

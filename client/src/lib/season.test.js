@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getCurrentSeason,
+  dismissSeasonBanner,
   hasGreetedSeason,
   isInSeasonTransition,
   isSouthernHemisphere,
   markSeasonGreeted,
+  markSeasonShown,
+  seasonBannerShows,
 } from "./season.js";
 
 /*
@@ -179,6 +182,38 @@ describe("isInSeasonTransition", () => {
   it("handles a date near the December solstice, which spans the year boundary", () => {
     expect(isInSeasonTransition(utc("2026-12-21"))).toBe(true);
     expect(isInSeasonTransition(utc("2027-01-01"))).toBe(false);
+  });
+});
+
+describe("season banner across one visit", () => {
+  // A visit outlives one mount of the dashboard: the reader opens a
+  // series and comes back, and the shelf must come back where it was —
+  // under the same banner.
+  const autumn = utc("2026-10-11");
+
+  it("shows on the first visit of the season, and again on every mount of that visit", () => {
+    expect(seasonBannerShows("autumn", autumn)).toBe(true);
+    markSeasonShown("autumn", autumn);
+    expect(seasonBannerShows("autumn", autumn)).toBe(true);
+    expect(hasGreetedSeason("autumn", autumn)).toBe(true);
+  });
+
+  it("does not show in the next session", () => {
+    markSeasonShown("autumn", autumn);
+    sessionStorage.clear();
+    expect(seasonBannerShows("autumn", autumn)).toBe(false);
+  });
+
+  it("stays closed for the rest of the visit once dismissed", () => {
+    markSeasonShown("autumn", autumn);
+    dismissSeasonBanner();
+    expect(seasonBannerShows("autumn", autumn)).toBe(false);
+  });
+
+  it("a stamp kept from last season does not show this one twice", () => {
+    markSeasonShown("summer", utc("2026-07-15"));
+    markSeasonGreeted("autumn", autumn);
+    expect(seasonBannerShows("autumn", autumn)).toBe(false);
   });
 });
 

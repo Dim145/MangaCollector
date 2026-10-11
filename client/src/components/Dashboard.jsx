@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useDeferredValue,
@@ -13,6 +15,7 @@ import DensityToggle from "./dashboard/DensityToggle.jsx";
 import { gridClassFor } from "@/lib/gridDensity.js";
 import { useGridDensity } from "@/hooks/useGridDensity.js";
 import SortMenu from "./dashboard/SortMenu.jsx";
+import { LENSES, SORT_LABEL_KEYS } from "./dashboard/viewOptions.js";
 import BulkActionsBar from "./BulkActionsBar.jsx";
 import DefaultBackground from "./DefaultBackground";
 import PullToRefresh from "./ui/PullToRefresh.jsx";
@@ -35,6 +38,7 @@ import { DEFAULT_SORT, normalizeSort, sortLibrary } from "@/utils/librarySort.js
 import { seriesIsComplete, skippedCounts, wantedVolumes } from "@/lib/gaps.js";
 import { computeLibraryStats } from "@/utils/libraryStats.js";
 import { useLang, useT } from "@/i18n/index.jsx";
+import { announce } from "@/lib/announce.js";
 
 // All series are rendered on mount — `content-visibility: auto` on each
 // card (see render below) lets the browser skip layout / paint for
@@ -44,6 +48,11 @@ import { useLang, useT } from "@/i18n/index.jsx";
 
 // Two sessionStorage keys: scroll-Y is written at ~60 Hz so it's kept
 // raw to skip the JSON cost.
+// 遅 · The phone's filter sheet — fetched when its button is approached,
+// rendered once pressed, kept mounted after for its exit animation.
+const loadFiltersSheet = () => import("./dashboard/FiltersSheet.jsx");
+const FiltersSheet = lazy(loadFiltersSheet);
+
 const DASHBOARD_STATE_KEY = "mc:dashboard:view";
 
 // Lens predicates lean on `created_on` / `modified_on` from the
@@ -124,6 +133,41 @@ export default function Dashboard() {
   // in mal_id order, which is no order at all for a reader.
   const [sort, setSort] = useState(() => normalizeSort(persisted?.sort));
 
+  // 題 · The phone's filter sheet — order, lenses and genres, which
+  // stand in their own rows and popovers from `sm:` up.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetMounted, setSheetMounted] = useState(false);
+
+  // 札 · The status tabs. Where the row scrolls (a narrow screen, a long
+  // language), the selected tab is brought into it — horizontally only:
+  // `scrollIntoView` would also move the page, under the scroll memory.
+  const tablistRef = useRef(null);
+  useEffect(() => {
+    const list = tablistRef.current;
+    const tab = list?.querySelector('[aria-selected="true"]');
+    if (!list || !tab || list.scrollWidth <= list.clientWidth) return;
+    list.scrollLeft = tab.offsetLeft - (list.clientWidth - tab.offsetWidth) / 2;
+  }, [filter]);
+  const onTablistKey = (event) => {
+    const tabs = [...(tablistRef.current?.querySelectorAll('[role="tab"]') ?? [])];
+    const at = tabs.indexOf(document.activeElement);
+    if (at < 0) return;
+    const next =
+      event.key === "ArrowRight"
+        ? (at + 1) % tabs.length
+        : event.key === "ArrowLeft"
+          ? (at - 1 + tabs.length) % tabs.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? tabs.length - 1
+              : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    tabs[next].focus();
+    tabs[next].click();
+  };
+
   // 一括 · Bulk-select state. NOT persisted — selection is a transient
   // UI mode tied to the current tab; reloading the page clears it on
   // purpose so a forgotten selection doesn't auto-apply on the next
@@ -147,6 +191,13 @@ export default function Dashboard() {
       else next.add(mal_id);
       return next;
     });
+  }, []);
+
+  // 選 · The visible way in — a long press and a Cmd/Ctrl-click were the
+  // only ones, and neither is something a reader finds by looking.
+  const startSelection = useCallback(() => {
+    setSelectionMode(true);
+    setSelectedIds(new Set());
   }, []);
 
   const enterSelectionWith = useCallback((mal_id) => {
@@ -449,6 +500,36 @@ export default function Dashboard() {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [filter, query, activeTags]);
 
+  // 告 · What a change of view left on the shelf, said to a screen reader
+  // (`lib/announce.js`) — a sighted reader sees the grid change, a blind
+  // one heard nothing. Compared against the previous view, not the first
+  // run (development runs effects twice), and said once the reader has
+  // paused: typing in the search field is not read count by count.
+  const lastSpokenViewRef = useRef(null);
+  // Read when the pause ends, so a sync landing in between neither cancels
+  // the sentence nor says a stale count.
+  const shownCountRef = useRef(0);
+  useEffect(() => {
+    shownCountRef.current = filtered.length;
+  }, [filtered.length]);
+  useEffect(() => {
+    if (isInitialLoad) return undefined;
+    const view = [
+      filter,
+      lens ?? "",
+      deferredQuery.trim().toLowerCase(),
+      Array.from(activeTags).sort().join("\u0000"),
+    ].join("\u0001");
+    const prev = lastSpokenViewRef.current;
+    lastSpokenViewRef.current = view;
+    if (prev == null || prev === view) return undefined;
+    const timer = window.setTimeout(
+      () => announce(t("dashboard.resultsAnnounce", { n: shownCountRef.current })),
+      700,
+    );
+    return () => window.clearTimeout(timer);
+  }, [filter, lens, deferredQuery, activeTags, isInitialLoad, t]);
+
   return (
     <DefaultBackground>
       <WelcomeTour open={tourOpen} onClose={() => setTourOpen(false)} />
@@ -472,8 +553,10 @@ export default function Dashboard() {
             than another stat row. */}
           <SeasonGreeting />
           {/* Masthead */}
-          <header className="mb-5 animate-fade-up sm:mb-8">
-            <div className="flex items-baseline gap-3">
+          <header className="mb-4 animate-fade-up sm:mb-8">
+            {/* 上 · The running head is the header's own word again on a
+                phone ("ARCHIVE MangaCollector"); it reads from `sm:` up. */}
+            <div className="hidden items-baseline gap-3 sm:flex">
               <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
                 {t("dashboard.archive")}
               </span>
@@ -495,8 +578,13 @@ export default function Dashboard() {
               The colour grammar matches the previous card treatment:
               washi for raw counts, gold for the achievement (complete
               series), hanko for the rate (progression %). */}
+            {/* 帯 · On a phone the four figures share one row, each value
+                over its label — the ribbon took three rows there and,
+                with the running head, 140 px above the shelf. */}
             <div
-              className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-washi-dim sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-6"
+              // Two by two under 360 px (320 is WCAG's reflow width),
+              // where four labels side by side were cut short.
+              className="grid grid-cols-2 gap-x-3 gap-y-1.5 font-mono text-[11px] uppercase tracking-[0.06em] text-washi-dim min-[22.5rem]:flex min-[22.5rem]:justify-between sm:mt-3 sm:flex-wrap sm:items-baseline sm:justify-start sm:gap-x-6 sm:tracking-[0.18em]"
               role="group"
               aria-label={t("dashboard.archive")}
             >
@@ -537,26 +625,36 @@ export default function Dashboard() {
                 loading={isInitialLoad}
                 width="5ch"
               />
-              <StreakChip />
+              <StreakChip className="hidden sm:inline-flex" separator />
             </div>
 
-            <h1
-              data-ink-trail="true"
-              className="mt-3 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-6xl"
-            >
-              {t("dashboard.yourLibrary")}{" "}
-              <span className="text-hanko-gradient font-semibold not-italic">
-                {t("dashboard.library")}
-              </span>
-            </h1>
+            <div className="mt-3 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+              <h1
+                data-ink-trail="true"
+                className="font-display text-[1.75rem] font-light italic leading-none tracking-tight text-washi sm:text-4xl md:text-6xl"
+              >
+                {t("dashboard.yourLibrary")}{" "}
+                <span className="text-hanko-gradient font-semibold not-italic">
+                  {t("dashboard.library")}
+                </span>
+              </h1>
+              <StreakChip className="inline-flex sm:hidden" />
+            </div>
           </header>
 
           {/* Controls */}
-          <section className="mb-6 space-y-3 sm:mb-8 sm:space-y-4" aria-label="Controls">
+          <section
+            className="mb-4 space-y-3 sm:mb-6 sm:space-y-4"
+            aria-label={t("dashboard.controlsLabel")}
+          >
             <MangaSearchBar
+              inlineActions
               query={query}
               setQuery={setQuery}
-              searchManga={() => {}}
+              // The keyboard's own "search" key: the shelf already
+              // follows every keystroke, so it only puts the keyboard
+              // away and shows what is left.
+              searchManga={() => document.activeElement?.blur?.()}
               showSubmit={false}
               loading={false}
               placeholder={t("dashboard.searchPlaceholder")}
@@ -579,6 +677,38 @@ export default function Dashboard() {
                     />
                     <SortMenu sort={sort} onChange={setSort} />
                     <DensityToggle />
+                    <button
+                      type="button"
+                      onClick={selectionMode ? exitSelection : startSelection}
+                      aria-pressed={selectionMode}
+                      title={t("bulk.selectHint")}
+                      className={`hidden items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition sm:inline-flex ${
+                        selectionMode
+                          ? "border-hanko/60 bg-hanko/15 text-washi"
+                          : "border-border bg-ink-1/60 text-washi-muted hover:border-hanko/50 hover:text-washi"
+                      }`}
+                    >
+                      <span aria-hidden="true" className="font-jp text-[15px] leading-none">
+                        選
+                      </span>
+                      {t("bulk.select")}
+                    </button>
+                    <SheetButton
+                      count={
+                        activeTags.size +
+                        (lens ? 1 : 0) +
+                        (sort.key !== DEFAULT_SORT.key ||
+                        sort.dir !== DEFAULT_SORT.dir
+                          ? 1
+                          : 0)
+                      }
+                      open={sheetOpen}
+                      onOpen={() => {
+                        setSheetMounted(true);
+                        setSheetOpen(true);
+                      }}
+                      onPrefetch={loadFiltersSheet}
+                    />
                   </>
                 ) : null
               }
@@ -601,10 +731,17 @@ export default function Dashboard() {
 
                 Selected colour follows the state grammar already used by
                 the Manga card badges. */}
+              {/* 札 · A two-word label may take two lines; when six tabs
+                  still cannot fit (320 px, a long language) the row
+                  scrolls instead of pushing its last tab out of the frame.
+                  Arrow keys, Home and End move between the tabs (WAI-ARIA
+                  tabs pattern), Tab leaves the row from the selected one. */}
               <div
-                className="flex w-full rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur sm:inline-flex sm:w-auto"
+                ref={tablistRef}
+                className="flex w-full overflow-x-auto rounded-full border border-border bg-ink-1/60 p-1 backdrop-blur [scrollbar-width:none] sm:inline-flex sm:w-auto sm:overflow-visible"
                 role="tablist"
                 aria-label={t("dashboard.filterTablistLabel")}
+                onKeyDown={onTablistKey}
               >
                 {[
                   { id: "all", glyph: "全", label: t("dashboard.tabAll") },
@@ -649,9 +786,12 @@ export default function Dashboard() {
                   return (
                     <button
                       key={tab.id}
+                      id={`library-tab-${tab.id}`}
                       role="tab"
                       aria-selected={active}
-                      aria-label={tab.label}
+                      aria-controls="library-shelf"
+                      tabIndex={active ? 0 : -1}
+                      data-tab={tab.id}
                       title={tab.tooltip ?? tab.label}
                       onClick={() => {
                         // Picking a rank tab clears any active lens —
@@ -659,7 +799,7 @@ export default function Dashboard() {
                         setFilter(tab.id);
                         setLens(null);
                       }}
-                      className={`group/tab inline-flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 text-[9px] font-semibold uppercase tracking-wide transition sm:min-h-0 sm:flex-none sm:flex-row sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-xs sm:tracking-wider ${
+                      className={`group/tab inline-flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1 text-center text-[9px] font-semibold uppercase tracking-wide transition sm:min-h-0 sm:flex-none sm:flex-row sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-xs sm:tracking-wider ${
                         active && !lens
                           ? activeBg
                           : "text-washi-muted hover:text-washi"
@@ -710,36 +850,20 @@ export default function Dashboard() {
               as a refinement rather than a peer of the primary axis.
               Mutex with rank: clicking a lens forces rank → all and
               vice-versa, making the active filter unambiguous. */}
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {/* On a phone the lenses live in the filter sheet. */}
+            <div className="mt-3 hidden flex-wrap items-center gap-1.5 sm:flex">
               <span
                 aria-hidden="true"
-                className="hidden font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim sm:inline"
+                className="font-mono text-[10px] uppercase tracking-[0.25em] text-washi-dim"
               >
                 {t("dashboard.lensLabel")}
               </span>
-              {[
-                {
-                  id: "recent",
-                  glyph: "新",
-                  label: t("dashboard.lensRecent"),
-                  tooltip: t("dashboard.lensRecentHint"),
-                  accent: "moegi",
-                },
-                {
-                  id: "sleeping",
-                  glyph: "眠",
-                  label: t("dashboard.lensSleeping"),
-                  tooltip: t("dashboard.lensSleepingHint"),
-                  accent: "washi",
-                },
-                {
-                  id: "wishlist_aged",
-                  glyph: "慕",
-                  label: t("dashboard.lensWishlistAged"),
-                  tooltip: t("dashboard.lensWishlistAgedHint"),
-                  accent: "sakura",
-                },
-              ].map((opt) => {
+              {LENSES.map((lensDef) => {
+                const opt = {
+                  ...lensDef,
+                  label: t(lensDef.labelKey),
+                  tooltip: t(lensDef.hintKey),
+                };
                 const active = lens === opt.id;
                 const accentRing =
                   opt.accent === "sakura"
@@ -778,14 +902,16 @@ export default function Dashboard() {
             </div>
 
             {/* Editorial gloss — only rendered for filters whose name carries
-              cultural baggage (the Japanese terms 願 / 積読). Sits in a
-              `min-h` reserve so the grid below doesn't jump when switching
-              between glossed and unglossed filters. The `key={filter}`
-              re-mounts the line on every change, replaying the fade-up
-              animation as a subtle "you just changed lens" cue.
+              cultural baggage (the Japanese terms 願 / 積読). The
+              `key={filter}` re-mounts the line on every change, replaying
+              the fade-up animation as a subtle "you just changed lens" cue.
               `aria-live="polite"` lets screen readers hear the definition
-              after a filter switch without interrupting the user. */}
-            <div className="min-h-[1.5rem] px-1" aria-live="polite">
+              after a filter switch without interrupting the user.
+              余 · No height is reserved for it any more: the reserve was an
+              empty band between the controls and the shelf on every other
+              tab, and the line only ever appears after a tap — a shift the
+              reader asked for. `empty:hidden` drops the region's gap too. */}
+            <div className="px-1 empty:hidden" aria-live="polite">
               {(() => {
                 if (filter !== "wishlist" && filter !== "tsundoku") return null;
                 const isWishlist = filter === "wishlist";
@@ -821,10 +947,42 @@ export default function Dashboard() {
             activeTags={activeTags}
             onToggle={toggleTag}
             onClear={clearTags}
+            // On a phone the lens and a chosen order are only visible
+            // here once the sheet is closed; from `sm:` up they have
+            // their own rows.
+            phoneChips={[
+              ...(lens
+                ? [
+                    {
+                      id: "lens",
+                      glyph: LENSES.find((l) => l.id === lens)?.glyph,
+                      label: t(
+                        LENSES.find((l) => l.id === lens)?.labelKey ??
+                          "dashboard.lensLabel",
+                      ),
+                      onRemove: () => setLens(null),
+                    },
+                  ]
+                : []),
+              ...(sort.key !== DEFAULT_SORT.key || sort.dir !== DEFAULT_SORT.dir
+                ? [
+                    {
+                      id: "sort",
+                      glyph: "並",
+                      label: `${t(SORT_LABEL_KEYS[sort.key])} ${sort.dir === "asc" ? "↑" : "↓"}`,
+                      onRemove: () => setSort({ ...DEFAULT_SORT }),
+                    },
+                  ]
+                : []),
+            ]}
           />
 
           {/* Grid */}
-          <section>
+          <section
+            id="library-shelf"
+            role="tabpanel"
+            aria-labelledby={`library-tab-${filter}`}
+          >
             {isInitialLoad ? (
               <div className={gridClassFor(density)}>
                 {[...Array(12)].map((_, i) => (
@@ -851,6 +1009,7 @@ export default function Dashboard() {
               // small libraries keep the simple render path for zero
               // overhead.
               <MangaGrid
+                label={t("dashboard.shelfLabel")}
                 filtered={sorted}
                 adult_content_level={adult_content_level}
                 allCollectorSet={allCollectorSet}
@@ -904,6 +1063,35 @@ export default function Dashboard() {
           selection mode is engaged. Renders outside the
           PullToRefresh wrapper so the slide-up animation doesn't
           fight the pull-to-refresh hit zone. */}
+      {sheetMounted && (
+      <Suspense fallback={null}>
+      <FiltersSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        library={library}
+        activeTags={activeTags}
+        onToggleTag={toggleTag}
+        lens={lens}
+        onLens={(next) => {
+          setLens(next);
+          if (next) setFilter("all");
+        }}
+        sort={sort}
+        onSort={setSort}
+        resultsCount={filtered.length}
+        onReset={() => {
+          clearTags();
+          setLens(null);
+          setSort({ ...DEFAULT_SORT });
+        }}
+        onSelectSeries={() => {
+          setSheetOpen(false);
+          startSelection();
+        }}
+      />
+      </Suspense>
+      )}
+
       {selectionMode && (
         <BulkActionsBar
           library={library}
@@ -930,7 +1118,7 @@ export default function Dashboard() {
  * palette they picked. Pulse animation when the streak ≥ 7 days
  * — small reward, calibrated to not be intrusive.
  */
-function StreakChip() {
+function StreakChip({ className = "", separator = false }) {
   const t = useT();
   // Dexie-backed; returns `null` until the cache or the network has
   // answered, then the StreakInfo shape.
@@ -940,19 +1128,23 @@ function StreakChip() {
   const best = data.best_streak ?? 0;
   if (current <= 0) return null;
   const onFire = current >= 7;
-  const tooltip =
+  // 恕 · The rule the count follows (`services/activity.rs::streak_of`)
+  // is said where the count is shown.
+  const tooltip = `${
     best > current
       ? t("dashboard.streakTooltipBest", { current, best })
-      : t("dashboard.streakTooltipCurrent", { n: current });
+      : t("dashboard.streakTooltipCurrent", { n: current })
+  } · ${t("dashboard.streakGrace")}`;
   return (
     <>
-      <span aria-hidden="true" className="text-washi-dim/40">
-        ·
-      </span>
+      {separator && (
+        <span aria-hidden="true" className="hidden text-washi-dim/40 sm:inline">
+          ·
+        </span>
+      )}
       <span
         title={tooltip}
-        aria-label={tooltip}
-        className={`inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.18em] ${
+        className={`${className} shrink-0 items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.18em] ${
           onFire ? "text-hanko-bright" : "text-washi-muted"
         }`}
       >
@@ -974,6 +1166,46 @@ function StreakChip() {
         </span>
       </span>
     </>
+  );
+}
+
+/**
+ * 題 · The phone's way into the filter sheet — beside the search field,
+ * where the genre, order and density controls sit from `sm:` up. Named
+ * by its word; the badge counts what the sheet holds that is not the
+ * default (genres, a lens, an order).
+ */
+function SheetButton({ count, open, onOpen, onPrefetch }) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      onPointerEnter={onPrefetch}
+      onFocus={onPrefetch}
+      onTouchStart={onPrefetch}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      className={`relative inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-xs font-semibold uppercase tracking-wider transition sm:hidden ${
+        count > 0
+          ? "border-hanko/60 bg-hanko/15 text-washi"
+          : "border-border bg-ink-1/60 text-washi-muted hover:text-washi"
+      }`}
+    >
+      <span aria-hidden="true" className="font-jp text-[15px] leading-none">
+        題
+      </span>
+      {t("dashboard.filterShort")}
+      {count > 0 && (
+        <span
+          key={count}
+          className="animate-stamp grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-hanko px-1.5 font-mono text-[10px] font-bold tabular-nums text-on-hanko"
+        >
+          {count}
+          <span className="sr-only"> {t("dashboard.tagsSelected")}</span>
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -1003,10 +1235,10 @@ function RibbonStat({ label, value, accent, loading, width }) {
           ? "text-moegi"
           : "text-washi";
   return (
-    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-      <span className="text-washi-dim">{label}</span>
+    <span className="flex min-w-0 flex-col-reverse whitespace-nowrap sm:inline-flex sm:flex-row sm:items-baseline sm:gap-1.5">
+      <span className="truncate text-washi-dim">{label}</span>
       <span
-        className={`font-display text-base font-semibold not-italic tabular-nums normal-case tracking-normal ${accentClass}`}
+        className={`font-display text-lg font-semibold not-italic leading-tight tabular-nums normal-case tracking-normal sm:text-base ${accentClass}`}
       >
         {loading ? <Skeleton.Stat width={width} /> : value}
       </span>

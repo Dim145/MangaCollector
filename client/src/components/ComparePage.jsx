@@ -11,6 +11,7 @@ import {
 } from "@/utils/library.js";
 import { useCompare, useCopyFromCompare } from "@/hooks/useCompare.js";
 import { useT } from "@/i18n/index.jsx";
+import BackLink from "@/components/ui/BackLink.jsx";
 
 /**
  * /compare/:slug · 対照 page.
@@ -88,13 +89,7 @@ export default function ComparePage() {
 
           <div className="relative">
           <div className="flex items-baseline gap-3">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim transition hover:text-washi"
-            >
-              ← {t("common.back")}
-            </button>
+            <BackLink onClick={() => navigate(-1)}>{t("common.back")}</BackLink>
             <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
             <span className="font-mono text-[10px] uppercase tracking-[0.35em] text-washi-dim">
               {t("compare.eyebrow")}
@@ -286,7 +281,6 @@ export default function ComparePage() {
                   genres: res.genres ?? target?.genres ?? [],
                 },
               },
-              viewTransition: true,
             });
           }}
           adultLevel={adult_content_level}
@@ -711,7 +705,7 @@ function NotFoundState({ slug, selfCompare }) {
         to="/dashboard"
         className="mt-6 rounded-full border border-border bg-ink-1/60 px-5 py-2 font-mono text-[11px] uppercase tracking-[0.2em] text-washi-muted transition hover:border-hanko/50 hover:text-washi"
       >
-        {t("compare.backHome")}
+        {t("common.backToLibrary")}
       </Link>
     </div>
   );

@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import CoverImage from "./ui/CoverImage.jsx";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useT } from "@/i18n/index.jsx";
+import BackLink from "@/components/ui/BackLink.jsx";
 
 /**
  * Prints physical shelf labels — one QR code per series. Layout
@@ -87,12 +87,7 @@ export default function ShelfStickersPage() {
 
         <div className="relative">
         <div className="flex items-baseline gap-3">
-          <Link
-            to="/settings"
-            className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim transition hover:text-washi"
-          >
-            ← {t("common.back")}
-          </Link>
+          <BackLink to="/settings">{t("common.backToSettings")}</BackLink>
           <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
         </div>
         <div className="mt-2 flex items-baseline justify-between gap-4">
@@ -311,7 +306,7 @@ function PrintableSheet({ stickers, baseUrl, t }) {
       </div>
 
       {pages.map((pageStickers, pageIdx) => (
-        <div
+        <div role="group"
           key={pageIdx}
           className="sticker-sheet"
           aria-label={t("shelfStickers.pageNum", { n: pageIdx + 1 })}
@@ -350,7 +345,7 @@ function Sticker({ entry, baseUrl, t }) {
           {owned} / {total} · {t("manga.volumesShort")}
         </p>
       </div>
-      <span className="sticker-qr" aria-label={t("shelfStickers.qrAria")}>
+      <span role="img" className="sticker-qr" aria-label={t("shelfStickers.qrAria")}>
         <QRCodeSVG
           value={url}
           size={80}

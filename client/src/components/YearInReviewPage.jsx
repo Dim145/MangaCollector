@@ -6,6 +6,7 @@ import { useUserSettings } from "@/hooks/useSettings.js";
 import { useYearInReview } from "@/hooks/useYearInReview.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useLang, useT } from "@/i18n/index.jsx";
+import BackLink from "@/components/ui/BackLink.jsx";
 
 /**
  * 月 · The month's name in the reader's language. The app's own
@@ -95,10 +96,23 @@ export default function YearInReviewPage({ googleUser }) {
     // more often than it is saved, and the library rode in the page's
     // own chunk for every view.
     const { toPng } = await import("html-to-image");
+    // 表 · Covers the reader has not scrolled to are still being fetched
+    // when the button at the top is pressed; a capture taken then has
+    // an empty frame where the first volume should be.
+    await Promise.all(
+      [...posterRef.current.querySelectorAll("img")].map((img) =>
+        img.decode ? img.decode().catch(() => {}) : null,
+      ),
+    );
     return toPng(posterRef.current, {
       pixelRatio: 2,
       cacheBust: true,
-      backgroundColor: "#0a0908",
+      // 地 · The ground the poster is drawn on, in the reader's theme. It
+      // was a fixed near-black: a light-theme poster — dark ink on a
+      // 40 % paper card — came out dark on dark, its year, genre and
+      // series names all but gone.
+      backgroundColor:
+        getComputedStyle(document.body).backgroundColor || "#0a0908",
       filter: (node) => !(node?.classList?.contains?.("yir-controls")),
     });
   }
@@ -165,12 +179,7 @@ export default function YearInReviewPage({ googleUser }) {
           group takes its own line there and returns to the same row
           from `sm` up. */}
       <div className="yir-controls mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link
-          to="/profile"
-          className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim transition hover:text-washi"
-        >
-          ← {t("common.back")}
-        </Link>
+        <BackLink to="/profile">{t("common.backToProfile")}</BackLink>
         <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
           <YearSelector current={year} month={month} />
           <MonthSelector current={month} year={year} lang={lang} t={t} />
@@ -309,13 +318,14 @@ function triggerDownload(dataUrl, filename) {
 }
 
 function YearSelector({ current, month }) {
+  const t = useT();
   const navigate = useNavigate();
   const now = new Date().getFullYear();
   const options = [now - 2, now - 1, now];
   return (
     <div
       role="radiogroup"
-      aria-label="Year"
+      aria-label={t("yearReview.yearPicker")}
       className="inline-flex items-stretch overflow-hidden rounded-full border border-border bg-ink-0/40 p-0.5"
     >
       {options.map((y) => {
@@ -670,6 +680,8 @@ function Bookend({ kanji, label, volume, t, align = "start" }) {
         className="group flex items-center gap-3 rounded-md transition hover:opacity-90"
       >
         <span className="block h-14 w-10 shrink-0 overflow-hidden rounded-sm shadow-md ring-1 ring-border">
+          {/* Mounted and fetched at once, not when scrolled to: the
+              poster is saved as an image from the button at its top. */}
           <CoverImage
             src={volume.cover}
             sizes="40px"
@@ -677,6 +689,7 @@ function Bookend({ kanji, label, volume, t, align = "start" }) {
             className="h-full w-full object-cover"
             imgClassName="h-full w-full object-cover"
             fallbackKanji="巻"
+            priority
           />
         </span>
         <span className="min-w-0 flex-1">

@@ -55,6 +55,7 @@ import {
 import { useT } from "@/i18n/index.jsx";
 
 import CoverImg from "@/components/ui/CoverImg.jsx";
+import BackLink from "@/components/ui/BackLink.jsx";
 const TRANSIENT_ERROR_TIMEOUT_MS = 2500;
 // 待 · Minimum on-screen duration of `ScanLoadingView` after a
 // barcode is detected. The lookup itself can complete in <100 ms
@@ -290,7 +291,6 @@ export default function AddPage() {
           },
           adult_content_level,
         },
-        viewTransition: true,
       });
     }
   };
@@ -318,7 +318,6 @@ export default function AddPage() {
     if (res.success) {
       navigate("/mangapage", {
         state: { manga: res.newEntry, adult_content_level },
-        viewTransition: true,
       });
     }
   };
@@ -589,23 +588,9 @@ export default function AddPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
       <header className="mb-8 animate-fade-up">
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-3.5 w-3.5"
-          >
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          {t("common.back")}
-        </button>
+        <BackLink to="/dashboard" className="mb-4">
+          {t("common.backToLibrary")}
+        </BackLink>
 
         <div className="flex items-baseline gap-3">
           <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
@@ -900,7 +885,6 @@ export default function AddPage() {
           <BarcodeScanner
             onDetect={onBarcodeDetected}
             onClose={closeScanner}
-            statusMessage="Point the camera at the barcode"
             recentCount={recentScans.length}
           />
         </Suspense>

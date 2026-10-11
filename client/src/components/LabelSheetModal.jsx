@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@/hooks/useFocusTrap.js";
+import { useTopLayer } from "@/hooks/useTopLayer.js";
 import { useT } from "@/i18n/index.jsx";
 import {
   DEFAULT_TEMPLATE_ID,
@@ -29,11 +30,11 @@ import { buildLabelPdfOffThread } from "@/lib/labelsPdf.js";
  * cells are the labels, filled in hanko red where a sticker will land.
  * Clicking a cell moves the start position there.
  *
- * Self-contained portal rather than `ui/Modal.jsx`: that wrapper puts
- * `role="dialog"` on its overlay with no way to name it, and this
- * dialog needs `aria-labelledby` on the element that carries the role.
- * The focus trap, scroll lock and Escape handling are the shared
- * `useFocusTrap`, exactly as Modal wires them.
+ * Self-contained rather than `ui/Modal.jsx`: that wrapper offers no way
+ * to name its `<dialog>`, and this one is named by its heading
+ * (`aria-labelledby`). It is a native modal `<dialog>` all the same —
+ * top layer, inert page (`useTopLayer`) — with the focus trap, scroll
+ * lock and Escape handling of the shared `useFocusTrap`, as Modal.
  */
 export default function LabelSheetModal({
   open,
@@ -56,6 +57,8 @@ export default function LabelSheetModal({
 
   const rootRef = useRef(null);
   useFocusTrap(open, rootRef, onClose);
+  const dialogRef = useRef(null);
+  useTopLayer(dialogRef, open);
 
   const template =
     LABEL_TEMPLATES[templateId] ?? LABEL_TEMPLATES[DEFAULT_TEMPLATE_ID];
@@ -135,9 +138,11 @@ export default function LabelSheetModal({
   const pct = (mm) => `${((mm / page.w) * 100).toFixed(3)}%`;
 
   const overlay = (
-    <div
-      className="fixed inset-0 flex items-center justify-center bg-ink-0/80 p-4 backdrop-blur-md animate-fade-in"
-      style={{ zIndex: 2147483630 }}
+    <dialog
+      ref={dialogRef}
+      aria-labelledby={TITLE_ID}
+      // The browser's dialog box undone, as in `ui/Modal.jsx`.
+      className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none overflow-clip items-center justify-center border-0 bg-ink-0/80 p-4 text-inherit backdrop-blur-md backdrop:bg-transparent open:flex animate-fade-in"
       onClick={(e) => {
         if (e.target !== e.currentTarget) return;
         onClose?.();
@@ -146,9 +151,6 @@ export default function LabelSheetModal({
       <div className="relative max-h-[calc(100dvh_-_2rem)] w-full max-w-lg overflow-auto animate-fade-up">
         <div
           ref={rootRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={TITLE_ID}
           tabIndex={-1}
           className="fuda-modal relative overflow-hidden rounded-md border border-border bg-ink-1 shadow-2xl focus:outline-none"
         >
@@ -404,7 +406,7 @@ export default function LabelSheetModal({
           </span>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 
   return createPortal(overlay, document.body);

@@ -54,7 +54,7 @@ function Row({ publisher, leader, rank, t }) {
           the text for a "filling-up" feel. */}
       <span
         aria-hidden="true"
-        className="absolute inset-y-0 left-0 -z-10 transition-[width] duration-700 ease-out"
+        className="meter-fill meter-under absolute inset-y-0 left-0 -z-10 transition-[width] duration-700 ease-out"
         style={{
           width: `${widthPct}%`,
           background:

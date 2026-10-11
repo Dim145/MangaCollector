@@ -85,6 +85,7 @@ function VolumeShelfTileImpl({
 
       {isRead && owned && (
         <span
+          role="img"
           aria-label={t("manga.shelfBadgeRead")}
           className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-sm bg-gold/85 font-jp text-[10px] font-bold leading-none text-ink-0 shadow-sm"
           style={{ transform: "rotate(-6deg)" }}
@@ -101,6 +102,7 @@ function VolumeShelfTileImpl({
           stay put — they're in clear corners. */}
       {isUpcoming ? (
         <span
+          role="img"
           aria-label={t("manga.shelfBadgeUpcoming")}
           className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-sm bg-moegi/85 font-jp text-[10px] font-bold leading-none text-ink-0 shadow-sm"
           style={{ transform: "rotate(6deg)" }}
@@ -111,6 +113,7 @@ function VolumeShelfTileImpl({
         isCollector &&
         owned && (
           <span
+            role="img"
             aria-label={t("manga.shelfBadgeCollector")}
             className={`absolute grid h-5 w-5 place-items-center rounded-sm bg-hanko/90 font-jp text-[10px] font-bold leading-none text-on-hanko shadow-[0_0_6px_var(--hanko-glow)] ${
               isLent ? "right-1 bottom-7" : "right-1 top-1"
@@ -132,6 +135,7 @@ function VolumeShelfTileImpl({
           the lock so they sit side-by-side instead of stacked. */}
       {locked && owned && (
         <span
+          role="img"
           aria-label={t("manga.shelfBadgeLocked")}
           className={`absolute bottom-1 grid h-4 w-4 place-items-center rounded-sm bg-ink-0/70 font-jp text-[9px] font-bold leading-none text-washi-dim ${
             hasNote ? "right-6" : "right-1"
@@ -143,6 +147,7 @@ function VolumeShelfTileImpl({
 
       {hasNote && (
         <span
+          role="img"
           aria-label={t("manga.shelfBadgeNote")}
           title={t("manga.shelfBadgeNote")}
           className="absolute bottom-1 right-1 grid h-4 w-4 place-items-center rounded-sm bg-moegi/85 font-jp text-[9px] font-bold leading-none text-ink-0 shadow-sm"
@@ -160,6 +165,7 @@ function VolumeShelfTileImpl({
         {volNum}
         {hasDoubles && (
           <span
+            role="img"
             aria-label={t("manga.shelfBadgeDoubles", { n: 1 + doubles })}
             title={t("manga.shelfBadgeDoubles", { n: 1 + doubles })}
             className="font-bold tabular-nums text-gold"

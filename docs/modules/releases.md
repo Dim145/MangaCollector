@@ -160,6 +160,17 @@ Route table: `server/src/routes/api.rs`.
   picked, with `onSaved` refetching the range — the calendar reads the
   server's answer per range, not `db.volumes`, where the form writes.
   Disabled offline, like the subscribe button.
+  The header's three figures stay on one row on a phone (value over
+  label). The release the "J−N" figure counts to carries a 次 "Next"
+  tag in the agenda, in place. 版元 A **publisher** select narrows the
+  releases — the publisher comes from the reader's own library rows
+  (`db.library`), since a release carries the series and not its
+  publisher, and the select shows only when the window holds releases
+  from two publishers or more. 未定 **"No date yet"**, under the
+  releases, lists the series still coming out with no dated volume
+  (`seriesAwaitingDate`), each with a button that opens the upcoming
+  form on that series with its next number; it is mounted after the
+  first paint, since it reads every volume on the device.
 - `components/UpcomingSeriesPicker.jsx` + `lib/upcomingPicker.js` — the
   series to note a volume for: every library series with a `mal_id`,
   custom ones included, sorted by name, searched without case or accents
@@ -167,6 +178,11 @@ Route table: `server/src/routes/api.rs`.
   (the highest `vol_num` among its rows, else its announced count, + 1 —
   the rule the series page uses for its own form). All read from Dexie,
   so the list is instant; only the save needs the server.
+  `seriesAwaitingDate(library, volumes, today)` is the calendar's "No
+  date yet": an edition marked `ongoing`, or one with no opinion whose
+  MyAnimeList total is unknown (MAL gives none to a series still being
+  published) — never a completed, stopped or paused one, nor one with a
+  volume dated today or later.
 - `hooks/useUpcomingCalendar.js` — Dexie live row for the range plus
   React Query `["calendar-upcoming", from, until]` (`staleTime` 60 s),
   mirrored into `calendarUpcoming`; exposes `source: "cache" | "live"`.
@@ -311,11 +327,15 @@ Client (`pnpm test`): `lib/navCounters.test.js` (`countReleasesThisMonth`),
 (doubles ignore upcoming rows), `lib/scanLookup.test.js` (`release_isbn`
 match), `lib/upcomingPicker.test.js` (the next number — rows over the
 announced count, the count when there are no rows — the order by name, a
-search that ignores case and accents). `useUpcomingCalendar`,
+search that ignores case and accents; and `seriesAwaitingDate`: which
+editions await a date, a volume dated today counting as one, the same
+next number as the picker). `useUpcomingCalendar`,
 `CalendarPage` and the modals are not covered; the calendar flow was
 checked end to end in a browser (empty library, three custom series,
 search, the form proposing the next number, the release showing without
-a reload).
+a reload); the publisher filter and "No date yet" were checked the same
+way in October 2026, with a test volume and three series marked ongoing,
+then removed and restored.
 
 Local stack (`docs/test-stack.md`): start it, seed with
 `node scripts/seed-test-stack.mjs`, pencil a tome from a MangaPage edit

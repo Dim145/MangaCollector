@@ -103,7 +103,60 @@ export function canHold(scrollHeight, viewportHeight, target) {
   return Math.max(0, scrollHeight - viewportHeight) >= target;
 }
 
+/**
+ * 先 · Where the restore under way is taking the page.
+ *
+ * A windowed grid decides which rows to render from the scroll offset
+ * it reads when it is created. Mounted on a "back" while the page still
+ * sits at the previous page's offset, it rendered the rows for *that*
+ * place, the restore then moved the window, and the frame painted in
+ * between showed the shelf's top — or nothing, where the rows for the
+ * restored offset had not been rendered yet. The app shell announces
+ * the target while it renders (before the page under it does), the
+ * grid starts from it (`useWindowGridVirtualizer`), and the first frame
+ * already holds the rows the reader comes back to.
+ *
+ * Keyed by the history entry, so a stale announcement can never steer
+ * the grid of another entry.
+ */
+const NONE = { key: null, y: null, laidOut: false };
+let pending = NONE;
+
+/** Called while the app shell renders an arrival (and again, unchanged,
+ *  from its effect — which must not forget a grid already laid out). */
+export function announceRestore(key, y) {
+  const target = Number.isFinite(y) ? y : null;
+  if (pending.key === key && pending.y === target) return;
+  pending = { key, y: target, laidOut: false };
+}
+
+/** The restore target, while one is under way. */
+export function restoringTo() {
+  return pending.y;
+}
+
+/**
+ * A windowed grid has laid its rows out for the target. Its height is
+ * then known, so there is nothing left to wait for: if the page cannot
+ * hold the position now, it never will (the shelf got shorter), and
+ * waiting would leave the grid showing the rows of a place the page is
+ * not at — an empty band — until the wait ran out.
+ */
+export function noteRestoreLaidOut() {
+  if (pending.y != null) pending = { ...pending, laidOut: true };
+}
+
+export function restoreLaidOut() {
+  return pending.laidOut;
+}
+
+/** The position is in place (or the restore was abandoned). */
+export function endRestore(key) {
+  if (key == null || pending.key === key) pending = NONE;
+}
+
 /** Test seam. */
 export function _resetScrollMemory() {
   memory.clear();
+  pending = NONE;
 }

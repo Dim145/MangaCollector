@@ -10,8 +10,8 @@
  * page voice is consistent regardless of which line surfaces
  * on a given day.
  */
-import { Link } from "react-router-dom";
 import { useDailyStatsSubtitle } from "@/lib/dailyTexts.js";
+import BackLink from "@/components/ui/BackLink.jsx";
 
 export default function StatsHero({ t, totals, loading }) {
   const dailySubtitle = useDailyStatsSubtitle();
@@ -62,15 +62,7 @@ export default function StatsHero({ t, totals, loading }) {
 
       <div className="relative mx-auto max-w-6xl">
         <div className="flex items-center gap-3">
-          <Link
-            to="/profile"
-            className="group inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim transition hover:text-washi"
-          >
-            <span aria-hidden="true" className="transition-transform group-hover:-translate-x-0.5">
-              ←
-            </span>
-            {t("stats.backToProfile")}
-          </Link>
+          <BackLink to="/profile">{t("common.backToProfile")}</BackLink>
         </div>
 
         <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.32em] text-hanko-bright">

@@ -5,6 +5,7 @@ import { useExternalImport } from "@/hooks/useExternalImport.js";
 import { readImportFile } from "@/lib/importFile.js";
 import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
+import BackLink from "@/components/ui/BackLink.jsx";
 
 /**
  * /settings/import-external · 外部輸入 page.
@@ -112,12 +113,7 @@ export default function ImportExternalPage() {
         {/* Masthead */}
         <header className="mb-8 animate-fade-up">
           <div className="flex items-baseline gap-3">
-            <Link
-              to="/settings"
-              className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim transition hover:text-washi"
-            >
-              ← {t("importExternal.backToSettings")}
-            </Link>
+            <BackLink to="/settings">{t("common.backToSettings")}</BackLink>
             <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
           </div>
           <h1 className="mt-2 font-display text-4xl font-light italic leading-none tracking-tight text-washi md:text-5xl">
@@ -133,7 +129,7 @@ export default function ImportExternalPage() {
 
         {/* ─── Phase: CHOOSE ─── */}
         {phase === "choose" && (
-          <div
+          <div role="group"
             className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5"
             aria-label={t("importExternal.servicesLabel")}
           >

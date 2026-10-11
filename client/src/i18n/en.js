@@ -1,5 +1,8 @@
 export default {
   common: {
+    backToLibrary: "Back to library",
+    backToProfile: "Back to profile",
+    backToSettings: "Back to settings",
     cancel: "Cancel",
     copy: "Copy",
     save: "Save",
@@ -33,6 +36,7 @@ export default {
     restoreDoneBody: "Reloaded from the server — fresh slate ready.",
   },
   rangement: {
+    actionsFor: "Actions — {name}",
     kicker: "STORAGE · 棚",
     title: "Where things live",
     subtitle: "Shelves, boxes, rooms — each place knows what sits in it.",
@@ -164,6 +168,35 @@ export default {
     more: "+{n} more",
   },
   scanPage: {
+    batchUpcoming: "{label} — announced, not out yet",
+    reviewUpcoming: "Announced, not out yet",
+    reviewUpcomingShort: "{n} announced",
+    reviewUpcomingNote: "A tome can be marked owned once its date has come: change the date on the series page if it is already out.",
+    modeLabel: "Scanning rhythm",
+    modeSingle: "One by one",
+    modeBatch: "In a row",
+    batchPrompt: "Scan the books one after another — review them at the end.",
+    batchOwned: "{label} — already owned",
+    batchMissing: "{label} — to mark as owned",
+    batchUnknown: "Not on your shelf · {isbn}",
+    batchAlready: "Already in the list",
+    batchCount: "{n} in the list",
+    batchReview: "Review",
+    reviewEyebrow: "IN A ROW · 列",
+    reviewTitle: "The books you scanned",
+    reviewMissing: "To mark as owned",
+    reviewOwned: "Already on your shelf",
+    reviewUnknown: "Not on your shelf",
+    reviewMissingShort: "{n} to mark",
+    reviewOwnedShort: "{n} owned",
+    reviewUnknownShort: "{n} unknown",
+    reviewViaCatalogue: "found by its title",
+    reviewMark: "Mark {n} as owned",
+    reviewMarked: "{n} volume(s) marked as owned",
+    reviewAdd: "Add",
+    reviewRemove: "Remove from the list",
+    reviewClear: "Clear the list",
+    reviewEmpty: "Nothing scanned yet.",
     resultAria: "Scan result",
     pointCamera: "Point the camera at a barcode — your shelf answers first.",
     onShelf: "On your shelf",
@@ -185,6 +218,8 @@ export default {
     scanNext: "Scan the next one",
   },
   nav: {
+    mainAria: "Main navigation",
+    accountMenu: "Account menu",
     scan: "Scan a barcode",
     badge_library: "{n} overdue loan(s)",
     badge_calendar: "{n} tome(s) out this month",
@@ -206,6 +241,15 @@ export default {
     calendar: "Calendar",
   },
   calendar: {
+    publisherAll: "All publishers",
+    publisherAria: "Filter by publisher",
+    next: "Next",
+    awaitingTitle: "No date yet",
+    awaitingIntro: "Series still coming out with no volume announced on your shelf. Note the next one as soon as its publisher announces it.",
+    awaitingNote: "Vol. {n}",
+    awaitingCount: "{n} series",
+    awaitingShowAll: "Show all ({n})",
+    awaitingShowFewer: "Show fewer",
     eyebrow: "RELEASES · 来",
     titleStart: "Your",
     titleAccent: "release calendar",
@@ -232,7 +276,7 @@ export default {
       "Subscribing to the ICS feed asks the server to mint a token — available only when the server is reachable.",
     servedFromCache:
       "Offline calendar · local view, new announcements will appear once connectivity returns",
-    monthCount: "{n} releases",
+    monthCount: "{n} release(s)",
     volumeLabel: "Volume {n}",
     countdownDays: "J−{n}",
     today: "Today",
@@ -303,6 +347,14 @@ export default {
     offlineHint: "Offline",
   },
   dashboard: {
+    resultsAnnounce: "{n} series shown",
+    shelfLabel: "Your series",
+    controlsLabel: "Search and filters",
+    sheetEyebrow: "FILTERS · 題",
+    sheetTitle: "Narrow and order the shelf",
+    sheetReset: "Reset",
+    sheetShow: "Show results ({n})",
+    sortDirection: "Direction",
     archive: "ARCHIVE · 本棚",
     yourLibrary: "Your",
     library: "Library",
@@ -355,6 +407,7 @@ export default {
     streakLabel: "Streak",
     streakTooltipCurrent: "{n} consecutive days of activity",
     streakTooltipBest: "{current} consecutive days — personal best: {best}",
+    streakGrace: "After a week of activity, one missed day no longer breaks the streak — once a week.",
     searchPlaceholder: "Search your library…",
     clearFilter: "Clear",
     addManga: "Add manga",
@@ -390,6 +443,7 @@ export default {
     removeChip: "Remove \u201C{name}\u201D",
   },
   manga: {
+    volumesListLabel: "Volumes",
     volumesShort: "vols",
     complete: "Complete",
     ongoing: "Ongoing",
@@ -458,11 +512,7 @@ export default {
     tsundokuChipShort: "pending",
     readingLabel: "READING · 読破",
     readingAria: "{read} of {total} volumes read",
-    readingAriaCell: {
-      read: "Volume {n} — read",
-      tsundoku: "Volume {n} — owned, unread",
-      missing: "Volume {n} — not acquired",
-    },
+    readingStripAria: "{read} of {total} volumes read, {owned} owned",
     readingCellRead: "Volume {n} · Read on {date}",
     readingCellTsundoku: "Volume {n} · Owned, unread",
     readingCellMissing: "Volume {n} · Not acquired",
@@ -475,7 +525,6 @@ export default {
     collection: "Collection",
     progress: "Progress",
     totalVolumes: "Total volumes (override)",
-    backToLibrary: "Back to library",
     totalPaid: "Total paid",
     averagePerVolume: "Average / volume",
     ownedCount: "{n} owned volumes",
@@ -577,6 +626,10 @@ export default {
     mangadexLink: "MangaDex",
   },
   bulk: {
+    select: "Select",
+    selectSeries: "Select several series",
+    selectHint: "Mark, read or delete them in one go — a long press on a cover does it too",
+    hint: "Choose the series to include",
     regionLabel: "Bulk actions",
     countSelected: "{n} selected",
     markOwned: "Mark owned",
@@ -591,6 +644,8 @@ export default {
       "This action needs a connection — the volume cascade is handled server-side.",
   },
   volume: {
+    announceOwned: "Volume {n} owned",
+    announceNotOwned: "Volume {n} no longer owned",
     volume: "Volume {n}",
     inCollection: "In Collection",
     missing: "Missing",
@@ -639,7 +694,6 @@ export default {
     noteCounter: "{n} / {max}",
     noteIndicatorChip: "Note",
     noteIndicatorTooltip: "A personal note is inscribed on this volume.",
-    noteIndicatorAria: "Open the note for this volume",
     // 飛 · A tome left out on purpose: it keeps its number in the
     // run and stops being counted as missing.
     skippedShort: "Skipped",
@@ -664,7 +718,7 @@ export default {
     upcomingTooltip: "Releases on {date}",
     upcomingAria: "Volume not yet released — expected on {date}",
     upcomingDetailsAria: "View upcoming-volume details",
-    upcomingDetailsTitle: "Tap for release details",
+    upcomingDetailsTitle: "Release details",
     upcomingDrawerEyebrow: "Upcoming Volume · 来",
     upcomingDrawerLead:
       "This volume hasn't shipped yet. You can't mark it owned or read until release day.",
@@ -823,6 +877,7 @@ export default {
       "Adding from MangaDex needs a connection — the server mints the internal id and creates the volume rows.",
   },
   scan: {
+    scannerAria: "Barcode scanner",
     opening: "Opening…",
     scanning: "Scanning",
     paused: "Paused",
@@ -1132,6 +1187,7 @@ export default {
       "Settings chapter 4: restore from server and account deletion. Actions that demand a careful hand — hence the heavier red stamp.",
   },
   season: {
+    greetingAria: "Season",
     dismissAria: "Dismiss the season banner",
     poetic_spring: "The archive opens its blossoms.",
     subtle_spring: "Soft pinks and new growth — pages turn under cherry light.",
@@ -1626,7 +1682,6 @@ export default {
     titleAccent: "lost",
     titlePost: " in the stacks",
     body: "The archivist walked the corridor twice but couldn't find this volume. Maybe a stale link, or a path typed from memory that no longer matches. The archive is vast — let's retrace our steps.",
-    backToDashboard: "Back to dashboard",
     goBack: "Previous page",
     inscription:
       "Every misplaced volume finds its shelf eventually — patience.",
@@ -2144,6 +2199,7 @@ export default {
     settingsCta: "Open printer",
   },
   yearReview: {
+    yearPicker: "Year",
     eyebrow: "YEAR IN REVIEW · 収",
     headlineCaption: "volumes acquired this year",
     seriesStarted: "Series started",
@@ -2202,7 +2258,6 @@ export default {
     selfTitle: "Compare with yourself?",
     selfBody:
       "No diagram needed — you have everything! Try another archivist instead.",
-    backHome: "Back to my library",
     addEyebrow: "ADD FROM {name}",
     addDoneEyebrow: "ADDED TO YOUR ARCHIVE",
     addVolumesHint: "{n} published volumes",
@@ -2220,7 +2275,6 @@ export default {
     titleAccent: "ritual · 外部輸入",
     subtitle:
       "Bring your collection over from an external service. Merge mode: existing series are never overwritten.",
-    backToSettings: "Settings",
     servicesLabel: "Available services",
     openService: "Use this service",
     fetching: "Fetching…",
@@ -2285,7 +2339,6 @@ export default {
   author: {
     kicker: "AUTHOR",
     empty: "No author selected",
-    backToDashboard: "Back to dashboard",
     notFound: "No series by {name} in your library yet.",
     singleSeries: "series",
     multipleSeriesShort: "series",
@@ -2346,7 +2399,6 @@ export default {
       "No owned-but-unread volumes. Either you've devoured the lot, or you've trimmed the shelf — both deserve a seal.",
     chapterMark: "終章",
     inscription: "The pile has dispersed — a seal for the quiet that follows.",
-    backToDashboard: "Back to dashboard",
   },
   update: {
     aria: "Update available",
@@ -2359,7 +2411,6 @@ export default {
   collection: {
     empty: "Empty catalogue",
     notFound: "No {kind} {name} series in your archive",
-    backToDashboard: "Back to dashboard",
     kickerPublisher: "CATALOGUE · 出版",
     kickerEdition: "FORMAT · 版",
     kindPublisher: "Publisher",
@@ -2399,7 +2450,6 @@ export default {
     statusOpen: "Open-ended",
     daysOverdue: "+{n}d",
     stampAria: "{status} — lent to {borrower}",
-    cardAria: "Volume {vol} of {name} lent to {borrower}",
     borrowerLabel: "Borrower",
     volNumLabel: "Vol",
     lentOn: "Lent",
@@ -2478,11 +2528,9 @@ export default {
     retryUpload: "Retry capture",
     deleteAction: "Destroy print",
     deleteConfirm: "Confirm destruction?",
-    backToDashboard: "Back to dashboard",
   },
   // 帳 · StatsPage — deep-dive analytics ledger.
   stats: {
-    backToProfile: "Back to profile",
     profileCta: "See all statistics",
     profileCtaHint: "Authors, publishers, reading, treasure, time · 帳",
     hero: {
@@ -2640,11 +2688,10 @@ export default {
     offlineHint:
       "Reconnect to the server to reopen the post office. Your existing subscriptions stay intact.",
     unfollow: "Drop",
-    unfollowAria: "Stop following {name}",
+    unfollowAria: "Drop {name} — stop following",
     followedToday: "since today",
     followedDaysAgo: "since {n}d",
     followedMonthsAgo: "since {n} mo",
-    backToDashboard: "Back to dashboard",
     unknownSeries: "a series",
     event: {
       fallback: "{type} · {series}",

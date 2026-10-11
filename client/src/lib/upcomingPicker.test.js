@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   foldForSearch,
   highestVolumeBySeries,
+  isoDay,
+  seriesAwaitingDate,
   seriesForUpcoming,
 } from "./upcomingPicker.js";
 
@@ -67,3 +69,47 @@ describe("upcomingPicker", () => {
     expect(highest.has(undefined)).toBe(false);
   });
 });
+
+describe("seriesAwaitingDate", () => {
+  const today = new Date(2026, 9, 11); // 11 Oct 2026, local
+  const shelf = [
+    { mal_id: 1, name: "Marked ongoing", volumes: 20, publication_status: "ongoing" },
+    { mal_id: 2, name: "No total on MAL", volumes: 0, publication_status: null },
+    { mal_id: 3, name: "Finished on MAL", volumes: 12, publication_status: null },
+    { mal_id: 4, name: "Edition completed", volumes: 0, publication_status: "completed" },
+    { mal_id: 5, name: "Edition stopped", volumes: 0, publication_status: "stopped" },
+    { mal_id: 6, name: "On hiatus", volumes: 0, publication_status: "paused" },
+    { mal_id: 7, name: "Already dated", volumes: 0, publication_status: "ongoing" },
+    { mal_id: 8, name: "Dated in the past only", volumes: 0, publication_status: null },
+  ];
+  const rows = [
+    { mal_id: 1, vol_num: 19 },
+    { mal_id: 7, vol_num: 5, release_date: "2026-11-02" },
+    { mal_id: 8, vol_num: 2, release_date: "2026-10-10T00:00:00Z" },
+  ];
+
+  it("keeps the series still coming out with no dated volume ahead", () => {
+    const names = seriesAwaitingDate(shelf, rows, today).map((r) => r.manga.name);
+    expect(names).toEqual(["Dated in the past only", "Marked ongoing", "No total on MAL"]);
+  });
+
+  it("counts a volume dated today as a date", () => {
+    const dated = [{ mal_id: 1, vol_num: 20, release_date: isoDay(today) }];
+    const ids = seriesAwaitingDate(shelf, dated, today).map((r) => r.manga.mal_id);
+    expect(ids).not.toContain(1);
+  });
+
+  it("proposes the same next number as the picker", () => {
+    const byId = Object.fromEntries(
+      seriesAwaitingDate(shelf, rows, today).map((r) => [r.manga.mal_id, r.next]),
+    );
+    expect(byId[1]).toBe(20); // the picker's rule: the highest row, when there is one
+    expect(byId[8]).toBe(3);
+    expect(byId[2]).toBe(1);
+  });
+
+  it("answers an empty list for an empty shelf", () => {
+    expect(seriesAwaitingDate(undefined, undefined, today)).toEqual([]);
+  });
+});
+

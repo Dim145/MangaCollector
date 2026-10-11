@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/i18n/index.jsx";
 import {
@@ -7,6 +7,11 @@ import {
   defaultDirFor,
   normalizeSort,
 } from "@/utils/librarySort.js";
+import { SORT_LABEL_KEYS } from "./viewOptions.js";
+import {
+  POPOVER_PANEL_CLASS,
+  useAnchoredPopover,
+} from "@/hooks/useAnchoredPopover.js";
 
 /**
  * 並 · Sort menu for the Dashboard grid.
@@ -22,16 +27,7 @@ import {
  * with the rest of the view state and applied in `sortLibrary`.
  */
 
-const LABEL_KEYS = {
-  title: "dashboard.sortByTitle",
-  added: "dashboard.sortByAdded",
-  updated: "dashboard.sortByUpdated",
-  progress: "dashboard.sortByProgress",
-  missing: "dashboard.sortByMissing",
-  owned: "dashboard.sortByOwned",
-  author: "dashboard.sortByAuthor",
-  upcoming: "dashboard.sortByUpcoming",
-};
+const LABEL_KEYS = SORT_LABEL_KEYS;
 
 export default function SortMenu({ sort, onChange }) {
   const t = useT();
@@ -43,48 +39,13 @@ export default function SortMenu({ sort, onChange }) {
     current.key === DEFAULT_SORT.key && current.dir === DEFAULT_SORT.dir;
   const arrow = current.dir === "asc" ? "↑" : "↓";
 
-  // Same live-anchoring as the tag popover: the panel follows the
-  // button through scroll/resize by writing straight to the DOM.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const reposition = () => {
-      const btn = buttonRef.current;
-      const pop = popoverRef.current;
-      if (!btn || !pop) return;
-      const r = btn.getBoundingClientRect();
-      pop.style.top = `${r.bottom + 8}px`;
-      pop.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
-    };
-    reposition();
-    window.addEventListener("scroll", reposition, {
-      capture: true,
-      passive: true,
-    });
-    window.addEventListener("resize", reposition);
-    return () => {
-      window.removeEventListener("scroll", reposition, { capture: true });
-      window.removeEventListener("resize", reposition);
-    };
-  }, [open]);
-
-  // Outside-click + Escape dismiss.
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e) => {
-      if (buttonRef.current?.contains(e.target)) return;
-      if (e.target.closest?.("[data-sort-popover]")) return;
-      setOpen(false);
-    };
-    const onKey = (e) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keyup", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keyup", onKey);
-    };
-  }, [open]);
+  // Same native popover as the genre list (`hooks/useAnchoredPopover.js`).
+  useAnchoredPopover({
+    open,
+    onClose: () => setOpen(false),
+    buttonRef,
+    panelRef: popoverRef,
+  });
 
   const pick = (id) => {
     if (id !== current.key) onChange?.({ key: id, dir: defaultDirFor(id) });
@@ -98,11 +59,13 @@ export default function SortMenu({ sort, onChange }) {
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        aria-label={t("dashboard.sortOpen")}
+        // 名 · Named by what it shows — the key, then the direction.
         aria-haspopup="dialog"
         aria-expanded={open}
         title={t("dashboard.sortShort")}
-        className={`relative inline-flex flex-1 items-center justify-center gap-2 rounded-full border px-4 py-2.5 text-xs pointer-coarse:py-3 font-semibold uppercase tracking-wider transition sm:flex-none ${
+        // 並 · From `sm:` up; a phone orders the shelf in the dashboard's
+        // filter sheet.
+        className={`relative hidden items-center justify-center gap-2 rounded-full border px-4 py-2.5 text-xs pointer-coarse:py-3 font-semibold uppercase tracking-wider transition sm:inline-flex ${
           !isDefault || open
             ? "border-gold/60 bg-gold/10 text-washi hover:bg-gold/20"
             : "border-border bg-ink-1/60 text-washi-muted hover:border-gold/50 hover:text-washi"
@@ -120,6 +83,9 @@ export default function SortMenu({ sort, onChange }) {
         >
           {arrow}
         </span>
+        <span className="sr-only">
+          , {t(current.dir === "asc" ? "dashboard.sortDirAsc" : "dashboard.sortDirDesc")}
+        </span>
       </button>
 
       {open &&
@@ -130,14 +96,8 @@ export default function SortMenu({ sort, onChange }) {
             role="dialog"
             aria-modal="false"
             aria-labelledby="sort-popover-title"
-            style={{
-              position: "fixed",
-              top: -9999,
-              right: -9999,
-              zIndex: 2147483620,
-              width: "min(calc(100vw - 16px), 300px)",
-            }}
-            className="animate-slide-down flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl"
+            style={{ width: "min(calc(100vw - 16px), 300px)" }}
+            className={`${POPOVER_PANEL_CLASS} animate-slide-down flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-xl border border-border bg-ink-1/98 shadow-2xl`}
           >
             <span
               aria-hidden="true"

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useT } from "@/i18n/index.jsx";
 import ReadingProgress from "./ReadingProgress.jsx";
 
@@ -30,6 +31,8 @@ export default function LibraryBlock({
   series,
 }) {
   const t = useT();
+  // 巻 · The tome under the pointer, for the strip's label.
+  const [hoverNum, setHoverNum] = useState(null);
   const byNum = new Map();
   for (const v of volumes ?? []) {
     byNum.set(v.vol_num, v);
@@ -141,7 +144,19 @@ export default function LibraryBlock({
       {/* Emaki strip — only rendered when we know how many tomes the
           series has. Otherwise we just show the chips + the edit input. */}
       {totalVolumes > 0 && (
-      <div className="relative mt-8 px-3" role="group" aria-label={t("manga.readingAria", { read: readCount, total: totalVolumes })}>
+      <div
+        className="relative mt-8 px-3"
+        // 巻 · One picture with one summary, not 110 buttons three pixels
+        // wide (WCAG 2.5.8): the tomes are each in the list below, where
+        // a finger and a screen reader can reach them. The pointer still
+        // jumps there from the strip.
+        role="img"
+        aria-label={t("manga.readingStripAria", {
+          read: readCount,
+          owned: volumesOwned,
+          total: totalVolumes,
+        })}
+      >
         {/* Reading head (pic d'encre) — floats above the strip at the
             last-read position. Hidden gracefully when no tome read yet. */}
         {lastReadNum > 0 && (
@@ -224,33 +239,25 @@ export default function LibraryBlock({
           ))}
         </div>
 
-        {/* Invisible click grid — one zone per tome. Takes the full strip
-            width, stacked over everything. `flex-1` gives equal zones. */}
-        <div className="absolute inset-0 flex">
-          {cells.map((cell) => (
-            <button
-              key={cell.num}
-              type="button"
-              onClick={() => scrollToVolume(cell.num)}
-              title={
-                cell.state === "read"
-                  ? t("manga.readingCellRead", {
-                      n: cell.num,
-                      date: cell.readAt
-                        ? new Date(cell.readAt).toLocaleDateString()
-                        : "",
-                    })
-                  : cell.state === "tsundoku"
-                    ? t("manga.readingCellTsundoku", { n: cell.num })
-                    : t("manga.readingCellMissing", { n: cell.num })
-              }
-              aria-label={t(`manga.readingAriaCell.${cell.state}`, {
-                n: cell.num,
-              })}
-              className="emaki-hit flex-1 focus:outline-none"
-            />
-          ))}
-        </div>
+        {/* The strip answers the pointer as a whole: the tome under it is
+            computed from where it is, labelled above the strip, and a
+            click scrolls to it. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-3 inset-y-0 cursor-pointer"
+          onPointerMove={(e) => setHoverNum(tomeAt(e, totalVolumes))}
+          onPointerLeave={() => setHoverNum(null)}
+          onClick={(e) => scrollToVolume(tomeAt(e, totalVolumes))}
+        />
+        {hoverNum != null && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-8 z-10 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-ink-1/95 px-2 py-1 font-mono text-[10px] tabular-nums text-washi shadow-lg"
+            style={{ left: `calc(${posPercent(hoverNum)}% + 0px)` }}
+          >
+            {cellLabel(cells[hoverNum - 1], t)}
+          </span>
+        )}
 
         {/* Decade labels row, under the strip */}
         <div className="relative mt-2 h-4 font-mono text-[9px] font-semibold uppercase tracking-widest text-washi-dim tabular-nums">
@@ -337,4 +344,24 @@ function LibraryChip({ kanji, label, value, total, percent, accent }) {
       </p>
     </div>
   );
+}
+
+/** The tome under a pointer event on the strip, 1-based. */
+function tomeAt(event, total) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const ratio = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
+  return Math.min(total, Math.max(1, Math.floor(ratio * total) + 1));
+}
+
+/** What the strip says about one tome when the pointer is on it. */
+function cellLabel(cell, t) {
+  if (!cell) return "";
+  if (cell.state === "read") {
+    return t("manga.readingCellRead", {
+      n: cell.num,
+      date: cell.readAt ? new Date(cell.readAt).toLocaleDateString() : "",
+    });
+  }
+  if (cell.state === "tsundoku") return t("manga.readingCellTsundoku", { n: cell.num });
+  return t("manga.readingCellMissing", { n: cell.num });
 }

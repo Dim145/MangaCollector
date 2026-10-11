@@ -14,12 +14,37 @@
 ## Mental model
 
 **The camera is just a text input.** `startScan(video, onDetect)` fires
-`onDetect(rawValue)` and knows nothing else — no ISBN validation, no
-deduplication, no UI. Every consumer (`ScanPage`, `AddPage`,
-`RangementPage`, `InventoryPage`) mounts the same `BarcodeScanner`,
-re-validates with `normalizeISBN` and debounces with its own `busyRef`
-latch. The manual-entry tray routes through the *same* `onDetect`, so a
-typed number and a scanned one are indistinguishable downstream.
+`onDetect(rawValue)` for every frame it decodes and knows nothing else —
+no ISBN validation, no UI. `BarcodeScanner` turns that into **one read
+per book**: after a barcode is let through nothing else is for 1.2 s
+(`SETTLE_MS`, the next book is being brought into view), and the same
+barcode is let through again only once it has been out of the frame for
+3 s (`REPEAT_MS`) — a book held still is not ten copies, a book shown
+twice is two. Every consumer (`ScanPage`, `AddPage`, `RangementPage`,
+`InventoryPage`) mounts the same `BarcodeScanner`, re-validates with
+`normalizeISBN` and may debounce further with its own `busyRef`. The
+manual-entry tray and the photo route through the *same* `onDetect`, so
+a typed number and a scanned one are indistinguishable downstream.
+
+Until October 2026 the scanner let **only the first** camera read through
+per mount (`firedRef`, "the parent unmounts us"): the three pages that
+keep it open between books — /scan's "Scan the next one", filing tomes
+into a place, stock-taking — went deaf after one barcode, and only
+opening the manual tray (which restarted the camera) re-armed it.
+`components/BarcodeScanner.test.jsx` pins the continuous behaviour.
+
+**Two rhythms on /scan** (`mc:scan-mode`). One by one: each book is
+shown and decided on the spot. In a row (列): each barcode is read,
+classified and ticked off without stopping (`lib/scanQueue.js`) —
+`owned`, `missing` (to mark), `upcoming` (an announced tome whose date
+is still ahead, which the server keeps unowned, so it is shown and never
+offered), `unknown` (the catalogues are asked in the background, one at
+a time, and a book naming a library series by title and number takes
+that tome's standing) — and the batch is reviewed at the end in a sheet:
+mark the ticked ones owned in one go (the barcode is kept on the copy),
+count a copy, send a stranger to the add flow, remove. The batch is kept
+in `sessionStorage` (`mc:scan-queue`, barcodes only, re-classified on
+return) so a visit to the add flow comes back to it.
 
 **The shelf answers before any catalogue.** `findLocalByIsbn` matches
 the barcode against the cached volume rows — `isbn` first, then an
@@ -179,10 +204,14 @@ sends no CORS headers.
   lazily, so a supporting browser never downloads it. The loop reads the
   video only at `readyState >= 2`, takes `codes[0].rawValue`, swallows
   decode errors and re-arms every 120 ms (~8 reads/s).
-- `components/BarcodeScanner.jsx` — full-screen portal into
-  `document.body`, so no ancestor `isolate`/transform traps it under the
-  header. Props `onDetect`, `onClose`, `statusMessage`,
-  `recentCount = 0`; `getUserMedia` asks `facingMode: environment` at
+- `components/BarcodeScanner.jsx` — a native modal `<dialog>`
+  (`useTopLayer` + `useFocusTrap`) portalled into `document.body`: the
+  top layer, the page behind inert, the focus kept inside. Props
+  `onDetect`, `onClose`, `statusMessage`, `recentCount = 0`, `topSlot`
+  (under the top bar — /scan's mode switch) and `children` (laid over
+  the camera, *inside* the dialog — anything outside now sits beneath
+  it). The camera starts once per mount; the manual tray no longer
+  restarts it. `getUserMedia` asks `facingMode: environment` at
   1280×720, no audio. Four states drive the pill and the bottom card:
   `requesting`, `running`, `denied` (`NotAllowedError` /
   `SecurityError` / `PermissionDeniedError`) and `failed`
@@ -336,7 +365,8 @@ online-only: volume ids are server-generated.
 | `client/src/components/BarcodeScanner.jsx` | Camera portal, four states, `ManualEntryCTA`, `ManualIsbnTray`, `ViewfinderOverlay` |
 | `client/src/lib/isbn.js` | `normalizeISBN`, `isbn13Of`, `lookupISBN`, the three direct catalogues, `fromCatalogueBook`, `parseTitleVolume`, `detectEditionFromTitle`, `detectCoffret`, `searchExternal`, key + throttle state |
 | `client/src/lib/scanLookup.js` | `findLocalByIsbn` — the shelf lookup |
-| `client/src/components/ScanPage.jsx`, `AddPage.jsx`, `hooks/useScanCommit.js` | `/scan`, the add flow it hands `state.isbn` to, and the commit that writes the ISBN on the scanned tome |
+| `client/src/components/ScanPage.jsx`, `ScanBatchReview.jsx`, `AddPage.jsx`, `hooks/useScanCommit.js` | `/scan` (one by one, or in a row with its tray), the batch review sheet (loaded when "Review" is approached), the add flow it hands `state.isbn` to, and the commit that writes the ISBN on the scanned tome |
+| `client/src/lib/scanQueue.js` | `classifyScan`, `standingOf`, `matchSeriesByTitle`, `resolveWithBook`, `queueSummary`, the session store |
 | `client/src/lib/inventory.js`, `components/InventoryPage.jsx` | Session helpers and `/inventaire`: scope picker, scanning HUD, lists, CSV |
 | `client/src/lib/labels.js`, `components/LabelSheetModal.jsx` | Templates, sheet arithmetic, EAN-13, builders, `buildLabelPdf`; the picker, preview and PDF UI |
 | `client/src/components/MangaPage.jsx`, `RangementPage.jsx`, `VolumeDetailDrawer.jsx` | The two label entry points; the per-tome ISBN field |
@@ -369,7 +399,14 @@ input, `detectCoffret`, API-key storage); `lib/isbnResolve.test.js`
 "not found" is final, an invalid ISBN throws before any request, and
 with the server unreachable: Google Books directly, walking on to Open
 Library, and openBD rescuing a Google rate limit so `RATE_LIMITED` is
-reported only when nothing answered); `lib/scanLookup.test.js` (6 — copy
+reported only when nothing answered); `lib/scanQueue.test.js` (12 —
+owned / missing / upcoming / unknown, title matching that gives up when
+several series could be meant, a catalogue answer taking a tome's
+standing, the session store re-reading the shelf);
+`components/BarcodeScanner.test.jsx` (4 — reads after the first barcode,
+a book held still read once and again after leaving the frame, the next
+book given time to settle, the manual tray not restarting the camera);
+`lib/scanLookup.test.js` (6 — copy
 ISBN first, `release_isbn` fallback with ISBN-10 conversion, unknown and
 invalid, a hit whose series row is missing, plus `isbn13Of`);
 `lib/inventory.test.js` (4 — the scope holds owned tomes only, tick then

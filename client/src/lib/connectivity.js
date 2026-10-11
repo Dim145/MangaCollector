@@ -79,6 +79,21 @@ function looksLikeBackendResponse(headers) {
 }
 
 /**
+ * 偽 · An HTML page where an API answer was expected: the client nginx's
+ * SPA fallback (`index.html`) or a proxy's error page. That, and only
+ * that, makes a successful response a sign that the backend is gone.
+ *
+ * The success path used to demand JSON, and not every answer of ours is
+ * JSON: the archive's CSV export, a blob, an empty 204. Exporting the
+ * library as a spreadsheet showed the "server unreachable" banner and
+ * paused the outbox until the next probe.
+ */
+function looksLikeHtmlPage(headers) {
+  const ct = headers?.["content-type"] ?? headers?.["Content-Type"] ?? "";
+  return ct.includes("text/html");
+}
+
+/**
  * Ping the server explicitly. Deduped — concurrent callers await the same
  * in-flight request.
  */
@@ -148,11 +163,7 @@ export function installConnectivityWatcher() {
   // looking at `index.html`, not a real API response. Treat that as "down".
   const interceptorId = axios.interceptors.response.use(
     (res) => {
-      if (looksLikeBackendResponse(res.headers)) {
-        setReachable(true);
-      } else {
-        setReachable(false);
-      }
+      setReachable(!looksLikeHtmlPage(res.headers));
       return res;
     },
     (err) => {

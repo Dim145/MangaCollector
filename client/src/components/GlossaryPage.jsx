@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import DefaultBackground from "./DefaultBackground.jsx";
 import { useT } from "@/i18n/index.jsx";
+import BackLink from "@/components/ui/BackLink.jsx";
 
 /**
  * 字典 · Kanji glossary.
@@ -253,12 +253,7 @@ export default function GlossaryPage() {
           >
             字
           </span>
-          <Link
-            to="/"
-            className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim transition hover:text-hanko-bright"
-          >
-            ← {t("glossary.backHome")}
-          </Link>
+          <BackLink to="/">{t("glossary.backHome")}</BackLink>
         </footer>
       </div>
     </DefaultBackground>
@@ -446,7 +441,7 @@ function ColourSwatch({ token, t }) {
   if (!tone) return null;
 
   const cssRef = `var(--${token === "ink" ? "ink-0" : token})`;
-  const ariaLabel = t("glossary.copyAria", { token: cssRef });
+  const hint = t("glossary.copyAria", { token: cssRef });
 
   const handleCopy = async () => {
     try {
@@ -480,8 +475,7 @@ function ColourSwatch({ token, t }) {
     <button
       type="button"
       onClick={handleCopy}
-      aria-label={ariaLabel}
-      title={ariaLabel}
+      title={hint}
       className="group/swatch relative mt-auto block w-full overflow-hidden rounded-xl border border-border bg-ink-0/30 transition hover:border-hanko/40 focus-visible:border-hanko focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko/40"
     >
       {/* Colour pane — takes the full card width so the swatch reads as
@@ -525,6 +519,9 @@ function ColourSwatch({ token, t }) {
             {t("glossary.tapToCopy")}
           </span>
         )}
+        {/* The caption names the button and the token completes it, so
+            the name starts with what is on screen (WCAG 2.5.3). */}
+        <span className="sr-only"> {cssRef}</span>
       </span>
     </button>
   );

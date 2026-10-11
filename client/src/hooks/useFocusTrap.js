@@ -90,14 +90,19 @@ export function useFocusTrap(active, containerRef, onClose) {
 
     // Defer initial focus one frame so React has rendered the
     // container and the autofocus candidate (if any) is in the DOM.
+    //
+    // 留 · Without scrolling: the container is still arriving — the
+    // volume drawer is translated by its own width at that moment — and
+    // a focus that scrolls brings it into view by moving whatever can
+    // scroll around it, which the entrance animation then overshoots.
     const rafHandle = requestAnimationFrame(() => {
       const root = containerRef.current;
       if (!root) return;
       const preferred = root.querySelector("[data-autofocus]");
       if (preferred && typeof preferred.focus === "function") {
-        preferred.focus();
+        preferred.focus({ preventScroll: true });
       } else if (typeof root.focus === "function") {
-        root.focus();
+        root.focus({ preventScroll: true });
       }
     });
 

@@ -85,7 +85,7 @@ export default function NotFoundPage() {
                 <span aria-hidden="true" className="font-jp text-[14px] font-bold leading-none">
                   本
                 </span>
-                {t("notFound.backToDashboard")}
+                {t("common.backToLibrary")}
               </Link>
               <button
                 type="button"

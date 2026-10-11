@@ -217,11 +217,6 @@ function DueCard({ loan, index, lang, t, onOpen }) {
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = `rotate(${restTilt})`;
       }}
-      aria-label={t("loans.cardAria", {
-        name: loan.series_name ?? "",
-        vol: loan.vol_num,
-        borrower: loan.loaned_to,
-      })}
     >
       {/* Top notch — decorative clip-path corner triangle, hanko-red,
           mimics the punched corner of a circulation card. */}

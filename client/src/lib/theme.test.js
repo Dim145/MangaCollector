@@ -47,6 +47,7 @@ beforeEach(() => {
   installMatchMedia(false);
   root().removeAttribute("data-theme");
   root().style.colorScheme = "";
+  root().style.backgroundColor = "";
   document.querySelector('meta[name="theme-color"]')?.remove();
 });
 
@@ -85,6 +86,16 @@ describe("applyThemePreference", () => {
     applyThemePreference("dark");
     applyThemePreference("light");
     expect(document.querySelectorAll('meta[name="theme-color"]')).toHaveLength(1);
+  });
+
+  // Safari 26+ tints its bars from what is under them, not from the
+  // meta: the ground on <html> has to follow a switch made mid-session,
+  // with the exact values the bootstrap in index.html paints at load.
+  it("repaints the page's ground on <html> when the theme switches", () => {
+    applyThemePreference("light");
+    expect(root().style.backgroundColor).toBe("rgb(255, 255, 255)");
+    applyThemePreference("dark");
+    expect(root().style.backgroundColor).toBe("rgb(2, 1, 1)");
   });
 
   it("hints the UA colour-scheme so native controls match", () => {
@@ -205,3 +216,21 @@ describe("storage", () => {
     expect(() => rememberThemePreference("light")).not.toThrow();
   });
 });
+
+describe("index.html bootstrap", () => {
+  // The inline script paints <html> and the tint before the app runs;
+  // a mismatch with this module is a visible flash on the first switch.
+  it("paints the same grounds and tints as this module", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const html = fs.readFileSync(path.resolve(import.meta.dirname, "../../index.html"), "utf8");
+    expect(html).toContain('resolved === "light" ? "#ffffff" : "#020101"');
+    expect(html).toContain('tint.setAttribute("content", "#f3efe6")');
+    expect(html).toContain('<meta name="theme-color" content="#161012" />');
+    applyThemePreference("light");
+    expect(metaContent()).toBe("#f3efe6");
+    applyThemePreference("dark");
+    expect(metaContent()).toBe("#161012");
+  });
+});
+

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../utils/auth";
 import { useAuth } from "@/hooks/useAuth.js";
@@ -6,6 +7,10 @@ import { useOnline } from "@/hooks/useOnline.js";
 import { useT } from "@/i18n/index.jsx";
 import { useUserSettings } from "@/hooks/useSettings.js";
 import { queryClient } from "@/lib/queryClient.js";
+import {
+  POPOVER_PANEL_CLASS,
+  useAnchoredPopover,
+} from "@/hooks/useAnchoredPopover.js";
 
 // 機 · Active-sessions modal — only mounted when the user opens it.
 // Heavy enough (table renderer + UA-based icons) that lazy-loading
@@ -22,7 +27,8 @@ export default function ProfileButton() {
   const [isOpen, setIsOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
-  const dropdownRef = useRef(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
   const navigate = useNavigate();
   const t = useT();
   const { data: settings } = useUserSettings();
@@ -62,20 +68,47 @@ export default function ProfileButton() {
 
   const avatarUrl = !avatarFailed ? savedAvatar : null;
 
+  // 錨 · A native popover under the avatar (top layer, light dismiss,
+  // next in the Tab order) — see `hooks/useAnchoredPopover.js`.
+  useAnchoredPopover({
+    open: isOpen,
+    onClose: () => setIsOpen(false),
+    buttonRef,
+    panelRef: menuRef,
+  });
+
+  // A menu button's menu opens on its first item, arrows move through
+  // the items, Tab leaves and closes it (WAI-ARIA menu button pattern).
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    const handleEsc = (e) => e.key === "Escape" && setIsOpen(false);
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keyup", handleEsc);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keyup", handleEsc);
-    };
-  }, []);
+    if (!isOpen) return;
+    menuRef.current
+      ?.querySelector('[role="menuitem"]:not([disabled])')
+      ?.focus({ preventScroll: true });
+  }, [isOpen]);
+  const onMenuKeyDown = (event) => {
+    if (event.key === "Tab") {
+      setIsOpen(false);
+      return;
+    }
+    const items = [
+      ...(menuRef.current?.querySelectorAll('[role="menuitem"]:not([disabled])') ??
+        []),
+    ];
+    const at = items.indexOf(document.activeElement);
+    const next =
+      event.key === "ArrowDown"
+        ? (at + 1) % items.length
+        : event.key === "ArrowUp"
+          ? (at - 1 + items.length) % items.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? items.length - 1
+              : -1;
+    if (next < 0 || !items.length) return;
+    event.preventDefault();
+    items[next].focus();
+  };
 
   const handleLogout = async () => {
     try {
@@ -110,12 +143,13 @@ export default function ProfileButton() {
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen((p) => !p)}
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        aria-label="Open account menu"
+        aria-label={t("nav.accountMenu")}
         className={`group relative grid h-9 w-9 place-items-center overflow-hidden rounded-full font-display text-sm font-bold text-ink-0 transition-transform pointer-coarse:h-11 pointer-coarse:w-11 hover:scale-105 active:scale-95 ring-2 ring-transparent focus-visible:ring-hanko ${
           avatarUrl
             ? "bg-ink-2 hover:ring-hanko/60"
@@ -139,14 +173,16 @@ export default function ProfileButton() {
         )}
       </button>
 
-      {isOpen && (
+      {isOpen &&
+        createPortal(
         <div
+          ref={menuRef}
           role="menu"
-          // Dropdown sits over raw page content, so it DOES need its
-          // bg at /96 is opaque enough that a `backdrop-blur` is
-          // imperceptible — dropped entirely so the dropdown doesn't
-          // claim a compositor pass for an effect the eye can't see.
-          className="absolute right-0 mt-3 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2/96 shadow-2xl animate-slide-down"
+          aria-label={t("nav.accountMenu")}
+          onKeyDown={onMenuKeyDown}
+          // Opaque, no `backdrop-blur`: at /96 the page's text still
+          // showed through the menu's words.
+          className={`${POPOVER_PANEL_CLASS} w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-ink-2 shadow-2xl animate-slide-down`}
         >
           {/* 個 · The user-info banner doubles as the entry point to
               `/profile`. Previously the Statistics menu item was the
@@ -157,12 +193,13 @@ export default function ProfileButton() {
               discoverability without adding a redundant menu row. */}
           <button
             type="button"
+            role="menuitem"
+            tabIndex={-1}
             onClick={() => {
               setIsOpen(false);
               navigate("/profile");
             }}
-            className="flex w-full items-center gap-3 border-b border-border p-3 text-left transition hover:bg-ink-1/60 focus-visible:bg-ink-1/60 focus-visible:outline-none"
-            aria-label={t("nav.openProfile")}
+            className="flex w-full items-center gap-3 border-b border-border p-3 text-left transition hover:bg-ink-1/60 focus-visible:bg-ink-1/60 focus-visible:-outline-offset-2"
           >
             <div
               className={`grid h-10 w-10 place-items-center overflow-hidden rounded-full font-display text-base font-bold text-ink-0 ${
@@ -186,11 +223,13 @@ export default function ProfileButton() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-washi">
-                {user?.name ?? "Reader"}
+                {user?.name ?? t("nav.profile")}
               </p>
               <p className="text-[10px] uppercase tracking-wider text-washi-dim">
                 {t("nav.collector")}
               </p>
+              {/* 名 · The name it shows, then where it leads (WCAG 2.5.3). */}
+              <span className="sr-only"> — {t("nav.openProfile")}</span>
             </div>
             <span
               aria-hidden="true"
@@ -358,7 +397,7 @@ export default function ProfileButton() {
               }
               label={t("nav.sessions")}
             />
-            <div className="my-1 h-px bg-border" />
+            <li role="separator" className="my-1 h-px bg-border" />
             <MenuItem
               onClick={handleLogout}
               icon={
@@ -380,8 +419,9 @@ export default function ProfileButton() {
               danger
             />
           </ul>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
 
       {/* Sessions modal — lazy-mounted only when the user actually
           opens it; closed state keeps the chunk off the wire. */}
@@ -399,16 +439,17 @@ function MenuItem({ onClick, icon, label, danger, disabled, hint }) {
     <li role="none">
       <button
         role="menuitem"
+        tabIndex={-1}
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         title={hint}
         aria-disabled={disabled || undefined}
-        className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
+        className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors focus-visible:-outline-offset-2 ${
           disabled
             ? "cursor-not-allowed text-washi-dim"
             : danger
               ? "text-hanko-bright hover:bg-hanko/10"
-              : "text-washi hover:bg-washi/10"
+              : "text-washi hover:bg-washi/10 focus-visible:bg-washi/10"
         }`}
       >
         <span

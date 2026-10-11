@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  dismissSeasonBanner,
   getCurrentSeason,
-  hasGreetedSeason,
-  markSeasonGreeted,
+  markSeasonShown,
+  seasonBannerShows,
 } from "@/lib/season.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -16,16 +17,16 @@ import { useT } from "@/i18n/index.jsx";
  * Behaviour:
  *   - Visible only when the current season hasn't been greeted yet
  *     (localStorage `mc:season-greeted` keyed on `season-YYYY`).
- *   - Manual dismiss via the close button persists immediately.
- *   - Auto-dismiss after `AUTO_DISMISS_MS` so the banner doesn't
- *     loiter on the page if the user just landed and started
- *     scrolling. Re-mounting the dashboard during the same session
- *     won't re-show it (the seen flag survives in localStorage).
- *   - Renders nothing until React has confirmed mount + seen state,
- *     which avoids a brief flash of the banner during hydration on
- *     a session that already saw it.
+ *   - The season counts as greeted as soon as the banner is shown, so
+ *     it appears on one visit: the next session opens straight on the
+ *     shelf. Within the visit it stays (`seasonBannerShows`): coming
+ *     back from a series to a dashboard without it moved the shelf up
+ *     by its height, and the scroll memory landed a row off.
+ *   - It stays for that visit unless the close button removes it. It
+ *     used to remove itself after 14 s, and the whole shelf jumped up
+ *     by its height under a reader who had started looking at covers —
+ *     a layout shift nobody asked for, the kind CLS counts.
  */
-const AUTO_DISMISS_MS = 14000;
 
 const SEASON_PRESETS = {
   spring: {
@@ -74,38 +75,29 @@ export default function SeasonGreeting() {
   // have been there from the first paint.
   const [season, setSeason] = useState(() => {
     const current = getCurrentSeason();
-    return hasGreetedSeason(current) ? null : current;
+    return seasonBannerShows(current) ? current : null;
   });
 
-  // 儀 · Stable `dismiss` reference. The previous version was a
-  // function declaration recreated on every render, captured by the
-  // auto-dismiss timer's closure on the render where the timer was
-  // installed. If `season` evolved between then and the timer firing
-  // (e.g. a manual click flipped to null first), the closure could
-  // call markSeasonGreeted on a stale value. `useCallback` rebinds
-  // the function only when `season` changes, so the timer effect
-  // can list it as a dep without re-triggering on incidental
-  // re-renders.
-  const dismiss = useCallback(() => {
-    if (!season) return;
-    markSeasonGreeted(season);
-    setSeason(null);
-  }, [season]);
-
+  // Greeted once shown (see the module comment); the close button takes
+  // the banner off for the rest of the visit.
   useEffect(() => {
-    if (!season) return;
-    const timer = window.setTimeout(dismiss, AUTO_DISMISS_MS);
-    return () => window.clearTimeout(timer);
-  }, [season, dismiss]);
+    if (season) markSeasonShown(season);
+  }, [season]);
+  const dismiss = () => {
+    dismissSeasonBanner();
+    setSeason(null);
+  };
 
   if (!season) return null;
   const preset = SEASON_PRESETS[season];
 
   return (
+    // A note beside the page, not a live region: it is there when the
+    // page opens, which a status announces nothing about (and `aside`
+    // may not carry that role).
     <aside
-      role="status"
-      aria-live="polite"
-      className={`relative mb-4 overflow-hidden rounded-2xl border bg-gradient-to-br px-3.5 py-3 backdrop-blur animate-fade-up sm:mb-8 sm:p-5 ${preset.border} ${preset.background}`}
+      aria-label={t("season.greetingAria")}
+      className={`relative mb-3 overflow-hidden rounded-2xl border bg-gradient-to-br px-3.5 py-2.5 backdrop-blur animate-fade-up sm:mb-8 sm:p-5 ${preset.border} ${preset.background}`}
     >
       {/* Ornamental kanji watermark — pinned to the corner so the
           season's signature lives in the negative space without
@@ -124,19 +116,21 @@ export default function SeasonGreeting() {
             same typographic family rather than a foreign chip. */}
         <span
           aria-hidden="true"
-          className={`shrink-0 font-jp text-3xl font-bold leading-none sm:text-5xl md:text-6xl ${preset.accent}`}
+          className={`shrink-0 font-jp text-2xl font-bold leading-none sm:text-5xl md:text-6xl ${preset.accent}`}
         >
           {preset.kanji}
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
+          {/* 帯 · The sekki's name reads from `sm:` up; on a phone the
+              kanji beside the line already says which season it is. */}
+          <p className="hidden font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim sm:block">
             {preset.sekki} · {preset.sekkiRomaji}
           </p>
           {/* 帯 · On a phone the line is set a size down and kept to
               two lines: this banner opens the shelf once a season, and
               every line it takes there is a line of covers below the fold. */}
-          <p className="mt-0.5 line-clamp-2 font-display text-sm italic leading-snug text-washi sm:mt-1 sm:text-base md:text-lg">
+          <p className="line-clamp-2 font-display text-sm italic leading-snug text-washi sm:mt-1 sm:text-base md:text-lg">
             {t(`season.poetic_${season}`)}
           </p>
           {/* The third line is the one that pushed the shelf below the
@@ -153,7 +147,9 @@ export default function SeasonGreeting() {
           type="button"
           onClick={dismiss}
           aria-label={t("season.dismissAria")}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border text-washi-dim transition pointer-coarse:h-11 pointer-coarse:w-11 hover:border-hanko/50 hover:text-washi"
+          // 44 px under a finger through the hit area, not the circle:
+          // the circle would set the banner's height on a phone.
+          className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border text-washi-dim transition after:absolute after:-inset-1.5 hover:border-hanko/50 hover:text-washi sm:h-9 sm:w-9"
         >
           <svg
             viewBox="0 0 24 24"

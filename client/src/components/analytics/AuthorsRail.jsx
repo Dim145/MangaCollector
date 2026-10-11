@@ -175,12 +175,12 @@ function RankBadge({ rank }) {
 function FigureCell({ label, value }) {
   return (
     <div>
-      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
+      <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-washi-dim">
         {label}
-      </p>
-      <p className="mt-1 font-display text-lg font-light italic text-washi tabular-nums md:text-xl">
+      </dt>
+      <dd className="mt-1 font-display text-lg font-light italic text-washi tabular-nums md:text-xl">
         {value}
-      </p>
+      </dd>
     </div>
   );
 }
@@ -190,7 +190,7 @@ function CompletionBar({ pct }) {
   return (
     <div className="h-2 overflow-hidden rounded-full bg-ink-2/60">
       <div
-        className="h-full rounded-full transition-[width] duration-700 ease-out"
+        className="meter-fill h-full rounded-full transition-[width] duration-700 ease-out"
         style={{
           width: `${clamped}%`,
           background:

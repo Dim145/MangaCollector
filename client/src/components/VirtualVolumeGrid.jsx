@@ -44,18 +44,36 @@ const LEDGER_CLASS = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3";
 const SHELF_CLASS =
   "grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6";
 
-export default function VirtualVolumeGrid({ vols, shelf, renderTile }) {
+/**
+ * 数 · One tile as an item of the list: its rank and the list's length
+ * travel with it, so a screen reader says "12 of 110" although only a
+ * window of the tiles exists in the document (WAI-ARIA `aria-setsize` /
+ * `aria-posinset`).
+ */
+function ListItem({ index, total, children }) {
+  return (
+    <div role="listitem" aria-setsize={total} aria-posinset={index + 1} className="min-w-0">
+      {children}
+    </div>
+  );
+}
+
+export default function VirtualVolumeGrid({ vols, shelf, renderTile, label }) {
   if (vols.length < VIRTUALIZE_THRESHOLD) {
     return (
-      <div className={shelf ? SHELF_CLASS : LEDGER_CLASS}>
-        {vols.map((vol) => renderTile(vol, undefined))}
+      <div role="list" aria-label={label} className={shelf ? SHELF_CLASS : LEDGER_CLASS}>
+        {vols.map((vol, i) => (
+          <ListItem key={vol.id ?? i} index={i} total={vols.length}>
+            {renderTile(vol, undefined)}
+          </ListItem>
+        ))}
       </div>
     );
   }
-  return <Virtualized vols={vols} shelf={shelf} renderTile={renderTile} />;
+  return <Virtualized vols={vols} shelf={shelf} renderTile={renderTile} label={label} />;
 }
 
-function Virtualized({ vols, shelf, renderTile }) {
+function Virtualized({ vols, shelf, renderTile, label }) {
   // id → busy. Kept as a Set in state so a change re-renders the grid
   // with an updated pinned range.
   const [busyIds, setBusyIds] = useState(() => new Set());
@@ -105,6 +123,8 @@ function Virtualized({ vols, shelf, renderTile }) {
   return (
     <div
       ref={parentRef}
+      role="list"
+      aria-label={label}
       style={{
         height: virtualizer.getTotalSize(),
         position: "relative",
@@ -119,6 +139,7 @@ function Virtualized({ vols, shelf, renderTile }) {
             key={row.key}
             data-index={row.index}
             ref={measureRow}
+            role="none"
             style={{
               position: "absolute",
               top: 0,
@@ -131,7 +152,11 @@ function Virtualized({ vols, shelf, renderTile }) {
               paddingBottom: gap,
             }}
           >
-            {rowVols.map((vol) => renderTile(vol, onBusyChange))}
+            {rowVols.map((vol, i) => (
+              <ListItem key={vol.id ?? start + i} index={start + i} total={vols.length}>
+                {renderTile(vol, onBusyChange)}
+              </ListItem>
+            ))}
           </div>
         );
       })}

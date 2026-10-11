@@ -10,6 +10,8 @@ import Dexie from "dexie";
 // statically anyway.
 import { queryClient } from "@/lib/queryClient.js";
 import { clearLcpHints } from "@/lib/lcpHints.js";
+import { forgetReads } from "@/lib/warmReads.js";
+import { forgetSeenCovers } from "@/lib/seenCovers.js";
 import { purgePrivateCaches } from "@/lib/privateCaches.js";
 
 /*
@@ -963,6 +965,10 @@ export async function clearReadCaches() {
   }
   // 先 · The covers the last account's pages opened on.
   clearLcpHints();
+  // 温 · And the last answers the shelf's reads start from, and the
+  // covers known to be drawn already.
+  forgetReads();
+  forgetSeenCovers();
 }
 
 export async function clearAllUserData() {
@@ -1057,6 +1063,10 @@ export async function clearAllUserData() {
   // 先 · The covers the departing account's pages opened on — addresses
   // from its library, preloaded by the next visit if left behind.
   clearLcpHints();
+  // 温 · And the departing account's shelf, kept for the next mount,
+  // and its covers known to be drawn already.
+  forgetReads();
+  forgetSeenCovers();
 }
 
 /**

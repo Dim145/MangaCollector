@@ -187,12 +187,17 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 225 tests across 41 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 233 tests across 42 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `http_cache.rs`, `handlers/cover.rs`,
   `observability.rs`, `client_ip.rs`,
   `util/{url,uuid,image,isbn,outbound,turnstile}.rs`,
-  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users,mal_api,jikan_compat,rum}.rs`,
+  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users,mal_api,jikan_compat,rum}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
+  `services/activity.rs` pins the streak rule (`streak_of`, shared by the
+  current and the best run): after seven active days one missed day no
+  longer ends a run — once per seven active days — two in a row always
+  do, and a run that ended the day before yesterday is still alive while
+  today can bridge it.
   `services/rum.rs` pins what a web-vitals beacon may carry: the five
   metrics and nothing else, values a browser can measure, a page and
   never a query or an address, selectors cleaned and cut, a dozen
@@ -257,7 +262,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 235 tests across 76 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 317 tests across 88 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -268,7 +273,14 @@ docker compose build
     `coverPalette`, `sealsCatalog`, `accent`, `theme`, `tour`,
     `deepLinks`, `scrollLock`, `scrollMemory` (one scroll position per
     history entry, mirrored to sessionStorage, bounded), `haptics`,
-    `connectivity`, `dailyTexts`,
+    `connectivity` (only an HTML page on an API call means the backend is
+    gone — a 204, a CSV export or a blob is the server answering),
+    `dailyTexts`, `scanQueue` (列 the batch scan: owned / to mark /
+    announced / unknown, a catalogue title matched to a library series),
+    `announce` (`ariaNotify`, else one polite live region), `motion`
+    (`prefersReducedMotion`, the damped spring as a `linear()` easing),
+    `dynamicType` (iOS text size on the root, touch pointers only,
+    bounded to [1, 2]),
     `scanLookup` (a scanned barcode against the cached shelf),
     `loanHistory` and `navCounters` (pure read-side helpers),
     `locations` (grouping tomes by place, move payloads), `shelfPhoto`
@@ -296,7 +308,7 @@ docker compose build
     `realtimePlan` (the websocket decision table) are pure and tested.
   - `i18n/parity.test.js` and `i18n/keys-used.test.js` are what let the
     app ship **one catalogue per reader**: the three carry the same
-    2 089 keys, so `t()`'s English fallback can never fire and English
+    2 184 keys, so `t()`'s English fallback can never fire and English
     is no longer co-loaded beside French or Spanish. The second walks
     the source for `t("…")` and fails on a key no catalogue has — it
     found two that were shipping as visible text.
@@ -324,7 +336,27 @@ docker compose build
     the secret is shown once and then dropped) and `components/About.test.jsx`
     (the landing: no request and no third-party fetch for a stranger, the
     visitor's own shelf read from the device cache, screenshots with real
-    alt text and intrinsic sizes, en/fr/es key parity) are the component tests; `hooks/useWindowGridVirtualizer.test.js`
+    alt text and intrinsic sizes, en/fr/es key parity),
+    `components/dashboard/FiltersSheet.test.jsx` (the phone's filter sheet:
+    named, a visible Close, a key's natural direction, a lens released on
+    a second tap, genres as checkboxes, reset only when something is set),
+    `components/ui/ActionMenu.test.jsx` (a menu button named by its words,
+    opening on its first usable entry, arrows) and
+    `components/BarcodeScanner.test.jsx` (a mocked camera: it keeps reading
+    after the first barcode, reads a book held still once) are the
+    component tests; `hooks/useAnchoredPopover.test.jsx` pins both paths of
+    the native popover hook (shown with its button as `source`, the browser's
+    close handed back, focus returned; the hand-made dismissal without the
+    API); `hooks/useScrollMemory.test.jsx` pins the way back to the
+    library — the target announced while the shell renders, the page
+    placed from the layout effect when it can already hold the position
+    (before any frame), a page still too short waited for, and no wait
+    once a grid has laid itself out for the target; `lib/warmReads` and
+    `lib/scrollMemory` pin their halves of it, and `CoverImage.test.jsx`
+    that a cover already drawn comes back at once, unfaded, decoded with
+    its frame; `components/dialogs.test.js` holds every `<dialog>` to
+    `overflow-clip` and `hooks/useFocusTrap.test.jsx` the first focus to
+    `preventScroll`; `hooks/useWindowGridVirtualizer.test.js`
     covers the lane / pinned-row maths shared by both windowed grids and
     the learnt row height (one measured row sizes every unmeasured one,
     remembered for the grid's next mount, measured the way TanStack
@@ -513,6 +545,64 @@ subsystem; they are written against the code, not the intent.
   series near the bottom of the library waited the restore's full
   1.5 s cap — those rows are only measured once rendered, and only
   rendered once reached — then descended in three hops.
+  **The first frame back is the right one** (measured frame by frame by
+  `scripts/perf/scroll-nav.mjs`): the shell announces the target while
+  it renders (`announceRestore` / `restoringTo` in `lib/scrollMemory.js`)
+  and the windowed grid is created on it, the library's reads start
+  from their last answer instead of `undefined` (`lib/warmReads.js`,
+  wiped with the caches), so the shelf is in the very commit of the
+  arrival and the layout effect places it before paint; a cover already
+  drawn this session renders at once — no observer, no fade, decoded
+  with its frame (`lib/seenCovers.js`); and the header takes its
+  backdrop without its 300 ms fade when the scroll *jumped*. Two things
+  break this silently: a card that is not as wide as its cell (a
+  `<button>` is fit-content — the library card carries `w-full`, or the
+  grid learns a 15 px row before its cover loads), and anything above
+  the grid that is there on one mount and not the next (the seasonal
+  banner now stays for the whole visit).
+
+**Interface conventions** (the October 2026 design pass; the
+accessibility gate is `node scripts/perf/a11y.mjs` — Lighthouse's axe
+audit, 100 on every page, phone, desktop and signed out):
+
+- **Names are the visible words** (WCAG 2.5.3). A control is named by
+  what it shows; extra context goes after it in `sr-only` text or in
+  `title`, never in an `aria-label` that says something else.
+  `aria-label` is for icon-only controls — and never on a plain
+  `span`/`div` (give it `role="img"` or `role="group"`).
+- **Menus are native popovers**: `hooks/useAnchoredPopover.js` (top
+  layer, light dismiss, next in the Tab order, CSS anchor positioning,
+  piecewise fallback). A row's secondary actions go behind
+  `ui/ActionMenu.jsx` (words beside the glyphs); a phone's extra
+  controls in `ui/Sheet.jsx` (visible Close, drag to close). Dialogs are
+  `<dialog>` + `useTopLayer`; anything shown over one goes inside it.
+  **Every `<dialog>` carries `overflow-clip`** (`components/dialogs.test.js`
+  scans for it): the browser gives a modal dialog `overflow: auto`, a
+  panel arriving translated made it scrollable by its own width, the
+  opening focus scrolled it, and the drawer appeared 80 px left of its
+  place and jumped back as the slide ended. `hidden` is not enough — a
+  focus still scrolls it. The focus trap's first focus never scrolls
+  (`preventScroll`).
+- **The way back** is `ui/BackLink.jsx`, top left, with
+  `common.backToLibrary` / `backToProfile` / `backToSettings` — or
+  `common.back` for a step back in history.
+- **Reduced motion reduces**: fades and colour stay, movement goes
+  (`styles/index.css`). An animation started from script
+  (`element.animate`) is out of the stylesheet's reach — check
+  `prefersReducedMotion()` (`lib/motion.js`); spatial springs use
+  `springEasing()`, never a bounce on a colour.
+- **View transitions** run through `navigateWithCover()`
+  (`lib/viewTransition.js`): React Router's `viewTransition` option does
+  nothing under the `<BrowserRouter>` this app mounts.
+- **Contrast modes**: a repair layer at the end of `index.css` for
+  `forced-colors` (selected states in `Highlight`, progress fills —
+  give them `meter-fill` — in `CanvasText`) and `prefers-contrast:
+  more`.
+- **Say what a sighted reader sees change**: `announce()`
+  (`lib/announce.js`) for an ownership flip, a filter's result count, a
+  batch scan.
+- **French is formal** (`vous`) everywhere; the catalogue had a dozen
+  `tu` strings.
 
 ## API Routes
 
@@ -530,7 +620,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 | `/api/user/locations` | The places registry — list with per-place counts, create, rename (cascades to the tomes filed there), annotate, reorder, delete (unfiles them), and 写 the shelf's own photo at `/{id}/photo` (GET / POST multipart / DELETE) |
 | `/api/settings` | User preferences |
 | `/api/seals` | Milestone trophies |
-| `/api/activity`, `/api/streak` | Activity feed & streak |
+| `/api/activity`, `/api/streak` | Activity feed & streak (one missed day forgiven after seven active days, once per seven — `services/activity.rs::streak_of`) |
 | `/api/follows` | Friends / following & feed |
 | `/api/sessions` | Active device sessions |
 | `/api/import` | External imports: MAL by username (Jikan) or official XML export, AniList, MangaDex list, Yamtrack CSV |
@@ -679,7 +769,7 @@ only checks magic bytes and a 4 MiB ceiling.
 
 ## Frontend (`client/src/`)
 
-128 components in `components/`, 59 hooks in `hooks/`, plus `lib/`
+133 components in `components/`, 60 hooks in `hooks/`, plus `lib/`
 (Dexie `db.js`, outbox `sync.js`, `connectivity.js`, `theme.js`,
 `barcode.js`, `isbn.js`, `scanLookup.js`, `locations.js`, `inventory.js`,
 `labels.js`), `i18n/` (en/fr/es, only the reader's own; `bootstrapLanguage`
@@ -694,7 +784,10 @@ the rest of their language is fetched at idle, once per deploy, for
 offline. A namespace not listed in `split.js` stays in the core.
 The barcode scanner is fully client-side (`/scan` finds a tome on the
 shelf, adds a double, or hands the ISBN to the add flow); only the
-catalogue lookup needs a network. `/rangement` is the places view (move
+catalogue lookup needs a network. It reads continuously — one read per
+book, the same book again only once it has left the frame — and /scan
+offers two rhythms, one by one or 列 in a row with a review at the end
+(`docs/modules/scan.md`). `/rangement` is the places view (move
 tomes by selection or by scanning into a place), `/inventaire` the
 stock-taking count, and both the series page and a place can print an
 Avery label sheet with each tome's EAN-13 (jsPDF + JsBarcode, lazy).
@@ -725,7 +818,9 @@ Instrument Sans as variable fonts (note the family name carries the
 Georgia). Noto Serif JP is **subsetted to the kanji this interface
 draws**: `python3 scripts/subset-jp-font.py` rescans `client/src` and
 rewrites the two woff2 files, so run it after adding a kanji and commit
-what it writes. Japanese a reader *types* is deliberately not covered
+what it writes. It skips comments and tests — the kanji that mark a
+section in a comment are not drawn, and 143 of them were shipping as
+glyphs: 61.5 kB a weight, from 79.5. Japanese a reader *types* is deliberately not covered
 and falls back to the system Mincho. Nothing is fetched from Google any
 more, which is also why the CSP no longer names `fonts.googleapis.com`.
 A first visit went from 788 kB across two third-party origins to 374 kB

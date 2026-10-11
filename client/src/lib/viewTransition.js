@@ -1,15 +1,16 @@
 /*
  * View Transitions API helpers.
  *
- * `document.startViewTransition()` captures the DOM before/after a
- * synchronous update, then morphs matching `view-transition-name`
- * elements between the two snapshots. Used here for two distinct
- * cases:
+ * `document.startViewTransition()` captures the DOM before/after an
+ * update, then morphs matching `view-transition-name` elements between
+ * the two snapshots. Used here for two distinct cases:
  *
- *   1. **Cross-route navigation** — handled by React Router 7 directly
- *      via the `viewTransition: true` option on `navigate()` / `<Link>`.
- *      No helper needed; the router already calls
- *      `startViewTransition(() => flushSync(...))` under the hood.
+ *   1. **Opening a series from the library** — `navigateWithCover()`
+ *      below. Not the router's `viewTransition: true` option: React
+ *      Router only acts on it under a data router (`RouterProvider`),
+ *      and this app mounts a `<BrowserRouter>`, where the option is
+ *      accepted and ignored. Thirteen navigations asked for it and
+ *      none ever had a transition.
  *
  *   2. **Same-route DOM updates** (filter reorder, drawer mount, list
  *      sort) — wrap the state setter in `withViewTransition()`.
@@ -76,3 +77,77 @@ export function coverTransitionName(mal_id) {
   if (mal_id == null) return undefined;
   return `cover-${mal_id}`;
 }
+
+/**
+ * 遷 · Navigate with a cover morphing into its counterpart on the next
+ * page (the library card into the series page's hero).
+ *
+ * The router renders a navigation inside `startTransition`, which
+ * `flushSync` does not flush, so the update callback cannot be
+ * synchronous: it navigates, then resolves once an element carrying the
+ * same `view-transition-name` is in the document — or after `waitMs`,
+ * the screen holding the old frame meanwhile. The page's module is
+ * normally loaded by then: the card preloads it on hover, focus and
+ * touch.
+ *
+ * The name is put on the clicked cover alone, at the moment of the
+ * click. Named statically, every card on the shelf became a layer of
+ * its own in the browser's snapshot for the one that mattered.
+ *
+ * Falls back to a plain navigation where the API is missing. Under
+ * `prefers-reduced-motion` the stylesheet keeps the cross-fade and
+ * drops the movement (`styles/index.css`).
+ */
+export function navigateWithCover(navigate, to, options, { cover, name, waitMs = 450 } = {}) {
+  if (
+    typeof document === "undefined" ||
+    typeof document.startViewTransition !== "function" ||
+    !cover ||
+    !name
+  ) {
+    navigate(to, options);
+    return null;
+  }
+  cover.style.viewTransitionName = name;
+  try {
+    return document.startViewTransition(() => {
+      // Captured already; two elements named alike would void the
+      // "after" snapshot.
+      cover.style.viewTransitionName = "";
+      navigate(to, options);
+      return arrivalOf(name, waitMs);
+    });
+  } catch {
+    cover.style.viewTransitionName = "";
+    navigate(to, options);
+    return null;
+  }
+}
+
+/** Resolves when an element named `name` is in the document, or after `waitMs`. */
+export function arrivalOf(name, waitMs) {
+  const present = () =>
+    [...document.querySelectorAll("[style*='view-transition-name']")].some(
+      (el) => el.style.viewTransitionName === name,
+    );
+  return new Promise((resolve) => {
+    if (present()) {
+      resolve();
+      return;
+    }
+    // Rendering is held during the update callback, so no frame-based
+    // polling: the DOM itself says when the page has mounted.
+    const observer = new MutationObserver(() => {
+      if (!present()) return;
+      observer.disconnect();
+      clearTimeout(timer);
+      resolve();
+    });
+    const timer = setTimeout(() => {
+      observer.disconnect();
+      resolve();
+    }, waitMs);
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+}
+

@@ -314,7 +314,7 @@ export default function SealsPage() {
               <div className="mt-5">
                 <div className="seal-progress-rail relative h-2 w-full overflow-hidden rounded-full bg-ink-2/70">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright transition-all duration-1000 ease-out"
+                    className="meter-fill h-full rounded-full bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright transition-all duration-1000 ease-out"
                     style={{
                       width: `${percent}%`,
                       boxShadow:
@@ -588,7 +588,7 @@ function RankBadge({ tier, t }) {
  */
 function TierLanterns({ tierStats, highestTier, t }) {
   return (
-    <div
+    <div role="group"
       className="mt-7 grid grid-cols-5 gap-2 sm:gap-3"
       aria-label={t("seals.tierLegend")}
     >

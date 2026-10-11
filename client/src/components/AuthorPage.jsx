@@ -134,7 +134,7 @@ export default function AuthorPage() {
       <DefaultBackground>
         <NotFoundPanel
           title={t("author.empty")}
-          backLabel={t("author.backToDashboard")}
+          backLabel={t("common.backToLibrary")}
         />
       </DefaultBackground>
     );
@@ -228,7 +228,7 @@ export default function AuthorPage() {
         ) : matches.length === 0 ? (
           <NotFoundPanel
             title={t("author.notFound", { name: displayName })}
-            backLabel={t("author.backToDashboard")}
+            backLabel={t("common.backToLibrary")}
           />
         ) : (
           <>
@@ -261,7 +261,7 @@ export default function AuthorPage() {
             <span className="transition-transform group-hover:-translate-x-0.5">
               ←
             </span>
-            {t("author.backToDashboard")}
+            {t("common.backToLibrary")}
           </Link>
         </footer>
 
@@ -651,7 +651,7 @@ function AuthorEditorModal({
               onChange={(e) => setAbout(e.target.value)}
               maxLength={4000}
               rows={5}
-              className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 font-sans text-sm leading-relaxed text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+              className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 font-sans text-sm leading-relaxed text-washi placeholder:text-washi-dim transition field-sizing-content min-h-32 max-h-[60vh] focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
             />
           </label>
         </div>
@@ -1052,7 +1052,7 @@ function PosterCard({ manga, index, adult_content_level, onOpen, t }) {
             className="absolute inset-x-2 bottom-2 h-0.5 overflow-hidden rounded-full bg-ink-0/60"
           >
             <span
-              className="block h-full bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright transition-[width]"
+              className="meter-fill block h-full bg-gradient-to-r from-hanko-deep via-hanko to-hanko-bright transition-[width]"
               style={{
                 width: `${pct}%`,
                 boxShadow: pct > 0 ? "0 0 6px var(--hanko-glow)" : "none",

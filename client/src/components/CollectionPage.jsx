@@ -74,7 +74,7 @@ export default function CollectionPage({ kind = "publisher" }) {
       <DefaultBackground>
         <NotFoundPanel
           title={t("collection.empty")}
-          backLabel={t("collection.backToDashboard")}
+          backLabel={t("common.backToLibrary")}
         />
       </DefaultBackground>
     );
@@ -150,7 +150,7 @@ export default function CollectionPage({ kind = "publisher" }) {
               name: displayName,
               kind: labels.kindNoun,
             })}
-            backLabel={t("collection.backToDashboard")}
+            backLabel={t("common.backToLibrary")}
           />
         ) : (
           <>
@@ -197,7 +197,7 @@ export default function CollectionPage({ kind = "publisher" }) {
             <span className="transition-transform group-hover:-translate-x-0.5">
               ←
             </span>
-            {t("collection.backToDashboard")}
+            {t("common.backToLibrary")}
           </Link>
         </footer>
       </div>
@@ -592,7 +592,7 @@ function PosterCard({ manga, index, adult_content_level, onOpen, t }) {
             className="absolute inset-x-2 bottom-2 h-0.5 overflow-hidden rounded-full bg-ink-0/60"
           >
             <span
-              className="block h-full bg-gradient-to-r from-moegi/70 via-moegi to-moegi-bright transition-[width]"
+              className="meter-fill block h-full bg-gradient-to-r from-moegi/70 via-moegi to-moegi-bright transition-[width]"
               style={{
                 width: `${pct}%`,
                 boxShadow: pct > 0 ? "0 0 6px rgba(163,201,97,0.35)" : "none",

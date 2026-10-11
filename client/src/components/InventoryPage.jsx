@@ -314,7 +314,7 @@ export default function InventoryPage() {
               </div>
               <div className="mt-2 h-1 overflow-hidden rounded-full bg-ink-3">
                 <div
-                  className="h-full bg-gold transition-[width]"
+                  className="meter-fill h-full bg-gold transition-[width]"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -364,7 +364,7 @@ export default function InventoryPage() {
               </span>
             </div>
             <div className="mt-3 h-1 overflow-hidden rounded-full bg-ink-3">
-              <div className="h-full bg-gold" style={{ width: `${pct}%` }} />
+              <div className="meter-fill h-full bg-gold" style={{ width: `${pct}%` }} />
             </div>
             <dl className="mt-4 grid grid-cols-3 gap-4 font-mono text-[11px] uppercase tracking-[0.2em] text-washi-dim">
               <div>

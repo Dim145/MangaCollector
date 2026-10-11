@@ -61,7 +61,7 @@ function DokuhaBar({ pct }) {
   return (
     <div className="relative h-2 overflow-hidden rounded-full bg-ink-2/60">
       <div
-        className="h-full rounded-full transition-[width] duration-700 ease-out"
+        className="meter-fill h-full rounded-full transition-[width] duration-700 ease-out"
         style={{
           width: `${clamped}%`,
           background:

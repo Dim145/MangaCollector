@@ -181,10 +181,9 @@ export default function CommandPalette() {
     if (item.path === "/mangapage" && item.manga) {
       navigate(item.path, {
         state: { manga: item.manga, adult_content_level },
-        viewTransition: true,
       });
     } else if (item.path) {
-      navigate(item.path, { viewTransition: true });
+      navigate(item.path);
     }
   };
 

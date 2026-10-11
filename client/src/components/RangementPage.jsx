@@ -22,6 +22,7 @@ import { findLocalByIsbn } from "@/lib/scanLookup.js";
 import { normalizeISBN } from "@/lib/isbn.js";
 import { boxLabel, tomeLabels } from "@/lib/labels.js";
 import haptics from "@/lib/haptics.js";
+import ActionMenu from "@/components/ui/ActionMenu.jsx";
 
 // 札 · jsPDF + JsBarcode ride in only when a sheet is asked for.
 const LabelSheetModal = lazy(() => import("./LabelSheetModal.jsx"));
@@ -621,55 +622,51 @@ function PlaceRow({
               </span>
             )}
           </button>
-          <div className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-washi-dim">
-            {onShift && (
-              <>
-                <button
-                  type="button"
-                  aria-label={t("rangement.moveUp")}
-                  title={t("rangement.moveUp")}
-                  disabled={!online || isFirst}
-                  onClick={() => onShift(-1)}
-                  className="grid h-9 min-w-9 place-items-center rounded px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 hover:text-washi disabled:opacity-30"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  aria-label={t("rangement.moveDown")}
-                  title={t("rangement.moveDown")}
-                  disabled={!online || isLast}
-                  onClick={() => onShift(1)}
-                  className="grid h-9 min-w-9 place-items-center rounded px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 hover:text-washi disabled:opacity-30"
-                >
-                  ↓
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              aria-label={t("rangement.rename")}
-              title={t("rangement.rename")}
+          {/* 他 · The place's actions, named in words beside their glyph
+              (`ui/ActionMenu.jsx`) — they were four bare glyphs. */}
+          <div className="shrink-0">
+            <ActionMenu
+              label={t("rangement.actionsFor", { name: place.name })}
               disabled={!online}
-              onClick={() => {
-                setName(place.name);
-                setNote(place.note ?? "");
-                setMode("edit");
-              }}
-              className="grid h-9 min-w-9 place-items-center rounded px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 font-jp text-sm hover:text-washi disabled:opacity-30"
-            >
-              改
-            </button>
-            <button
-              type="button"
-              aria-label={t("rangement.delete")}
-              title={t("rangement.delete")}
-              disabled={!online}
-              onClick={() => setMode("confirm")}
-              className="grid h-9 min-w-9 place-items-center rounded px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 font-jp text-sm hover:text-hanko-bright disabled:opacity-30"
-            >
-              消
-            </button>
+              items={[
+                ...(onShift
+                  ? [
+                      {
+                        id: "up",
+                        glyph: "↑",
+                        label: t("rangement.moveUp"),
+                        disabled: isFirst,
+                        onSelect: () => onShift(-1),
+                      },
+                      {
+                        id: "down",
+                        glyph: "↓",
+                        label: t("rangement.moveDown"),
+                        disabled: isLast,
+                        onSelect: () => onShift(1),
+                      },
+                    ]
+                  : []),
+                {
+                  id: "edit",
+                  glyph: "改",
+                  // The form it opens edits both.
+                  label: `${t("rangement.rename")} · ${t("rangement.note")}`,
+                  onSelect: () => {
+                    setName(place.name);
+                    setNote(place.note ?? "");
+                    setMode("edit");
+                  },
+                },
+                {
+                  id: "delete",
+                  glyph: "消",
+                  label: t("rangement.delete"),
+                  danger: true,
+                  onSelect: () => setMode("confirm"),
+                },
+              ]}
+            />
           </div>
         </div>
       )}

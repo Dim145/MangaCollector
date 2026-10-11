@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   _resetScrollMemory,
+  announceRestore,
   canHold,
+  endRestore,
+  noteRestoreLaidOut,
   readScroll,
   remembersScroll,
+  restoreLaidOut,
+  restoringTo,
   writeScroll,
 } from "./scrollMemory.js";
 
@@ -73,3 +78,41 @@ describe("remembersScroll", () => {
     }
   });
 });
+
+describe("the restore under way", () => {
+  // The app shell announces where a "back" is taking the page, so the
+  // windowed grid lays out those rows in its first render.
+  it("is announced for one entry and ended by that entry only", () => {
+    announceRestore("lib-1", 7208);
+    expect(restoringTo()).toBe(7208);
+    endRestore("series-9");
+    expect(restoringTo()).toBe(7208);
+    endRestore("lib-1");
+    expect(restoringTo()).toBeNull();
+  });
+
+  it("is nothing for an arrival that restores nothing", () => {
+    announceRestore("lib-1", 7208);
+    announceRestore("series-9", null);
+    expect(restoringTo()).toBeNull();
+    announceRestore("lib-2", Number.NaN);
+    expect(restoringTo()).toBeNull();
+  });
+});
+
+describe("a grid laid out for the restore", () => {
+  it("is remembered through the shell's second, unchanged announcement", () => {
+    announceRestore("lib-1", 7208);
+    noteRestoreLaidOut();
+    announceRestore("lib-1", 7208);
+    expect(restoreLaidOut()).toBe(true);
+    announceRestore("lib-2", 900);
+    expect(restoreLaidOut()).toBe(false);
+  });
+
+  it("means nothing when no restore is under way", () => {
+    noteRestoreLaidOut();
+    expect(restoreLaidOut()).toBe(false);
+  });
+});
+

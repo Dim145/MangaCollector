@@ -2,6 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Ahead of the theme bootstrap below, which sets it for a light
+         reader: Android tints its bars from it before the app runs. -->
+    <meta name="theme-color" content="#161012" />
 
     <!--
       Theme bootstrap — runs synchronously BEFORE the stylesheet loads and
@@ -40,6 +43,11 @@
           // that is the address-bar tint and is deliberately warmer.
           root.style.backgroundColor =
             resolved === "light" ? "#ffffff" : "#020101";
+          // Same pair as `lib/theme.js`'s THEME_META.
+          if (resolved === "light") {
+            var tint = document.querySelector('meta[name="theme-color"]');
+            if (tint) tint.setAttribute("content", "#f3efe6");
+          }
         } catch (_) {
           /* fallback: dark stays as default */
         }
@@ -271,7 +279,6 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#161012" />
     <meta
       name="description"
       content="MangaCollector — archive, curate and cherish your manga library volume by volume."
@@ -303,7 +310,7 @@
       seal skips its arrival stamp then, see `lib/bootShell.js`), and
       `src/test/bootShell.test.jsx` fails when the two drift apart.
     -->
-    <div id="root"><header data-boot-shell class="sticky top-0 z-40 border-b border-transparent bg-transparent"><div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6"><a href="/" class="group flex min-h-11 items-center gap-2.5 tap-none" aria-label="MangaCollector home"><div class="relative"><span class="hanko-seal grid h-9 w-9 place-items-center rounded-md text-[10px] font-bold">MC</span></div><div class="flex flex-col leading-none"><span class="text-[0.6rem] uppercase tracking-[0.25em] text-washi-dim">Archive</span><span class="font-display text-lg font-semibold tracking-tight text-washi group-hover:text-hanko-bright transition-colors">Manga<span class="italic text-hanko-bright">Collector</span></span></div></a></div></header></div>
+    <div id="root"><header data-boot-shell class="sticky top-0 z-40 border-b border-transparent bg-transparent"><div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6"><a href="/" class="group flex min-h-11 items-center gap-2.5 tap-none"><div class="relative" aria-hidden="true"><span class="hanko-seal grid h-9 w-9 place-items-center rounded-md text-[10px] font-bold">MC</span></div><div class="flex flex-col leading-none"><span class="text-[0.6rem] uppercase tracking-[0.25em] text-washi-dim">Archive</span><span class="font-display text-lg font-semibold tracking-tight text-washi group-hover:text-hanko-bright transition-colors">Manga<span class="italic text-hanko-bright">Collector</span></span></div></a></div></header></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

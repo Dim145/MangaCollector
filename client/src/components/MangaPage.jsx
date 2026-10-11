@@ -71,6 +71,7 @@ import { coverTransitionName } from "@/lib/viewTransition.js";
 import { useT } from "@/i18n/index.jsx";
 
 import CoverImg from "@/components/ui/CoverImg.jsx";
+import BackLink from "@/components/ui/BackLink.jsx";
 export default function MangaPage({ manga, adult_content_level }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -87,7 +88,7 @@ export default function MangaPage({ manga, adult_content_level }) {
   const backToLibrary = () =>
     cameFromLibrary
       ? navigate(-1)
-      : navigate("/dashboard", { viewTransition: true });
+      : navigate("/dashboard");
   const online = useOnline();
   const t = useT();
 
@@ -675,26 +676,12 @@ export default function MangaPage({ manga, adult_content_level }) {
     <DefaultBackground>
       <div className="mx-auto max-w-6xl px-4 pt-4 pb-nav md:pb-16 sm:px-6 md:pt-10">
         {/* Back */}
-        <button
-          // 戻 · A real step back when the library is behind us (see
-          // `backToLibrary`); the push with `viewTransition` is the
-          // fallback for every other way onto this page.
-          onClick={backToLibrary}
-          className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:text-washi"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-3.5 w-3.5"
-          >
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          {t("manga.backToLibrary")}
-        </button>
+        {/* 戻 · A real step back when the library is behind us (see
+            `backToLibrary`); a push is the fallback for every other way
+            onto this page. */}
+        <BackLink onClick={backToLibrary} className="mb-6">
+          {t("common.backToLibrary")}
+        </BackLink>
 
         {/* Hero */}
         <section className="relative mb-12 animate-fade-up">
@@ -735,12 +722,12 @@ export default function MangaPage({ manga, adult_content_level }) {
           <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)] md:gap-x-10">
             <div className="w-full md:row-span-2">
               <div
-                // 遷 · `view-transition-name` matches the Dashboard
-                // card's cover wrapper for the same `mal_id`. When the
-                // user navigates here from the dashboard (or hits
-                // Back), the browser captures both snapshots and
-                // morphs the card → hero (and back). No-op without
-                // View Transitions support.
+                // 遷 · The name the library card takes when clicked
+                // (`navigateWithCover`): its cover morphs into this one.
+                // Not on the way back: the library restores its scroll
+                // position after it mounts (up to 1.5 s for a long
+                // shelf), and a morph has to hold the screen still
+                // until its destination is in place.
                 style={{
                   viewTransitionName: coverTransitionName(manga.mal_id),
                 }}
@@ -1126,7 +1113,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                       placeholder={t("manga.reviewPlaceholder")}
                       maxLength={5000}
                       rows={4}
-                      className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 font-sans text-sm leading-relaxed text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
+                      className="w-full rounded-lg border border-border bg-ink-0/60 px-3 py-2 font-sans text-sm leading-relaxed text-washi placeholder:text-washi-dim transition field-sizing-content min-h-28 max-h-[60vh] focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
                     />
                     {review.length > 0 && (
                       <p className="mt-1 text-right font-mono text-[10px] text-washi-dim">
@@ -1560,6 +1547,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 ) : (
                   <VirtualVolumeGrid
                     key={`g-${idx}`}
+                    label={t("manga.volumesListLabel")}
                     vols={seg.vols}
                     shelf={isShelfMode}
                     renderTile={(vol, onBusyChange) =>

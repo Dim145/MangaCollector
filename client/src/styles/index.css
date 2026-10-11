@@ -537,6 +537,25 @@
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    /* The ground under Safari's bars (it samples the page, not the
+       `theme-color` meta); `lib/theme.js` repaints it inline on a switch. */
+    background-color: var(--background);
+    /* 溝 · Where scrollbars take room (Windows, Linux), the room stays
+       when a dialog locks the page: the shelf no longer jumps sideways
+       by a scrollbar's width as a sheet or a modal opens. */
+    scrollbar-gutter: stable;
+  }
+
+  /* 組 · Titles break in balanced lines ("Your release / calendar", not
+     "Your release calendar / " with one word left over); running text
+     avoids a lone last word. Both are hints a browser may skip. */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
 
   body {
@@ -1973,20 +1992,6 @@
   box-shadow: 0 0 3px oklch(0.6 0.22 25 / 0.25);
 }
 
-/* Click-zone — fully transparent by default, shows a faint wash on hover
-   so the user sees they're clicking a tome. */
-.emaki-hit {
-  background: transparent;
-  transition: background 0.15s ease;
-}
-.emaki-hit:hover {
-  background: oklch(0.96 0.012 85 / 0.08);
-}
-.emaki-hit:focus-visible {
-  background: oklch(0.6 0.22 25 / 0.15);
-  outline: 1px solid var(--hanko);
-  outline-offset: -1px;
-}
 
 /* Ink-drop reading head — a small moegi dot anchored above the strip
    at the last-read position, with a label above it and a halo that
@@ -2535,6 +2540,48 @@
   animation: drawer-slide-out 0.24s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
+/* 片 · Sheet (`ui/Sheet.jsx`) — rises from the bottom edge on a phone,
+   settles in place from `sm:` up. The exit has no `from`: a sheet let go
+   mid-drag leaves from where the finger dropped it, not from the top. */
+@keyframes sheet-rise-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-fall-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-settle-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+@keyframes sheet-settle-out {
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+.animate-sheet-in {
+  animation: sheet-rise-in 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-sheet-out {
+  animation: sheet-fall-out 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+}
+@media (min-width: 40rem) {
+  .animate-sheet-in {
+    animation-name: sheet-settle-in;
+    animation-duration: 0.24s;
+  }
+  .animate-sheet-out {
+    animation-name: sheet-settle-out;
+    animation-duration: 0.18s;
+  }
+}
+
 /* Cover-preview (Volume hover/long-press) — polaroid float-in effect */
 @keyframes cover-preview-in {
   from {
@@ -2756,31 +2803,55 @@
 }
 
 /* Motion preferences */
+/* 減 · Reduced motion means less motion, not none (WCAG 2.3.3, Material
+   3's guidance): what moves goes — travel, zoom, springs, loops,
+   parallax — and what helps a reader follow a change stays, a short
+   fade and a colour easing in. Everything used to be cut to 0.01 ms, so
+   a sheet or a dialog appeared from nowhere and a series page replaced
+   the shelf in one frame. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    /* Transitions keep their colours and their opacity, at the
+       duration they were given, and drop everything that moves. */
+    transition-property:
+      color, background-color, border-color, outline-color,
+      text-decoration-color, fill, stroke, opacity !important;
     scroll-behavior: auto !important;
+  }
+  /* Entrances and exits become plain fades. */
+  .animate-fade-in,
+  .animate-fade-up,
+  .animate-slide-down,
+  .animate-sheet-in,
+  .animate-drawer-in {
+    animation: fade-in 0.2s ease-out both !important;
+  }
+  .animate-fade-out,
+  .animate-fade-down-out,
+  .animate-sheet-out,
+  .animate-drawer-out {
+    animation: fade-out 0.15s ease-in both !important;
   }
   /* Hide rather than freeze the atmosphere particles — frozen mid-fall
      they'd cling to the top of the viewport. */
   .atmo-particle {
     display: none !important;
   }
-  /* View Transitions API — the global `*` rule above doesn't reach
-     the `::view-transition-*` pseudo-element tree (it lives outside
-     the regular DOM). Without this override, navigations between
-     Dashboard ↔ MangaPage would still play the browser's default
-     ~250ms cross-fade for users who asked for reduced motion. The
-     DOM swap still happens (the JS callback runs); only the
-     animation gets suppressed. */
-  ::view-transition-group(*),
+  /* View Transitions — the `*` rule above does not reach the
+     `::view-transition-*` tree (it lives outside the regular DOM). The
+     groups carry the movement (a cover travelling from the shelf to the
+     series page): they stop, landing at once where they end. The old
+     and new pictures keep the browser's cross-fade, shortened. */
+  ::view-transition-group(*) {
+    animation: none !important;
+  }
   ::view-transition-old(*),
   ::view-transition-new(*) {
-    animation: none !important;
+    animation-duration: 0.2s !important;
   }
 }
 
@@ -3926,11 +3997,12 @@
 }
 
 /* 字 · The house label — 10px mono, uppercase, wide tracking — reads
-   fine at arm's length on a desktop and is hard work on a phone in
-   the hand. One more pixel under `sm`. Unlayered on purpose: Tailwind's
-   utilities live in `@layer utilities` and an unlayered rule outranks
-   them without a specificity fight. */
-@media (max-width: 40rem) {
+   fine at arm's length on a desktop and is hard work on a phone or a
+   small tablet in the hand. One more pixel under `md` (it stopped at
+   `sm`, and a phone held sideways is wider than that). Unlayered on
+   purpose: Tailwind's utilities live in `@layer utilities` and an
+   unlayered rule outranks them without a specificity fight. */
+@media (max-width: 47.99rem) {
   .text-\[10px\] {
     font-size: 11px;
   }
@@ -3956,3 +4028,100 @@
     animation: none;
   }
 }
+
+/* ─── 強 · Forced colours (Windows contrast themes) ───
+   A repair layer, not a design of its own. The system palette replaces
+   every colour, drops shadows (Tailwind's rings among them) and paints
+   over backgrounds; wherever a colour *was* the information, it gets a
+   system colour or a shape back. */
+@media (forced-colors: active) {
+  /* Focus: the rings are box-shadows, which this mode removes, and the
+     `outline-none` utilities had removed the outline. */
+  :focus-visible {
+    outline: 2px solid CanvasText !important;
+    outline-offset: 2px !important;
+  }
+
+  /* Chosen, pressed, checked, current — the tabs, the chips, the sort
+     options, the switches, the page in the navigation: a fill was the
+     only signal. The system's own selection colours take it over, and
+     what sits inside follows them. */
+  :is(
+      [aria-selected="true"],
+      [aria-pressed="true"],
+      [aria-checked="true"],
+      [aria-current="page"],
+      label:has(> input:checked)
+    ) {
+    forced-color-adjust: none;
+    background-color: Highlight !important;
+    color: HighlightText !important;
+    border-color: Highlight !important;
+  }
+  :is(
+      [aria-selected="true"],
+      [aria-pressed="true"],
+      [aria-checked="true"],
+      [aria-current="page"],
+      label:has(> input:checked)
+    )
+    :not(img, video, picture) {
+    color: inherit !important;
+    background: none !important;
+    border-color: currentColor !important;
+  }
+
+  /* Progress: the fill in the text colour, a second segment (read /
+     owned) in the disabled-text colour, and a bar drawn under words as
+     an underline, so the words stay readable. */
+  .meter-fill {
+    forced-color-adjust: none;
+    background: CanvasText !important;
+  }
+  .meter-fill + .meter-fill {
+    background: GrayText !important;
+  }
+  .meter-fill.meter-under {
+    background: none !important;
+    border-block-end: 3px solid CanvasText;
+  }
+  /* The series page's reading strip: read in the text colour, owned and
+     unread in the disabled-text colour, the paper as an outlined frame. */
+  .emaki-strip {
+    outline: 1px solid CanvasText;
+  }
+  .emaki-cell-read {
+    forced-color-adjust: none;
+    background: CanvasText !important;
+  }
+  .emaki-cell-tsundoku {
+    forced-color-adjust: none;
+    background: GrayText !important;
+  }
+}
+
+/* ─── 濃 · prefers-contrast: more ───
+   The same palette, pushed apart: secondary text and captions closer to
+   body text, borders and fields that read as edges rather than hints.
+   Every token keeps its role, so nothing is redesigned — the contrast
+   audit's 4.5:1 floor becomes a 7:1 floor for the text that sat near it. */
+@media (prefers-contrast: more) {
+  :root {
+    --washi-muted: oklch(0.92 0.012 75);
+    --washi-dim: oklch(0.86 0.014 70);
+    --border: oklch(0.96 0.012 85 / 0.32);
+    --input: oklch(0.96 0.012 85 / 0.14);
+  }
+  :root[data-theme="light"] {
+    --washi-muted: oklch(0.26 0.02 40);
+    --washi-dim: oklch(0.32 0.02 45);
+    --border: oklch(0.17 0.015 40 / 0.42);
+    --input: oklch(0.17 0.015 40 / 0.1);
+  }
+  /* The paper grain speckles the ground behind every glyph. */
+  .grain::before,
+  .grain::after {
+    display: none;
+  }
+}
+

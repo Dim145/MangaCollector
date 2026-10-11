@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { cacheVolumesForManga, db } from "@/lib/db.js";
 import { deriveListState } from "@/lib/queryState.js";
+import { lastRead, rememberRead } from "@/lib/warmReads.js";
 import { allVolumesQuery } from "@/lib/coreQueries.js";
 import { useDebouncedLiveQuery } from "@/hooks/useDebouncedLiveQuery.js";
 import { enqueueVolumeUpdate } from "@/lib/sync.js";
@@ -55,7 +57,11 @@ export function useVolumesForManga(mal_id) {
  * clicked to render the next frame.
  */
 export function useAllVolumes() {
-  const data = useDebouncedLiveQuery(() => db.volumes.toArray(), []);
+  const live = useDebouncedLiveQuery(() => db.volumes.toArray(), []);
+  // 温 · Until Dexie answers, the answer it gave last time — see
+  // `lib/warmReads.js`.
+  useEffect(() => rememberRead("volumes", live), [live]);
+  const data = live ?? lastRead("volumes");
 
   // Shared with App's idle prefetch — see `lib/coreQueries.js`. This
   // is the megabyte response, so fetching it twice was the single

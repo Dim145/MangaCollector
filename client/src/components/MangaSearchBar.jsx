@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { detectPasteIntent } from "@/lib/pasteDetect.js";
+import { useT } from "@/i18n/index.jsx";
 
 export default function MangaSearchBar({
   query,
@@ -26,7 +27,12 @@ export default function MangaSearchBar({
   // Dashboard's local-filter input doesn't pass this — it lets the
   // raw text land in the field for fuzzy in-memory matching.
   onPasteIntent,
+  // 横 · Keep the field and its buttons on one row at every width. The
+  // dashboard passes it: on a phone its one button ("Filters") fits
+  // beside the field, and a row of its own cost 50 px above the shelf.
+  inlineActions = false,
 }) {
+  const t = useT();
   const inputRef = useRef(null);
 
   // Effect-based focus rather than the native `autoFocus` attribute —
@@ -69,9 +75,15 @@ export default function MangaSearchBar({
   };
 
   return (
-    <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
+    <div
+      className={
+        inlineActions
+          ? "flex items-center gap-2 sm:gap-3"
+          : "flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3"
+      }
+    >
       {/* Search Input */}
-      <div className="group relative flex-1">
+      <div className="group relative min-w-0 flex-1">
         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-washi-dim group-focus-within:text-hanko-bright transition-colors">
           <svg
             className="h-5 w-5"
@@ -89,17 +101,18 @@ export default function MangaSearchBar({
         <input
           ref={inputRef}
           type="text"
-          placeholder={placeholder || "Search manga…"}
+          placeholder={placeholder || t("common.search")}
+          enterKeyHint="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          className={`w-full rounded-full border border-border bg-ink-1/60 py-3 pl-12 text-sm text-washi placeholder:text-washi-dim backdrop-blur-md transition-all focus:border-hanko/50 focus:bg-ink-1/90 focus:outline-none focus:ring-2 focus:ring-hanko/30 ${showSubmit ? "pr-28" : "pr-11"}`}
+          className={`w-full text-ellipsis rounded-full border border-border bg-ink-1/60 py-3 pl-12 text-sm text-washi placeholder:text-washi-dim backdrop-blur-md transition-all focus:border-hanko/50 focus:bg-ink-1/90 focus:outline-none focus:ring-2 focus:ring-hanko/30 ${showSubmit ? "pr-28" : "pr-11"}`}
         />
         {query && (
           <button
             onClick={() => setQuery("")}
-            aria-label="Clear"
+            aria-label={t("common.clear")}
             className={`absolute top-1/2 -translate-y-1/2 grid h-7 w-7 place-items-center rounded-full text-washi-dim transition hover:text-washi hover:bg-washi/10 pointer-coarse:h-11 pointer-coarse:w-11 ${showSubmit ? "right-28" : "right-2"}`}
             tabIndex={-1}
           >
@@ -129,7 +142,7 @@ export default function MangaSearchBar({
               <span className="hidden sm:inline">…</span>
             </>
           ) : (
-            "Search"
+            t("common.search")
           )}
         </button>
         )}
@@ -142,7 +155,9 @@ export default function MangaSearchBar({
         {hasResults && (
           <button
             onClick={clearResults}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-border bg-ink-1/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/50 hover:text-washi sm:flex-none"
+            // In one row on a phone the field's own × clears it; a second
+            // "clear" button would only squeeze the field.
+            className={`${inlineActions ? "hidden sm:inline-flex" : "inline-flex"} flex-1 items-center justify-center gap-1.5 rounded-full border border-border bg-ink-1/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-washi-muted transition hover:border-hanko/50 hover:text-washi sm:flex-none`}
           >
             <svg
               viewBox="0 0 24 24"
@@ -157,7 +172,7 @@ export default function MangaSearchBar({
               <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
             </svg>
-            {clearText || "Clear"}
+            {clearText || t("common.clear")}
           </button>
         )}
       </div>

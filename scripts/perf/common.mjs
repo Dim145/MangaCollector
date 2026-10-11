@@ -68,3 +68,20 @@ export function targets(argv, fallback) {
   const list = argv.length ? argv : fallback;
   return list.map((p) => (/^https?:/.test(p) ? p : BASE + p));
 }
+
+/**
+ * 鍵 · Signs a page in through the provider, as a reader would: the
+ * app's own `/auth/oauth2`, the mock's form, back to the app. Works
+ * against the preview and a Docker stack alike (`signin.mjs` saves
+ * cookies for the other scripts instead).
+ */
+export async function signInThroughProvider(page, base = BASE, user = "test-collector") {
+  await page.goto(`${base}/auth/oauth2`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("input[name=username]", { timeout: 20000 });
+  await page.type("input[name=username]", user);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }),
+    page.keyboard.press("Enter"),
+  ]);
+}
+

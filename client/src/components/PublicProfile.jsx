@@ -217,7 +217,7 @@ function Masthead({ data, isLoading, slug }) {
 
           {/* Stat chips — series · owned · read · fully-read */}
           {!isLoading && data?.stats && (
-            <div
+            <div role="group"
               className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4"
               aria-label={t("publicProfile.statsLabel")}
             >
@@ -524,7 +524,7 @@ function PublicCard({ entry, index, blurAdult }) {
             (a fully-read series owns volumes, so it can never be a
             wishlist), so no positional conflict on top-right. */}
         {isWishlist && !isMuted && (
-          <div
+          <div role="img"
             className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full border border-sakura/55 bg-ink-0/65 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sakura shadow-[0_1px_3px_rgba(10,9,8,0.4)] backdrop-blur"
             aria-label={t("publicProfile.seriesWishlist")}
             title={t("publicProfile.seriesWishlist")}
@@ -588,11 +588,11 @@ function PublicCard({ entry, index, blurAdult }) {
                 ) : (
                   <div className="flex h-full w-full">
                     <div
-                      className="h-full bg-moegi"
+                      className="meter-fill h-full bg-moegi"
                       style={{ width: `${entry.read_percent}%` }}
                     />
                     <div
-                      className="h-full bg-hanko/60"
+                      className="meter-fill h-full bg-hanko/60"
                       style={{
                         width: `${Math.max(0, Math.round((owned / total) * 100) - entry.read_percent)}%`,
                       }}

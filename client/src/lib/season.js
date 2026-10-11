@@ -5,6 +5,7 @@
  */
 
 const GREETED_KEY = "mc:season-greeted";
+const SHOWN_KEY = "mc:season-shown";
 
 // Meeus mean equinox/solstice polynomial JDE0(Y) = Σ cᵢ·Yⁱ, Y = (year-2000)/1000.
 // Accurate to ~±20 min for years 1000-3000 — well below day resolution.
@@ -138,6 +139,46 @@ export function hasGreetedSeason(season, now = new Date()) {
 export function markSeasonGreeted(season, now = new Date()) {
   try {
     localStorage.setItem(GREETED_KEY, seasonStamp(season, now));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * 留 · Does this mount of the dashboard show the season's banner?
+ *
+ * Once per season, and "once" is a visit — which outlives one mount of
+ * the page: a reader opens a series and comes back. The banner that
+ * greeted them must still be there when they do, or the shelf beneath
+ * it comes back its height higher (66 px on a phone) at the same scroll
+ * offset, and "back" lands a row away from where they left. So the
+ * season is greeted for the next sessions the moment the banner shows
+ * (`markSeasonShown`), and this session keeps it — until the close
+ * button takes it away (`dismissSeasonBanner`).
+ */
+export function seasonBannerShows(season, now = new Date()) {
+  if (!hasGreetedSeason(season, now)) return true;
+  try {
+    return sessionStorage.getItem(SHOWN_KEY) === seasonStamp(season, now);
+  } catch {
+    return false;
+  }
+}
+
+/** The banner was shown: greeted for good, and kept for this session. */
+export function markSeasonShown(season, now = new Date()) {
+  markSeasonGreeted(season, now);
+  try {
+    sessionStorage.setItem(SHOWN_KEY, seasonStamp(season, now));
+  } catch {
+    /* private mode — greeted all the same */
+  }
+}
+
+/** The reader closed it: gone for the rest of the session too. */
+export function dismissSeasonBanner() {
+  try {
+    sessionStorage.removeItem(SHOWN_KEY);
   } catch {
     /* ignore */
   }

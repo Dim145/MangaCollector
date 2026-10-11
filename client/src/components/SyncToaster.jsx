@@ -115,7 +115,11 @@ export default function SyncToaster() {
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-[200] flex w-full max-w-sm flex-col gap-2 px-4 sm:bottom-6 sm:right-6 sm:px-0"
+      // 上 · Above the bottom navigation on a phone (it is there below
+      // `md`): at 16 px from the edge the toasts covered its entries —
+      // the report caught "Seal pressed" over the stats page's folios.
+      // Bottom right from `md` up, where that bar is gone.
+      className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-0 z-[200] flex w-full max-w-sm flex-col gap-2 px-4 sm:right-4 sm:px-0 md:bottom-6 md:right-6"
       // `aria-live="polite"` for the success path is honestly more
       // accurate than the previous "assertive" — info toasts
       // shouldn't interrupt screen-reader speech the way an error

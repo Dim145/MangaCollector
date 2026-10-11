@@ -3,15 +3,31 @@ import { createPortal } from "react-dom";
 import { cameraControls, detectFromImage, startScan } from "@/lib/barcode.js";
 import { normalizeISBN } from "@/lib/isbn.js";
 import { useT } from "@/i18n/index.jsx";
+import { useFocusTrap } from "@/hooks/useFocusTrap.js";
+import { useTopLayer } from "@/hooks/useTopLayer.js";
+
+// 連 · The camera reports every frame it decodes (`startScan`, ~8 a
+// second). One read per book: after a barcode is let through, nothing
+// else is for `SETTLE_MS` (the next book is still being brought into
+// view), and the same barcode is let through again only once it has
+// been out of the frame for `REPEAT_MS` — a book held still is not ten
+// copies, a book shown twice is two.
+const SETTLE_MS = 1200;
+const REPEAT_MS = 3000;
 
 /**
- * Full-screen camera scanner. Fires `onDetect(rawISBN)` once the parent
- * then takes over the UI (by unmounting the scanner and showing a loading
- * view, result modal, etc.).
+ * Full-screen camera scanner. Fires `onDetect(rawISBN)` for every book
+ * it reads, for as long as it is mounted — see `SETTLE_MS` / `REPEAT_MS`
+ * above. It used to fire once per mount ("the parent unmounts us"), and
+ * the three pages that keep it open between books — /scan, filing tomes
+ * into a place, stock-taking — went deaf after the first barcode.
  *
- * Rendered via a React portal into `document.body` so it escapes any
- * `isolate` or transform on ancestors that would otherwise trap it
- * under the sticky Header.
+ * A native modal `<dialog>` (`useTopLayer`): the top layer, the page
+ * behind inert, the focus kept inside (`useFocusTrap`). What a page
+ * shows over the camera — a result, a batch's tray — comes in as
+ * `children`, inside the dialog, since anything outside it now sits
+ * beneath; `topSlot` sits under the top bar (the batch / one-by-one
+ * switch on /scan).
  *
  * Manual-entry affordance
  * -----------------------
@@ -27,12 +43,16 @@ export default function BarcodeScanner({
   onClose,
   statusMessage,
   recentCount = 0,
+  topSlot = null,
+  children = null,
 }) {
   const videoRef = useRef(null);
   const stopFnRef = useRef(null);
   const onCloseRef = useRef(onClose);
   const onDetectRef = useRef(onDetect);
-  const firedRef = useRef(false);
+  // The last barcode let through, when, and when it was last seen.
+  const readRef = useRef({ value: null, acceptedAt: -Infinity, seenAt: -Infinity });
+  const dialogRef = useRef(null);
   const [error, setError] = useState(null);
   const [state, setState] = useState("requesting");
   const [manualOpen, setManualOpen] = useState(false);
@@ -54,11 +74,38 @@ export default function BarcodeScanner({
   useEffect(() => {
     onDetectRef.current = onDetect;
   }, [onDetect]);
+  // Read by the Escape handler; a state in the camera effect's deps used
+  // to stop and restart the camera every time the manual tray opened.
+  const manualOpenRef = useRef(manualOpen);
+  useEffect(() => {
+    manualOpenRef.current = manualOpen;
+  }, [manualOpen]);
+
+  useTopLayer(dialogRef, true);
+  useFocusTrap(true, dialogRef);
+
+  /** Whether a camera read is a new book (see `SETTLE_MS` / `REPEAT_MS`). */
+  const acceptRead = (raw) => {
+    const now = Date.now();
+    const r = readRef.current;
+    if (raw === r.value) {
+      const stillThere = now - r.seenAt < REPEAT_MS;
+      r.seenAt = now;
+      if (stillThere) return false;
+    }
+    if (now - r.acceptedAt < SETTLE_MS) return false;
+    readRef.current = { value: raw, acceptedAt: now, seenAt: now };
+    return true;
+  };
+  /** A read the reader asked for (typed, a photo) always goes through. */
+  const noteRead = (raw) => {
+    const now = Date.now();
+    readRef.current = { value: raw, acceptedAt: now, seenAt: now };
+  };
 
   useEffect(() => {
     let stream = null;
     let disposed = false;
-    firedRef.current = false;
 
     (async () => {
       try {
@@ -91,10 +138,7 @@ export default function BarcodeScanner({
         }
 
         stopFnRef.current = await startScan(video, (raw) => {
-          if (disposed) return;
-          // Fire at most once — parent unmounts us on detection.
-          if (firedRef.current) return;
-          firedRef.current = true;
+          if (disposed || !acceptRead(raw)) return;
           onDetectRef.current?.(raw);
         });
       } catch (err) {
@@ -118,7 +162,7 @@ export default function BarcodeScanner({
       if (e.key === "Escape") {
         // Esc within the manual tray: dismiss the tray, keep the
         // scanner open so the camera stays live.
-        if (manualOpen) {
+        if (manualOpenRef.current) {
           setManualOpen(false);
           return;
         }
@@ -150,10 +194,8 @@ export default function BarcodeScanner({
         if (stream) stream.getTracks().forEach((t) => t.stop());
       })();
     };
-    // manualOpen is read by the Esc handler above; re-attach the
-    // listener when it flips so the branching stays correct without
-    // a ref dance.
-  }, [manualOpen]);
+    // Once per mount: the camera runs until the scanner closes.
+  }, []);
 
   const toggleTorch = async () => {
     const track = trackRef.current;
@@ -172,13 +214,13 @@ export default function BarcodeScanner({
   // 写 · A photo instead of a live camera: the same `onDetect` path, so
   // nothing downstream knows the difference.
   const readPhoto = async (file) => {
-    if (!file || firedRef.current) return;
+    if (!file) return;
     setReading(true);
     setPhotoMiss(false);
     try {
       const raw = await detectFromImage(file);
       if (raw) {
-        firedRef.current = true;
+        noteRead(raw);
         onDetectRef.current?.(raw);
       } else {
         setPhotoMiss(true);
@@ -192,8 +234,7 @@ export default function BarcodeScanner({
   // callback the camera uses, so the downstream flow doesn't care
   // where the number came from.
   const submitManual = (raw) => {
-    if (firedRef.current) return;
-    firedRef.current = true;
+    noteRead(raw);
     // The parent's onBarcodeDetected re-validates via normalizeISBN,
     // so we don't need to duplicate the check here — but we do hand
     // off a clean string (no spaces/hyphens) for consistency with
@@ -202,18 +243,20 @@ export default function BarcodeScanner({
   };
 
   const scanner = (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Barcode scanner"
-      className="fixed inset-0 isolate bg-ink-0"
-      style={{ zIndex: 2147483640 }}
+    <dialog
+      ref={dialogRef}
+      tabIndex={-1}
+      aria-label={t("scan.scannerAria")}
+      // The browser's dialog box undone, as in `ui/Modal.jsx`.
+      className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none overflow-clip overscroll-contain border-0 bg-ink-0 p-0 text-inherit backdrop:bg-transparent open:block focus:outline-none"
     >
       <input
         ref={fileRef}
         type="file"
         accept="image/*"
         capture="environment"
+        aria-label={t("scan.photoOpen")}
+        tabIndex={-1}
         className="sr-only"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -436,6 +479,18 @@ export default function BarcodeScanner({
         </div>
       </div>
 
+      {topSlot && (
+        <div
+          className="absolute inset-x-0 flex justify-center px-4"
+          style={{ top: `calc(4.75rem + env(safe-area-inset-top))`, zIndex: 10 }}
+        >
+          {topSlot}
+        </div>
+      )}
+
+      {/* What the page lays over the camera (a result, a batch's tray). */}
+      {children && <div style={{ position: "relative", zIndex: 20 }}>{children}</div>}
+
       {/* Manual ISBN entry tray — slides up OVER the camera feed
           (camera keeps running underneath for instant return). */}
       <ManualIsbnTray
@@ -447,7 +502,7 @@ export default function BarcodeScanner({
         }}
         t={t}
       />
-    </div>
+    </dialog>
   );
 
   if (typeof document === "undefined") return null;

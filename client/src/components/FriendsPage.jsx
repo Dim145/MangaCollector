@@ -10,6 +10,7 @@ import {
 import { useOnline } from "@/hooks/useOnline.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 import { formatTime, localeFor } from "@/utils/date.js";
+import BackLink from "@/components/ui/BackLink.jsx";
 
 /**
  * 友 Tomo · Friends correspondence page.
@@ -47,6 +48,9 @@ export default function FriendsPage() {
   return (
     <DefaultBackground>
       <div className="relative mx-auto max-w-6xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+        <BackLink to="/profile" className="mb-6">
+          {t("common.backToProfile")}
+        </BackLink>
         {/* Atmosphere — diagonal warmth: hanko top-left + gold
             bottom-right, like sunlight through a side window. */}
         <span
@@ -105,17 +109,6 @@ export default function FriendsPage() {
           </div>
         )}
 
-        <footer className="mt-12 text-center md:mt-16">
-          <Link
-            to="/dashboard"
-            className="group inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-washi-dim transition hover:text-washi"
-          >
-            <span className="transition-transform group-hover:-translate-x-0.5">
-              ←
-            </span>
-            {t("friends.backToDashboard")}
-          </Link>
-        </footer>
       </div>
     </DefaultBackground>
   );

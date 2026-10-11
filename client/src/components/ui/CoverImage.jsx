@@ -3,6 +3,7 @@ import { useLazyImage } from "@/hooks/useLazyImage.js";
 import { coverPaletteFor } from "@/lib/coverPalette.js";
 import { coverSources, isProxiedCover } from "@/lib/covers.js";
 import { rememberLcpCover } from "@/lib/lcpHints.js";
+import { hasSeenCover, rememberSeenCover } from "@/lib/seenCovers.js";
 
 /**
  * Cover `<img>` with a kanji-placeholder fallback when the URL is
@@ -66,11 +67,14 @@ export default function CoverImage({
   // (stage 2) — a host that lacks a rendition must cost a retry, never
   // a hole in the shelf. Reset whenever `src` changes, during render, so
   // a recycled tile never paints the previous series for a frame.
-  const [state, setState] = useState({ src, stage: 0, failed: false, loaded: false });
+  // 既 · Drawn before in this page's life: at once, no fade
+  // (`lib/seenCovers.js`).
+  const seen = hasSeenCover(src);
+  const [state, setState] = useState({ src, stage: 0, failed: false, loaded: seen });
   if (state.src !== src) {
-    setState({ src, stage: 0, failed: false, loaded: false });
+    setState({ src, stage: 0, failed: false, loaded: seen });
   }
-  const { stage, failed, loaded } = state.src === src ? state : { stage: 0, failed: false, loaded: false };
+  const { stage, failed, loaded } = state.src === src ? state : { stage: 0, failed: false, loaded: seen };
 
   const sources = useMemo(() => {
     if (stage === 0) return coverSources(src, { relay: true });
@@ -81,8 +85,9 @@ export default function CoverImage({
   // 遅 · Defer the actual `<img>` mount until the slot approaches the
   // viewport (200px buffer). Skips the network request entirely for
   // off-screen slots in a virtualized grid; the LQIP swatch fills the
-  // visible space until then. Priority covers are needed now.
-  const { ref: lazyRef, near } = useLazyImage({ enabled: !priority });
+  // visible space until then. Priority covers are needed now, and a
+  // cover already drawn costs no request.
+  const { ref: lazyRef, near } = useLazyImage({ enabled: !priority && !seen });
 
   const onError = () => {
     setState((prev) => {
@@ -98,6 +103,9 @@ export default function CoverImage({
   };
   const onLoad = () => {
     setState((prev) => (prev.src === src && !prev.loaded ? { ...prev, loaded: true } : prev));
+    // Only a load at the first stage: a cover that needed a fallback
+    // starts its chain over next time, as it did.
+    if (stage === 0) rememberSeenCover(src);
     if (lcpHintRank != null && typeof window !== "undefined") {
       rememberLcpCover(window.location.pathname, lcpHintRank, {
         src: sources.src,
@@ -156,8 +164,12 @@ export default function CoverImage({
             // (e.g. extreme `rootMargin` accidents) the browser still
             // defers the fetch until the slot is genuinely close to
             // the viewport.
-            loading={priority ? "eager" : loading}
-            decoding={priority ? "auto" : "async"}
+            loading={priority || seen ? "eager" : loading}
+            // A cover drawn before is decoded with the frame that shows
+            // it: the browser drops decoded pixels with the element, and
+            // decoded apart ("async") a library coming back from a
+            // series showed its covers as holes for two or three frames.
+            decoding={seen ? "sync" : priority ? "auto" : "async"}
             fetchPriority={priority ? "high" : fetchPriority}
             draggable={draggable}
             // MangaDex and a few other hosts 403 cross-origin requests

@@ -225,11 +225,32 @@ describe("change notifications", () => {
  */
 describe("ambient responses", () => {
   let uninstall;
+  let onFulfilled;
   let onRejected;
 
   beforeEach(() => {
     uninstall = installConnectivityWatcher();
-    onRejected = axios.interceptors.response.use.mock.calls.at(-1)[1];
+    [onFulfilled, onRejected] = axios.interceptors.response.use.mock.calls.at(-1);
+  });
+
+  // Not every answer of ours is JSON. The archive's spreadsheet export
+  // used to flip the whole app to "unreachable" — banner and paused
+  // outbox — because its content type is CSV.
+  it.each([
+    ["an empty 204", 204, {}],
+    ["a CSV export", 200, { "content-type": "text/csv; charset=utf-8" }],
+    ["a blob", 200, { "content-type": "application/octet-stream" }],
+    ["a JSON answer", 200, JSON_HEADERS],
+  ])("counts %s as the server answering", (_, status, headers) => {
+    onFulfilled({ status: 200, headers: HTML_HEADERS, data: "<html>" });
+    expect(getServerReachable()).toBe(false);
+    onFulfilled({ status, headers, data: "" });
+    expect(getServerReachable()).toBe(true);
+  });
+
+  it("still treats an HTML page on an API call as the SPA fallback", () => {
+    onFulfilled({ status: 200, headers: HTML_HEADERS, data: "<html>" });
+    expect(getServerReachable()).toBe(false);
   });
 
   afterEach(() => {

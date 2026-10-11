@@ -139,7 +139,7 @@ export default function Seal({
           </div>
         )}
 
-        <div
+        <div role="img"
           // Re-mount only on the rising edge of `playing` (entering
           // the spotlight), driven by playPass which never decrements.
           // Leaving the spotlight keeps the key stable, so the seal

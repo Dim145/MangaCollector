@@ -2,7 +2,7 @@ import { memo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import CoverImage from "./ui/CoverImage.jsx";
 import { hasToBlurImage } from "@/utils/library.js";
-import { coverTransitionName } from "@/lib/viewTransition.js";
+import { coverTransitionName, navigateWithCover } from "@/lib/viewTransition.js";
 import { prefetchMangaPage } from "@/lib/prefetch.js";
 import { haptics } from "@/lib/haptics.js";
 import { useT, useLang } from "@/i18n/index.jsx";
@@ -80,6 +80,7 @@ function Manga({
   // pointer-up before the timer expires.
   const longPressTimer = useRef(null);
   const longPressStart = useRef({ x: 0, y: 0 });
+  const coverRef = useRef(null);
 
   const cancelLongPress = () => {
     if (longPressTimer.current != null) {
@@ -104,18 +105,17 @@ function Manga({
       haptics.tap();
       return;
     }
-    // Default: navigate. `viewTransition: true` asks React Router
-    // to wrap the navigation in `document.startViewTransition()` so
-    // the cover morphs smoothly into the MangaPage hero (both share
-    // the `view-transition-name` set on the inner div below). No-op
-    // on browsers without View Transitions support.
-    navigate("/mangapage", {
-      // `from` lets the series page's "back to library" be a real step
-      // back (`navigate(-1)`) — the library entry then restores its own
-      // scroll position instead of a fresh entry starting at the top.
-      state: { manga, adult_content_level, from: "library" },
-      viewTransition: true,
-    });
+    // Default: navigate, the cover morphing into the series page's
+    // hero (`lib/viewTransition.js`). `from` lets the series page's
+    // "back to library" be a real step back (`navigate(-1)`) — the
+    // library entry then restores its own scroll position instead of a
+    // fresh entry starting at the top.
+    navigateWithCover(
+      navigate,
+      "/mangapage",
+      { state: { manga, adult_content_level, from: "library" } },
+      { cover: coverRef.current, name: coverTransitionName(manga.mal_id) },
+    );
   };
 
   return (
@@ -170,16 +170,22 @@ function Manga({
       // 3px offset so keyboard tab-through has a clear target — the
       // global `:focus-visible` rule in index.css uses a 4px radius
       // that wouldn't match the cover's 8px and read as misaligned.
-      className="group relative flex flex-col text-left tap-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko focus-visible:ring-offset-2 focus-visible:ring-offset-ink-0 [contain:layout]"
+      //
+      // 幅 · `w-full`, because a `<button>` is as wide as its content
+      // (fit-content), not as its container. As the grid's own item it
+      // was stretched; inside the list item that names it for a screen
+      // reader it is not, and until its cover had loaded it had no
+      // content with a width: the card measured 2 px, the windowed grid
+      // learnt a 15 px row from it and laid the shelf out a sixteenth of
+      // its height — "back" from a series could not hold its position
+      // and a fast scroll jumped as rows grew back.
+      className="group relative flex w-full flex-col text-left tap-none rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hanko focus-visible:ring-offset-2 focus-visible:ring-offset-ink-0 [contain:layout]"
     >
-      {/* Cover — tall aspect like a real manga volume.
-          `view-transition-name` lets the browser morph this tile into
-          the MangaPage hero cover when the user clicks through (and
-          back), provided View Transitions are supported. Each card
-          gets a unique name keyed on `mal_id` so the browser knows
-          which two snapshots to pair across the navigation. */}
+      {/* Cover — tall aspect like a real manga volume. It takes the
+          series' `view-transition-name` only when clicked, and morphs
+          into the series page's hero (`navigateWithCover`). */}
       <div
-        style={{ viewTransitionName: coverTransitionName(manga.mal_id) }}
+        ref={coverRef}
         className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg border bg-ink-2 shadow-lg transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-1 ${
           // 一括 · In selection mode the border ladder is overridden by
           // the selection ring (hanko on selected, dim border on idle)
@@ -258,7 +264,7 @@ function Manga({
             Hidden while selecting: the selection ring owns that corner
             and would otherwise sit on top of the seal. */}
         {allCollector && !selectionMode && (
-          <div
+          <div role="img"
             className="absolute top-2 left-2 z-10 grid h-4 w-4 place-items-center rounded-sm bg-gold/85 text-ink-0 shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 transition group-hover:opacity-100"
             style={{ transform: "rotate(-6deg)" }}
             title={t("manga.allCollector")}
@@ -277,7 +283,7 @@ function Manga({
             corner free for the completion badge so the two visual
             languages (reading axis vs. collection axis) stop colliding. */}
         {tsundokuCount > 0 && !selectionMode && (
-          <div
+          <div role="img"
             className={`absolute top-2 z-10 inline-flex items-center gap-0.5 rounded-sm border border-moegi/50 bg-ink-0/70 px-1 py-0.5 text-moegi shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 transition group-hover:opacity-100 ${
               allCollector ? "left-8" : "left-2"
             }`}
@@ -319,10 +325,7 @@ function Manga({
             {t("manga.complete")}
           </div>
         ) : wishlist ? (
-          <div
-            className="absolute top-2 right-2 flex items-center gap-1 rounded-full border border-sakura/55 bg-ink-0/65 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sakura shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 backdrop-blur transition group-hover:opacity-100"
-            aria-label={t("manga.wishlist")}
-          >
+          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full border border-sakura/55 bg-ink-0/85 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sakura shadow-[0_1px_3px_rgba(10,9,8,0.4)] backdrop-blur">
             {/* 願 · negai — "wish". The hand-painted brush kanji keeps
                 the badge in the same Japanese-typographic family as 限
                 (collector) / 積 (tsundoku) / 完 (complete) while reading
@@ -336,10 +339,7 @@ function Manga({
             {t("manga.wishlist")}
           </div>
         ) : total > 0 ? (
-          <div
-            className="absolute top-2 right-2 flex items-center gap-1 rounded-full border border-hanko/50 bg-ink-0/65 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-hanko-bright shadow-[0_1px_3px_rgba(10,9,8,0.4)] opacity-80 backdrop-blur transition group-hover:opacity-100"
-            aria-label={t("manga.ongoing")}
-          >
+          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full border border-hanko/50 bg-ink-0/85 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-hanko-bright shadow-[0_1px_3px_rgba(10,9,8,0.4)] backdrop-blur">
             {/* Half-filled disc — the universal "in progress" glyph.
                 Outer circle = total target, filled half = work landed. */}
             <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" aria-hidden="true">
@@ -359,9 +359,11 @@ function Manga({
 
         {/* Title + meta absolute bottom */}
         <div className="absolute inset-x-0 bottom-0 p-3">
-          <h3 className="font-display text-sm font-semibold text-washi leading-tight line-clamp-2 drop-shadow-md">
+          {/* 題 · Text, not a heading: the card is a button, and a heading
+              inside one is invalid and loses its role anyway. */}
+          <span className="block font-display text-sm font-semibold text-washi leading-tight line-clamp-2 drop-shadow-md">
             {manga.name}
-          </h3>
+          </span>
           {/* 来 · Next-volume ribbon. Kanji-led, tabular-nums for the
               date so the digits don't jitter between cards in the
               grid. `border-t` of moegi/15 anchors it to the title
@@ -422,7 +424,7 @@ function Manga({
                 />
               ) : (
                 <div
-                  className={`h-full transition-all duration-500 ${
+                  className={`meter-fill h-full transition-all duration-500 ${
                     complete
                       ? "bg-gradient-to-r from-moegi to-moegi-muted"
                       : "bg-gradient-to-r from-hanko to-hanko-bright"

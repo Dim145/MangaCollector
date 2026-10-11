@@ -1,5 +1,4 @@
-import { useCallback, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import BarcodeScanner from "@/components/BarcodeScanner.jsx";
 import CoverImage from "@/components/ui/CoverImage.jsx";
@@ -9,9 +8,34 @@ import { useT } from "@/i18n/index.jsx";
 import { lookupISBN, normalizeISBN } from "@/lib/isbn.js";
 import axios from "@/utils/axios.js";
 import { addCustomEntryToUserLibrary } from "@/utils/user.js";
-import { notifySyncError } from "@/lib/sync.js";
+import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { findLocalByIsbn } from "@/lib/scanLookup.js";
+import {
+  classifyScan,
+  clearQueue,
+  loadQueue,
+  queueSummary,
+  resolveWithBook,
+  saveQueue,
+} from "@/lib/scanQueue.js";
+import { announce } from "@/lib/announce.js";
 import haptics from "@/lib/haptics.js";
+import sounds from "@/lib/sounds.js";
+
+// 遅 · The review is needed once a batch is done, not to open the
+// scanner: fetched when the Review button is approached, rendered when
+// pressed (it stays mounted afterwards so its sheet can animate out).
+const loadReview = () => import("./ScanBatchReview.jsx");
+const BatchReview = lazy(loadReview);
+
+const MODE_KEY = "mc:scan-mode";
+function readMode() {
+  try {
+    return localStorage.getItem(MODE_KEY) === "batch" ? "batch" : "single";
+  } catch {
+    return "single";
+  }
+}
 
 /**
  * 番 · The global scanner — "is this on my shelf?" before "add it".
@@ -22,6 +46,14 @@ import haptics from "@/lib/haptics.js";
  * the series or count one more copy (the doubles collectors buy by
  * mistake). A miss asks the catalogues for a title, then hands the
  * barcode to the add flow. The camera itself never needs the server.
+ *
+ * 列 · Two rhythms (`mc:scan-mode`): one by one, each book shown and
+ * decided on the spot — or in a row, as CLZ offers: each barcode is
+ * read, sorted and ticked off without stopping (`lib/scanQueue.js`), and
+ * the batch is reviewed at the end — the tomes waiting to be marked
+ * owned in one go, the copies already there, the strangers to add one
+ * at a time. The batch is kept for the session, so a visit to the add
+ * flow comes back to it.
  */
 export default function ScanPage() {
   const t = useT();
@@ -33,11 +65,115 @@ export default function ScanPage() {
   const busyRef = useRef(false);
   const [creating, setCreating] = useState(false);
 
+  // ── 列 · The batch ─────────────────────────────────────────────
+  const [mode, setMode] = useState(readMode);
+  useEffect(() => {
+    try {
+      localStorage.setItem(MODE_KEY, mode);
+    } catch {
+      /* private mode: the choice lasts the visit */
+    }
+  }, [mode]);
+  const [queue, setQueue] = useState([]);
+  const queueRef = useRef(queue);
+  const [lastNote, setLastNote] = useState(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewMounted, setReviewMounted] = useState(false);
+  // The shelf as it is now, for the lookups that answer later.
+  const shelfRef = useRef({ volumes: [], library: [] });
+  useEffect(() => {
+    shelfRef.current = { volumes: volumes ?? [], library: library ?? [] };
+  }, [volumes, library]);
+  // Back from the add flow: the batch kept for the session, re-read
+  // against the shelf once it is there.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || !volumes || !library) return;
+    restoredRef.current = true;
+    const kept = loadQueue(volumes, library);
+    if (kept.length) {
+      queueRef.current = kept;
+      setQueue(kept);
+    }
+  }, [volumes, library]);
+  const commitQueue = (next) => {
+    queueRef.current = next;
+    setQueue(next);
+    saveQueue(next);
+  };
+  // One catalogue lookup at a time: a reader scanning fast must not
+  // turn into a burst of requests to the resolver.
+  const lookupsRef = useRef(Promise.resolve());
+  const lookUpLater = (isbn) => {
+    lookupsRef.current = lookupsRef.current.then(async () => {
+      let book = null;
+      try {
+        book = await lookupISBN(isbn);
+      } catch {
+        book = null;
+      }
+      const { volumes: vs, library: lib } = shelfRef.current;
+      const next = queueRef.current.map((item) =>
+        item.isbn === isbn && item.kind === "unknown"
+          ? resolveWithBook(item, book ?? { title: null }, vs, lib)
+          : item,
+      );
+      commitQueue(next);
+    });
+  };
+  const labelOf = (item) =>
+    item.series
+      ? `${item.series.name} #${item.volume?.vol_num ?? "?"}`
+      : item.book?.title
+        ? [item.book.title, item.book.volume ? `#${item.book.volume}` : ""]
+            .filter(Boolean)
+            .join(" ")
+        : item.isbn;
+  const addToBatch = (isbn) => {
+    const item = classifyScan(isbn, volumes ?? [], library ?? []);
+    if (!item) return;
+    if (queueRef.current.some((i) => i.isbn === item.isbn)) {
+      haptics.tap();
+      setLastNote({ tone: "already", label: labelOf(item) });
+      announce(t("scanPage.batchAlready"));
+      return;
+    }
+    commitQueue([...queueRef.current, item]);
+    haptics.check();
+    sounds.tap();
+    const note =
+      item.kind === "unknown"
+        ? t("scanPage.batchUnknown", { isbn: item.isbn })
+        : t(
+            item.kind === "owned"
+              ? "scanPage.batchOwned"
+              : item.kind === "upcoming"
+                ? "scanPage.batchUpcoming"
+                : "scanPage.batchMissing",
+            { label: labelOf(item) },
+          );
+    setLastNote({ tone: item.kind, text: note });
+    announce(note);
+    if (item.kind === "unknown") lookUpLater(item.isbn);
+  };
+  const removeFromBatch = (isbn) =>
+    commitQueue(queueRef.current.filter((i) => i.isbn !== isbn));
+  const switchMode = (next) => {
+    setMode(next);
+    busyRef.current = false;
+    setResult(null);
+    setLastNote(null);
+  };
+
   const onDetect = useCallback(
     async (raw) => {
-      if (busyRef.current) return;
       const isbn = normalizeISBN(raw);
       if (!isbn) return;
+      if (mode === "batch") {
+        addToBatch(isbn);
+        return;
+      }
+      if (busyRef.current) return;
       busyRef.current = true;
       haptics.bump();
       const local = findLocalByIsbn(volumes ?? [], library ?? [], isbn);
@@ -53,7 +189,10 @@ export default function ScanPage() {
         setResult({ isbn, phase: "unknown", book: null });
       }
     },
-    [volumes, library],
+    // `addToBatch` reads the batch through its ref and the shelf from
+    // this render's values, listed here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [volumes, library, mode],
   );
 
   const scanNext = () => {
@@ -140,7 +279,7 @@ export default function ScanPage() {
           isbn: book.isbn,
         });
       }
-      navigate("/mangapage", { state: { manga: entry }, viewTransition: true });
+      navigate("/mangapage", { state: { manga: entry } });
     } catch (err) {
       notifySyncError(err, "scan-create-series");
     } finally {
@@ -148,14 +287,72 @@ export default function ScanPage() {
     }
   };
 
+  // ── 列 · Applying the batch ────────────────────────────────────
+  const [marking, setMarking] = useState(false);
+  const markOwned = async (items) => {
+    if (marking || !items.length) return;
+    setMarking(true);
+    let done = 0;
+    try {
+      for (const item of items) {
+        const v = item.volume;
+        if (!v) continue;
+        await updateVolume.mutateAsync({
+          id: v.id,
+          mal_id: v.mal_id,
+          vol_num: v.vol_num,
+          owned: true,
+          price: Number(v.price) || 0,
+          store: v.store ?? "",
+          collector: Boolean(v.collector),
+          // The barcode that found it, kept on the copy — the next scan
+          // of it will not need a catalogue.
+          ...(v.isbn ? {} : { isbn: item.isbn }),
+        });
+        done += 1;
+      }
+    } catch (err) {
+      notifySyncError(err, "scan-batch-mark");
+    } finally {
+      setMarking(false);
+    }
+    if (done) {
+      const marked = new Set(items.slice(0, done).map((i) => i.isbn));
+      commitQueue(queueRef.current.filter((i) => !marked.has(i.isbn)));
+      sounds.success();
+      notifySyncInfo({ title: t("scanPage.reviewMarked", { n: done }), tone: "success" });
+      announce(t("scanPage.reviewMarked", { n: done }));
+    }
+  };
+  const addCopyOf = async (item) => {
+    const v = item.volume;
+    if (!v) return;
+    await updateVolume.mutateAsync({
+      id: v.id,
+      mal_id: v.mal_id,
+      vol_num: v.vol_num,
+      owned: true,
+      price: Number(v.price) || 0,
+      store: v.store ?? "",
+      collector: Boolean(v.collector),
+      extra_copies: (Number(v.extra_copies) || 0) + 1,
+    });
+    removeFromBatch(item.isbn);
+  };
+
+  const summary = queueSummary(queue);
   const statusMessage =
-    result?.phase === "found"
-      ? t("scanPage.onShelf")
-      : result?.phase === "looking"
-        ? t("scanPage.looking")
-        : result?.phase === "unknown"
-          ? t("scanPage.notOnShelf")
-          : t("scanPage.pointCamera");
+    mode === "batch"
+      ? lastNote?.tone === "already"
+        ? `${t("scanPage.batchAlready")} · ${lastNote.label}`
+        : (lastNote?.text ?? t("scanPage.batchPrompt"))
+      : result?.phase === "found"
+        ? t("scanPage.onShelf")
+        : result?.phase === "looking"
+          ? t("scanPage.looking")
+          : result?.phase === "unknown"
+            ? t("scanPage.notOnShelf")
+            : t("scanPage.pointCamera");
 
   return (
     <div className="relative min-h-dvh">
@@ -163,14 +360,25 @@ export default function ScanPage() {
         onDetect={onDetect}
         onClose={() => navigate(-1)}
         statusMessage={statusMessage}
-      />
-
-      {result &&
-        createPortal(
+        recentCount={mode === "batch" ? summary.total : 0}
+        topSlot={<ModeSwitch mode={mode} onChange={switchMode} t={t} />}
+      >
+      {mode === "batch" && summary.total > 0 && (
+        <BatchTray
+          summary={summary}
+          onReview={() => {
+            setReviewMounted(true);
+            setReviewOpen(true);
+          }}
+          onPrefetch={loadReview}
+          t={t}
+        />
+      )}
+      {mode === "single" && result && (
           <div
-            role="dialog"
+            role="region"
             aria-label={t("scanPage.resultAria")}
-            className="fixed inset-x-3 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-[2147483645] mx-auto max-w-lg animate-fade-up rounded-2xl border border-border bg-ink-1/95 p-4 shadow-2xl backdrop-blur-xl md:bottom-8"
+            className="fixed inset-x-3 bottom-[calc(6rem+env(safe-area-inset-bottom))] mx-auto max-w-lg animate-fade-up rounded-2xl border border-border bg-ink-1/95 p-4 shadow-2xl backdrop-blur-xl md:bottom-8"
           >
             {result.phase === "found" && (
               <FoundCard
@@ -271,9 +479,105 @@ export default function ScanPage() {
                 </div>
               </div>
             )}
-          </div>,
-          document.body,
-        )}
+          </div>
+      )}
+      </BarcodeScanner>
+
+      {reviewMounted && (
+      <Suspense fallback={null}>
+      <BatchReview
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        queue={queue}
+        labelOf={labelOf}
+        marking={marking}
+        onMark={markOwned}
+        onCopy={addCopyOf}
+        onRemove={removeFromBatch}
+        onAdd={(item) => navigate("/addmanga", { state: { isbn: item.isbn } })}
+        onClear={() => {
+          commitQueue([]);
+          clearQueue();
+          setLastNote(null);
+          setReviewOpen(false);
+        }}
+        t={t}
+      />
+      </Suspense>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 単 / 列 · One by one, or in a row — two radios under the scanner's
+ * top bar. Native inputs: arrows move between them.
+ */
+function ModeSwitch({ mode, onChange, t }) {
+  return (
+    <fieldset className="inline-flex rounded-full border border-border bg-ink-0/80 p-1 backdrop-blur-md">
+      <legend className="sr-only">{t("scanPage.modeLabel")}</legend>
+      {[
+        { id: "single", glyph: "単", label: t("scanPage.modeSingle") },
+        { id: "batch", glyph: "列", label: t("scanPage.modeBatch") },
+      ].map((opt) => {
+        const active = mode === opt.id;
+        return (
+          <label
+            key={opt.id}
+            className={`inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full px-3.5 font-mono text-[11px] uppercase tracking-wider transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-hanko/50 pointer-coarse:min-h-11 ${
+              active ? "bg-hanko text-on-hanko" : "text-washi-muted hover:text-washi"
+            }`}
+          >
+            <input
+              type="radio"
+              name="scan-mode"
+              value={opt.id}
+              checked={active}
+              onChange={() => onChange(opt.id)}
+              className="sr-only"
+            />
+            <span aria-hidden="true" className="font-jp text-[13px] normal-case leading-none">
+              {opt.glyph}
+            </span>
+            {opt.label}
+          </label>
+        );
+      })}
+    </fieldset>
+  );
+}
+
+/** 列 · The batch so far, over the camera: three counts and the way to review it. */
+function BatchTray({ summary, onReview, onPrefetch, t }) {
+  return (
+    <div className="fixed inset-x-3 bottom-[calc(8.5rem+env(safe-area-inset-bottom))] mx-auto flex max-w-lg animate-fade-up items-center gap-3 rounded-2xl border border-gold/40 bg-ink-1/95 p-3 shadow-2xl backdrop-blur-xl md:bottom-36">
+      <span aria-hidden="true" className="font-jp text-xl leading-none text-gold">
+        列
+      </span>
+      <p className="min-w-0 flex-1 font-mono text-[11px] uppercase tracking-[0.12em] text-washi-muted">
+        <span className="font-display text-base normal-case tracking-normal text-washi">
+          {t("scanPage.batchCount", { n: summary.total })}
+        </span>
+        <span className="block truncate">
+          {summary.missing > 0 && `${t("scanPage.reviewMissingShort", { n: summary.missing })} · `}
+          {summary.owned > 0 && `${t("scanPage.reviewOwnedShort", { n: summary.owned })} · `}
+          {summary.upcoming > 0 && `${t("scanPage.reviewUpcomingShort", { n: summary.upcoming })} · `}
+          {summary.unknown > 0 && t("scanPage.reviewUnknownShort", { n: summary.unknown })}
+        </span>
+      </p>
+      <button
+        type="button"
+        onClick={onReview}
+        onPointerEnter={onPrefetch}
+        onFocus={onPrefetch}
+        onTouchStart={onPrefetch}
+        aria-haspopup="dialog"
+        className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-gold px-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-0 transition hover:bg-gold-muted"
+      >
+        {t("scanPage.batchReview")}
+        <span aria-hidden="true">→</span>
+      </button>
     </div>
   );
 }
