@@ -25,6 +25,36 @@ import { pathToFileURL } from "node:url";
 const PUBLIC = "virtual:mc-i18n";
 const PREFIX = "\0mc-i18n:";
 
+/*
+ * 符 · A value written into the generated code, as a literal.
+ *
+ * `JSON.stringify` escapes quotes and backslashes, not `<`, `>` or the
+ * two Unicode line separators: enough to close a `<script>` the code
+ * may end up in, or to end a line in an older engine. The values here
+ * are the repository's own — the split table, the catalogues — but code
+ * this plugin writes gets the full escape all the same (CodeQL
+ * `js/bad-code-sanitization`; the character set is the one its help
+ * gives — the control characters are already escaped by `stringify`).
+ */
+const UNSAFE_IN_CODE = {
+  "<": "\\u003C",
+  ">": "\\u003E",
+  "/": "\\u002F",
+  "\\": "\\\\",
+  "\b": "\\b",
+  "\f": "\\f",
+  "\n": "\\n",
+  "\r": "\\r",
+  "\t": "\\t",
+  "\0": "\\0",
+  "\u2028": "\\u2028",
+  "\u2029": "\\u2029",
+};
+
+export function codeLiteral(value) {
+  return JSON.stringify(value).replace(/[<>\b\f\n\r\t\0\u2028\u2029]/g, (c) => UNSAFE_IN_CODE[c]);
+}
+
 async function freshImport(file) {
   const stamp = fs.statSync(file).mtimeMs;
   return import(`${pathToFileURL(file).href}?t=${stamp}`);
@@ -57,12 +87,12 @@ export default function i18nSplit({ dir }) {
 
       if (parsed.loaders) {
         const loader = (lang, chunk) =>
-          `${JSON.stringify(lang)}: () => import(${JSON.stringify(`${PUBLIC}/${lang}/${chunk}`)})`;
+          `${codeLiteral(lang)}: () => import(${codeLiteral(`${PUBLIC}/${lang}/${chunk}`)})`;
         const core = CATALOGUE_LANGS.map((lang) => loader(lang, "core")).join(",\n  ");
         const chunks = Object.keys(NAMESPACE_CHUNKS)
           .map(
             (chunk) =>
-              `${JSON.stringify(chunk)}: { ${CATALOGUE_LANGS.map((lang) => loader(lang, chunk)).join(", ")} }`,
+              `${codeLiteral(chunk)}: { ${CATALOGUE_LANGS.map((lang) => loader(lang, chunk)).join(", ")} }`,
           )
           .join(",\n  ");
         return `export const core = {\n  ${core}\n};\nexport const chunks = {\n  ${chunks}\n};\n`;
@@ -91,7 +121,7 @@ export default function i18nSplit({ dir }) {
       } else {
         this.error(`mc-i18n: unknown chunk "${chunk}"`);
       }
-      return `export default JSON.parse(${JSON.stringify(JSON.stringify(subset))});\n`;
+      return `export default JSON.parse(${codeLiteral(JSON.stringify(subset))});\n`;
     },
   };
 }
