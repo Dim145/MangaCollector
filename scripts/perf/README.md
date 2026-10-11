@@ -59,6 +59,7 @@ node scroll-nav.mjs                # library ⇄ series and fast scrolls, phone 
 node scroll-nav.mjs --device desktop --rounds 6 --frames
 node overlay-open.mjs --frames     # the volume drawer opening (Edit, an announced tome)
 node overlay-open.mjs --device phone   # …and the library's filter sheet
+node popover-scroll.mjs            # the account menu while the page scrolls under it
 ```
 
 `overlay-open.mjs` follows the leading edge of a panel as it arrives
@@ -117,6 +118,12 @@ without the device cache a returning reader has.
   each cover's swatch and fade played again (`lib/seenCovers.js`).
   Measured with `scroll-nav.mjs`: from 1.5 s at the wrong place to the
   first frame in the right one, 0 px off.
+- The account menu climbed with a slow scroll and stood mid-screen for
+  an instant on a fast one, then went back: anchored to a button in the
+  sticky header, it got the scroll compensation meant for an anchor
+  that scrolls away. Not reproduced in Chromium (`popover-scroll.mjs`
+  finds it still in both of ours) — most likely WebKit's behaviour.
+  A pinned button's panel is placed from its rectangle now.
 - The volume drawer appeared 80 px left of its place and jumped back:
   native `<dialog>`s scroll by default, the drawer arriving translated
   by its own width made it 416 px wide to scroll, and the opening focus

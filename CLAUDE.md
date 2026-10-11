@@ -262,7 +262,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 317 tests across 88 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 320 tests across 88 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -572,7 +572,12 @@ audit, 100 on every page, phone, desktop and signed out):
   `span`/`div` (give it `role="img"` or `role="group"`).
 - **Menus are native popovers**: `hooks/useAnchoredPopover.js` (top
   layer, light dismiss, next in the Tab order, CSS anchor positioning,
-  piecewise fallback). A row's secondary actions go behind
+  piecewise fallback). A button that does not move with the page —
+  inside a `fixed` or `sticky` box, like the header's account button —
+  gets its panel placed from its rectangle instead (`isPinned`): WebKit
+  compensated the scroll for the anchor, moved the menu with the page
+  and put it back at the next layout (`scripts/perf/popover-scroll.mjs`
+  reads that on the painted frames). A row's secondary actions go behind
   `ui/ActionMenu.jsx` (words beside the glyphs); a phone's extra
   controls in `ui/Sheet.jsx` (visible Close, drag to close). Dialogs are
   `<dialog>` + `useTopLayer`; anything shown over one goes inside it.

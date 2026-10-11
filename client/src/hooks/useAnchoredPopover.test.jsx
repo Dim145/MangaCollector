@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useAnchoredPopover } from "./useAnchoredPopover.js";
+import { isPinned, useAnchoredPopover } from "./useAnchoredPopover.js";
 
 /*
  * The hook has two paths. jsdom has no popover API, so every component
@@ -11,16 +11,19 @@ import { useAnchoredPopover } from "./useAnchoredPopover.js";
  * button when it was inside — and none of the hand-made dismissal.
  */
 
-function Harness() {
+function Harness({ sticky = false }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef(null);
   const panelRef = useRef(null);
   useAnchoredPopover({ open, onClose: () => setOpen(false), buttonRef, panelRef });
+  const button = (
+    <button ref={buttonRef} type="button" onClick={() => setOpen((o) => !o)}>
+      Open
+    </button>
+  );
   return (
     <>
-      <button ref={buttonRef} type="button" onClick={() => setOpen((o) => !o)}>
-        Open
-      </button>
+      {sticky ? <header style={{ position: "sticky", top: 0 }}>{button}</header> : button}
       {open && (
         <div ref={panelRef} data-testid="panel">
           <input aria-label="inside" autoFocus />
@@ -77,3 +80,50 @@ describe("useAnchoredPopover", () => {
     expect(document.activeElement).toBe(button);
   });
 });
+
+describe("useAnchoredPopover — a button that does not move with the page", () => {
+  // The account button sits in the sticky header. Anchored to it, the
+  // menu was moved by WebKit's scroll compensation as if the button had
+  // scrolled away, then put back at the next layout.
+  const supports = CSS.supports;
+  afterEach(() => {
+    CSS.supports = supports;
+  });
+
+  it("knows a button inside a sticky or fixed box", () => {
+    render(
+      <>
+        <div style={{ position: "sticky", top: 0 }}>
+          <span>
+            <button type="button">In the header</button>
+          </span>
+        </div>
+        <div style={{ position: "fixed" }}>
+          <button type="button">In a bar</button>
+        </div>
+        <button type="button">On the page</button>
+      </>,
+    );
+    expect(isPinned(screen.getByRole("button", { name: "In the header" }))).toBe(true);
+    expect(isPinned(screen.getByRole("button", { name: "In a bar" }))).toBe(true);
+    expect(isPinned(screen.getByRole("button", { name: "On the page" }))).toBe(false);
+  });
+
+  it("places the panel of a pinned button itself, even where anchors are supported", () => {
+    CSS.supports = () => true;
+    render(<Harness sticky />);
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    const panel = screen.getByTestId("panel");
+    expect(panel.style.getPropertyValue("position-anchor")).toBe("");
+    expect(panel.style.top).toBe("8px");
+    expect(panel.style.right).not.toBe("");
+  });
+
+  it("still anchors the panel of a button that scrolls with the page", () => {
+    CSS.supports = () => true;
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    expect(screen.getByTestId("panel").style.getPropertyValue("position-anchor")).toMatch(/^--anchor-/);
+  });
+});
+

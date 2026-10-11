@@ -21,6 +21,15 @@ import { useEffect, useId, useLayoutEffect } from "react";
  * outside-click and Escape handling; no anchor positioning → it is
  * placed from the button's rectangle and follows it on scroll.
  *
+ * 留 · And a button that does not move with the page — inside a `fixed`
+ * or `sticky` box, like the account button in the header — is placed
+ * from its rectangle too, anchor positioning or not (`isPinned`). A
+ * browser that compensates the scroll for the anchor (WebKit) moved the
+ * panel with the page as if its button scrolled away, and put it back
+ * at the next layout: the account menu climbed with a slow scroll and
+ * stood mid-screen for an instant on a fast one. A fixed panel placed
+ * once stays where its button stays.
+ *
  * The caller keeps `open` in React state and renders the panel only
  * while it is true, with `POPOVER_PANEL_CLASS` among its classes; the
  * hook tells it when the browser closed it.
@@ -95,7 +104,7 @@ export function useAnchoredPopover({ open, onClose, buttonRef, panelRef, gap = 8
       });
     }
 
-    if (supportsAnchor()) {
+    if (supportsAnchor() && !isPinned(button)) {
       button.style.setProperty("anchor-name", anchorName);
       panel.style.setProperty("position-anchor", anchorName);
       panel.style.setProperty("top", `calc(anchor(bottom) + ${gap}px)`);
@@ -105,8 +114,20 @@ export function useAnchoredPopover({ open, onClose, buttonRef, panelRef, gap = 8
     } else {
       const place = () => {
         const r = button.getBoundingClientRect();
-        panel.style.top = `${r.bottom + gap}px`;
-        panel.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+        // The viewport a fixed box is placed in: without its scrollbars,
+        // which `innerWidth` counts.
+        const { clientWidth, clientHeight } = document.documentElement;
+        const height = panel.offsetHeight;
+        // Below the button, or above it when only there does it fit —
+        // what `flip-block` does on the anchored path.
+        if (r.bottom + gap + height > clientHeight && r.top - gap - height >= 0) {
+          panel.style.top = "";
+          panel.style.bottom = `${clientHeight - r.top + gap}px`;
+        } else {
+          panel.style.bottom = "";
+          panel.style.top = `${r.bottom + gap}px`;
+        }
+        panel.style.right = `${Math.max(8, clientWidth - r.right)}px`;
       };
       place();
       // `capture` catches scrolls on any ancestor that could move the button.
@@ -153,6 +174,19 @@ export function useAnchoredPopover({ open, onClose, buttonRef, panelRef, gap = 8
  */
 export const POPOVER_PANEL_CLASS =
   "fixed m-0 p-0 [inset:auto] z-[2147483620] text-washi";
+
+/**
+ * Does this element stay where it is on screen while the page scrolls —
+ * is it inside a `fixed` or `sticky` box? Its panel then needs no anchor
+ * to follow it, and an anchor is what made it drift (see above).
+ */
+export function isPinned(element) {
+  for (let node = element; node && node.nodeType === 1; node = node.parentElement) {
+    const { position } = getComputedStyle(node);
+    if (position === "fixed" || position === "sticky") return true;
+  }
+  return false;
+}
 
 export function supportsPopover() {
   return (
