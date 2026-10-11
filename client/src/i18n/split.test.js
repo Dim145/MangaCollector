@@ -68,13 +68,19 @@ function keysOf(node, prefix = "") {
 }
 const allKeys = keysOf(en);
 
-/** Files with a string that begins one of `ns`'s keys. */
+/** A quoted string that could begin a key: a namespace, a dot, more. */
+const KEY_START = /["'`]([\w-]+)(\.[\w.]*)/g;
+
+/**
+ * Files with a string that begins one of `ns`'s keys. One fixed pattern
+ * and the namespace compared after, rather than a pattern built from it.
+ */
 function usersOf(ns) {
-  const pattern = new RegExp(`["'\`](${ns}\\.[\\w.]*)`, "g");
   return files.filter((file) => {
     if (file.startsWith(path.join(SRC, "i18n"))) return false;
-    for (const [, start] of text.get(file).matchAll(pattern)) {
-      if (allKeys.some((key) => key.startsWith(start))) return true;
+    for (const [, head, rest] of text.get(file).matchAll(KEY_START)) {
+      if (head !== ns) continue;
+      if (allKeys.some((key) => key.startsWith(head + rest))) return true;
     }
     return false;
   });

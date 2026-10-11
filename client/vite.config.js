@@ -232,11 +232,17 @@ function precompressAssets() {
     name: "precompress-assets",
     apply: "build",
     configResolved(config) {
+      // Vite's own resolved configuration, at build time — no request
+      // ever reaches this path.
+      // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
       outDir = path.resolve(config.root, config.build.outDir);
     },
     async closeBundle() {
       const walk = async (dir) => {
         for (const entry of await readdir(dir, { withFileTypes: true })) {
+          // The build's own output, walked: the names come from readdir,
+          // not from anyone outside.
+          // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
           const file = path.join(dir, entry.name);
           if (entry.isDirectory()) {
             await walk(file);

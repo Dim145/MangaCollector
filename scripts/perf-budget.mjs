@@ -55,7 +55,8 @@ const gz = (file) => {
 const sum = (files, size) => [...new Set(files)].reduce((total, file) => total + size(file), 0);
 const kB = (n) => `${(n / 1024).toFixed(1)} kB`;
 
-const attr = (tag, name) => tag.match(new RegExp(`${name}="([^"]+)"`))?.[1];
+// An attribute read with one fixed pattern, not one built from its name.
+const attr = (tag, name) => [...tag.matchAll(/([\w-]+)="([^"]+)"/g)].find((m) => m[1] === name)?.[2];
 const tags = (pattern) => [...html.matchAll(pattern)].map((m) => m[0]);
 
 const entry = tags(/<script type="module"[^>]*>/g).map((t) => attr(t, "src")).filter(Boolean).map(local);
