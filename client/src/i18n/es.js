@@ -1581,7 +1581,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.16.3 · El próximo tomo, apuntado desde cualquier sitio",
+    version: "v2.17.0 · Más rápida al abrir, más estable al usar",
     heroStart: "Cada",
     heroAccent: "tomo",
     heroEnd1: ",",

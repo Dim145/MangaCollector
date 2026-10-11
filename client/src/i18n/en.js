@@ -1562,7 +1562,7 @@ export default {
     brandLabel: "MangaCollector · 収集家",
   },
   about: {
-    version: "v2.16.3 · The next volume, noted from anywhere",
+    version: "v2.17.0 · Quicker to open, steadier to use",
     heroStart: "Every",
     heroAccent: "volume",
     heroEnd1: ",",
