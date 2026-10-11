@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@/hooks/useFocusTrap.js";
+import { useTopLayer } from "@/hooks/useTopLayer.js";
 
 export default function Modal({
   children,
@@ -87,6 +88,8 @@ export default function Modal({
   // handled inside the hook too. See `hooks/useFocusTrap.js`.
   const overlayRef = useRef(null);
   useFocusTrap(mounted, overlayRef, handleClose);
+  // 層 · A native modal `<dialog>`: the top layer, an inert page behind.
+  useTopLayer(overlayRef, mounted);
 
   if (!mounted) return null;
   if (typeof document === "undefined") return null;
@@ -98,21 +101,20 @@ export default function Modal({
   const contentAnim = leaving ? "animate-fade-down-out" : "animate-fade-up";
 
   const overlay = (
-    <div
+    <dialog
       ref={overlayRef}
-      role="dialog"
-      aria-modal="true"
       // tabIndex=-1 makes the overlay programmatically focusable so
       // our initial-focus fallback can land here when the children
       // expose no `data-autofocus` candidate. Users can't Tab to it
       // because of the negative value — it's only reachable via
       // `element.focus()`.
       tabIndex={-1}
-      className={`fixed inset-0 flex items-center justify-center bg-ink-0/80 backdrop-blur-md p-4 ${overlayAnim}`}
-      // Inline style z-index to escape any stacking context traps from
-      // ancestors (DefaultBackground's `isolate`, transformed elements, etc.)
-      // Portaled to document.body as belt-and-braces.
-      style={{ zIndex: 2147483630 }}
+      // The dialog is the whole-viewport overlay, as the `<div>` it
+      // replaces was: the browser's own box (margin, border, padding,
+      // max sizes, Canvas colours) is undone, `flex` only while open
+      // (an author `display` would otherwise show a closed dialog), and
+      // `::backdrop` stays clear — the dim and the blur are this element.
+      className={`fixed inset-0 m-0 h-full max-h-none w-full max-w-none items-center justify-center border-0 bg-ink-0/80 p-4 text-inherit backdrop-blur-md backdrop:bg-transparent open:flex focus:outline-none ${overlayAnim}`}
       onClick={(e) => {
         if (e.target !== e.currentTarget) return;
         handleClose?.();
@@ -145,11 +147,11 @@ export default function Modal({
       >
         {children}
       </div>
-    </div>
+    </dialog>
   );
 
-  // Portal into <body> so DefaultBackground's `isolate` (and any other
-  // ancestor stacking context) can't trap the overlay under the header
-  // or adjacent sections.
+  // Portal into <body>: the top layer escapes stacking contexts on its
+  // own, but a dialog rendered inside a page would still inherit that
+  // page's text styles.
   return createPortal(overlay, document.body);
 }

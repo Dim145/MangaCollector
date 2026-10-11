@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { prefetchRoute } from "@/lib/prefetch.js";
 import ProfileButton from "./ProfileButton";
 import InstallPrompt from "./InstallPrompt";
 import { useAuth } from "@/hooks/useAuth.js";
 import { useNavCounters } from "@/hooks/useNavCounters.js";
 import { useT } from "@/i18n/index.jsx";
+import { bootShellShown } from "@/lib/bootShell.js";
 
 // 図 · SVG icons reused across both nav surfaces. Lifted out of
 // the array literal so the top + bottom variants below can pick
@@ -147,6 +149,7 @@ const BOTTOM_NAV_ITEMS_BASE = [
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
+  const [arrivedFromShell] = useState(bootShellShown);
   const t = useT();
   // Shared auth state via TanStack Query — this is the same cache
   // entry consumed by ProtectedRoute and ProfileButton, so the three
@@ -213,10 +216,16 @@ export default function Header() {
             <div className="relative">
               {/* 金 · The brand mark gets a `gold-shimmer-strong`
                   sweep on top of the hanko fill — a slow gilded
-                  highlight catching the eye every 5 s. The class
-                  is decorative-only; reduced-motion users see a
-                  static stamp. */}
-              <span className="hanko-seal gold-shimmer gold-shimmer-strong grid h-9 w-9 place-items-center rounded-md text-[10px] font-bold animate-stamp">
+                  highlight, twice on arrival and again on hover
+                  (`gold-shimmer-settle`). Decorative-only;
+                  reduced-motion users see a static stamp. */}
+              <span
+                className={`hanko-seal gold-shimmer gold-shimmer-strong gold-shimmer-settle grid h-9 w-9 place-items-center rounded-md text-[10px] font-bold${
+                  // 殻 · No stamp after the boot shell: the seal has been
+                  // on screen since the first paint (`lib/bootShell.js`).
+                  arrivedFromShell ? "" : " animate-stamp"
+                }`}
+              >
                 MC
               </span>
             </div>
@@ -240,6 +249,8 @@ export default function Header() {
                 <NavLink
                   key={item.to}
                   to={item.to}
+                  onPointerEnter={() => prefetchRoute(item.to)}
+                  onFocus={() => prefetchRoute(item.to)}
                   className={({ isActive }) =>
                     `relative flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all pointer-coarse:py-2.5 ${
                       isActive
@@ -266,6 +277,9 @@ export default function Header() {
             {isAuthenticated && (
               <NavLink
                 to="/scan"
+                onPointerEnter={() => prefetchRoute("/scan")}
+                onFocus={() => prefetchRoute("/scan")}
+                onTouchStart={() => prefetchRoute("/scan")}
                 aria-label={t("nav.scan")}
                 title={t("nav.scan")}
                 className={({ isActive }) =>
@@ -311,6 +325,12 @@ export default function Header() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                onTouchStart={() => prefetchRoute(item.to)}
+                onPointerEnter={() => prefetchRoute(item.to)}
+                onFocus={() => prefetchRoute(item.to)}
+                // The featured "+" draws an icon and no text: without a
+                // name it was announced as an anonymous link.
+                aria-label={item.featured ? item.label : undefined}
                 className={({ isActive }) =>
                   `relative flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[10px] font-medium uppercase tracking-wider tap-none transition ${
                     isActive

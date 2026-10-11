@@ -1,16 +1,257 @@
-import axios from "axios";
 import { clearCachedUser } from "./auth.js";
+import { clearAllUserData } from "@/lib/db.js";
+import { purgePrivateCaches } from "@/lib/privateCaches.js";
 import { getClientId } from "@/lib/clientId.js";
 
 const location = typeof window !== "undefined" ? window.location : undefined;
 
-// Dedicated axios instance — avoids mutating the global default that any
-// transitive dependency might also import. Default export keeps its name
-// so existing `import axios from "@/utils/axios"` callers don't change.
-const http = axios.create({
-  baseURL: (location ? location.origin : undefined) || "http://localhost:5173",
-  withCredentials: true,
-});
+/*
+ * 通 · The app's HTTP client — `fetch` underneath, axios's shape on top.
+ *
+ * It was an axios instance, and axios was 13 kB gzipped in the entry
+ * chunk, on the critical path of every page, for what the app asks of
+ * it: five verbs, JSON or `FormData` bodies, query parameters, a timeout,
+ * an abort signal, text or blob answers, and two interceptors. That much
+ * is below, and it answers the way axios did, so the thirty-odd modules
+ * that call it — and the tests that mock it — did not change:
+ *
+ *   - a response is `{ data, status, statusText, headers, config }`,
+ *     `headers` a plain object with lower-case names;
+ *   - `data` is parsed JSON when the body is JSON, the raw text when it
+ *     is not (axios's silent parsing), a `Blob` for `responseType: "blob"`,
+ *     and `transformResponse` replaces the parsing when it is given;
+ *   - a status outside 2xx rejects with an error carrying `response`,
+ *     `config` and axios's `code` (`ERR_BAD_REQUEST` / `ERR_BAD_RESPONSE`);
+ *     no response at all is `ERR_NETWORK`, a timeout `ECONNABORTED`, the
+ *     caller's own abort `ERR_CANCELED`;
+ *   - request interceptors run newest first and response interceptors in
+ *     order, each pair chained like axios chains them; `use` returns an id
+ *     that `eject` takes.
+ *
+ * Cookies go with every request (`credentials: "include"`, axios's
+ * `withCredentials`). Only this origin is ever called through it; the
+ * third-party catalogues in `lib/isbn.js` use `fetch` directly.
+ */
+const BASE_URL = (location ? location.origin : undefined) || "http://localhost:5173";
+const ACCEPT = "application/json, text/plain, */*";
+
+class HttpError extends Error {
+  constructor(message, { code, config, response, cause } = {}) {
+    super(message, cause ? { cause } : undefined);
+    this.name = code === "ERR_CANCELED" ? "CanceledError" : "HttpError";
+    this.code = code;
+    this.config = config;
+    this.response = response;
+    // Kept for code written against axios that asks.
+    this.isAxiosError = true;
+  }
+}
+
+function interceptorStack() {
+  const handlers = [];
+  return {
+    handlers,
+    use(onFulfilled, onRejected) {
+      handlers.push({ onFulfilled, onRejected });
+      return handlers.length - 1;
+    },
+    eject(id) {
+      if (handlers[id]) handlers[id] = null;
+    },
+  };
+}
+
+function buildUrl(config) {
+  const url = /^[a-z][a-z\d+.-]*:\/\//i.test(config.url)
+    ? new URL(config.url)
+    : new URL(config.url, config.baseURL ?? BASE_URL);
+  for (const [key, value] of Object.entries(config.params ?? {})) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) url.searchParams.append(key, String(item));
+    } else {
+      url.searchParams.append(key, String(value));
+    }
+  }
+  return url.toString();
+}
+
+function isRawBody(data) {
+  return (
+    typeof data === "string" ||
+    (typeof FormData !== "undefined" && data instanceof FormData) ||
+    (typeof Blob !== "undefined" && data instanceof Blob) ||
+    (typeof URLSearchParams !== "undefined" && data instanceof URLSearchParams) ||
+    data instanceof ArrayBuffer ||
+    ArrayBuffer.isView(data)
+  );
+}
+
+function plainHeaders(headers) {
+  const out = {};
+  headers?.forEach?.((value, name) => {
+    out[name.toLowerCase()] = value;
+  });
+  return out;
+}
+
+async function readBody(res, config) {
+  if (config.responseType === "blob") return res.blob();
+  if (config.responseType === "arraybuffer") return res.arrayBuffer();
+  const text = await res.text();
+  const transforms = config.transformResponse;
+  if (Array.isArray(transforms) && transforms.length) {
+    return transforms.reduce((body, fn) => fn(body), text);
+  }
+  if (config.responseType === "text" || text === "") return text;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+/** Abort on the caller's signal or on the timeout, whichever comes first. */
+function requestSignal(config) {
+  const signals = [];
+  if (config.signal) signals.push(config.signal);
+  let timer = null;
+  let timedOut = false;
+  if (config.timeout > 0) {
+    const controller = new AbortController();
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, config.timeout);
+    signals.push(controller.signal);
+  }
+  let signal = signals[0];
+  if (signals.length > 1) {
+    if (typeof AbortSignal.any === "function") {
+      signal = AbortSignal.any(signals);
+    } else {
+      const both = new AbortController();
+      for (const s of signals) {
+        if (s.aborted) both.abort();
+        else s.addEventListener("abort", () => both.abort(), { once: true });
+      }
+      signal = both.signal;
+    }
+  }
+  return { signal, timedOut: () => timedOut, done: () => timer != null && clearTimeout(timer) };
+}
+
+async function send(config) {
+  const headers = { Accept: ACCEPT, ...(config.headers ?? {}) };
+  let body;
+  const data = config.data;
+  if (data !== undefined && data !== null && !["GET", "HEAD"].includes(config.method)) {
+    if (isRawBody(data)) {
+      body = data;
+      // The browser writes a multipart boundary only when it writes the
+      // header itself.
+      if (typeof FormData !== "undefined" && data instanceof FormData) {
+        for (const name of Object.keys(headers)) {
+          if (name.toLowerCase() === "content-type") delete headers[name];
+        }
+      }
+    } else {
+      body = JSON.stringify(data);
+      if (!Object.keys(headers).some((n) => n.toLowerCase() === "content-type")) {
+        headers["Content-Type"] = "application/json";
+      }
+    }
+  }
+
+  const { signal, timedOut, done } = requestSignal(config);
+  let res;
+  try {
+    res = await fetch(buildUrl(config), {
+      method: config.method,
+      headers,
+      body,
+      credentials: "include",
+      signal,
+    });
+  } catch (cause) {
+    done();
+    if (timedOut()) {
+      throw new HttpError(`timeout of ${config.timeout}ms exceeded`, { code: "ECONNABORTED", config, cause });
+    }
+    if (config.signal?.aborted) {
+      throw new HttpError("canceled", { code: "ERR_CANCELED", config, cause });
+    }
+    throw new HttpError("Network Error", { code: "ERR_NETWORK", config, cause });
+  }
+
+  let payload;
+  try {
+    payload = await readBody(res, config);
+  } catch (cause) {
+    done();
+    if (timedOut()) {
+      throw new HttpError(`timeout of ${config.timeout}ms exceeded`, { code: "ECONNABORTED", config, cause });
+    }
+    throw new HttpError("Network Error", { code: "ERR_NETWORK", config, cause });
+  }
+  done();
+
+  const response = {
+    data: payload,
+    status: res.status,
+    statusText: res.statusText,
+    headers: plainHeaders(res.headers),
+    config,
+  };
+  if (res.status < 200 || res.status >= 300) {
+    throw new HttpError(`Request failed with status code ${res.status}`, {
+      code: res.status >= 500 ? "ERR_BAD_RESPONSE" : "ERR_BAD_REQUEST",
+      config,
+      response,
+    });
+  }
+  return response;
+}
+
+const interceptors = {
+  request: interceptorStack(),
+  response: interceptorStack(),
+};
+
+function request(input) {
+  let config = {
+    ...input,
+    method: (input.method ?? "get").toUpperCase(),
+    headers: { ...(input.headers ?? {}) },
+  };
+  // Request interceptors run newest first, as axios runs them.
+  let chain = Promise.resolve(config);
+  for (const handler of [...interceptors.request.handlers].reverse()) {
+    if (!handler) continue;
+    chain = chain.then(handler.onFulfilled, handler.onRejected);
+  }
+  let promise = chain.then((final) => {
+    config = final;
+    return send(final);
+  });
+  for (const handler of interceptors.response.handlers) {
+    if (!handler) continue;
+    promise = promise.then(handler.onFulfilled, handler.onRejected);
+  }
+  return promise;
+}
+
+const http = {
+  defaults: { baseURL: BASE_URL },
+  interceptors,
+  request,
+  get: (url, config = {}) => request({ ...config, url, method: "get" }),
+  delete: (url, config = {}) => request({ ...config, url, method: "delete" }),
+  head: (url, config = {}) => request({ ...config, url, method: "head" }),
+  post: (url, data, config = {}) => request({ ...config, url, data, method: "post" }),
+  put: (url, data, config = {}) => request({ ...config, url, data, method: "put" }),
+  patch: (url, data, config = {}) => request({ ...config, url, data, method: "patch" }),
+};
 
 /**
  * 機 · Session-loss recovery interceptor.
@@ -135,35 +376,24 @@ http.interceptors.response.use(
     //   - TanStack Query: in-memory query cache (covers, library,
     //     stats…). Cleared via the `mc:session-lost` event so this
     //     module doesn't have to import the QueryClient.
-    //   - Dexie: persistent IDB outbox + library mirror. Wiped via
-    //     the dynamic import below — done lazily because the dexie
-    //     module is heavy and we don't want to pay the cost on
-    //     every cold load just for the unlikely-401 path.
+    //   - Dexie: persistent IDB outbox + library mirror. Imported
+    //     statically: `auth.js` already pulls the module into the entry,
+    //     so the dynamic import that used to sit here bought nothing
+    //     but a chunk of its own — one more request on every cold
+    //     load, before the first paint.
     try {
       window.dispatchEvent(new CustomEvent("mc:session-lost"));
     } catch {
       /* dispatchEvent should never throw — defensive */
     }
-    import("@/lib/db.js")
-      .then((mod) => mod.clearAllUserData?.())
+    Promise.resolve()
+      .then(() => clearAllUserData())
       .catch(() => {
         /* dexie unavailable in some test environments — ignore */
       });
     // Service Worker caches that hold the just-revoked user's private
-    // responses. Same buckets as `logout()` purges in auth.js — we
-    // duplicate the list here rather than re-import to avoid a cycle
-    // between axios.js and auth.js (auth.js already depends on axios).
-    if (typeof caches !== "undefined") {
-      Promise.all(
-        ["user-posters", "public-posters", "snapshot-images"].map((name) =>
-          caches.delete(name).catch(() => false),
-        ),
-      ).catch(() => {
-        /* defensive — Promise.all on an array of catch'd promises
-           cannot reject, but TypeScript / future refactors might
-           change that. */
-      });
-    }
+    // responses — the same list `logout()` purges (`lib/privateCaches.js`).
+    purgePrivateCaches();
 
     if (location && !isPublicPath(location.pathname)) {
       // Hard reload so the module-level latch resets and TanStack's

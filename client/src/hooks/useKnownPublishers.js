@@ -19,8 +19,14 @@ import { db } from "@/lib/db.js";
  * user has personally seen", the presets are "what we think is common
  * across markets".
  */
-export function useKnownPublishers() {
-  const library = useLiveQuery(() => db.library.toArray(), []);
+export function useKnownPublishers({ enabled = true } = {}) {
+  // `enabled: false` reads nothing: the series page asks only while its
+  // edit form is open, instead of loading the whole library on every
+  // visit for an autocomplete nobody is looking at.
+  const library = useLiveQuery(
+    () => (enabled ? db.library.toArray() : Promise.resolve([])),
+    [enabled],
+  );
 
   return useMemo(() => {
     const counts = new Map();

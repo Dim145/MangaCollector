@@ -1,44 +1,23 @@
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import Skeleton from "../ui/Skeleton.jsx";
+import BarChartSvg from "./charts/BarChartSvg.jsx";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
  * 高 · The chart's height, in pixels, for both the box that reserves
- * the space and the chart drawn inside it.
- *
- * A number, not `"100%"`, and that is the point. `ResponsiveContainer`
- * starts at a size of -1 × -1 and only learns better from a
- * `ResizeObserver` it attaches in an effect — so on its first render it
- * warns, into the console of anyone who opens /stats:
- *
- *     The width(-1) and height(-1) of chart should be greater than 0
- *
- * Nothing about the parent can prevent that; the element being measured
- * does not exist yet. But the check is an OR over the two axes, so a
- * height it does not have to measure satisfies it. The width stays
- * `"100%"` and still follows the column.
+ * the space and the chart drawn inside it. The width follows the column
+ * (`charts/useElementWidth.js`); the height is fixed so the card never
+ * changes size between the skeleton, the empty state and the chart.
  */
 const CHART_H = 256;
 
 /**
- * 金 · "Most valued series" — five tallest spend bars on the
- * profile page. Lifted out of ProfilePage so the recharts chunk
- * (380 KB / 110 KB gzipped) can be lazy-imported alongside the
- * other analytics widgets — visiting /profile no longer pays for
- * the chart library before any chart is in viewport.
+ * 金 · "Most valued series" — the five series the reader spent the most
+ * on. Drawn in plain SVG (`charts/BarChartSvg.jsx`): the chart library
+ * it used to need weighed 92 kB gzipped, more than the page around it.
  *
  * Renders its own loading + empty branches so the parent doesn't
- * have to know which fork to mount; that's how `<Suspense>` can
- * route through the lazy loader without juggling intermediate
- * skeletons in the page itself.
+ * have to know which fork to mount.
  */
 export default function MostValuedChart({
   data,
@@ -64,49 +43,36 @@ export default function MostValuedChart({
             {t("profile.startAdding")}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={CHART_H}>
-            <BarChart data={data}>
-              <defs>
-                <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--hanko-bright)" />
-                  <stop offset="100%" stopColor="var(--hanko-deep)" />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="title"
-                stroke="var(--washi-dim)"
-                fontSize={10}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                stroke="var(--washi-dim)"
-                fontSize={10}
-                tickLine={false}
-                axisLine={false}
-              />
-              <Tooltip
-                cursor={{ fill: "var(--ink-2)", fillOpacity: 0.6 }}
-                contentStyle={{
-                  background: "var(--ink-1)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "0.5rem",
-                  fontSize: 12,
-                  color: "var(--washi)",
-                }}
-                formatter={(value) => [
-                  formatCurrency(value, currencySetting),
-                  t("profile.tooltipSpent"),
-                ]}
-                labelFormatter={(_, pl) => pl?.[0]?.payload?.fullTitle ?? ""}
-              />
-              <Bar
-                dataKey="totalCost"
-                fill="url(#bar-grad)"
-                radius={[6, 6, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <BarChartSvg
+            data={data}
+            value={(d) => d.totalCost}
+            label={(d) => d.title}
+            height={CHART_H}
+            radius={6}
+            grid={false}
+            ariaLabel={t("profile.mostValued")}
+            defs={
+              <linearGradient id="bar-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--hanko-bright)" />
+                <stop offset="100%" stopColor="var(--hanko-deep)" />
+              </linearGradient>
+            }
+            barFill={() => "url(#bar-grad)"}
+            describe={(d) =>
+              `${d.fullTitle ?? d.title} · ${formatCurrency(d.totalCost, currencySetting)}`
+            }
+            tooltip={(d) => (
+              <>
+                <p className="text-washi">{d.fullTitle ?? d.title}</p>
+                <p className="text-washi-muted">
+                  {t("profile.tooltipSpent")} :{" "}
+                  <span className="text-washi">
+                    {formatCurrency(d.totalCost, currencySetting)}
+                  </span>
+                </p>
+              </>
+            )}
+          />
         )}
       </div>
     </div>

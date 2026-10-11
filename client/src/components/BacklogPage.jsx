@@ -422,6 +422,7 @@ function SpineCard({
         {series.image_url_jpg ? (
           <CoverImage
             src={series.image_url_jpg}
+            sizes="72px"
             alt=""
             blur={blurred}
             paletteSeed={series.mal_id}

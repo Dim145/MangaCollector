@@ -7,6 +7,7 @@ vi.mock("@/utils/axios.js", () => ({
 const axios = (await import("@/utils/axios.js")).default;
 const {
   getServerReachable,
+  installConnectivityWatcher,
   isFullyOnline,
   onConnectivityChange,
   probeServer,
@@ -214,4 +215,48 @@ describe("change notifications", () => {
     await probeServer();
     expect(handler).not.toHaveBeenCalled();
   });
+});
+
+/*
+ * The interceptor sees every response, not just the probe's, and most of
+ * those come from routes that call somebody else: Jikan, MangaDex, the
+ * ISBN catalogues. When one of them fails the server says so with a
+ * JSON 502, and the server is still perfectly reachable.
+ */
+describe("ambient responses", () => {
+  let uninstall;
+  let onRejected;
+
+  beforeEach(() => {
+    uninstall = installConnectivityWatcher();
+    onRejected = axios.interceptors.response.use.mock.calls.at(-1)[1];
+  });
+
+  afterEach(() => {
+    uninstall?.();
+  });
+
+  it("leaves the state alone on a JSON 502 — an upstream failed, not us", async () => {
+    await onRejected({
+      response: { status: 502, headers: JSON_HEADERS, data: {} },
+    }).catch(() => {});
+    expect(getServerReachable()).toBe(true);
+  });
+
+  it("still treats a 502 from a proxy page as unreachable", async () => {
+    await onRejected({
+      response: { status: 502, headers: HTML_HEADERS, data: "<html>" },
+    }).catch(() => {});
+    expect(getServerReachable()).toBe(false);
+  });
+
+  it.each([500, 503, 504])(
+    "still treats a JSON %i as unreachable",
+    async (status) => {
+      await onRejected({
+        response: { status, headers: JSON_HEADERS, data: {} },
+      }).catch(() => {});
+      expect(getServerReachable()).toBe(false);
+    },
+  );
 });

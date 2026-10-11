@@ -1,6 +1,7 @@
 import {
   useCallback,
   useContext,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -22,7 +23,7 @@ import LoansWidget from "./LoansWidget.jsx";
 import { FilterButton, ActiveChips } from "./TagFilter.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import MarginaliaPaper from "./ui/MarginaliaPaper.jsx";
-import WelcomeTour from "./WelcomeTour.jsx";
+import WelcomeTour from "./LazyWelcomeTour.jsx";
 import SeasonGreeting from "./SeasonGreeting.jsx";
 import { hasSeenTour } from "@/lib/tour.js";
 import SettingsContext from "@/SettingsContext.js";
@@ -30,7 +31,7 @@ import { useLibrary } from "@/hooks/useLibrary.js";
 import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { useStreak } from "@/hooks/useStreak.js";
 import { filterAdultGenreIfNeeded } from "@/utils/library.js";
-import { normalizeSort, sortLibrary } from "@/utils/librarySort.js";
+import { DEFAULT_SORT, normalizeSort, sortLibrary } from "@/utils/librarySort.js";
 import { seriesIsComplete, skippedCounts, wantedVolumes } from "@/lib/gaps.js";
 import { computeLibraryStats } from "@/utils/libraryStats.js";
 import { useLang, useT } from "@/i18n/index.jsx";
@@ -309,8 +310,14 @@ export default function Dashboard() {
     };
   }, [library, skippedByMal]);
 
+  // 遅 · The field follows every keystroke; the shelf follows the
+  // deferred copy. Filtering and re-laying the grid took 70–90 ms a key
+  // on 128 series (measured, CPU ×4), all of it inside the key's own
+  // frame; deferred, React renders the new shelf in an interruptible
+  // pass and the next keystroke lands first.
+  const deferredQuery = useDeferredValue(query);
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     let result = library;
     if (q) {
       result = result.filter((m) => m.name?.toLowerCase().includes(q));
@@ -390,7 +397,7 @@ export default function Dashboard() {
   }, [
     library,
     filter,
-    query,
+    deferredQuery,
     activeTags,
     tsundokuByMal,
     upcomingByMal,
@@ -455,14 +462,17 @@ export default function Dashboard() {
           await syncOutbox({ force: true });
         }}
       >
-        <div className="mx-auto max-w-7xl px-4 pt-8 pb-nav md:pb-16 sm:px-6 md:pt-12">
+        {/* 上 · Tighter on a phone: the shelf is what the page is for,
+            and its first row has to start inside the first screen (it is
+            also the page's largest paint). */}
+        <div className="mx-auto max-w-7xl px-4 pt-5 pb-nav md:pb-16 sm:px-6 sm:pt-8 md:pt-12">
           {/* 季節 · Once-per-season banner. Self-renders nothing when
             the current season has already been greeted; sits above
             the masthead so it reads as a foreword to the page rather
             than another stat row. */}
           <SeasonGreeting />
           {/* Masthead */}
-          <header className="mb-8 animate-fade-up">
+          <header className="mb-5 animate-fade-up sm:mb-8">
             <div className="flex items-baseline gap-3">
               <span className="font-mono text-xs uppercase tracking-[0.3em] text-washi-dim">
                 {t("dashboard.archive")}
@@ -542,7 +552,7 @@ export default function Dashboard() {
           </header>
 
           {/* Controls */}
-          <section className="mb-8 space-y-4" aria-label="Controls">
+          <section className="mb-6 space-y-3 sm:mb-8 sm:space-y-4" aria-label="Controls">
             <MangaSearchBar
               query={query}
               setQuery={setQuery}
@@ -823,7 +833,7 @@ export default function Dashboard() {
               </div>
             ) : isEmpty || filtered.length === 0 ? (
               <EmptyState
-                hasQuery={Boolean(query)}
+                hasQuery={Boolean(deferredQuery)}
                 hasActiveTags={activeTags.size > 0}
                 onAdd={() => navigate("/addmanga")}
                 onClearTags={clearTags}
@@ -851,6 +861,18 @@ export default function Dashboard() {
                 onToggleSelect={toggleSelected}
                 onEnterSelection={enterSelectionWith}
                 shelf3d={Boolean(shelf_3d_enabled)}
+                // 先 · A fresh session lands on this exact shelf (no
+                // remembered view, default order and filters), so its
+                // first covers are what the next one will open on.
+                recordLcp={
+                  persisted == null &&
+                  !deferredQuery &&
+                  filter === "all" &&
+                  lens == null &&
+                  activeTags.size === 0 &&
+                  sort.key === DEFAULT_SORT.key &&
+                  sort.dir === DEFAULT_SORT.dir
+                }
               />
             )}
           </section>

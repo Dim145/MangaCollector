@@ -2,8 +2,8 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
+    AccessMode, ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait,
+    IsolationLevel, QueryFilter, QuerySelect, Set, Statement, TransactionTrait,
 };
 
 use crate::db::Db;
@@ -35,12 +35,78 @@ fn normalise_note(input: String) -> Option<String> {
     }
 }
 
-pub async fn get_all_for_user(db: &Db, user_id: i32) -> Result<Vec<Volume>, AppError> {
-    VolumeEntity::find()
+/// 差 · The reader's volume revision: the number the last insert or
+/// update of one of their volumes was stamped with (0 before any). Kept
+/// by a database trigger — see `20261011120000_volume_sync_rev.sql`.
+pub async fn current_rev<C: ConnectionTrait>(db: &C, user_id: i32) -> Result<i64, AppError> {
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT rev FROM user_volume_revs WHERE user_id = $1",
+            [user_id.into()],
+        ))
+        .await?;
+    Ok(row
+        .map(|r| r.try_get::<i64>("", "rev"))
+        .transpose()?
+        .unwrap_or(0))
+}
+
+/// Every volume of the reader, and the revision they were read at — in
+/// one snapshot, so a write landing in between cannot be counted in the
+/// revision without being in the rows.
+pub async fn snapshot_for_user(db: &Db, user_id: i32) -> Result<(i64, Vec<Volume>), AppError> {
+    let txn = db
+        .begin_with_config(
+            Some(IsolationLevel::RepeatableRead),
+            Some(AccessMode::ReadOnly),
+        )
+        .await?;
+    let rev = current_rev(&txn, user_id).await?;
+    let volumes = VolumeEntity::find()
         .filter(volume::Column::UserId.eq(user_id))
-        .all(db)
-        .await
-        .map_err(AppError::from)
+        .all(&txn)
+        .await?;
+    txn.commit().await?;
+    Ok((rev, volumes))
+}
+
+/// What changed in the reader's volumes since revision `since`.
+#[derive(Debug, serde::Serialize)]
+pub struct VolumeDelta {
+    /// The revision to ask from next time.
+    pub rev: i64,
+    /// Rows inserted or updated after `since`.
+    pub changed: Vec<Volume>,
+    /// Every id that exists now — a row the device holds and this does
+    /// not list was deleted.
+    pub ids: Vec<i32>,
+}
+
+/// The delta behind `GET /api/user/volume?since=`, read in one snapshot
+/// like `snapshot_for_user`.
+pub async fn delta_for_user(db: &Db, user_id: i32, since: i64) -> Result<VolumeDelta, AppError> {
+    let txn = db
+        .begin_with_config(
+            Some(IsolationLevel::RepeatableRead),
+            Some(AccessMode::ReadOnly),
+        )
+        .await?;
+    let rev = current_rev(&txn, user_id).await?;
+    let changed = VolumeEntity::find()
+        .filter(volume::Column::UserId.eq(user_id))
+        .filter(volume::Column::SyncRev.gt(since))
+        .all(&txn)
+        .await?;
+    let ids: Vec<i32> = VolumeEntity::find()
+        .select_only()
+        .column(volume::Column::Id)
+        .filter(volume::Column::UserId.eq(user_id))
+        .into_tuple()
+        .all(&txn)
+        .await?;
+    txn.commit().await?;
+    Ok(VolumeDelta { rev, changed, ids })
 }
 
 pub async fn get_all_for_user_by_mal_id(

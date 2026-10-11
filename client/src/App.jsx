@@ -15,8 +15,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import {
   bootstrapLanguage,
   I18nProvider,
+  loadAllNamespaces,
   loadLanguage,
   rememberLanguage,
+  settleLanguage,
 } from "@/i18n/index.jsx";
 
 // Eager — always on screen, no point code-splitting these
@@ -26,7 +28,6 @@ import DefaultBackground from "@/components/DefaultBackground.jsx";
 import OfflineBanner from "@/components/OfflineBanner.jsx";
 import SyncToaster from "@/components/SyncToaster.jsx";
 import SealsUnlockToaster from "@/components/SealsUnlockToaster.jsx";
-import InkTrailCursor from "@/components/ui/InkTrailCursor.jsx";
 import UpdatePrompt from "@/components/UpdatePrompt.jsx";
 import PageLoader from "@/components/PageLoader.jsx";
 import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
@@ -39,50 +40,45 @@ import RouteErrorBoundary from "@/components/RouteErrorBoundary.jsx";
 // Wrapped in <Suspense fallback={null}> below so the chunk-load is
 // invisible.
 const CommandPalette = lazy(() => import("@/components/CommandPalette.jsx"));
+// 筆 · The ink trail is opt-in (Settings → Apparence) and off for touch
+// and reduced motion: its canvas loop has no business in the entry
+// chunk that every visitor downloads.
+const InkTrailCursor = lazy(() => import("@/components/ui/InkTrailCursor.jsx"));
 const ShortcutsCheatSheet = lazy(
   () => import("@/components/ShortcutsCheatSheet.jsx"),
 );
 
-// Lazy routes — each lands in its own JS chunk so first paint ships less.
-// Recharts rides with ProfilePage, @zxing rides with AddPage via its own
-// dynamic import inside barcode.js.
-const About = lazy(() => import("./components/About"));
-const Login = lazy(() => import("./components/Login"));
-const Dashboard = lazy(() => import("./components/Dashboard"));
-const MangaPageRoute = lazy(() => import("./components/MangaPageRoute"));
-const AddPage = lazy(() => import("@/components/AddPage.jsx"));
-const ProfilePage = lazy(() => import("./components/ProfilePage"));
-// 帳 · StatsPage — deep-dive ledger with the heavy charts +
-// extended analytics. Lazy so the /profile chunk doesn't grow.
-const StatsPage = lazy(() => import("./components/StatsPage"));
-const SettingsPage = lazy(() => import("@/components/SettingsPage.jsx"));
-const SealsPage = lazy(() => import("./components/SealsPage"));
-const PublicProfile = lazy(() => import("./components/PublicProfile"));
-const ImportExternalPage = lazy(
-  () => import("./components/ImportExternalPage"),
-);
-const ComparePage = lazy(() => import("./components/ComparePage"));
-const YearInReviewPage = lazy(() => import("./components/YearInReviewPage"));
-const ShelfStickersPage = lazy(() => import("./components/ShelfStickersPage"));
-// 番 · Global scanner — shelf lookup first, add flow second.
-const ScanPage = lazy(() => import("./components/ScanPage.jsx"));
-// 棚 · Places and stock-taking — the physical side of the shelf.
-const RangementPage = lazy(() => import("./components/RangementPage.jsx"));
-const InventoryPage = lazy(() => import("./components/InventoryPage.jsx"));
-// 助 · The help page — its prose is fetched with it, not bundled.
-const HelpPage = lazy(() => import("./components/HelpPage.jsx"));
-const GlossaryPage = lazy(() => import("./components/GlossaryPage.jsx"));
-const CalendarPage = lazy(() => import("@/components/CalendarPage.jsx"));
-const AuthorPage = lazy(() => import("./components/AuthorPage.jsx"));
-const BacklogPage = lazy(() => import("./components/BacklogPage.jsx"));
-const SnapshotsPage = lazy(() => import("./components/SnapshotsPage.jsx"));
-const FriendsPage = lazy(() => import("./components/FriendsPage.jsx"));
-const CollectionPage = lazy(() => import("./components/CollectionPage.jsx"));
-// 迷子 · 404 page — rendered for any URL that doesn't match a
-// known route. Lazy-loaded since it's a low-frequency surface
-// (most users never see it); shipping the chibi SVG + page
-// chrome on the cold-path keeps the main bundle lean.
-const NotFoundPage = lazy(() => import("./components/NotFoundPage.jsx"));
+// 頁 · Routes — each page lands in its own chunk so first paint ships
+// less, and each can be loaded before it renders (`routePages.js`), which
+// is what spares a cold start the loading screen.
+import {
+  About,
+  AddPage,
+  AuthorPage,
+  BacklogPage,
+  CalendarPage,
+  CollectionPage,
+  ComparePage,
+  Dashboard,
+  FriendsPage,
+  GlossaryPage,
+  HelpPage,
+  ImportExternalPage,
+  InventoryPage,
+  Login,
+  MangaPageRoute,
+  NotFoundPage,
+  ProfilePage,
+  PublicProfile,
+  RangementPage,
+  ScanPage,
+  SealsPage,
+  SettingsPage,
+  ShelfStickersPage,
+  SnapshotsPage,
+  StatsPage,
+  YearInReviewPage,
+} from "./routePages.js";
 
 import SettingsContext from "@/SettingsContext.js";
 import { queryClient } from "@/lib/queryClient.js";
@@ -197,6 +193,9 @@ function SettingsProvider({ children }) {
   );
 }
 
+const TEXT_WARM_KEY = "mc:i18n-warm";
+const TEXT_WARM_DELAY_MS = 5000;
+
 /**
  * Reads the language once at startup from localStorage, then follows live
  * settings updates. Wraps the rest of the tree in an I18nProvider so every
@@ -220,6 +219,73 @@ function I18nBoundary({ children }) {
       cancelled = true;
     };
   }, [settings?.language, lang]);
+
+  // 分 · Once a language is on screen, page text is fetched for it alone.
+  useEffect(() => {
+    settleLanguage(lang);
+  }, [lang]);
+
+  // 分 · Each page brings its own text (`i18n/split.js`). Offline, a page
+  // never opened online would have none — so once a reader's first screen
+  // is up and the browser is idle, the rest of their language is fetched
+  // and the service worker keeps it. Readers only: a visitor on the
+  // landing, who has no settings, is not sent the whole catalogue.
+  //
+  // Once per deploy and language: the entry's own address changes with
+  // every build that changes a catalogue chunk (their loaders live in
+  // it), and the mark is only left when a service worker controls the
+  // page — on a first visit it does not yet, and its cache would not
+  // have kept what was fetched.
+  //
+  // And not before the page has finished loading, plus a few seconds:
+  // started at the first idle moment, its thirty-odd small requests
+  // landed in the middle of the first screen's own (65 requests before
+  // the largest paint of /calendrier instead of 32, measured).
+  const signedIn = settings != null;
+  useEffect(() => {
+    if (!signedIn || typeof window === "undefined") return undefined;
+    if (navigator.onLine === false) return undefined;
+    const stamp = `${lang} ${import.meta.url}`;
+    try {
+      if (localStorage.getItem(TEXT_WARM_KEY) === stamp) return undefined;
+    } catch {
+      /* storage blocked — warm it anyway */
+    }
+    const idle = window.requestIdleCallback ?? ((cb) => window.setTimeout(cb, 1000));
+    const cancelIdle = window.cancelIdleCallback ?? window.clearTimeout;
+    let timer = null;
+    let handle = null;
+    const warm = () => {
+      handle = idle(
+        () => {
+          loadAllNamespaces().then(
+            () => {
+              if (!navigator.serviceWorker?.controller) return;
+              try {
+                localStorage.setItem(TEXT_WARM_KEY, stamp);
+              } catch {
+                /* next start warms it again */
+              }
+            },
+            () => {
+              /* offline or a stale deploy — the pages load their own text */
+            },
+          );
+        },
+        { timeout: 15000 },
+      );
+    };
+    const afterLoad = () => {
+      timer = window.setTimeout(warm, TEXT_WARM_DELAY_MS);
+    };
+    if (document.readyState === "complete") afterLoad();
+    else window.addEventListener("load", afterLoad, { once: true });
+    return () => {
+      window.removeEventListener("load", afterLoad);
+      if (timer != null) window.clearTimeout(timer);
+      if (handle != null) cancelIdle(handle);
+    };
+  }, [signedIn, lang]);
 
   return <I18nProvider lang={lang}>{children}</I18nProvider>;
 }
@@ -269,7 +335,11 @@ function SignedInOnly({ children }) {
 function InkTrailGate() {
   const { ink_trail_enabled } = useContext(SettingsContext);
   if (!ink_trail_enabled) return null;
-  return <InkTrailCursor />;
+  return (
+    <Suspense fallback={null}>
+      <InkTrailCursor />
+    </Suspense>
+  );
 }
 
 function AppShell() {

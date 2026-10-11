@@ -26,6 +26,7 @@ pub mod ops;
 pub mod proxy_client;
 pub mod realtime;
 pub mod releases;
+pub mod rum;
 pub mod seals;
 pub mod sessions;
 pub mod sessions_cleanup;

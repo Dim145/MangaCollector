@@ -168,3 +168,6 @@ mutants.out.old/
 .stryker-tmp/
 client/reports/
 stryker.log
+
+# Lab measurement output (scripts/perf)
+scripts/perf/.out/

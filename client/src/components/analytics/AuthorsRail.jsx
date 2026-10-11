@@ -73,6 +73,7 @@ function FeaturedRow({ rank, author, t }) {
             <div key={i} className="relative aspect-[3/4] overflow-hidden">
               <CoverImage
                 src={url}
+                sizes="96px"
                 alt=""
                 className="h-full w-full object-cover opacity-90 transition group-hover:scale-[1.04]"
               />

@@ -130,3 +130,68 @@ export function originalCoverSrc(src) {
     return null;
   }
 }
+
+/*
+ * 寸 · The sizes a cover host serves, as `srcset` candidates.
+ *
+ * Both CDNs keep more than one rendition of every cover, and the shelf
+ * used to ask for the largest one everywhere — for a 28-pixel thumbnail
+ * as for the series page. Measured on real covers:
+ *
+ *   MangaDex  `….512.jpg`  512×728  103–213 kB   `….256.jpg`  256×364  32–63 kB
+ *   MAL       `…l.jpg`     422×600  156–190 kB   `…l.webp`    same size  38–49 kB
+ *                                                `….webp`     225×320  14–20 kB
+ *
+ * MyAnimeList serves every cover as WebP too, at a quarter of the JPEG's
+ * weight for the same pixels, and every browser this app supports reads
+ * WebP — so its candidates are the two WebP renditions. The widths are
+ * nominal (MAL's large rendition is 380–422 wide): the browser only uses
+ * them to choose.
+ *
+ * Anything else — a poster on our own origin, a Google Books thumbnail,
+ * an address pasted by hand — has no known renditions: `null`.
+ */
+const MANGADEX_COVER =
+  /^https:\/\/uploads\.mangadex\.org\/covers\/([0-9a-f-]{36})\/([0-9a-f-]{36}\.(?:jpe?g|png|gif|webp))(?:\.(?:256|512)\.jpg)?$/i;
+const MAL_COVER =
+  /^https:\/\/cdn\.myanimelist\.net\/images\/(manga|anime)\/(\d{1,6})\/(\d{1,12})[lt]?\.(?:jpe?g|webp)$/i;
+
+export function coverCandidates(url) {
+  if (typeof url !== "string" || !url) return null;
+  const md = MANGADEX_COVER.exec(url);
+  if (md) {
+    const base = `https://uploads.mangadex.org/covers/${md[1].toLowerCase()}/${md[2]}`;
+    return [
+      { url: `${base}.256.jpg`, width: 256 },
+      { url: `${base}.512.jpg`, width: 512 },
+    ];
+  }
+  const mal = MAL_COVER.exec(url);
+  if (mal) {
+    const base = `https://cdn.myanimelist.net/images/${mal[1].toLowerCase()}/${mal[2]}/${mal[3]}`;
+    return [
+      { url: `${base}.webp`, width: 225 },
+      { url: `${base}l.webp`, width: 420 },
+    ];
+  }
+  return null;
+}
+
+/**
+ * `{ src, srcSet }` for an `<img>` showing `url`.
+ *
+ * `relay` applies the operator's cover relay to every candidate (the
+ * server rebuilds each rendition from its parsed parts, see
+ * `handlers/cover.rs`); `false` asks the CDN directly, which is the
+ * first fallback when the relay fails. `src` is the largest candidate,
+ * so a browser that ignored `srcset` would show what it always did.
+ */
+export function coverSources(url, { relay = true } = {}) {
+  const wrap = relay ? coverSrc : (u) => u;
+  const candidates = coverCandidates(url);
+  if (!candidates) return { src: wrap(url), srcSet: undefined };
+  return {
+    src: wrap(candidates[candidates.length - 1].url),
+    srcSet: candidates.map((c) => `${wrap(c.url)} ${c.width}w`).join(", "),
+  };
+}

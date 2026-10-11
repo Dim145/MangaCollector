@@ -43,6 +43,8 @@ export default function VirtualMangaGrid({
   onToggleSelect,
   onEnterSelection,
   shelf3d,
+  coverSizes,
+  recordLcp = false,
 }) {
   const { density } = useGridDensity();
   const { parentRef, lanes, scrollMargin, virtualizer, measureRow } =
@@ -104,6 +106,11 @@ export default function VirtualMangaGrid({
               <Manga
                 key={manga.id ?? manga.mal_id ?? `idx-${start + i}`}
                 manga={manga}
+                coverSizes={coverSizes}
+                priority={virtualRow.index === 0}
+                lcpHintRank={
+                  recordLcp && virtualRow.index === 0 && i < 2 ? i : undefined
+                }
                 adult_content_level={adult_content_level}
                 allCollector={allCollectorSet.has(manga.mal_id)}
                 tsundokuCount={tsundokuByMal.get(manga.mal_id) ?? 0}

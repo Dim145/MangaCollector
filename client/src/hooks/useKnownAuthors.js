@@ -24,8 +24,14 @@ import { db } from "@/lib/db.js";
  * of MANGA mal_ids attributed to that author (used by callers that
  * want to deep-link into the affected series).
  */
-export function useKnownAuthors() {
-  const library = useLiveQuery(() => db.library.toArray(), []);
+export function useKnownAuthors({ enabled = true } = {}) {
+  // `enabled: false` reads nothing: the series page asks only while its
+  // edit form is open, instead of loading the whole library on every
+  // visit for an autocomplete nobody is looking at.
+  const library = useLiveQuery(
+    () => (enabled ? db.library.toArray() : Promise.resolve([])),
+    [enabled],
+  );
 
   return useMemo(() => {
     const buckets = new Map();

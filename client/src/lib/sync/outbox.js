@@ -2,7 +2,6 @@ import axios from "@/utils/axios.js";
 import { isbn13Of } from "../isbn.js";
 import {
   cacheCoffretsForManga,
-  cacheLibrary,
   cacheLibraryEntry,
   cacheSettings,
   cacheVolumesForManga,
@@ -13,6 +12,7 @@ import {
 import { isForeignOwner, readOwner, writeOwner } from "../owner.js";
 import { isFullyOnline, probeServer } from "../connectivity.js";
 import { queryClient } from "../queryClient.js";
+import { forgetTag, libraryQuery, settingsQuery } from "../coreQueries.js";
 import { emitSyncError, notifyPendingChanged } from "./events.js";
 
 /*
@@ -1042,7 +1042,7 @@ function idemConfig(sig, op) {
   return { headers: { "Idempotency-Key": `${sig}:${op.ts}` } };
 }
 
-async function flushLibrary() {
+async function flushLibrary(touched) {
   const ops = await db.outboxLibrary.orderBy("ts").toArray();
   for (const op of ops) {
     const sig = `library:${op.mal_id}`;
@@ -1133,12 +1133,13 @@ async function flushLibrary() {
         }
       }
       await db.outboxLibrary.delete(op.mal_id);
+      touch(touched, op.mal_id);
       clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
       if (shouldDeadLetter(sig, err)) {
         await db.outboxLibrary.delete(op.mal_id);
-        await refetchLibrary().catch(() => {});
+        await refetchLibrary({ force: true }).catch(() => {});
         emitSyncError({
           op: "library",
           mal_id: op.mal_id,
@@ -1153,60 +1154,106 @@ async function flushLibrary() {
   }
 }
 
-async function flushVolumes() {
+/*
+ * 並 · Volume ops go out four at a time — but never two for the same
+ * series. Each PATCH ends in a read-modify-write of its series' row on
+ * the server (`volumes_owned` is recounted, the reading state derived),
+ * and those are not atomic: two in flight for one series could leave
+ * the count, or "finished reading", one tome behind. Ops are grouped by
+ * series, each group runs in order, and up to four groups run side by
+ * side. Forty tomes marked offline across a few series used to be forty
+ * round trips in a row on reconnect.
+ *
+ * A retriable failure stops new requests; those already in flight
+ * finish, and the error is rethrown so the pass backs off as before.
+ */
+const VOLUME_FLUSH_CONCURRENCY = 4;
+
+async function flushVolumes(touched) {
   const ops = await db.outboxVolumes.orderBy("ts").toArray();
+  const groups = new Map();
   for (const op of ops) {
-    const sig = `volume:${op.id}`;
-    try {
-      await axios.patch(
-        `/api/user/volume`,
-        {
-          id: op.id,
-          owned: op.payload.owned,
-          price: op.payload.price,
-          store: op.payload.store,
-          collector: Boolean(op.payload.collector),
-          // `read` and `notes` are only sent when explicitly set; an
-          // unrelated outbox replay (e.g. a price edit) leaves them
-          // untouched server-side.
-          ...(op.payload.read !== undefined
-            ? { read: Boolean(op.payload.read) }
-            : {}),
-          ...(op.payload.notes !== undefined
-            ? { notes: String(op.payload.notes ?? "") }
-            : {}),
-          // 物 · Physical copy — each field only when it was set, so a
-          // replayed price edit never resets a condition or location.
-          ...Object.fromEntries(
-            PHYSICAL_KEYS.filter((k) => op.payload[k] !== undefined).map(
-              (k) => [k, op.payload[k]],
-            ),
-          ),
-          // 預け · Loan mutation. Three-state in the payload mirrors
-          // the server's `Option<Option<LoanPatch>>`:
-          //   - omitted → leave loan triplet alone
-          //   - null → return the volume (clear loan)
-          //   - { to, due_at } → mark as lent
-          ...("loan" in (op.payload ?? {}) ? { loan: op.payload.loan } : {}),
-        },
-        idemConfig(sig, op),
-      );
-      await db.outboxVolumes.delete(op.id);
-      clearOpRetries(sig);
-      notifyPendingChanged();
-    } catch (err) {
-      if (shouldDeadLetter(sig, err)) {
-        await db.outboxVolumes.delete(op.id);
-        if (op.mal_id) await refetchVolumes(op.mal_id).catch(() => {});
-        emitSyncError({
-          op: "volume",
-          id: op.id,
-          message: err?.response?.data?.error ?? err.message ?? "Sync failed",
-        });
-        notifyPendingChanged();
-      } else {
-        throw err;
+    const key = op.mal_id ?? `id:${op.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(op);
+  }
+  const queue = [...groups.values()];
+  let failure = null;
+  const worker = async () => {
+    while (failure == null && queue.length) {
+      const group = queue.shift();
+      for (const op of group) {
+        if (failure != null) return;
+        try {
+          await flushVolumeOp(op, touched);
+        } catch (err) {
+          failure ??= err;
+          return;
+        }
       }
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(VOLUME_FLUSH_CONCURRENCY, queue.length) },
+      worker,
+    ),
+  );
+  if (failure != null) throw failure;
+}
+
+async function flushVolumeOp(op, touched) {
+  const sig = `volume:${op.id}`;
+  try {
+    await axios.patch(
+      `/api/user/volume`,
+      {
+        id: op.id,
+        owned: op.payload.owned,
+        price: op.payload.price,
+        store: op.payload.store,
+        collector: Boolean(op.payload.collector),
+        // `read` and `notes` are only sent when explicitly set; an
+        // unrelated outbox replay (e.g. a price edit) leaves them
+        // untouched server-side.
+        ...(op.payload.read !== undefined
+          ? { read: Boolean(op.payload.read) }
+          : {}),
+        ...(op.payload.notes !== undefined
+          ? { notes: String(op.payload.notes ?? "") }
+          : {}),
+        // 物 · Physical copy — each field only when it was set, so a
+        // replayed price edit never resets a condition or location.
+        ...Object.fromEntries(
+          PHYSICAL_KEYS.filter((k) => op.payload[k] !== undefined).map(
+            (k) => [k, op.payload[k]],
+          ),
+        ),
+        // 預け · Loan mutation. Three-state in the payload mirrors
+        // the server's `Option<Option<LoanPatch>>`:
+        //   - omitted → leave loan triplet alone
+        //   - null → return the volume (clear loan)
+        //   - { to, due_at } → mark as lent
+        ...("loan" in (op.payload ?? {}) ? { loan: op.payload.loan } : {}),
+      },
+      idemConfig(sig, op),
+    );
+    await db.outboxVolumes.delete(op.id);
+    touch(touched, op.mal_id);
+    clearOpRetries(sig);
+    notifyPendingChanged();
+  } catch (err) {
+    if (shouldDeadLetter(sig, err)) {
+      await db.outboxVolumes.delete(op.id);
+      if (op.mal_id) await refetchVolumes(op.mal_id).catch(() => {});
+      emitSyncError({
+        op: "volume",
+        id: op.id,
+        message: err?.response?.data?.error ?? err.message ?? "Sync failed",
+      });
+      notifyPendingChanged();
+    } else {
+      throw err;
     }
   }
 }
@@ -1252,7 +1299,7 @@ async function flushSettings() {
  * UI can prompt the user to retry. The library is invalidated
  * after a delete since unlinking touches user_libraries.author_id.
  */
-async function flushAuthors() {
+async function flushAuthors(touched) {
   const ops = await db.outboxAuthors.orderBy("ts").toArray();
   let touchedDelete = false;
   for (const op of ops) {
@@ -1312,11 +1359,12 @@ async function flushAuthors() {
   // waiting for the user to navigate. Skip the refetch when no
   // delete happened (a pure patch flush leaves library untouched).
   if (touchedDelete) {
-    await refetchLibrary().catch(() => {});
+    if (touched) touched.all = true;
+    else await refetchLibrary().catch(() => {});
   }
 }
 
-async function flushBulkMark() {
+async function flushBulkMark(touched) {
   // 一括 · Replays pending bulk-mark cascades. The order is
   // chronological by `ts` so two ops on different series apply in
   // the same order the user produced them. After each successful
@@ -1344,7 +1392,10 @@ async function flushBulkMark() {
       );
       await db.outboxBulkMark.delete(op.mal_id);
       await refetchVolumes(op.mal_id).catch(() => {});
-      await refetchLibrary().catch(() => {});
+      // The series row (counts, reading state) comes back with the
+      // pass's refresh — one row, instead of the whole library per op.
+      if (touched) touch(touched, op.mal_id);
+      else await refetchLibraryEntry(op.mal_id).catch(() => {});
       clearOpRetries(sig);
       notifyPendingChanged();
     } catch (err) {
@@ -1353,7 +1404,7 @@ async function flushBulkMark() {
         // Server rejected the cascade — pull the authoritative
         // state so the optimistic local diff snaps back.
         await refetchVolumes(op.mal_id).catch(() => {});
-        await refetchLibrary().catch(() => {});
+        await refetchLibrary({ force: true }).catch(() => {});
         emitSyncError({
           op: "bulk-mark",
           mal_id: op.mal_id,
@@ -1387,7 +1438,7 @@ async function flushBulkMark() {
  * Retriable errors propagate up so the outer `syncOutbox` retry
  * pass picks them up later.
  */
-async function flushCoffrets() {
+async function flushCoffrets(touched) {
   const ops = await db.outboxCoffrets.orderBy("ts").toArray();
   let touchedDeleteOrCreate = false;
   for (const op of ops) {
@@ -1423,6 +1474,8 @@ async function flushCoffrets() {
           await db.coffrets.put(data);
         }
         touchedDeleteOrCreate = true;
+        // Binding tomes flips them owned: the series row is recounted.
+        touch(touched, op.mal_id);
       } else if (op.op === "update") {
         const { data } = await axios.patch(
           `/api/user/coffrets/${op.id}`,
@@ -1439,6 +1492,7 @@ async function flushCoffrets() {
         // The Dexie coffret row + volume bindings were already
         // cleared in `enqueueCoffretDelete`; nothing to do here.
         touchedDeleteOrCreate = true;
+        touch(touched, op.mal_id);
       } else {
         // Unknown op shape — drop to avoid blocking the queue.
         await db.outboxCoffrets.delete(op.id);
@@ -1486,11 +1540,50 @@ async function flushCoffrets() {
   return touchedDeleteOrCreate;
 }
 
-async function refetchLibrary() {
-  const { data } = await axios.get(`/api/user/library`);
-  await cacheLibrary(data);
-  queryClient.invalidateQueries({ queryKey: ["library"] });
-  return data;
+/**
+ * 同 · The whole library, through the query client and its `ETag`
+ * check (`lib/coreQueries.js`). It used to GET the list as JSON, write
+ * it, then invalidate `["library"]` — which sent the same GET again and
+ * wrote the same rows a second time, on every flush.
+ *
+ * `force` is for reverts: after the server refused an edit, its answer
+ * is the one already held, and only a rewrite unwinds the optimistic
+ * row sitting in Dexie.
+ */
+async function refetchLibrary({ force = false } = {}) {
+  if (force) forgetTag("library");
+  return queryClient.fetchQuery({ ...libraryQuery, staleTime: 0 });
+}
+
+/*
+ * 範 · What a flush pass touched, so the refresh that follows asks for
+ * those series and nothing else. A volume flip changes its series' row
+ * on the server (`volumes_owned` is recounted, the reading state is
+ * derived), so the row has to come back — but one row, not the
+ * library. Past a handful the single list is cheaper than the requests.
+ */
+const ENTRY_REFRESH_LIMIT = 8;
+
+function newTouched() {
+  return { series: new Set(), all: false };
+}
+
+function touch(touched, mal_id) {
+  if (!touched) return;
+  if (mal_id == null) touched.all = true;
+  else touched.series.add(mal_id);
+}
+
+async function refreshTouched(touched) {
+  if (touched.all || touched.series.size > ENTRY_REFRESH_LIMIT) {
+    await refetchLibrary();
+    return;
+  }
+  await Promise.all(
+    [...touched.series].map((mal_id) =>
+      refetchLibraryEntry(mal_id).catch(() => {}),
+    ),
+  );
 }
 
 /**
@@ -1525,15 +1618,17 @@ export async function refetchLibraryEntry(mal_id) {
 export async function refetchVolumes(mal_id) {
   const { data } = await axios.get(`/api/user/volume/${mal_id}`);
   await cacheVolumesForManga(mal_id, data);
-  queryClient.invalidateQueries({ queryKey: ["volumes", mal_id] });
+  // This IS the fresh answer. Invalidating the key instead made the
+  // series page — whose hook holds that key — ask for it a second time.
+  queryClient.setQueryData(["volumes", mal_id], data);
   return data;
 }
 
 async function refetchSettings() {
-  const { data } = await axios.get(`/api/user/settings`);
-  await cacheSettings(data);
-  queryClient.invalidateQueries({ queryKey: ["settings"] });
-  return data;
+  // Same reasoning as `refetchLibrary`: one request, through the key the
+  // settings hook reads, instead of a GET followed by an invalidation
+  // that sent it again.
+  return queryClient.fetchQuery({ ...settingsQuery, staleTime: 0 });
 }
 
 /*
@@ -1603,6 +1698,7 @@ export async function syncOutbox({ force = false } = {}) {
 
   syncing = true;
   let hadRetriable = false;
+  const touched = newTouched();
   try {
     // Each flush is ISOLATED: a retriable failure in one entity's queue
     // (a transient 5xx on a library op, say) must not abort the others.
@@ -1628,7 +1724,7 @@ export async function syncOutbox({ force = false } = {}) {
       flushCoffrets,
     ]) {
       try {
-        await flush();
+        await flush(touched);
       } catch (err) {
         hadRetriable = true;
         console.warn("[sync] retriable error, will retry later:", err?.message);
@@ -1636,11 +1732,10 @@ export async function syncOutbox({ force = false } = {}) {
     }
     if (hadRetriable) probeServer().catch(() => {});
     // Only pull fresh server state when we actually pushed something —
-    // otherwise the read hooks already have what they need.
-    await Promise.all([
-      refetchLibrary().catch(() => {}),
-      refetchSettings().catch(() => {}),
-    ]);
+    // otherwise the read hooks already have what they need — and only
+    // for the series the pass touched. The settings need nothing: their
+    // flush caches the server's answer to the POST itself.
+    await refreshTouched(touched).catch(() => {});
   } catch (err) {
     // The flush loop swallows flush errors, so reaching here means
     // something outside the flushes threw — don't let it escape as an

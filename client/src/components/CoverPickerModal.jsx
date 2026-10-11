@@ -5,6 +5,7 @@ import Tooltip from "@/components/ui/Tooltip.jsx";
 import { useCoverPool } from "@/hooks/useCoverPool.js";
 import { useT } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 /**
  * Cover picker carousel — clicking the poster on MangaPage opens this.
  *
@@ -225,9 +226,10 @@ export default function CoverPickerModal({
               unmask the red ambient wash behind and produce a brief red
               flash before the overlay fade-out completes. */}
           {selected ? (
-            <img referrerPolicy="no-referrer"
+            <CoverImg referrerPolicy="no-referrer"
               key={selected}
               src={selected}
+              sizes="70vw"
               alt=""
               draggable={false}
               className="relative max-h-[65vh] max-w-[min(100%,70vw)] rounded-lg border border-border object-contain shadow-[0_30px_80px_rgba(0,0,0,0.7)] animate-fade-in select-none"
@@ -320,8 +322,9 @@ export default function CoverPickerModal({
                             : "border-transparent opacity-70 hover:opacity-100 hover:-translate-y-0.5"
                       }`}
                     >
-                      <img referrerPolicy="no-referrer"
+                      <CoverImg referrerPolicy="no-referrer"
                         src={url}
+                        sizes="44px"
                         alt=""
                         loading="lazy"
                         draggable={false}

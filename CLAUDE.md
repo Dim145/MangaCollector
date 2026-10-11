@@ -14,7 +14,7 @@ server/   → Rust 2024 + Axum 0.8 + SeaORM 1.1 (over sqlx 0.8)
 ```
 
 **Backend pattern:** `routes/` → `handlers/` → `services/` → `models/`
-(SeaORM entities). 24 handler modules, 33 service modules + `ops/`, 18 entity
+(SeaORM entities). 26 handler modules, 35 service modules + `ops/`, 18 entity
 modules, plus `routes/mcp/` (the MCP endpoint).
 
 `services/ops/` (書) sits between handlers and services and holds the
@@ -82,6 +82,21 @@ client reads the tag back (`lib/coreQueries.js`) and skips parsing and
 rewriting an answer it already holds, which is why `ETag` is in the
 CORS exposed headers.
 
+**Delta refresh of the volumes:** every `user_volumes` row carries a
+`sync_rev`, stamped by a trigger from a per-reader counter
+(`user_volume_revs`) in the same transaction as the write — the counter
+row's lock serialises one reader's volume writes, so a revision a
+device has seen is never followed by a smaller one committing later
+(the trap of a plain sequence). `GET /api/user/volume` answers the
+revision it was read at in `X-Volume-Rev` (exposed to CORS beside
+`ETag`); `?since=<rev>` answers `{ rev, changed, ids }` — the rows
+written after it and every id that still exists, which is how deletions
+travel. The client keeps the cursor beside its ETags
+(`mc:etag:volumes-rev`, wiped with them) and falls back to a full read
+on a 400, an older server or an empty table (`lib/coreQueries.js`,
+`applyVolumesDelta` in `lib/db.js`). On the seeded library a refresh
+after one change went from 1 189 604 bytes to 12.6 kB.
+
 **Dev proxy:** Traefik v2.
 
 > The backend was originally Express + Knex + Objection + Passport. That
@@ -118,6 +133,7 @@ CORS exposed headers.
 | `JIKAN_API_URL` | 源 · Base of a Jikan v4 gateway, version included (`https://jikan.example.org/v4`). Empty = the public `https://api.jikan.moe/v4`, which has spent long stretches hanging until every call times out. Mirrors that keep Jikan's routes but not its JSON are read too — jikan-edge (`https://jikan.lucashdo.com/v1`: camelCase, flattened, `{ data, meta }`) is translated item by item in `services/jikan_compat.rs`. `http` is accepted for a mirror on your network; a base with a query, a fragment or credentials is refused at startup (logged) and the default used |
 | `MAL_CLIENT_ID` | 源 · A MyAnimeList API client id. Set and non-empty, search, series details, alternate covers, recommendations and the import by username go to the official API v2 first, with Jikan as the fallback when it *fails* (a 404 is an answer). Authors and characters stay on Jikan — the official API has neither. Public endpoints need no client secret and no user login, so there is no `MAL_CLIENT_SECRET`. Sent as `X-MAL-CLIENT-ID`, marked sensitive, never logged |
 | `PROXY_COVERS` | 影 · Relay covers through the server instead of the browser fetching them from MAL/MangaDex, so those CDNs stop seeing every reader's address. Default `false` — it moves the bytes onto the operator's connection. Works for MyAnimeList; MangaDex refuses a server client outright (`ENHANCE_YOUR_CALM` on the first stream, any concurrency), and the browser falls back to fetching those directly. Doing better needs a server-side cover cache |
+| `RUM_ENABLED` | 測 · Field measurements. Default `false`. When on, signed-in readers' browsers send their Core Web Vitals (LCP / INP / CLS / FCP / TTFB with web-vitals' attribution: the page as `/author/:param`, the phases, the CSS selector at fault — nothing that names the reader) to `POST /api/rum` when a page is hidden. Each value is logged under the `mc_rum` target; `GET /api/rum/summary` (loopback only, like `/api/health`) answers p50 / p75 / p95 per page and metric over the last 512 values. A visitor on the landing sends nothing and downloads nothing |
 | `MCP_ENABLED` | 接 · Opt-in switch for `/mcp`. Default `false` — it hands an agent write access to a whole library |
 | `MCP_ALLOWED_HOSTS` | Extra `Host` values the MCP transport answers to, comma-separated. rmcp ships loopback-only and validates `Host` against DNS rebinding, so a real deployment must name itself here or every request is refused |
 | `MCP_ALLOWED_ORIGINS` | `Origin` values to accept. Empty = unchecked, which is right for a cookie-less endpoint |
@@ -171,12 +187,17 @@ docker compose build
 
 ## Testing
 
-- **Server:** `cargo test` — 218 tests across 40 `#[cfg(test)]` modules
+- **Server:** `cargo test` — 225 tests across 41 `#[cfg(test)]` modules
   (`storage.rs`, `errors.rs`, `http_cache.rs`, `handlers/cover.rs`,
   `observability.rs`, `client_ip.rs`,
   `util/{url,uuid,image,isbn,outbound,turnstile}.rs`,
-  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users,mal_api,jikan_compat}.rs`,
+  `services/{genres,proxy_client,google_books_api,isbn_resolver,activity_coalescer,realtime,archive,external_import,library,cover_pool,loan_history,locations,settings,users,mal_api,jikan_compat,rum}.rs`,
   `handlers/realtime.rs`, `models/{archive,library,volume}.rs`).
+  `services/rum.rs` pins what a web-vitals beacon may carry: the five
+  metrics and nothing else, values a browser can measure, a page and
+  never a query or an address, selectors cleaned and cut, a dozen
+  metrics a beacon, and a store that forgets its oldest values and caps
+  the pages it keeps.
   `services/api_keys.rs` pins the MCP credential rules — the scope
   vocabulary, that the read-only preset really is read-only, that a
   scope from a newer build degrades instead of failing the key while an
@@ -236,7 +257,7 @@ docker compose build
   status and dates become as tomes are marked read or unread. The archive ones pin the
   bundle wire format (v1 still imports) and the series-identity rule the
   importer matches conflicts with (MAL id → MangaDex UUID → title).
-- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 126 tests across 62 suites
+- **Client:** `pnpm test` (Vitest 5 + jsdom) — 1 235 tests across 76 suites
   covering the logic layer. `pnpm run test:coverage` writes an HTML/lcov
   report to `client/coverage/`; scope is `src/utils/**` + `src/lib/**`
   (~41% statements), and untested modules there show as 0% on purpose so
@@ -319,7 +340,23 @@ docker compose build
   - Config: `client/vitest.config.js` (separate from `vite.config.js` so
     the PWA plugin stays out of the test run); `src/test/setup.js` pins
     `TZ=UTC` and clears web storage between cases.
-  - Not covered yet: the other 111 components, the 50 hooks, and the
+  - Performance contracts, each pinned where it could regress:
+    `lib/lazyRoute.test.jsx` (a preloaded page renders without its
+    `<Suspense>` fallback — React 19 holds a page 300 ms after one —
+    and a mounted page is never swapped for another element type),
+    `routePages.test.js` (the page table and `vite.config.js`'s
+    `ROUTE_MODULES` list the same paths to the same files),
+    `i18n/split.test.js` (reads the import graph from `main.jsx` and
+    fails when a component using a namespace that ships with a page can
+    reach the screen without that page), `utils/axios.test.js` (the
+    `fetch` client answers in axios's shape), `components/Header.bootShell.test.jsx`
+    (the boot shell in `index.html` is the real header's markup),
+    `components/analytics/charts/*.test.*` (the SVG charts' geometry,
+    keyboard path and hidden table), `hooks/useAfterFirstPaint.test.jsx`,
+    `lib/labelsPdf.test.js` (the worker and its fallbacks),
+    `lib/rum.test.js` and `lib/publicConfig.test.js` (a switch the
+    server announces is never dropped on the way).
+  - Not covered yet: most other components and hooks, and the
     canvas/Web-Audio modules (`shelfSnapshot`, `sounds`, `barcode`).
 - **Toolchain caveat:** `server/rust-toolchain.toml` pins **1.94**, and CI
   runs that. A Homebrew `cargo` earlier on `PATH` than rustup's shim
@@ -485,7 +522,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 |---|---|
 | `/auth` | OAuth callbacks & session lifecycle |
 | `/api/library` | Manga library CRUD, reading progression (`reading_status`, dates, `times_read`; `POST /{mal_id}/reread`), edition status (`publication_status`) |
-| `/api/volume` | Volume tracking (including 飛 `wanted` — a tome deliberately skipped), bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`, and 附 the box extras `has_obi` / `has_jacket` / `has_slipcase` — what the copy still has, asked apart from the grade because a mint copy can still have lost its obi) |
+| `/api/volume` | Volume tracking (including 飛 `wanted` — a tome deliberately skipped), bulk marks, upcoming volumes, loans (`/loans`, `/loans/borrowed`, append-only ledger at `/loans/history`, spreadsheet at `/loans/export.csv?from&to`), physical copy (condition, location, extra copies, bought on, `isbn`, and 附 the box extras `has_obi` / `has_jacket` / `has_slipcase` — what the copy still has, asked apart from the grade because a mint copy can still have lost its obi); the full list answers its revision in `X-Volume-Rev` and `?since=<rev>` answers only what changed (see Delta refresh above) |
 | `/api/authors` | Author records, photos, refresh |
 | `/api/external` | `search?q=` (MAL + MangaDex merged), and 源 `mal/{id}`, `mal/{id}/recommendations`, `mal/{id}/characters` — what the browser used to fetch from Jikan itself, now from whichever upstream the operator configured |
 | `/api/user`, `/api/account` | Profile, deletion, public slug; `GET /api/user/isbn/{isbn}` resolves a barcode through the server-side chain (see External Integrations) |
@@ -502,6 +539,7 @@ Mounted in `server/src/main.rs` as `/auth` and `/api`.
 | `/mcp` | 接 · Model Context Protocol over Streamable HTTP (rmcp). Bearer API key, **no cookie**. Mounted at the top level, outside the CSRF guard and the per-IP limiter — see below |
 | `/.well-known/oauth-protected-resource` | RFC 9728 metadata for `/mcp`, deliberately without `authorization_servers` |
 | `/api/public-config`, `/api/public-slug`, `/api/public-adult` | Public config & profile visibility |
+| `/api/rum`, `/api/rum/summary` | 測 · Field measurements (`RUM_ENABLED`): the SPA's web-vitals beacon (session required, 16 KiB), and the operator's p50/p75/p95 summary (loopback only). 404 when off |
 | `/public/u/{slug}` | Anonymous public profile + poster endpoint |
 
 ## MCP endpoint (`/mcp`)
@@ -569,7 +607,7 @@ stateless), so an AI client can read and curate one account's collection.
 
 ## Database
 
-- Migrations: **`server/migrations/`** — 53 raw `.sql` files, embedded at
+- Migrations: **`server/migrations/`** — 58 raw `.sql` files, embedded at
   compile time via `sqlx::migrate!("./migrations")` in `server/src/db.rs`
   and applied automatically on startup. There is no separate migrate script.
 - Entities (`server/src/models/`): `activity`, `api_key`, `archive`, `author`,
@@ -641,12 +679,19 @@ only checks magic bytes and a 4 MiB ceiling.
 
 ## Frontend (`client/src/`)
 
-122 components in `components/`, 54 hooks in `hooks/`, plus `lib/`
+128 components in `components/`, 59 hooks in `hooks/`, plus `lib/`
 (Dexie `db.js`, outbox `sync.js`, `connectivity.js`, `theme.js`,
 `barcode.js`, `isbn.js`, `scanLookup.js`, `locations.js`, `inventory.js`,
-`labels.js`), `i18n/` (en/fr/es, one lazy chunk per language — only the reader's
-own; `bootstrapLanguage` picks it from `localStorage` before the first
-render, so nothing starts in English and switches) and `styles/`.
+`labels.js`), `i18n/` (en/fr/es, only the reader's own; `bootstrapLanguage`
+picks it from `localStorage` before the first render, so nothing starts
+in English and switches) and `styles/`. Each catalogue is still one file
+per language, but `plugins/i18n-split.js` cuts it at build time
+(`i18n/split.js`): a core the first render waits for (7.4 kB gzipped
+for English, from 34.5) and small chunks that ship with the pages that
+use them — `routePages.js` loads a page's text with its module, the
+boot script modulepreloads both, and once a reader's first screen is up
+the rest of their language is fetched at idle, once per deploy, for
+offline. A namespace not listed in `split.js` stays in the core.
 The barcode scanner is fully client-side (`/scan` finds a tome on the
 shelf, adds a double, or hands the ISBN to the add flow); only the
 catalogue lookup needs a network. `/rangement` is the places view (move
@@ -695,6 +740,45 @@ Server state via TanStack Query 5 with WebSocket-driven invalidation;
 local cache in Dexie (IndexedDB) with an offline outbox that replays
 chronologically on reconnect. Routing via React Router 7.
 
+**What the first screen waits for** (measured in `scripts/perf/`, whose
+README explains how; `scripts/perf-budget.mjs` holds the build to it in
+CI against `client/perf-budget.json`):
+
+- **Pages load before they render.** Every page is `lazyRoute`
+  (`lib/lazyRoute.js`, table in `routePages.js`): `main.jsx` loads the
+  page the address names — and its text — before the first render
+  (capped at 1 s), and a link's hover, focus or touch loads the page it
+  leads to. Rendered before it was there, a page suspends, and React 19
+  keeps the router's fallback up 300 ms however soon the page arrives —
+  /stats appeared at 492 ms instead of 210 at 4× CPU.
+- **The boot shell.** `index.html` carries the header's brand inside
+  `#root`, drawn by the stylesheet alone; React replaces it with the
+  same markup (`components/Header.bootShell.test.jsx`). On a first
+  visit over slow 4G the first paint moved from 2.6–4.2 s to 1.25 s;
+  Lighthouse's simulation cannot show it, a real throttled trace does.
+  The boot script that modulepreloads the language, the page and its
+  text stays after the stylesheet on purpose — ahead of it, it took the
+  stylesheet's bandwidth and the page mounted no sooner.
+- **The HTTP client is `fetch` in axios's shape** (`utils/axios.js`):
+  same responses, errors and interceptors, 13 kB gzipped less in the
+  entry. Third-party catalogues (`lib/isbn.js`) use `fetch` directly.
+- **/stats** draws its charts in plain SVG
+  (`components/analytics/charts/`: bars, rings, keyboard path, hidden
+  table) instead of recharts (92 kB gzipped), and renders its first
+  section before the six below (`hooks/useAfterFirstPaint.js`).
+- **Dialogs are native.** `ui/Modal.jsx` and the volume drawer are
+  `<dialog>`s opened with `showModal()` (`hooks/useTopLayer.js`): the
+  top layer, an inert page behind; the focus trap, scroll lock and exit
+  animations are unchanged.
+- **The label sheet is built in a worker** (`lib/labelsPdf.js`) with
+  `OffscreenCanvas`, and on the page when that is missing or fails: a
+  hundred-tome sheet held the page for 16 s at 4× CPU, it now holds it
+  for none.
+- **The Japanese faces are `font-display: optional`**: the largest
+  thing on some first screens is a kanji watermark, which waited for
+  80 kB of Noto Serif JP; the service worker precaches the subset, so
+  from the second visit on it arrives in time.
+
 ## Docker / Infrastructure
 
 - `docker-compose.yml` — dev stack: Traefik, PostgreSQL 15, Redis 8,
@@ -719,7 +803,8 @@ chronologically on reconnect. Routing via React Router 7.
   intentionally stays root to bind :80 and drops its workers to `nginx`.
 - Both run read-only with `cap_drop: ALL` and `no-new-privileges`.
 - CI: `.github/workflows/ci.yml` runs the gates on every push and PR —
-  client (install `--frozen-lockfile`, lint, tests, build), server
+  client (install `--frozen-lockfile`, lint, tests, build, performance
+  budgets via `scripts/perf-budget.mjs`), server
   (rustfmt on touched lines, clippy `-D warnings`, tests) and `cargo
   audit`. `.github/workflows/docker-images.yaml.yml` builds and pushes
   both images on GitHub **release publish**. Actions are pinned to commit

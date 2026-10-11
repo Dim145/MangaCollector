@@ -14,8 +14,11 @@ const UPLOAD_BODY_LIMIT: usize = 6 * 1024 * 1024;
 use crate::handlers::{
     activity, api_keys, archive, auth as auth_handlers, author, calendar, coffret, compare, cover,
     external, external_import, follow, health, isbn, library, locations, public, public_config,
-    realtime, seals, settings, snapshot, storage, user_profile, volume,
+    realtime, rum, seals, settings, snapshot, storage, user_profile, volume,
 };
+
+/// 測 · A web-vitals beacon: a dozen small objects at most.
+const RUM_BODY_LIMIT: usize = 16 * 1024;
 use crate::state::AppState;
 
 pub fn api_router() -> Router<AppState> {
@@ -26,6 +29,13 @@ pub fn api_router() -> Router<AppState> {
         // session exists). Cached aggressively via the SW so an offline
         // boot sees the last-known config instead of failing init.
         .route("/public-config", get(public_config::get_public_config))
+        // 測 · Field measurements (`RUM_ENABLED`): the SPA's beacon, and
+        // the operator's summary — loopback only, like `/health`.
+        .route(
+            "/rum",
+            post(rum::collect).layer(DefaultBodyLimit::max(RUM_BODY_LIMIT)),
+        )
+        .route("/rum/summary", get(rum::summary))
         // Unified search endpoint — merges MAL + MangaDex results
         .route("/external/search", get(external::search))
         // 源 · MyAnimeList data the browser used to fetch from Jikan

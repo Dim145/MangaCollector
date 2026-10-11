@@ -9,6 +9,8 @@ import Dexie from "dexie";
 // which happened because every TanStack consumer imports queryClient
 // statically anyway.
 import { queryClient } from "@/lib/queryClient.js";
+import { clearLcpHints } from "@/lib/lcpHints.js";
+import { purgePrivateCaches } from "@/lib/privateCaches.js";
 
 /*
  * Local database — two roles:
@@ -445,6 +447,39 @@ db.version(17).stores({
   locations: "id, name",
 });
 
+// v18 · 索 · Three indexes on the volumes, for the readers that wanted a
+// handful of rows and read all of them to find them: the header's badges
+// (active loans, announced tomes) on every page, the loans widget, and
+// the drawer's list of shelves. IndexedDB leaves a row out of an index
+// when the field is null, so each index holds only the rows that carry
+// the field — the lent tomes, the dated ones, the filed ones — and a
+// live query on it is not woken by writes to the rest of the table.
+db.version(18).stores({
+  library: "mal_id, name",
+  volumes:
+    "id, mal_id, vol_num, isbn, [mal_id+vol_num], loan_started_at, release_date, location",
+  settings: "key",
+  outboxLibrary: "mal_id, ts",
+  outboxVolumes: "id, mal_id, ts",
+  outboxSettings: "key",
+  outboxBulkMark: "mal_id, ts",
+  isbnCache: "isbn, ts",
+  activity: "id, created_on",
+  malRecommendations: "mal_id, ts",
+  mangaCharacters: "mal_id, ts",
+  seals: "key",
+  streak: "key",
+  authors: "mal_id, ts",
+  outboxAuthors: "mal_id, ts",
+  calendarUpcoming: "key, ts",
+  snapshots: "id, taken_at",
+  coffrets: "id, mal_id",
+  volumeCoverMaps: "mal_id, ts",
+  outboxCoffrets: "id, mal_id, ts",
+  friendsList: "key",
+  locations: "id, name",
+});
+
 export const SETTINGS_KEY = "user";
 export const STREAK_KEY = "user";
 
@@ -539,6 +574,38 @@ async function guardedVolumeRows(g, mal_id) {
   return rows;
 }
 
+/*
+ * 差 · Rewrite a table as a difference, not as a clear-and-refill.
+ *
+ * The result is the same set of rows the old `clear()` + `bulkPut()`
+ * produced — the server's snapshot, minus what the outbox owns, plus the
+ * local rows it keeps — but only the rows that actually differ are
+ * written and only the ones that vanished are deleted. A refetch after
+ * one tome changed used to rewrite two thousand rows (130 ms on the
+ * seeded shelf) and, because `clear()` touches every key, wake every
+ * live query on the table; now it writes one, and only the queries that
+ * read that row run again.
+ */
+function sameRow(a, b) {
+  return a === b || JSON.stringify(a) === JSON.stringify(b);
+}
+
+async function writeDifference(table, keyOf, target) {
+  const existing = await table.toArray();
+  const local = new Map(existing.map((row) => [keyOf(row), row]));
+  const targetKeys = new Set();
+  const changed = [];
+  for (const row of target) {
+    const key = keyOf(row);
+    targetKeys.add(key);
+    if (!sameRow(local.get(key), row)) changed.push(row);
+  }
+  const gone = [];
+  for (const key of local.keys()) if (!targetKeys.has(key)) gone.push(key);
+  if (gone.length) await table.bulkDelete(gone);
+  if (changed.length) await table.bulkPut(changed);
+}
+
 /** Replace the library cache with the server snapshot, minus rows the outbox still owns. */
 export async function cacheLibrary(library) {
   await db.transaction(
@@ -551,12 +618,13 @@ export async function cacheLibrary(library) {
       const preserved = keep.size
         ? (await db.library.bulkGet([...keep])).filter(Boolean)
         : [];
-      await db.library.clear();
       const fromServer = (library ?? []).filter(
         (row) => !keep.has(row.mal_id) && !dropped.has(row.mal_id),
       );
-      if (fromServer.length) await db.library.bulkPut(fromServer);
-      if (preserved.length) await db.library.bulkPut(preserved);
+      await writeDifference(db.library, (row) => row.mal_id, [
+        ...fromServer,
+        ...preserved,
+      ]);
     },
   );
 }
@@ -644,12 +712,50 @@ export async function cacheAllVolumes(volumes) {
     async () => {
       const g = await volumeGuards();
       const preserved = await guardedVolumeRows(g);
-      await db.volumes.clear();
       const fromServer = (volumes ?? []).filter(
         (row) => !isGuardedVolume(row, g) && !g.deleted.has(row.mal_id),
       );
-      if (fromServer.length) await db.volumes.bulkPut(fromServer);
-      if (preserved.length) await db.volumes.bulkPut(preserved);
+      await writeDifference(db.volumes, (row) => row.id, [
+        ...fromServer,
+        ...preserved,
+      ]);
+    },
+  );
+}
+
+/**
+ * 差 · Apply what changed since the last revision the device saw
+ * (`GET /api/user/volume?since=`): the rows written since, and the ids
+ * that still exist. The same rules as `cacheAllVolumes`, on a fraction
+ * of the rows: a row the outbox owns is left as it is, a series with a
+ * pending delete loses its tomes, a row the server no longer has goes.
+ */
+export async function applyVolumesDelta({ changed, ids }) {
+  await db.transaction(
+    "rw",
+    db.volumes,
+    db.outboxVolumes,
+    db.outboxBulkMark,
+    db.outboxLibrary,
+    async () => {
+      const g = await volumeGuards();
+      const kept = new Set((await guardedVolumeRows(g)).map((row) => row.id));
+      const alive = new Set(ids ?? []);
+      const local = await db.volumes.toCollection().primaryKeys();
+      const doomedSeries = g.deleted.size
+        ? await db.volumes.where("mal_id").anyOf([...g.deleted]).primaryKeys()
+        : [];
+      const gone = new Set(doomedSeries);
+      for (const id of local) if (!alive.has(id) && !kept.has(id)) gone.add(id);
+      if (gone.size) await db.volumes.bulkDelete([...gone]);
+
+      const fromServer = (changed ?? []).filter(
+        (row) => !isGuardedVolume(row, g) && !g.deleted.has(row.mal_id),
+      );
+      if (!fromServer.length) return;
+      const current = await db.volumes.bulkGet(fromServer.map((row) => row.id));
+      const differs = fromServer.filter((row, i) => !sameRow(current[i], row));
+      if (differs.length) await db.volumes.bulkPut(differs);
     },
   );
 }
@@ -847,13 +953,7 @@ export async function clearReadCaches() {
   } catch (err) {
     console.warn("[db] clearReadCaches failed:", err?.message);
   }
-  if (typeof caches !== "undefined") {
-    await Promise.all(
-      ["user-posters", "public-posters", "snapshot-images"].map((name) =>
-        caches.delete(name).catch(() => false),
-      ),
-    ).catch(() => {});
-  }
+  await purgePrivateCaches();
   try {
     for (const key of Object.keys(localStorage)) {
       if (key.startsWith("mc:etag:")) localStorage.removeItem(key);
@@ -861,6 +961,8 @@ export async function clearReadCaches() {
   } catch {
     /* private mode */
   }
+  // 先 · The covers the last account's pages opened on.
+  clearLcpHints();
 }
 
 export async function clearAllUserData() {
@@ -952,6 +1054,9 @@ export async function clearAllUserData() {
   } catch {
     // Private/incognito modes may throw — not worth reporting.
   }
+  // 先 · The covers the departing account's pages opened on — addresses
+  // from its library, preloaded by the next visit if left behind.
+  clearLcpHints();
 }
 
 /**

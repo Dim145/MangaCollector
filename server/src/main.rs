@@ -286,6 +286,7 @@ async fn main() -> anyhow::Result<()> {
         broker,
         activity,
         frontend_config: frontend_obs_config,
+        rum: observability::rum_enabled().then(|| Arc::new(crate::services::rum::RumStore::new())),
         start_time: Instant::now(),
     };
 
@@ -386,7 +387,12 @@ async fn main() -> anyhow::Result<()> {
         // megabyte, and it skips parsing and rewriting its local cache.
         // Same-origin deployments expose it anyway; a split
         // frontend/API host does not without this.
-        .expose_headers([axum::http::header::ETAG]);
+        // `ETag` for the conditional refresh, `X-Volume-Rev` for the
+        // delta one (`handlers::volume::get_all_volumes`).
+        .expose_headers([
+            axum::http::header::ETAG,
+            axum::http::HeaderName::from_static(crate::handlers::volume::VOLUME_REV_HEADER),
+        ]);
 
     // Router
     //

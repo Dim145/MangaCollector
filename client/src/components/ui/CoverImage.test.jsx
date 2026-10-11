@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CoverImage from "./CoverImage.jsx";
+import { setCoverProxy } from "@/lib/covers.js";
 
 /*
  * First component test in the suite. `CoverImage` is the primitive
@@ -116,4 +117,69 @@ describe("CoverImage", () => {
     render(<CoverImage src="https://cdn/x.jpg" alt="x" />);
     expect(screen.queryByRole("img")).toBeNull();
   });
+
+  it("offers the cover's renditions with the slot's width", () => {
+    const url = "https://cdn.myanimelist.net/images/manga/1/259070l.jpg";
+    render(<CoverImage src={url} alt="x" sizes="40px" />);
+    const img = screen.getByRole("img");
+    expect(img).toHaveAttribute("sizes", "40px");
+    expect(img.getAttribute("srcset")).toContain("259070.webp 225w");
+    expect(img).toHaveAttribute(
+      "src",
+      "https://cdn.myanimelist.net/images/manga/1/259070l.webp",
+    );
+  });
+
+  it("loads a priority cover at once, eagerly, at high priority", () => {
+    // An observer that never reports: a lazy cover would stay unmounted.
+    globalThis.IntersectionObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    render(<CoverImage src="https://cdn/x.jpg" alt="x" priority />);
+    const img = screen.getByRole("img");
+    expect(img).toHaveAttribute("loading", "eager");
+    expect(img).toHaveAttribute("fetchpriority", "high");
+  });
+
+  it("falls back from the relay to the CDN, then to the stored address", () => {
+    setCoverProxy(true);
+    try {
+      const url = "https://cdn.myanimelist.net/images/manga/1/259070l.jpg";
+      render(<CoverImage src={url} alt="x" />);
+      const img = () => screen.getByRole("img");
+      expect(img().getAttribute("src")).toMatch(/^\/api\/user\/cover\?src=/);
+
+      fireEvent.error(img());
+      expect(img()).toHaveAttribute(
+        "src",
+        "https://cdn.myanimelist.net/images/manga/1/259070l.webp",
+      );
+      expect(img().getAttribute("srcset")).not.toContain("/api/user/cover");
+
+      fireEvent.error(img());
+      expect(img()).toHaveAttribute("src", url);
+      expect(img()).not.toHaveAttribute("srcset");
+
+      fireEvent.error(img());
+      expect(screen.getByText("巻")).toBeInTheDocument();
+    } finally {
+      setCoverProxy(false);
+    }
+  });
+
+  it("starts the chain over when the tile is given another cover", () => {
+    const { container, rerender } = render(
+      <CoverImage src="https://cdn/broken.jpg" alt="x" />,
+    );
+    fireEvent.error(container.querySelector("img"));
+    expect(container.querySelector("img")).toBeNull();
+    rerender(<CoverImage src="https://cdn/fine.jpg" alt="x" />);
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://cdn/fine.jpg",
+    );
+  });
 });
+

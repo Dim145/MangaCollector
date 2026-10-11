@@ -4,7 +4,7 @@ import PublicProfileSection from "@/components/PublicProfileSection.jsx";
 import BirthdayModeSection from "@/components/BirthdayModeSection.jsx";
 import ArchiveSection from "@/components/ArchiveSection.jsx";
 import McpKeysSection from "@/components/McpKeysSection.jsx";
-import WelcomeTour from "@/components/WelcomeTour.jsx";
+import WelcomeTour from "@/components/LazyWelcomeTour.jsx";
 import { resetTourSeen } from "@/lib/tour.js";
 import { getApiKey } from "@/lib/isbn.js";
 import { useT } from "@/i18n/index.jsx";

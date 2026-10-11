@@ -55,6 +55,15 @@ jobs:
       # dans les tests, qui ne passent pas par Rollup.
       - run: pnpm build
 
+      # 量 · Budgets de performance, mesurés sur ce build : ce qu'une
+      # première visite télécharge avant de dessiner une page (JS critique
+      # par route, gzip -9 comme nginx le sert), la feuille de style
+      # bloquante, les polices préchargées, le precache du service worker
+      # et le plus gros chunk. Les limites sont dans
+      # `client/perf-budget.json` ; en relever une est une décision, prise
+      # dans le commit qui en a besoin.
+      - run: node ../scripts/perf-budget.mjs
+
       # 書 · PAS de `prettier --check .` : l'arbre n'est pas propre sous
       # Prettier 3.8 — 199 fichiers sur 209 seraient réécrits, et au
       # moins une de ces réécritures serait une perte (`season.js` aligne

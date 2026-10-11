@@ -44,7 +44,6 @@ import SettingsContext from "@/SettingsContext.js";
 import {
   useDeleteManga,
   useUpdateMangaMeta,
-  useLibrary,
   useSetPoster,
   useUpdateManga,
   useUpdateVolumesOwned,
@@ -63,12 +62,15 @@ import { hasToBlurImage, updateLibFromMal } from "@/utils/library.js";
 import { refreshFromMangadex, refreshUpcoming } from "@/utils/user.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { db } from "@/lib/db.js";
+import { useLiveQuery } from "dexie-react-hooks";
 import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
+import { refetchLibraryEntry } from "@/lib/sync/outbox.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
 import { formatCurrency } from "@/utils/price.js";
 import { coverTransitionName } from "@/lib/viewTransition.js";
 import { useT } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 export default function MangaPage({ manga, adult_content_level }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -149,7 +151,8 @@ export default function MangaPage({ manga, adult_content_level }) {
   // suggested as a datalist option when they edit Series B, even if
   // it's not in our shipped preset list. Dedupe is case-folded so a
   // preset "Glénat" and a user-typed "glénat" don't both surface.
-  const userPublishers = useKnownPublishers();
+  // Read only while the form that offers them is open.
+  const userPublishers = useKnownPublishers({ enabled: isEditing });
   const publisherOptions = useMemo(() => {
     const seen = new Set();
     const merged = [];
@@ -174,7 +177,7 @@ export default function MangaPage({ manga, adult_content_level }) {
   // first), so an existing entry naturally beats a fresh re-typing
   // of the same name. No static preset list — author cardinality is
   // user-specific by definition.
-  const userAuthors = useKnownAuthors();
+  const userAuthors = useKnownAuthors({ enabled: isEditing });
   const authorOptions = useMemo(() => {
     const seen = new Set();
     const merged = [];
@@ -237,8 +240,15 @@ export default function MangaPage({ manga, adult_content_level }) {
   // `manga` comes frozen from React Router's location.state, so its volume
   // count never updates after navigation. Grab the live row from the Dexie-
   // backed library so edits (and background syncs) are reflected here.
-  const { data: library } = useLibrary();
-  const liveLibraryRow = library?.find((m) => m.mal_id === manga.mal_id);
+  // 索 · The one row, not the whole library: `find` over a full-table
+  // live query re-ran (and re-rendered this page) on every write to any
+  // series; `get` is woken by writes to this one.
+  const liveLibraryRow = useLiveQuery(
+    () => (manga.mal_id == null ? undefined : db.library.get(manga.mal_id)),
+    [manga.mal_id],
+  );
+  // The genre editor suggests tags from the rest of the library; that
+  // list is read only while the editor can be open (custom rows, editing).
   const liveVolumeCount = liveLibraryRow?.volumes ?? manga.volumes ?? 0;
   const liveMangadexId =
     liveLibraryRow?.mangadex_id ?? manga.mangadex_id ?? null;
@@ -249,6 +259,13 @@ export default function MangaPage({ manga, adult_content_level }) {
   // wipe the user's edits without an override-tracking schema).
   const isCustomGenresEditable =
     manga.mal_id != null && manga.mal_id < 0 && !liveMangadexId;
+  const tagLibrary = useLiveQuery(
+    () =>
+      isCustomGenresEditable && isEditing
+        ? db.library.toArray()
+        : Promise.resolve(undefined),
+    [isCustomGenresEditable, isEditing],
+  );
   const updateManga = useUpdateManga();
   const updateMangaMeta = useUpdateMangaMeta();
   const deleteManga = useDeleteManga();
@@ -547,10 +564,10 @@ export default function MangaPage({ manga, adult_content_level }) {
       const { new_genres, new_name } = await updateLibFromMal(manga.mal_id);
       if (new_genres) setGenres(new_genres);
       if (new_name) setName(new_name);
-      // Server updated the DB; invalidate library so Dexie re-caches from
-      // the fresh server state. Without this, a reload would re-seed from
-      // the stale location.state snapshot.
-      queryClient.invalidateQueries({ queryKey: ["library"] });
+      // Server updated the DB; pull this row back so Dexie holds the
+      // fresh state. Without this, a reload would re-seed from the stale
+      // location.state snapshot. One row — not the whole library.
+      await refetchLibraryEntry(manga.mal_id).catch(() => {});
     } catch (e) {
       console.error(e);
       notifySyncError(e, "mal-refresh");
@@ -568,7 +585,7 @@ export default function MangaPage({ manga, adult_content_level }) {
       if (new_genres) setGenres(new_genres);
       if (new_name) setName(new_name);
       if (new_image_url_jpg) setPoster(new_image_url_jpg);
-      queryClient.invalidateQueries({ queryKey: ["library"] });
+      await refetchLibraryEntry(manga.mal_id).catch(() => {});
     } catch (e) {
       console.error(e);
       notifySyncError(e, "mangadex-refresh");
@@ -698,9 +715,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                   "radial-gradient(ellipse 72% 70% at 50% 42%, #000 28%, transparent 80%)",
               }}
             >
-              <img
+              <CoverImg
                 referrerPolicy="no-referrer"
                 src={displayPoster}
+                sizes="(min-width: 768px) 280px, 104px"
                 alt=""
                 className="h-full w-full scale-150 object-cover opacity-30 blur-3xl"
               />
@@ -735,9 +753,10 @@ export default function MangaPage({ manga, adult_content_level }) {
                 }`}
               >
                 {displayPoster ? (
-                  <img
+                  <CoverImg
                     referrerPolicy="no-referrer"
                     src={displayPoster}
+                    sizes="(min-width: 768px) 280px, 104px"
                     alt={name}
                     onClick={() => {
                       if (isBlurred) return;
@@ -909,7 +928,7 @@ export default function MangaPage({ manga, adult_content_level }) {
                 // `liveLibraryRow.genres` useEffect re-seed.
                 <TagEditor
                   genres={genres}
-                  library={library}
+                  library={tagLibrary}
                   onChange={setGenres}
                   t={t}
                 />
@@ -1671,9 +1690,10 @@ export default function MangaPage({ manga, adult_content_level }) {
       )}
 
       <Modal popupOpen={posterPopUp} handleClose={() => setPosterPopUp(false)}>
-        <img
+        <CoverImg
           referrerPolicy="no-referrer"
           src={poster}
+          sizes="90vw"
           alt={name}
           className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
         />
@@ -1893,9 +1913,10 @@ export default function MangaPage({ manga, adult_content_level }) {
           mobile. Reuses the standard Modal shell for consistency. */}
       <Modal popupOpen={previewCtl.zoomOpen} handleClose={previewCtl.hide}>
         {previewCtl.url && (
-          <img
+          <CoverImg
             referrerPolicy="no-referrer"
             src={previewCtl.url}
+            sizes="90vw"
             alt=""
             className={`max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl ${
               isBlurred ? "blur-lg" : ""

@@ -33,9 +33,11 @@ export function useActiveLoans() {
   // loan_started_at) so a half-written row from a partial outbox
   // replay doesn't slip through with a NULL start.
   const cached = useLiveQuery(async () => {
-    const lent = await db.volumes
-      .filter((v) => Boolean(v.loaned_to) && Boolean(v.loan_started_at))
-      .toArray();
+    // 索 · `loan_started_at` is indexed (schema v18) and the index holds
+    // only the lent tomes, so this reads those and not the whole table.
+    const lent = (
+      await db.volumes.where("loan_started_at").above("").toArray()
+    ).filter((v) => Boolean(v.loaned_to) && Boolean(v.loan_started_at));
     if (lent.length === 0) return [];
 
     // Build a single-pass library lookup so the join over N lent

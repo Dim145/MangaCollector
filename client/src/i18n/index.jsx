@@ -15,6 +15,10 @@
  * trade-off is worth it for readability.
  */
 import { createContext, useContext, useMemo } from "react";
+// 分 · Loaders for each language's core and per-page chunks, generated at
+// build time from `en.js` / `fr.js` / `es.js` by `plugins/i18n-split.js`
+// following `split.js`.
+import { chunks as CHUNK_LOADERS, core as CORE_LOADERS } from "virtual:mc-i18n";
 
 /*
  * Lightweight i18n — no external dependency, ~1 KB runtime.
@@ -30,11 +34,10 @@ import { createContext, useContext, useMemo } from "react";
  * `{placeholder}` tokens in the strings are replaced with params values.
  *
  * Bundles are LAZY-LOADED so the main JS chunk doesn't ship every
- * language to every visitor. The English bundle is treated specially as
- * the fallback for missing keys — `loadLanguage(lang)` resolves once
- * the requested bundle (and English, if different) is in cache, and
- * the React render must wait on that promise before mounting the
- * provider. Each `import(...)` resolves to its own code-split chunk.
+ * language to every visitor, and each language is itself cut in two
+ * (`split.js`): the core, which `loadLanguage(lang)` fetches and the
+ * first render waits for, and per-page chunks, which a page's loader
+ * fetches with the page (`loadNamespaces`, called by `routePages.js`).
  */
 
 export const LANGUAGES = [
@@ -43,40 +46,103 @@ export const LANGUAGES = [
   { code: "es", label: "Español", flag: "🇪🇸" },
 ];
 
-const LOADERS = {
-  en: () => import("./en.js"),
-  fr: () => import("./fr.js"),
-  es: () => import("./es.js"),
-};
-
-// Module-scoped cache of resolved bundles. Populated as `loadLanguage`
-// resolves; read synchronously by `I18nProvider` from that point on.
-// Mutated through `loadLanguage` rather than directly.
+// Module-scoped cache of resolved bundles: language → the catalogue
+// merged so far (the core plus every chunk loaded for it). Read by
+// `I18nProvider` at call time, so a chunk that lands later is visible to
+// the next `t()` without a new provider value.
 const BUNDLES = {};
+// Loads in flight or done, by `lang/chunk` — so nothing is fetched twice.
+const PENDING = new Map();
+// Every chunk a page has asked for in this session. A language switch
+// loads them all for the new language before the provider flips, so the
+// page on screen does not fall back to raw keys.
+const WANTED = new Set();
+// The languages the interface may be drawn in right now: the one on
+// screen, plus the one being switched to while it loads.
+const IN_USE = new Set();
+
+// Own keys only: a stored "constructor" must not pass for a language.
+const isLanguage = (lang) => typeof lang === "string" && Object.hasOwn(CORE_LOADERS, lang);
+
+function merge(lang, part) {
+  Object.assign((BUNDLES[lang] ??= {}), part);
+}
+
+function loadPart(lang, chunk) {
+  const key = `${lang}/${chunk}`;
+  if (!PENDING.has(key)) {
+    const loader = !isLanguage(lang)
+      ? null
+      : chunk === "core"
+        ? CORE_LOADERS[lang]
+        : Object.hasOwn(CHUNK_LOADERS, chunk)
+          ? CHUNK_LOADERS[chunk][lang]
+          : null;
+    if (!loader) return Promise.reject(new Error(`i18n: no chunk "${chunk}" for "${lang}"`));
+    PENDING.set(
+      key,
+      loader().then(
+        (mod) => merge(lang, mod.default),
+        (error) => {
+          // A failed chunk (offline, a deploy replaced it) is retried by
+          // the next caller rather than remembered as broken.
+          PENDING.delete(key);
+          throw error;
+        },
+      ),
+    );
+  }
+  return PENDING.get(key);
+}
 
 /**
- * Resolve a language's bundle, fetching its chunk on first call and
- * caching it for subsequent calls. Returns the bundle object so callers
- * can also do their own thing with it; the side-effect of populating
- * `BUNDLES[lang]` is what `I18nProvider` actually reads from later.
+ * Resolve a language's core, plus every page chunk this session has
+ * already needed, fetching what is missing. Returns the bundle.
  *
  * 一 · One catalogue, not two. This used to co-load English alongside
  * whatever was asked for, so that `t()`'s fallback would be there
  * synchronously if a translation were missing. But none is: the three
- * catalogues carry the same 2 089 keys, and `parity.test.js` fails the
- * build if that ever stops being true. So a French reader was
- * downloading and parsing the whole English catalogue — 92 kB, 32 kB
- * over the wire — before the first screen could paint, for a fallback
- * that could never fire. The fallback itself stays: if a key really is
- * missing and English happens to be loaded, it still answers.
+ * catalogues carry the same keys, and `parity.test.js` fails the build
+ * if that ever stops being true. The fallback itself stays: if a key
+ * really is missing and English happens to be loaded, it still answers.
  */
 export async function loadLanguage(lang) {
-  const code = LOADERS[lang] ? lang : "en";
-  if (!BUNDLES[code]) {
-    const mod = await LOADERS[code]();
-    BUNDLES[code] = mod.default;
-  }
+  const code = isLanguage(lang) ? lang : "en";
+  IN_USE.add(code);
+  await Promise.all([
+    loadPart(code, "core"),
+    ...[...WANTED].map((chunk) => loadPart(code, chunk)),
+  ]);
   return BUNDLES[code];
+}
+
+/**
+ * Load page chunks (names from `split.js`) for every language in use.
+ * Resolves once they are merged; a page renders after it, so its first
+ * `t()` finds its text.
+ */
+export function loadNamespaces(chunks) {
+  for (const chunk of chunks) WANTED.add(chunk);
+  const langs = IN_USE.size ? [...IN_USE] : [bootstrapLanguage()];
+  return Promise.all(langs.flatMap((lang) => chunks.map((chunk) => loadPart(lang, chunk))));
+}
+
+/**
+ * The provider now shows `lang`: stop loading page chunks for any other
+ * language. Called once a switch has landed.
+ */
+export function settleLanguage(lang) {
+  IN_USE.clear();
+  IN_USE.add(isLanguage(lang) ? lang : "en");
+}
+
+/**
+ * Every page chunk of the languages in use — for the idle moment after
+ * the first screen, so a page never visited online still has its text
+ * offline (the service worker keeps what was fetched).
+ */
+export function loadAllNamespaces() {
+  return loadNamespaces(Object.keys(CHUNK_LOADERS));
 }
 
 const I18nContext = createContext({
@@ -118,11 +184,11 @@ function interpolate(str, params) {
 
 export function I18nProvider({ lang, children }) {
   const value = useMemo(() => {
-    const primary = BUNDLES[lang] ?? BUNDLES.en;
-    const fallback = BUNDLES.en;
     const t = (key, params) => {
-      let v = resolve(primary, key);
-      if (v == null) v = resolve(fallback, key);
+      // Read at call time: a page chunk merged after this value was
+      // made is already there.
+      let v = resolve(BUNDLES[lang] ?? BUNDLES.en, key);
+      if (v == null) v = resolve(BUNDLES.en, key);
       if (typeof v !== "string") return key;
       return interpolate(v, params);
     };
@@ -148,14 +214,14 @@ export function useLang() {
 export function bootstrapLanguage() {
   try {
     const stored = localStorage.getItem("mc:lang");
-    // 語 · Against `LOADERS`, not `BUNDLES`. `BUNDLES` holds the
+    // 語 · Against the loaders, not `BUNDLES`. `BUNDLES` holds the
     // catalogues already *resolved*, and at bootstrap it is empty by
     // definition — so this asked "is French loaded?" before anything
     // could be, always answered no, and started every reader in
     // English. A French reader then paid for two catalogues (English
     // first, then French when the settings arrived) and watched the
     // first screen switch language under them.
-    if (stored && LOADERS[stored]) return stored;
+    if (isLanguage(stored)) return stored;
   } catch {
     /* ignore */
   }
@@ -164,7 +230,7 @@ export function bootstrapLanguage() {
 
 export function rememberLanguage(lang) {
   try {
-    if (LOADERS[lang]) {
+    if (isLanguage(lang)) {
       localStorage.setItem("mc:lang", lang);
       if (typeof document !== "undefined") {
         document.documentElement.lang = lang;

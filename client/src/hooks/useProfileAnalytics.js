@@ -1,6 +1,4 @@
 import { useDeferredValue, useMemo } from "react";
-import { useLibrary } from "@/hooks/useLibrary.js";
-import { useAllVolumes } from "@/hooks/useVolumes.js";
 import { computeDoubles } from "@/utils/libraryStats.js";
 
 /**
@@ -49,11 +47,12 @@ function nextMilestone(value, thresholds) {
   return null;
 }
 
-export function useProfileAnalytics() {
-  const { data: library, isInitialLoad: libLoading } = useLibrary();
-  const { data: volumes, isInitialLoad: volLoading } = useAllVolumes();
-
-  const loading = libLoading || volLoading;
+/**
+ * The rows come from the caller (`StatsPage`), which already reads them:
+ * each hook opening its own live query on the same tables meant three
+ * full reads of every tome after every write.
+ */
+export function useProfileAnalytics({ library, volumes, loading = false } = {}) {
 
   // 後 · Defer the heavy aggregation. The `useMemo` below walks
   // the entire `volumes` array (potentially 2500+ items for a

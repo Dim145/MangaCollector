@@ -1,34 +1,15 @@
 import { useContext } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import Skeleton from "../ui/Skeleton.jsx";
+import BarChartSvg from "./charts/BarChartSvg.jsx";
 import SettingsContext from "@/SettingsContext.js";
 import { formatCurrency } from "@/utils/price.js";
 import { useT } from "@/i18n/index.jsx";
 
 /**
  * 高 · The chart's height, in pixels, for both the box that reserves
- * the space and the chart drawn inside it.
- *
- * A number, not `"100%"`, and that is the point. `ResponsiveContainer`
- * starts at a size of -1 × -1 and only learns better from a
- * `ResizeObserver` it attaches in an effect — so on its first render it
- * warns, into the console of anyone who opens /stats:
- *
- *     The width(-1) and height(-1) of chart should be greater than 0
- *
- * Nothing about the parent can prevent that; the element being measured
- * does not exist yet. But the check is an OR over the two axes, so a
- * height it does not have to measure satisfies it. The width stays
- * `"100%"` and still follows the column.
+ * the space and the chart drawn inside it. The width follows the column
+ * (`charts/useElementWidth.js`); the height is fixed so the card never
+ * changes size between the skeleton, the empty state and the chart.
  */
 const CHART_H = 224;
 
@@ -88,9 +69,16 @@ export default function SpendingChart({ data, loading }) {
             {t("analytics.spending.empty")}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={CHART_H}>
-            <BarChart data={data} margin={{ top: 6, right: 8, left: -12, bottom: 0 }}>
-              <defs>
+          <BarChartSvg
+            data={data}
+            value={(d) => d.amount}
+            label={(d) => d.label}
+            height={CHART_H}
+            radius={6}
+            formatTick={(v) => (v === 0 ? "" : String(v))}
+            ariaLabel={t("analytics.spending.title")}
+            defs={
+              <>
                 <linearGradient id="spend-grad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--hanko-bright)" />
                   <stop offset="100%" stopColor="var(--hanko-deep)" />
@@ -99,62 +87,33 @@ export default function SpendingChart({ data, loading }) {
                   <stop offset="0%" stopColor="var(--gold)" />
                   <stop offset="100%" stopColor="var(--gold-muted)" />
                 </linearGradient>
-              </defs>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="var(--border)"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="label"
-                stroke="var(--washi-dim)"
-                fontSize={10}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                stroke="var(--washi-dim)"
-                fontSize={10}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v) => (v === 0 ? "" : String(v))}
-              />
-              <Tooltip
-                cursor={{ fill: "var(--ink-2)", fillOpacity: 0.5 }}
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null;
-                  const row = payload[0].payload ?? {};
-                  const amount = row.amount ?? 0;
-                  const count = row.count ?? 0;
-                  return (
-                    <div className="rounded-lg border border-border bg-ink-1/98 px-3 py-2 shadow-xl backdrop-blur">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-washi-dim">
-                        {label}
-                      </p>
-                      <p className="mt-1 font-display text-sm font-semibold tabular-nums text-washi">
-                        {formatCurrency(amount, currencySetting)}
-                      </p>
-                      <p className="font-mono text-[10px] text-washi-muted">
-                        {t("analytics.spending.tooltipCount", { n: count })}
-                      </p>
-                    </div>
-                  );
-                }}
-              />
-              <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
-                {data.map((d) => (
-                  <Cell
-                    key={d.month}
-                    fill={
-                      maxAmount > 0 && d.amount === maxAmount
-                        ? "url(#spend-grad-peak)"
-                        : "url(#spend-grad)"
-                    }
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              </>
+            }
+            barFill={(d) =>
+              maxAmount > 0 && d.amount === maxAmount
+                ? "url(#spend-grad-peak)"
+                : "url(#spend-grad)"
+            }
+            describe={(d) =>
+              `${d.label} · ${formatCurrency(d.amount ?? 0, currencySetting)} · ${t(
+                "analytics.spending.tooltipCount",
+                { n: d.count ?? 0 },
+              )}`
+            }
+            tooltip={(d) => (
+              <>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-washi-dim">
+                  {d.label}
+                </p>
+                <p className="mt-1 font-display text-sm font-semibold tabular-nums text-washi">
+                  {formatCurrency(d.amount ?? 0, currencySetting)}
+                </p>
+                <p className="text-[10px] text-washi-muted">
+                  {t("analytics.spending.tooltipCount", { n: d.count ?? 0 })}
+                </p>
+              </>
+            )}
+          />
         )}
       </div>
     </div>

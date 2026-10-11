@@ -72,5 +72,12 @@ function normalize(payload) {
   // (`PROXY_COVERS`). Every field this function forgets to carry is a
   // field the app cannot see, however correct the payload: that is how
   // the relay shipped switched off despite the server announcing it.
-  return { errorTracking, proxyCovers: payload.proxyCovers === true };
+  //
+  // 測 · Whether the operator asked for field measurements (`RUM_ENABLED`,
+  // `lib/rum.js`) — dropped here at first, and so silently off.
+  return {
+    errorTracking,
+    proxyCovers: payload.proxyCovers === true,
+    rum: payload.rum === true,
+  };
 }

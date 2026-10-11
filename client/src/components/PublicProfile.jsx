@@ -441,6 +441,7 @@ function PublicCard({ entry, index, blurAdult }) {
             filter on top when the visitor hasn't confirmed yet. */}
         <CoverImage
           src={entry.image_url_jpg}
+          sizes="(min-width: 1280px) 165px, (min-width: 1024px) calc((100vw - 144px) / 5), (min-width: 768px) calc((100vw - 124px) / 4), (min-width: 640px) calc((100vw - 104px) / 3), calc((100vw - 60px) / 2)"
           alt=""
           paletteSeed={entry.mal_id}
           imgClassName={`h-full w-full object-cover transition-all duration-700 group-hover:scale-105 ${

@@ -8,7 +8,8 @@ import {
   it,
   vi,
 } from "vitest";
-import { I18nProvider, loadLanguage } from "@/i18n/index.jsx";
+import { I18nProvider, loadLanguage, loadNamespaces } from "@/i18n/index.jsx";
+import { PAGE_NAMESPACES } from "@/i18n/split.js";
 
 vi.mock("@/hooks/useAuth.js", () => ({
   useAuth: vi.fn(),
@@ -65,6 +66,8 @@ function signedIn() {
 
 beforeAll(async () => {
   await loadLanguage("en");
+  // The page this component lives on brings its text (`i18n/split.js`).
+  await loadNamespaces(PAGE_NAMESPACES.About);
 });
 
 beforeEach(() => {

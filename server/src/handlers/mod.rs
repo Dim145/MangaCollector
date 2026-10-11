@@ -17,6 +17,7 @@ pub mod locations;
 pub mod public;
 pub mod public_config;
 pub mod realtime;
+pub mod rum;
 pub mod seals;
 pub mod settings;
 pub mod snapshot;

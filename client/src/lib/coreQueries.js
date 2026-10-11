@@ -1,5 +1,11 @@
 import axios from "@/utils/axios.js";
-import { cacheAllVolumes, cacheLibrary, cacheSettings, db } from "@/lib/db.js";
+import {
+  applyVolumesDelta,
+  cacheAllVolumes,
+  cacheLibrary,
+  cacheSettings,
+  db,
+} from "@/lib/db.js";
 
 /**
  * 核 · The three reads every signed-in page needs: the library, the
@@ -47,6 +53,17 @@ function lastTag(key) {
   }
 }
 
+/**
+ * 忘 · Drop the tag remembered for `key`, so the next fetch writes the
+ * table even when the server's answer has not changed. A revert needs
+ * exactly that: after the server refused an optimistic edit, its answer
+ * is the one we already hold, and only rewriting the rows undoes the
+ * edit sitting in Dexie.
+ */
+export function forgetTag(key) {
+  rememberTag(key, null);
+}
+
 function rememberTag(key, tag) {
   try {
     if (tag) localStorage.setItem(TAG_PREFIX + key, tag);
@@ -61,11 +78,12 @@ function rememberTag(key, tag) {
  * hold the answer — in which case nothing is parsed and nothing is
  * written. `table` is what must be non-empty for that to be true.
  */
-async function fetchUnlessUnchanged(key, url, table, write) {
+async function fetchUnlessUnchanged(key, url, table, write, onResponse) {
   const res = await axios.get(url, {
     responseType: "text",
     transformResponse: [(body) => body],
   });
+  onResponse?.(res);
   const tag = res.headers?.etag ?? res.headers?.ETag ?? null;
 
   if (tag && tag === lastTag(key)) {
@@ -89,15 +107,64 @@ export const libraryQuery = {
     ),
 };
 
+/*
+ * 差 · The volumes are refreshed as a delta once the device knows where
+ * it stands. A full read answers with the revision it was taken at
+ * (`X-Volume-Rev`); from then on the device asks only for what changed
+ * after it, plus the ids that still exist — a few rows instead of every
+ * tome, which a seeded shelf parsed in 170 ms on each change another
+ * device made. The revision is kept beside the ETags, so whatever wipes
+ * those (another account, a purge) sends the next refresh back to a
+ * full read.
+ */
+const REV_KEY = "volumes-rev";
+
+async function fetchVolumeDelta(since) {
+  let res;
+  try {
+    res = await axios.get("/api/user/volume", { params: { since } });
+  } catch (error) {
+    // A revision this server does not take: start again from a full read.
+    if (error?.response?.status === 400) {
+      forgetTag(REV_KEY);
+      return null;
+    }
+    throw error;
+  }
+  const body = res.data;
+  if (!body || !Array.isArray(body.changed) || !Array.isArray(body.ids)) {
+    // A server that predates deltas answered with the full list.
+    forgetTag(REV_KEY);
+    return null;
+  }
+  await applyVolumesDelta(body);
+  rememberTag(REV_KEY, String(body.rev));
+  return { delta: true, changed: body.changed.length, rows: body.ids.length };
+}
+
 export const allVolumesQuery = {
   queryKey: ["volumes-all"],
-  queryFn: () =>
-    fetchUnlessUnchanged(
+  queryFn: async () => {
+    const since = lastTag(REV_KEY);
+    if (since != null && /^\d+$/.test(since)) {
+      const held = await db.volumes.count().catch(() => 0);
+      if (held > 0) {
+        const delta = await fetchVolumeDelta(since);
+        if (delta) return delta;
+      }
+    }
+    return fetchUnlessUnchanged(
       "volumes",
       "/api/user/volume",
       db.volumes,
       cacheAllVolumes,
-    ),
+      (res) => {
+        const rev = res.headers?.["x-volume-rev"];
+        if (rev != null && /^\d+$/.test(String(rev))) rememberTag(REV_KEY, String(rev));
+        else forgetTag(REV_KEY);
+      },
+    );
+  },
 };
 
 export const settingsQuery = {

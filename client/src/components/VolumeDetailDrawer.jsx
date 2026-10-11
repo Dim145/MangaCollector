@@ -13,8 +13,10 @@ import { formatCurrency } from "@/utils/price.js";
 import { formatShortDate } from "@/utils/volume.js";
 import { useDeleteUpcomingVolume } from "@/hooks/useVolumes.js";
 import { useFocusTrap } from "@/hooks/useFocusTrap.js";
+import { useTopLayer } from "@/hooks/useTopLayer.js";
 import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 /**
  * Volume detail drawer — controlled by the parent (Volume). The drawer is
  * intentionally dumb beyond chrome (mount/unmount, focus trap, scroll lock,
@@ -152,6 +154,10 @@ export default function VolumeDetailDrawer({
   // Scroll lock + ESC + Tab cycling + initial focus + opener restore —
   // all delegated to the shared hook. See `hooks/useFocusTrap.js`.
   useFocusTrap(mounted, panelRef, onClose);
+  // 層 · A native modal `<dialog>`: the top layer, an inert page behind,
+  // and above a modal opened before it (or below one opened from it).
+  const dialogRef = useRef(null);
+  useTopLayer(dialogRef, mounted);
 
   if (!mounted) return null;
   if (typeof document === "undefined") return null;
@@ -160,9 +166,16 @@ export default function VolumeDetailDrawer({
   const panelAnim = leaving ? "animate-drawer-out" : "animate-drawer-in";
 
   const overlay = (
-    <div
-      className={`fixed inset-0 flex items-stretch justify-end bg-ink-0/70 backdrop-blur-[3px] ${overlayAnim}`}
-      style={{ zIndex: 2147483630 }}
+    <dialog
+      ref={dialogRef}
+      aria-label={
+        isUpcoming
+          ? t("volume.upcomingDetailsAria")
+          : t("volume.editDrawerTitle", { n: volNum })
+      }
+      // Whole-viewport overlay, the browser's dialog box undone — see
+      // `ui/Modal.jsx` for why `flex` waits for `open`.
+      className={`fixed inset-0 m-0 h-full max-h-none w-full max-w-none items-stretch justify-end border-0 bg-ink-0/70 p-0 text-inherit backdrop-blur-[3px] backdrop:bg-transparent open:flex ${overlayAnim}`}
       onMouseDown={(e) => {
         backdropMouseDownRef.current = e.target === e.currentTarget;
       }}
@@ -179,13 +192,6 @@ export default function VolumeDetailDrawer({
     >
       <div
         ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={
-          isUpcoming
-            ? t("volume.upcomingDetailsAria")
-            : t("volume.editDrawerTitle", { n: volNum })
-        }
         tabIndex={-1}
         className={`relative flex h-full w-full max-w-[26rem] flex-col overflow-hidden border-l ${
           isUpcoming
@@ -218,9 +224,10 @@ export default function VolumeDetailDrawer({
                         : "border-border"
                 }`}
               >
-                <img
+                <CoverImg
                   referrerPolicy="no-referrer"
                   src={coverUrl}
+                  sizes="64px"
                   alt=""
                   draggable={false}
                   className={`h-full w-full select-none object-cover ${
@@ -741,7 +748,7 @@ export default function VolumeDetailDrawer({
           )}
         </div>
       </div>
-    </div>
+    </dialog>
   );
 
   return createPortal(overlay, document.body);
@@ -1081,12 +1088,19 @@ function PhysicalSection({
       : normalizeISBN(isbn)
         ? "valid"
         : "invalid";
+  // 索 · The place names: the registry, plus any typed on a tome and not
+  // registered yet (offline). The tomes' names come from the `location`
+  // index's distinct keys (schema v18) — no row is loaded, and the query
+  // is no longer re-run by every edit made in this drawer.
   const knownLocations = useLiveQuery(async () => {
-    const [registry, rows] = await Promise.all([
+    const [registry, names] = await Promise.all([
       db.locations.toArray(),
-      db.volumes.toArray(),
+      db.volumes.orderBy("location").uniqueKeys(),
     ]);
-    return mergeLocationNames(registry, rows);
+    return mergeLocationNames(
+      registry,
+      names.map((location) => ({ location })),
+    );
   }, []);
   const copies = 1 + (Math.max(0, Math.trunc(Number(extraCopies))) || 0);
 

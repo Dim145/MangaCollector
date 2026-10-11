@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const get = vi.fn();
 const cacheLibrary = vi.fn(async () => {});
 const cacheAllVolumes = vi.fn(async () => {});
+const applyVolumesDelta = vi.fn(async () => {});
 const cacheSettings = vi.fn(async () => {});
 let libraryCount = 0;
 let volumeCount = 0;
@@ -25,6 +26,7 @@ vi.mock("@/utils/axios.js", () => ({ default: { get: (...a) => get(...a) } }));
 vi.mock("@/lib/db.js", () => ({
   cacheLibrary: (...a) => cacheLibrary(...a),
   cacheAllVolumes: (...a) => cacheAllVolumes(...a),
+  applyVolumesDelta: (...a) => applyVolumesDelta(...a),
   cacheSettings: (...a) => cacheSettings(...a),
   db: {
     library: { count: async () => libraryCount },
@@ -43,6 +45,7 @@ beforeEach(() => {
   get.mockReset();
   cacheLibrary.mockClear();
   cacheAllVolumes.mockClear();
+  applyVolumesDelta.mockClear();
   libraryCount = 0;
   volumeCount = 0;
   localStorage.clear();
@@ -133,5 +136,73 @@ describe("the other two reads", () => {
     expect(get).toHaveBeenCalledWith("/api/user/settings");
     expect(cacheSettings).toHaveBeenCalledWith({ theme: "dark" });
     expect(out).toEqual({ theme: "dark" });
+  });
+});
+
+/*
+ * 差 · Once a full read has said which revision it was taken at, the
+ * next refresh asks only for what changed after it — and falls back to
+ * a full read whenever the delta cannot be trusted.
+ */
+describe("the volumes delta", () => {
+  const full = (rev) => ({ data: JSON.stringify(rows), headers: { etag: 'W/"abc"', "x-volume-rev": rev } });
+
+  it("remembers the revision a full read was taken at, then asks for what changed after it", async () => {
+    get.mockResolvedValueOnce(full("41"));
+    await allVolumesQuery.queryFn();
+    expect(localStorage.getItem("mc:etag:volumes-rev")).toBe("41");
+
+    volumeCount = 2;
+    const delta = { rev: 43, changed: [{ id: 2, owned: true }], ids: [1, 2] };
+    get.mockResolvedValueOnce({ data: delta, headers: {} });
+    const out = await allVolumesQuery.queryFn();
+    expect(get.mock.calls[1]).toEqual(["/api/user/volume", { params: { since: "41" } }]);
+    expect(applyVolumesDelta).toHaveBeenCalledWith(delta);
+    expect(cacheAllVolumes).toHaveBeenCalledTimes(1); // only the first, full read
+    expect(out).toEqual({ delta: true, changed: 1, rows: 2 });
+    expect(localStorage.getItem("mc:etag:volumes-rev")).toBe("43");
+  });
+
+  it("reads everything when the device holds no volumes, whatever revision it remembers", async () => {
+    localStorage.setItem("mc:etag:volumes-rev", "41");
+    volumeCount = 0;
+    get.mockResolvedValueOnce(full("44"));
+    await allVolumesQuery.queryFn();
+    expect(get.mock.calls[0][1]).toMatchObject({ responseType: "text" });
+    expect(applyVolumesDelta).not.toHaveBeenCalled();
+    expect(localStorage.getItem("mc:etag:volumes-rev")).toBe("44");
+  });
+
+  it("starts again from a full read when the server refuses the revision", async () => {
+    localStorage.setItem("mc:etag:volumes-rev", "41");
+    volumeCount = 2;
+    get
+      .mockRejectedValueOnce({ response: { status: 400 } })
+      .mockResolvedValueOnce(full("7"));
+    await allVolumesQuery.queryFn();
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(cacheAllVolumes).toHaveBeenCalledWith(rows);
+    expect(localStorage.getItem("mc:etag:volumes-rev")).toBe("7");
+  });
+
+  it("starts again from a full read when an older server answers with the full list", async () => {
+    localStorage.setItem("mc:etag:volumes-rev", "41");
+    volumeCount = 2;
+    get
+      .mockResolvedValueOnce({ data: rows, headers: {} })
+      .mockResolvedValueOnce({ data: JSON.stringify(rows), headers: { etag: 'W/"zz"' } });
+    await allVolumesQuery.queryFn();
+    expect(applyVolumesDelta).not.toHaveBeenCalled();
+    expect(cacheAllVolumes).toHaveBeenCalledWith(rows);
+    // No revision on that answer: the next refresh is a full read too.
+    expect(localStorage.getItem("mc:etag:volumes-rev")).toBeNull();
+  });
+
+  it("lets a network failure through rather than guessing", async () => {
+    localStorage.setItem("mc:etag:volumes-rev", "41");
+    volumeCount = 2;
+    get.mockRejectedValueOnce({ code: "ERR_NETWORK" });
+    await expect(allVolumesQuery.queryFn()).rejects.toEqual({ code: "ERR_NETWORK" });
+    expect(localStorage.getItem("mc:etag:volumes-rev")).toBe("41");
   });
 });

@@ -105,6 +105,9 @@ pub struct FrontendObservabilityConfig {
     /// the frontend.
     #[serde(rename = "proxyCovers")]
     pub proxy_covers: bool,
+    /// 測 · Whether the SPA should report the Core Web Vitals its
+    /// readers' browsers measure (`RUM_ENABLED`, off by default).
+    pub rum: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -136,10 +139,23 @@ pub fn frontend_config() -> Result<FrontendObservabilityConfig> {
         );
     }
 
+    let rum = rum_enabled();
+    if rum {
+        eprintln!("[observability] field measurements enabled · POST /api/rum");
+    }
+
     Ok(FrontendObservabilityConfig {
         error_tracking,
         proxy_covers,
+        rum,
     })
+}
+
+/// 測 · `RUM_ENABLED` — read here and in `main` (for `AppState`), so the
+/// switch the SPA is told about and the one the route enforces are the
+/// same switch. Anything but a clear "yes" is off.
+pub fn rum_enabled() -> bool {
+    flag_is_on(std::env::var("RUM_ENABLED").ok().as_deref())
 }
 
 /// 影 · `PROXY_COVERS` — read here and in `main` (for `AppState`), so

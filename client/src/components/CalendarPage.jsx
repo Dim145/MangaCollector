@@ -7,6 +7,7 @@ import { useUpcomingCalendar } from "@/hooks/useUpcomingCalendar.js";
 import { useOnline } from "@/hooks/useOnline.js";
 import { useT } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 // Lazy — only mounts the first time the user opens the modal.
 const CalendarSubscribeModal = lazy(() =>
   import("./CalendarSubscribeModal.jsx"),
@@ -711,9 +712,10 @@ function ReleaseCard({ release, today, navigate, t, tilt = 0 }) {
                   : "border-border"
             }`}
           >
-            <img
+            <CoverImg
               referrerPolicy="no-referrer"
               src={release.image_url_jpg}
+              sizes="56px"
               alt=""
               loading="lazy"
               draggable={false}

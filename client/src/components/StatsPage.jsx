@@ -1,4 +1,4 @@
-import { lazy, Suspense, useContext, useMemo } from "react";
+import { useContext, useMemo } from "react";
 import SettingsContext from "@/SettingsContext.js";
 import DefaultBackground from "./DefaultBackground.jsx";
 import StatsHero from "./analytics/StatsHero.jsx";
@@ -21,16 +21,18 @@ import { useExtendedAnalytics } from "@/hooks/useExtendedAnalytics.js";
 import { useFriendsOverlap } from "@/hooks/useFriendsOverlap.js";
 import { useSeals } from "@/hooks/useSeals.js";
 import { useOnline } from "@/hooks/useOnline.js";
+import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint.js";
 import { computeLibraryStats } from "@/utils/libraryStats.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 
-// 金 · Recharts payloads stay lazy on the deep-dive page too —
-// the user that follows the link from /profile is data-curious
-// but that doesn't mean we should ship 400 KB synchronously.
-const MostValuedChart = lazy(() => import("./analytics/MostValuedChart.jsx"));
-const SpendingChart = lazy(() => import("./analytics/SpendingChart.jsx"));
-const ReadingChart = lazy(() => import("./analytics/ReadingChart.jsx"));
-const CompositionPies = lazy(() => import("./analytics/CompositionPies.jsx"));
+// 図 · The four charts are plain SVG now (`analytics/charts/`), a few
+// kilobytes in this page's own chunk. They used to sit behind `lazy()`
+// because the chart library they needed weighed 92 kB gzipped: every
+// visit paid a second round trip and a skeleton swap for them.
+import MostValuedChart from "./analytics/MostValuedChart.jsx";
+import SpendingChart from "./analytics/SpendingChart.jsx";
+import ReadingChart from "./analytics/ReadingChart.jsx";
+import CompositionPies from "./analytics/CompositionPies.jsx";
 
 /**
  * 帳 · StatsPage — the deep-dive ledger for the user's
@@ -45,6 +47,10 @@ const CompositionPies = lazy(() => import("./analytics/CompositionPies.jsx"));
  * named class chains in every component.
  */
 export default function StatsPage() {
+  // 後 · The title and the first section render first; the six below
+  // them once that is on screen (`useAfterFirstPaint`). Styling and
+  // laying out all seven was most of the wait before the title appeared.
+  const restReady = useAfterFirstPaint();
   const t = useT();
   const lang = useLang();
   const { currency: currencySetting } = useContext(SettingsContext) ?? {};
@@ -59,8 +65,20 @@ export default function StatsPage() {
   const { data: volumes, isInitialLoad: volLoading } = useAllVolumes();
   const baseLoading = libLoading || volLoading;
 
-  const profileAnalytics = useProfileAnalytics();
-  const extended = useExtendedAnalytics({ lang });
+  // 一 · The two aggregations read the rows this page already holds
+  // instead of opening their own live queries on the same tables — three
+  // full reads of every tome per write, down to one.
+  const profileAnalytics = useProfileAnalytics({
+    library,
+    volumes,
+    loading: baseLoading,
+  });
+  const extended = useExtendedAnalytics({
+    lang,
+    library,
+    volumes,
+    loading: baseLoading,
+  });
   const overlap = useFriendsOverlap({ enabled: online });
   const sealsRes = useSeals();
 
@@ -197,6 +215,7 @@ export default function StatsPage() {
             {/* 版 Éditeurs */}
             <SectionFolio
               id="stats-publishers"
+              ready={restReady}
               kanji="版"
               accent="gold"
               eyebrow={t("stats.publishers.eyebrow")}
@@ -213,6 +232,7 @@ export default function StatsPage() {
             {/* 読 Lecture — chart on top, then the new pace cards */}
             <SectionFolio
               id="stats-reading"
+              ready={restReady}
               kanji="読"
               accent="moegi"
               eyebrow={t("stats.reading.eyebrow")}
@@ -220,12 +240,10 @@ export default function StatsPage() {
               subtitle={t("stats.reading.subtitle")}
             >
               <div className="flex flex-col gap-6">
-                <Suspense fallback={<ChartSkeleton />}>
-                  <ReadingChart
-                    reading={profileAnalytics.reading}
-                    loading={profileAnalytics.loading}
-                  />
-                </Suspense>
+                <ReadingChart
+                  reading={profileAnalytics.reading}
+                  loading={profileAnalytics.loading}
+                />
                 <ReadingPaceTriad
                   delay={extended.readingDelay}
                   dokuha={extended.dokuhaRatio}
@@ -238,6 +256,7 @@ export default function StatsPage() {
             {/* 銭 Trésor — value-focused cards + existing charts */}
             <SectionFolio
               id="stats-treasure"
+              ready={restReady}
               kanji="銭"
               accent="sakura"
               eyebrow={t("stats.treasure.eyebrow")}
@@ -252,19 +271,15 @@ export default function StatsPage() {
                   t={t}
                   loading={extended.loading}
                 />
-                <Suspense fallback={<ChartSkeleton />}>
-                  <SpendingChart
-                    data={profileAnalytics.monthly?.spending}
-                    loading={profileAnalytics.loading}
-                  />
-                </Suspense>
-                <Suspense fallback={<ChartSkeleton />}>
-                  <MostValuedChart
-                    data={seriesByCost}
-                    loading={profileAnalytics.loading}
-                    currencySetting={currency}
-                  />
-                </Suspense>
+                <SpendingChart
+                  data={profileAnalytics.monthly?.spending}
+                  loading={profileAnalytics.loading}
+                />
+                <MostValuedChart
+                  data={seriesByCost}
+                  loading={profileAnalytics.loading}
+                  currencySetting={currency}
+                />
                 <InsightCards
                   collector={profileAnalytics.collector}
                   coffret={profileAnalytics.coffret}
@@ -278,6 +293,7 @@ export default function StatsPage() {
             {/* 暦 Temps — anniversary + best quarter + composition */}
             <SectionFolio
               id="stats-time"
+              ready={restReady}
               kanji="暦"
               accent="ai"
               eyebrow={t("stats.time.eyebrow")}
@@ -292,13 +308,11 @@ export default function StatsPage() {
                   lang={lang}
                   loading={extended.loading}
                 />
-                <Suspense fallback={<ChartSkeleton />}>
-                  <CompositionPies
-                    stores={profileAnalytics.composition?.stores}
-                    genres={profileAnalytics.composition?.genres}
-                    loading={profileAnalytics.loading}
-                  />
-                </Suspense>
+                <CompositionPies
+                  stores={profileAnalytics.composition?.stores}
+                  genres={profileAnalytics.composition?.genres}
+                  loading={profileAnalytics.loading}
+                />
                 <ActionableLists
                   middleGaps={profileAnalytics.middleGaps}
                   stale={profileAnalytics.stale}
@@ -310,6 +324,7 @@ export default function StatsPage() {
             {/* 印 Sceaux — last seal */}
             <SectionFolio
               id="stats-seals"
+              ready={restReady}
               kanji="印"
               accent="hanko"
               eyebrow={t("stats.seals.eyebrow")}
@@ -327,6 +342,7 @@ export default function StatsPage() {
             {/* 友 Tomo — social-graph overlap. Online-only by design. */}
             <SectionFolio
               id="stats-tomo"
+              ready={restReady}
               kanji="友"
               accent="washi"
               eyebrow={t("stats.tomo.eyebrow")}
@@ -354,11 +370,5 @@ export default function StatsPage() {
         </div>
       </div>
     </DefaultBackground>
-  );
-}
-
-function ChartSkeleton() {
-  return (
-    <div className="h-72 animate-pulse rounded-2xl border border-border/60 bg-ink-1/40" />
   );
 }

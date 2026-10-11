@@ -1,7 +1,7 @@
 import { memo } from "react";
 import Manga from "../Manga";
 import VirtualMangaGrid, { VIRTUALIZE_THRESHOLD } from "./VirtualMangaGrid.jsx";
-import { gridClassFor } from "@/lib/gridDensity.js";
+import { coverSizesFor, gridClassFor, lanesForWidth } from "@/lib/gridDensity.js";
 import { useGridDensity } from "@/hooks/useGridDensity.js";
 
 function MangaGrid({
@@ -15,6 +15,9 @@ function MangaGrid({
   onToggleSelect,
   onEnterSelection,
   shelf3d,
+  // 先 · True when this shelf is the one a fresh visit opens on — its
+  // first covers are then worth preloading next time.
+  recordLcp = false,
 }) {
   const { density } = useGridDensity();
   const cardProps = {
@@ -35,11 +38,21 @@ function MangaGrid({
   const gridClass = `${gridClassFor(density)} ${
     shelf3d && !selectionMode ? "shelf-3d" : ""
   }`;
+  // 寸 · The slot's width for the covers' `sizes`, and the first row —
+  // the covers the shelf opens on, its LCP — loaded at once.
+  const coverSizes = coverSizesFor(density);
   if (filtered.length <= VIRTUALIZE_THRESHOLD) {
+    const firstRow =
+      typeof window === "undefined"
+        ? 2
+        : lanesForWidth(density, window.innerWidth);
     return (
       <div className={gridClass}>
         {filtered.map((manga, i) => (
           <Manga
+            coverSizes={coverSizes}
+            priority={i < firstRow}
+            lcpHintRank={recordLcp && i < 2 ? i : undefined}
             // Custom series can share `mal_id = null` until the server
             // mints a negative id, so we prefer the Dexie primary key.
             key={manga.id ?? manga.mal_id ?? `idx-${i}`}
@@ -57,7 +70,14 @@ function MangaGrid({
       </div>
     );
   }
-  return <VirtualMangaGrid filtered={filtered} {...cardProps} />;
+  return (
+    <VirtualMangaGrid
+      filtered={filtered}
+      coverSizes={coverSizes}
+      recordLcp={recordLcp}
+      {...cardProps}
+    />
+  );
 }
 
 /**

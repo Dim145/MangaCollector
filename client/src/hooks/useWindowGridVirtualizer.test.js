@@ -1,6 +1,6 @@
 import { act, render } from "@testing-library/react";
 import { createElement } from "react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   _resetRowHeightMemory,
   instantWindowScroll,
@@ -104,6 +104,9 @@ function rowNode(index, height) {
   const node = document.createElement("div");
   node.setAttribute("data-index", String(index));
   Object.defineProperty(node, "offsetHeight", { value: height });
+  // In the document, as a rendered row is: TanStack Virtual (3.14+) only
+  // records the size of a node that is connected.
+  document.body.appendChild(node);
   return node;
 }
 
@@ -120,6 +123,9 @@ describe("row height", () => {
     window.scrollTo = vi.fn();
   });
   beforeEach(() => _resetRowHeightMemory());
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
 
   const library = { itemCount: 132, laneBreakpoints: SIX, estimateSize: 270 };
 

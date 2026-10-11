@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  coverCandidates,
   coverProxyEnabled,
+  coverSources,
   coverSrc,
   isProxiedCover,
   originalCoverSrc,
@@ -88,5 +90,102 @@ describe("reading a relayed URL back", () => {
       null,
     );
     expect(originalCoverSrc("/api/user/cover?src=")).toBe(null);
+  });
+});
+
+/*
+ * 寸 · Renditions. The shelf asked for each cover's largest file
+ * everywhere; these pin which smaller ones exist and which hosts have
+ * none, because a wrong guess is a broken image on every tile.
+ */
+const MD_MANGA = "1f5a94b3-08f9-4b58-8354-db5cf22043d6";
+const MD_FILE = "198fec8c-a7f6-4045-8cf6-5c782fd87c72";
+
+describe("coverCandidates", () => {
+  it("offers MangaDex's two thumbnails for a stored 512 thumbnail", () => {
+    const base = `https://uploads.mangadex.org/covers/${MD_MANGA}/${MD_FILE}.jpg`;
+    expect(coverCandidates(`${base}.512.jpg`)).toEqual([
+      { url: `${base}.256.jpg`, width: 256 },
+      { url: `${base}.512.jpg`, width: 512 },
+    ]);
+  });
+
+  it("offers the same pair for an original MangaDex file", () => {
+    const base = `https://uploads.mangadex.org/covers/${MD_MANGA}/${MD_FILE}.png`;
+    expect(coverCandidates(base).map((c) => c.url)).toEqual([
+      `${base}.256.jpg`,
+      `${base}.512.jpg`,
+    ]);
+  });
+
+  it("offers MyAnimeList's two WebP renditions for a large JPEG", () => {
+    expect(
+      coverCandidates("https://cdn.myanimelist.net/images/manga/1/259070l.jpg"),
+    ).toEqual([
+      { url: "https://cdn.myanimelist.net/images/manga/1/259070.webp", width: 225 },
+      { url: "https://cdn.myanimelist.net/images/manga/1/259070l.webp", width: 420 },
+    ]);
+  });
+
+  it("reads a MyAnimeList address whatever size or format was stored", () => {
+    for (const stored of [
+      "https://cdn.myanimelist.net/images/manga/2/253146.jpg",
+      "https://cdn.myanimelist.net/images/manga/2/253146t.jpg",
+      "https://cdn.myanimelist.net/images/manga/2/253146l.webp",
+    ]) {
+      expect(coverCandidates(stored)?.[1].url).toBe(
+        "https://cdn.myanimelist.net/images/manga/2/253146l.webp",
+      );
+    }
+  });
+
+  it("knows no renditions for anything else", () => {
+    for (const url of [
+      "/api/user/storage/poster/42",
+      "https://books.google.com/books/content?id=x&img=1",
+      "https://cdn.myanimelist.net/r/50x70/images/manga/1/259070.jpg?s=abc",
+      "https://cdn.myanimelist.net/images/manga/1/259070l.jpg?s=abc",
+      `https://uploads.mangadex.org/covers/${MD_MANGA}/not-a-file.jpg`,
+      "https://example.org/cover.jpg",
+      "",
+      null,
+    ]) {
+      expect(coverCandidates(url)).toBeNull();
+    }
+  });
+});
+
+describe("coverSources", () => {
+  it("puts the candidates in srcset and the largest in src", () => {
+    expect(
+      coverSources("https://cdn.myanimelist.net/images/manga/1/259070l.jpg"),
+    ).toEqual({
+      src: "https://cdn.myanimelist.net/images/manga/1/259070l.webp",
+      srcSet:
+        "https://cdn.myanimelist.net/images/manga/1/259070.webp 225w, " +
+        "https://cdn.myanimelist.net/images/manga/1/259070l.webp 420w",
+    });
+  });
+
+  it("relays every candidate when the relay is on, and none when asked not to", () => {
+    setCoverProxy(true);
+    const url = `https://uploads.mangadex.org/covers/${MD_MANGA}/${MD_FILE}.jpg.512.jpg`;
+    const relayed = coverSources(url);
+    expect(isProxiedCover(relayed.src)).toBe(true);
+    for (const entry of relayed.srcSet.split(", ")) {
+      const [candidate, width] = entry.split(" ");
+      expect(isProxiedCover(candidate)).toBe(true);
+      expect(width).toMatch(/^\d+w$/);
+    }
+    const direct = coverSources(url, { relay: false });
+    expect(direct.src).toBe(url);
+    expect(direct.srcSet).not.toContain("/api/user/cover");
+  });
+
+  it("leaves an address with no renditions as it was", () => {
+    expect(coverSources("/api/user/storage/poster/42")).toEqual({
+      src: "/api/user/storage/poster/42",
+      srcSet: undefined,
+    });
   });
 });

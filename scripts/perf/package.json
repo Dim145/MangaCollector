@@ -1,0 +1,16 @@
+{
+  "name": "mangacollector-perf",
+  "private": true,
+  "type": "module",
+  "description": "Lab measurements of the client against the local test stack — see README.md.",
+  "scripts": {
+    "signin": "node signin.mjs",
+    "lighthouse": "node lighthouse.mjs",
+    "trace": "node trace.mjs",
+    "coverage": "node coverage.mjs"
+  },
+  "dependencies": {
+    "lighthouse": "13.5.0",
+    "puppeteer-core": "25.12.0"
+  }
+}

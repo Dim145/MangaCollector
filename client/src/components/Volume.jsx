@@ -19,6 +19,7 @@ import { haptics } from "@/lib/haptics.js";
 import { sounds } from "@/lib/sounds.js";
 import { useT } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 /**
  * Volume card. When `locked=true` (volume belongs to a coffret) every write-path
  * is disabled — the coffret header is the single source of truth for owned /
@@ -364,7 +365,18 @@ function VolumeImpl({
     setExtraCopiesDraft(extraCopies ?? 0);
     setBoughtAtDraft(boughtAt ?? "");
     setIsbnDraft(isbn ?? "");
-    setPartsDraft(partsOf(hasObi, hasJacket, hasSlipcase));
+    // 二 · Kept when nothing changed. `partsOf` builds a new object, so
+    // setting it unconditionally rendered every tile a second time on
+    // mount — 110 extra renders opening One Piece — for the same three
+    // booleans. The other drafts are primitives and bail out on their own.
+    setPartsDraft((prev) => {
+      const next = partsOf(hasObi, hasJacket, hasSlipcase);
+      return prev.obi === next.obi &&
+        prev.jacket === next.jacket &&
+        prev.slipcase === next.slipcase
+        ? prev
+        : next;
+    });
   }, [
     isbn,
     owned,
@@ -611,9 +623,10 @@ function VolumeImpl({
               locked || isUpcoming ? "cursor-default" : "hover:-translate-y-0.5"
             } ${isEditing ? "opacity-60" : ""}`}
           >
-            <img
+            <CoverImg
               referrerPolicy="no-referrer"
               src={coverUrl}
+              sizes="40px"
               alt=""
               loading="lazy"
               draggable={false}

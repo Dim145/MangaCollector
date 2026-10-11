@@ -6,6 +6,7 @@ import { useActivity } from "@/hooks/useActivity.js";
 import { useLibrary } from "@/hooks/useLibrary.js";
 import { useT, useLang } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 /** Map backend event_type → i18n text + icon SVG path. */
 const EVENT_VISUAL = {
   series_added: {
@@ -77,6 +78,18 @@ const EVENT_VISUAL = {
   },
 };
 
+// One formatter per language for the session — this ran once per entry
+// on every render of the feed.
+const RELATIVE_FORMATS = new Map();
+function relativeFormatFor(lang) {
+  let rtf = RELATIVE_FORMATS.get(lang);
+  if (!rtf) {
+    rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
+    RELATIVE_FORMATS.set(lang, rtf);
+  }
+  return rtf;
+}
+
 function formatRelative(ts, lang) {
   if (!ts) return "";
   const date = new Date(ts);
@@ -86,7 +99,7 @@ function formatRelative(ts, lang) {
   const hours = Math.round(minutes / 60);
   const days = Math.round(hours / 24);
 
-  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
+  const rtf = relativeFormatFor(lang);
   if (seconds < 60) return rtf.format(-seconds, "second");
   if (minutes < 60) return rtf.format(-minutes, "minute");
   if (hours < 24) return rtf.format(-hours, "hour");
@@ -225,8 +238,9 @@ function ActivityRow({ entry, cover, onOpen, lang, t, index }) {
           aria-label={cover.name}
           className="shrink-0"
         >
-          <img referrerPolicy="no-referrer"
+          <CoverImg referrerPolicy="no-referrer"
             src={cover.image_url_jpg}
+            sizes="28px"
             alt=""
             className="h-10 w-7 rounded border border-border object-cover"
           />

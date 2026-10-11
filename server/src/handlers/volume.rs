@@ -4,7 +4,9 @@
 //! fan-out; see that module's header for why.
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
+    http::HeaderName,
+    response::{IntoResponse, Response},
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -41,13 +43,44 @@ impl UpcomingVolumeRequest {
     }
 }
 
-/// GET /api/user/volume
+/// `?since=<rev>` on `GET /api/user/volume`.
+#[derive(Debug, Deserialize)]
+pub struct VolumeListQuery {
+    #[serde(default)]
+    pub since: Option<i64>,
+}
+
+/// 差 · The header carrying the revision a full list was read at.
+pub const VOLUME_REV_HEADER: &str = "x-volume-rev";
+
+/// GET /api/user/volume — every volume of the reader, with the revision
+/// they were read at in `X-Volume-Rev`.
+///
+/// GET /api/user/volume?since=<rev> — only what changed after that
+/// revision: `{ rev, changed, ids }`, `ids` being every volume that still
+/// exists so the device can drop the ones that do not. A device holding a
+/// thousand volumes used to download and parse all of them each time one
+/// changed on another device.
 pub async fn get_all_volumes(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
-) -> Result<Json<Vec<Volume>>, AppError> {
-    let volumes = volume::get_all_for_user(&state.db, user.id).await?;
-    Ok(Json(volumes))
+    Query(query): Query<VolumeListQuery>,
+) -> Result<Response, AppError> {
+    let rev_header = |rev: i64| [(HeaderName::from_static(VOLUME_REV_HEADER), rev.to_string())];
+    match query.since {
+        Some(since) if since < 0 => Err(AppError::BadRequest(
+            "since must be a revision this server gave".into(),
+        )),
+        Some(since) => {
+            let delta = volume::delta_for_user(&state.db, user.id, since).await?;
+            Ok((rev_header(delta.rev), Json(delta)).into_response())
+        }
+        None => {
+            let (rev, volumes): (i64, Vec<Volume>) =
+                volume::snapshot_for_user(&state.db, user.id).await?;
+            Ok((rev_header(rev), Json(volumes)).into_response())
+        }
+    }
 }
 
 /// Body for `POST /api/user/library/{mal_id}/volumes/bulk-mark`.

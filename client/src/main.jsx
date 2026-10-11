@@ -11,6 +11,9 @@ import { initAnalytics } from "./lib/analytics.js";
 import { fetchPublicConfig } from "./lib/publicConfig.js";
 import { rememberCoverProxySetting } from "./lib/covers.js";
 import { bootstrapLanguage, loadLanguage } from "./i18n/index.jsx";
+import { preloadPageFor } from "./routePages.js";
+import { noteBootShell } from "./lib/bootShell.js";
+import { getCachedUser } from "./utils/auth.js";
 
 // Apply the user's last-known theme + accent before React mounts so
 // the first paint never flashes the wrong palette. The authoritative
@@ -55,6 +58,15 @@ fetchPublicConfig().then((config) => {
   if (config?.errorTracking) {
     initErrorTracking(config.errorTracking).catch(() => {});
   }
+  // 測 · Field measurements, when the operator asks for them — and only
+  // for a signed-in reader; a visitor downloads nothing (`lib/rum.js`).
+  if (config?.rum && getCachedUser()) {
+    import("./lib/rum.js")
+      .then(({ startRum }) => startRum())
+      .catch(() => {
+        /* offline first visit — measured next time */
+      });
+  }
 });
 
 // 言 · Pre-load this reader's language bundle BEFORE the React tree
@@ -67,8 +79,27 @@ fetchPublicConfig().then((config) => {
 // precache + browser cache make it instant. While this resolves, the
 // inline boot script in index.html is already painting the right
 // theme/accent so the user sees a styled splash immediately.
-loadLanguage(bootstrapLanguage()).then(() => {
-  createRoot(document.getElementById("root")).render(
+//
+// 頁 · …and the page the address names, for the same reason. Its chunk
+// is already on the way (`index.html` modulepreloads it); waiting for it
+// here means the first render draws the page itself. Rendered before it,
+// the page suspends, the router's loading screen is committed, and
+// React keeps it up for 300 ms however soon the page is ready
+// (`lib/lazyRoute.js`). The wait is capped: a page that is slow to come
+// renders through its loading screen as before.
+const PAGE_WAIT_MS = 1000;
+const pageReady = preloadPageFor(window.location.pathname);
+Promise.all([
+  loadLanguage(bootstrapLanguage()),
+  pageReady &&
+    Promise.race([
+      pageReady,
+      new Promise((resolve) => setTimeout(resolve, PAGE_WAIT_MS)),
+    ]),
+]).then(() => {
+  const root = document.getElementById("root");
+  noteBootShell(root);
+  createRoot(root).render(
     <StrictMode>
       <BrowserRouter>
         <App />

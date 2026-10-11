@@ -7,6 +7,7 @@ import { useScanCommit } from "@/hooks/useScanCommit.js";
 import { useT } from "@/i18n/index.jsx";
 import { getMal } from "@/lib/malData.js";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 /**
  * Add-from-recommendation modal. Fetches the full MAL details for the
  * clicked rec (so we get genres + authoritative volume count), then lets
@@ -193,8 +194,9 @@ export default function MalRecommendationModal({
         {/* Cover + title */}
         <div className="relative flex gap-3 p-4">
           {candidate?.images?.jpg?.image_url ? (
-            <img referrerPolicy="no-referrer"
+            <CoverImg referrerPolicy="no-referrer"
               src={candidate.images.jpg.image_url}
+              sizes="96px"
               alt=""
               className="h-32 w-24 shrink-0 rounded-md border border-border object-cover shadow-lg"
             />

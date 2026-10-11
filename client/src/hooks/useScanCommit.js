@@ -5,6 +5,7 @@ import { getAllVolumesByID, updateVolumeByID } from "@/utils/volume.js";
 import { cacheVolumesForManga, db } from "@/lib/db.js";
 import { updateVolumeOwned } from "@/utils/library.js";
 import { queryClient } from "@/lib/queryClient.js";
+import { refetchLibraryEntry } from "@/lib/sync/outbox.js";
 
 /**
  * Commit one or more scanned volumes for a series in a single flow:
@@ -158,11 +159,13 @@ export function useScanCommit() {
       const ownedCount = volumes.filter((v) => v.owned).length;
       await updateVolumeOwned(mangaData.mal_id, ownedCount);
 
-      queryClient.invalidateQueries({ queryKey: ["library"] });
-      queryClient.invalidateQueries({
-        queryKey: ["volumes", mangaData.mal_id],
-      });
-      queryClient.invalidateQueries({ queryKey: ["volumes-all"] });
+      // 番 · One series changed, so one series is refreshed. These used
+      // to invalidate `library`, this series' volumes and `volumes-all`:
+      // the volumes had just been written above, and the other two sent
+      // the whole library and every tome — a megabyte on the seeded
+      // shelf — back down after each barcode.
+      queryClient.setQueryData(["volumes", mangaData.mal_id], volumes);
+      await refetchLibraryEntry(mangaData.mal_id).catch(() => {});
 
       return {
         added: !alreadyInLibrary,

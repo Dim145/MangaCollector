@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import Skeleton from "../ui/Skeleton.jsx";
 import { useT } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 /**
  * Two side-by-side lists of "things to do" about the collection:
  *   - middleGaps: series with unowned volumes sitting between owned ones
@@ -77,8 +78,9 @@ function GapsPanel({ middleGaps, loading, t, library }) {
                 className="group flex w-full items-center gap-3 rounded-lg border border-border bg-ink-2/40 p-3 text-left transition hover:border-hanko/40 hover:bg-ink-2/60"
               >
                 {g.image_url_jpg ? (
-                  <img referrerPolicy="no-referrer"
+                  <CoverImg referrerPolicy="no-referrer"
                     src={g.image_url_jpg}
+                    sizes="36px"
                     alt=""
                     loading="lazy"
                     className="h-12 w-9 shrink-0 rounded object-cover"
@@ -180,8 +182,9 @@ function StalePanel({ stale, loading, t, library }) {
                 className="group flex w-full items-center gap-3 rounded-lg border border-border bg-ink-2/40 p-3 text-left transition hover:border-gold/40 hover:bg-ink-2/60"
               >
                 {s.image_url_jpg ? (
-                  <img referrerPolicy="no-referrer"
+                  <CoverImg referrerPolicy="no-referrer"
                     src={s.image_url_jpg}
+                    sizes="36px"
                     alt=""
                     loading="lazy"
                     className="h-12 w-9 shrink-0 rounded object-cover opacity-70 saturate-50 transition group-hover:opacity-100 group-hover:saturate-100"

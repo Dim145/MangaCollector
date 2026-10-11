@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 /**
  * Floating polaroid-style preview that shows a bigger cover when the user
  * dwells on a thumbnail (hover on desktop, long-press on touch).
@@ -86,8 +87,9 @@ export default function CoverPreview({
         }`}
         style={{ transform: "rotate(-1deg)" }}
       >
-        <img referrerPolicy="no-referrer"
+        <CoverImg referrerPolicy="no-referrer"
           src={url}
+          sizes="360px"
           alt=""
           draggable={false}
           // max-h / max-w only — lets the image size itself by its intrinsic

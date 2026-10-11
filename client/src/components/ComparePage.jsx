@@ -331,6 +331,7 @@ function AddToMyLibraryModal({
             <div className="aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-md border border-border shadow-md">
               <CoverImage
                 src={candidate.image_url_jpg}
+                sizes="80px"
                 alt=""
                 blur={blur}
                 paletteSeed={candidate.mal_id}
@@ -644,6 +645,7 @@ function MiniCard({
       >
         <CoverImage
           src={entry.image_url_jpg}
+          sizes="(min-width: 640px) 160px, 33vw"
           alt=""
           blur={blur}
           paletteSeed={entry.mal_id}

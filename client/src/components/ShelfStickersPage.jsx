@@ -218,6 +218,7 @@ export default function ShelfStickersPage() {
                     <span className="block h-10 w-7 shrink-0 overflow-hidden rounded-sm bg-ink-2 ring-1 ring-border">
                       <CoverImage
                         src={m.image_url_jpg}
+                        sizes="28px"
                         alt=""
                         className="h-full w-full object-cover"
                         imgClassName="h-full w-full object-cover"

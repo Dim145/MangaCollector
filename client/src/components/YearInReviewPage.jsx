@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { toPng } from "html-to-image";
 import CoverImage from "./ui/CoverImage.jsx";
 import Skeleton from "./ui/Skeleton.jsx";
 import { useUserSettings } from "@/hooks/useSettings.js";
@@ -92,6 +91,10 @@ export default function YearInReviewPage({ googleUser }) {
         /* font loading API absent */
       }
     }
+    // 遅 · Fetched on the click that needs it: the poster is viewed far
+    // more often than it is saved, and the library rode in the page's
+    // own chunk for every view.
+    const { toPng } = await import("html-to-image");
     return toPng(posterRef.current, {
       pixelRatio: 2,
       cacheBust: true,
@@ -669,6 +672,7 @@ function Bookend({ kanji, label, volume, t, align = "start" }) {
         <span className="block h-14 w-10 shrink-0 overflow-hidden rounded-sm shadow-md ring-1 ring-border">
           <CoverImage
             src={volume.cover}
+            sizes="40px"
             alt={volume.seriesName}
             className="h-full w-full object-cover"
             imgClassName="h-full w-full object-cover"

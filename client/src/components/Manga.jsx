@@ -12,6 +12,11 @@ const LONG_PRESS_MOVE_THRESHOLD = 8;
 
 function Manga({
   manga,
+  // 寸 · The grid's `sizes` for this tile, and whether it is in the row
+  // the shelf opens on (see `components/ui/CoverImage.jsx`).
+  coverSizes,
+  priority = false,
+  lcpHintRank,
   adult_content_level,
   allCollector,
   tsundokuCount = 0,
@@ -229,6 +234,9 @@ function Manga({
           src={manga.image_url_jpg}
           alt=""
           blur={blur}
+          sizes={coverSizes}
+          priority={priority}
+          lcpHintRank={lcpHintRank}
           paletteSeed={manga.mal_id}
           imgClassName="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
         />
@@ -487,15 +495,29 @@ function formatNextDate(ms, lang) {
   const now = new Date();
   if (target.getTime() <= now.getTime()) return null;
   const sameYear = target.getFullYear() === now.getFullYear();
-  const opts = sameYear
-    ? { day: "numeric", month: "short" }
-    : { day: "numeric", month: "short", year: "2-digit" };
-  // Browser fallback — Safari < 14 / very old Firefox could
-  // throw on a malformed lang code. Use English short-form as
-  // the safety net rather than blowing up the whole card render.
-  try {
-    return new Intl.DateTimeFormat(lang || "en", opts).format(target);
-  } catch {
-    return new Intl.DateTimeFormat("en", opts).format(target);
+  return dateFormatFor(lang || "en", sameYear).format(target);
+}
+
+// 暦 · One formatter per (language, same-year) pair, kept for the
+// session: building an `Intl.DateTimeFormat` is the expensive part, and
+// this ran once per card on every render of the grid.
+const DATE_FORMATS = new Map();
+function dateFormatFor(lang, sameYear) {
+  const key = `${lang}|${sameYear ? 1 : 0}`;
+  let fmt = DATE_FORMATS.get(key);
+  if (!fmt) {
+    const opts = sameYear
+      ? { day: "numeric", month: "short" }
+      : { day: "numeric", month: "short", year: "2-digit" };
+    // Browser fallback — a malformed language code can throw on old
+    // engines. English short-form is the safety net rather than blowing
+    // up the whole card render.
+    try {
+      fmt = new Intl.DateTimeFormat(lang, opts);
+    } catch {
+      fmt = new Intl.DateTimeFormat("en", opts);
+    }
+    DATE_FORMATS.set(key, fmt);
   }
+  return fmt;
 }

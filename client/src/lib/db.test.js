@@ -12,6 +12,7 @@ vi.mock("@/lib/queryClient.js", () => ({
 }));
 
 const {
+  applyVolumesDelta,
   cacheAllVolumes,
   cacheAuthor,
   clearAllUserData,
@@ -257,6 +258,49 @@ describe("dropCachedLibraryEntry (scoped realtime 404)", () => {
     await dropCachedLibraryEntry(999);
     await dropCachedLibraryEntry(null);
     expect(await db.library.count()).toBe(1);
+  });
+});
+
+describe("applyVolumesDelta", () => {
+  it("writes what changed, drops what is gone, leaves the rest alone", async () => {
+    await db.volumes.bulkPut([volume(1, 2), volume(2, 2), volume(3, 2)]);
+    const untouched = await db.volumes.get(1);
+    await applyVolumesDelta({
+      changed: [volume(2, 2, { owned: true, sync_rev: 5 }), volume(4, 2, { sync_rev: 6 })],
+      ids: [1, 2, 4],
+    });
+    const local = byKey(await rows(db.volumes), "id");
+    expect(Object.keys(local).map(Number).sort()).toEqual([1, 2, 4]);
+    expect(local[1]).toEqual(untouched);
+    expect(local[2].owned).toBe(true);
+  });
+
+  it("keeps a volume with a pending update, changed or gone on the server", async () => {
+    await db.volumes.bulkPut([volume(1, 2, { owned: true }), volume(2, 2)]);
+    await db.outboxVolumes.put({ id: 1, mal_id: 2, op: "update", payload: { owned: true }, ts: 1 });
+    await db.outboxVolumes.put({ id: 2, mal_id: 2, op: "update", payload: {}, ts: 2 });
+    await applyVolumesDelta({ changed: [volume(1, 2, { owned: false })], ids: [1] });
+    expect((await db.volumes.get(1)).owned).toBe(true);
+    // Not in `ids`, but the outbox still owns it: the flush will say.
+    expect(await db.volumes.get(2)).toBeTruthy();
+  });
+
+  it("does not resurrect, and does drop, the tomes of a series with a pending delete", async () => {
+    await db.volumes.bulkPut([volume(1, 2), volume(9, 7)]);
+    await db.outboxLibrary.put({ mal_id: 2, op: "delete", payload: {}, ts: 1 });
+    await applyVolumesDelta({ changed: [volume(5, 2, { owned: true })], ids: [1, 5, 9] });
+    const local = byKey(await rows(db.volumes), "id");
+    expect(local[1]).toBeUndefined();
+    expect(local[5]).toBeUndefined();
+    expect(local[9]).toBeTruthy();
+  });
+
+  it("writes nothing for a row that already reads the same", async () => {
+    await db.volumes.put(volume(1, 2, { owned: true, sync_rev: 3 }));
+    const put = vi.spyOn(db.volumes, "bulkPut");
+    await applyVolumesDelta({ changed: [volume(1, 2, { owned: true, sync_rev: 3 })], ids: [1] });
+    expect(put).not.toHaveBeenCalled();
+    put.mockRestore();
   });
 });
 
@@ -623,5 +667,79 @@ describe("clearAllUserData", () => {
     // The next account is then seen as foreign, and the wipe retried.
     expect(localStorage.getItem("mc:owner")).toBe("7");
     expect(await db.library.count()).toBe(1);
+  });
+});
+
+/*
+ * 差 · The rewrite is a difference. Same final rows as the old
+ * clear-and-refill (the cases above), but only what changed is written —
+ * which is what keeps a refetch after one edit from rewriting the whole
+ * table and waking every live query on it.
+ */
+describe("writing only the difference", () => {
+  it("leaves unchanged volumes alone and writes the changed one", async () => {
+    await db.volumes.bulkPut([volume(1, 2), volume(2, 2), volume(3, 2)]);
+    const putSpy = vi.spyOn(db.volumes, "bulkPut");
+    const deleteSpy = vi.spyOn(db.volumes, "bulkDelete");
+    try {
+      await cacheAllVolumes([
+        volume(1, 2),
+        volume(2, 2, { owned: true }),
+        volume(3, 2),
+      ]);
+      expect(putSpy).toHaveBeenCalledTimes(1);
+      expect(putSpy.mock.calls[0][0].map((r) => r.id)).toEqual([2]);
+      expect(deleteSpy).not.toHaveBeenCalled();
+    } finally {
+      putSpy.mockRestore();
+      deleteSpy.mockRestore();
+    }
+    expect((await db.volumes.get(2)).owned).toBe(true);
+  });
+
+  it("writes nothing at all when the snapshot matches", async () => {
+    await db.library.bulkPut([series(1), series(2)]);
+    const putSpy = vi.spyOn(db.library, "bulkPut");
+    try {
+      await cacheLibrary([series(1), series(2)]);
+      expect(putSpy).not.toHaveBeenCalled();
+    } finally {
+      putSpy.mockRestore();
+    }
+  });
+
+  it("deletes what the server no longer has", async () => {
+    await db.library.bulkPut([series(1), series(2), series(3)]);
+    await cacheLibrary([series(1), series(3)]);
+    expect((await rows(db.library)).map((r) => r.mal_id).sort()).toEqual([1, 3]);
+  });
+});
+
+/*
+ * 索 · Schema v18's indexes hold only the rows that carry the field —
+ * what lets the header count loans and releases without reading the
+ * table.
+ */
+describe("the v18 volume indexes", () => {
+  it("find the lent, the dated and the filed tomes and nothing else", async () => {
+    await db.volumes.bulkPut([
+      volume(1, 2, {
+        loaned_to: "Alex",
+        loan_started_at: "2026-10-01T10:00:00Z",
+        loan_due_at: "2026-10-05T10:00:00Z",
+      }),
+      volume(2, 2, { release_date: "2026-11-11T00:00:00Z" }),
+      volume(3, 2, { location: "Étagère A" }),
+      volume(4, 2, { location: "Étagère A" }),
+      volume(5, 2, { loan_started_at: null, release_date: null, location: null }),
+    ]);
+    const lent = await db.volumes.where("loan_started_at").above("").toArray();
+    expect(lent.map((v) => v.id)).toEqual([1]);
+    const dated = await db.volumes
+      .where("release_date")
+      .above("2026-10-10T00:00:00Z")
+      .toArray();
+    expect(dated.map((v) => v.id)).toEqual([2]);
+    expect(await db.volumes.orderBy("location").uniqueKeys()).toEqual(["Étagère A"]);
   });
 });

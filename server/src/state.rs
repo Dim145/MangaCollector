@@ -51,6 +51,9 @@ pub struct AppState {
     /// because every request handler clones `AppState` and we don't
     /// want to clone the inner strings on every fetch.
     pub frontend_config: Arc<FrontendObservabilityConfig>,
+    /// 測 · Field measurements the SPA reports (`RUM_ENABLED`); `None`
+    /// when the operator has not asked for them, and `/api/rum` is a 404.
+    pub rum: Option<Arc<crate::services::rum::RumStore>>,
     pub start_time: Instant,
 }
 

@@ -278,6 +278,7 @@ function DueCard({ loan, index, lang, t, onOpen }) {
           {loan.series_image_url ? (
             <CoverImage
               src={loan.series_image_url}
+              sizes="56px"
               alt=""
               paletteSeed={loan.mal_id}
               imgClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
@@ -458,6 +459,7 @@ function BorrowedSection({ rows, lang, t }) {
                 {b.series_image_url ? (
                   <CoverImage
                     src={b.series_image_url}
+                    sizes="32px"
                     alt=""
                     paletteSeed={b.mal_id}
                     imgClassName="h-full w-full object-cover"

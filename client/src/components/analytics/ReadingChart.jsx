@@ -1,32 +1,8 @@
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import Skeleton from "../ui/Skeleton.jsx";
+import BarChartSvg from "./charts/BarChartSvg.jsx";
 import { useT } from "@/i18n/index.jsx";
 
-/**
- * 高 · The chart's height, in pixels, for both the box that reserves
- * the space and the chart drawn inside it.
- *
- * A number, not `"100%"`, and that is the point. `ResponsiveContainer`
- * starts at a size of -1 × -1 and only learns better from a
- * `ResizeObserver` it attaches in an effect — so on its first render it
- * warns, into the console of anyone who opens /stats:
- *
- *     The width(-1) and height(-1) of chart should be greater than 0
- *
- * Nothing about the parent can prevent that; the element being measured
- * does not exist yet. But the check is an OR over the two axes, so a
- * height it does not have to measure satisfies it. The width stays
- * `"100%"` and still follows the column.
- */
+/** 高 · The chart's height in pixels — reserved by the box, drawn by the chart. */
 const CHART_H = 192;
 
 /**
@@ -121,75 +97,41 @@ export default function ReadingChart({ reading, loading }) {
             </p>
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={CHART_H}>
-            <BarChart
-              data={data}
-              margin={{ top: 10, right: 8, left: 0, bottom: 0 }}
-            >
-              <defs>
+          <BarChartSvg
+            data={data}
+            value={(d) => d.count}
+            label={(d) => d.label}
+            height={CHART_H}
+            integers
+            radius={4}
+            ariaLabel={t("analytics.reading.title")}
+            defs={
+              <>
                 <linearGradient id="readBar" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--moegi)" stopOpacity={1} />
-                  <stop
-                    offset="100%"
-                    stopColor="var(--moegi-muted)"
-                    stopOpacity={0.9}
-                  />
+                  <stop offset="100%" stopColor="var(--moegi-muted)" stopOpacity={0.9} />
                 </linearGradient>
                 <linearGradient id="readBarPeak" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--gold)" stopOpacity={1} />
-                  <stop
-                    offset="100%"
-                    stopColor="var(--gold-muted)"
-                    stopOpacity={0.9}
-                  />
+                  <stop offset="100%" stopColor="var(--gold-muted)" stopOpacity={0.9} />
                 </linearGradient>
-              </defs>
-              <CartesianGrid
-                stroke="var(--border)"
-                strokeDasharray="3 3"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="label"
-                stroke="var(--washi-dim)"
-                tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                stroke="var(--washi-dim)"
-                tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
-                axisLine={false}
-                tickLine={false}
-                allowDecimals={false}
-              />
-              <Tooltip
-                cursor={{ fill: "var(--ink-2)", opacity: 0.4 }}
-                contentStyle={{
-                  background: "var(--ink-1)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "12px",
-                }}
-                labelStyle={{ color: "var(--washi)" }}
-                itemStyle={{ color: "var(--moegi)" }}
-                formatter={(v) => [v, t("analytics.reading.tooltip")]}
-              />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                {data.map((d) => (
-                  <Cell
-                    key={d.month}
-                    fill={
-                      d.count === maxCount && maxCount > 0
-                        ? "url(#readBarPeak)"
-                        : "url(#readBar)"
-                    }
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              </>
+            }
+            barFill={(d) =>
+              d.count === maxCount && maxCount > 0
+                ? "url(#readBarPeak)"
+                : "url(#readBar)"
+            }
+            describe={(d) => `${d.label} · ${d.count} ${t("analytics.reading.tooltip")}`}
+            tooltip={(d) => (
+              <>
+                <p className="text-washi">{d.label}</p>
+                <p className="text-moegi">
+                  {d.count} {t("analytics.reading.tooltip")}
+                </p>
+              </>
+            )}
+          />
         )}
       </div>
     </div>

@@ -499,10 +499,11 @@
      "Fraunces" silently drew Georgia instead. The plain name stays in
      the stack for anyone who has the font installed. */
   --font-display:
-    "Fraunces Variable", "Fraunces", "Playfair Display", Georgia, serif;
+    "Fraunces Variable", "Fraunces Fallback", "Fraunces", "Playfair Display",
+    Georgia, serif;
   --font-sans:
-    "Instrument Sans Variable", "Instrument Sans", "Inter", ui-sans-serif,
-    system-ui, sans-serif;
+    "Instrument Sans Variable", "Instrument Sans Fallback", "Instrument Sans",
+    "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   /* Our Noto Serif JP carries the interface's own kanji only (see
      styles/fonts.css). Japanese a reader typed falls through to
@@ -640,9 +641,15 @@
     position: relative;
     isolation: isolate;
   }
+  /* 粒 · `fixed`, not `absolute`: the wrapper is as tall as the page,
+     so the noise was a document-sized blended layer that had to be
+     rasterised again whenever the page grew (a virtualised grid
+     settling, a list arriving). Pinned to the viewport it is one
+     screen of noise, painted once. Uniform noise has nothing that
+     could visibly "stay behind" while the page scrolls. */
   .grain::before {
     content: "";
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: -1;
     opacity: 0.08;
@@ -3232,6 +3239,32 @@
     transform: translateX(100%);
   }
 }
+/* 静 · The brand mark is on every page, so its sweep running forever
+   kept the compositor producing frames for as long as a tab stayed
+   open — battery, on a phone, for a 36-pixel glint. On the mark it
+   sweeps twice when the page opens, then again while the link is
+   hovered or focused. (A different animation name is what restarts a
+   finished CSS animation.) */
+.gold-shimmer-settle::after {
+  animation-iteration-count: 2;
+}
+.group:hover .gold-shimmer-settle::after,
+.group:focus-visible .gold-shimmer-settle::after {
+  animation-name: mc-gold-shimmer-again;
+  animation-iteration-count: infinite;
+}
+@keyframes mc-gold-shimmer-again {
+  0%,
+  30% {
+    transform: translateX(-100%);
+  }
+  45% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .gold-shimmer::after {
     animation: none;
@@ -3900,5 +3933,26 @@
 @media (max-width: 40rem) {
   .text-\[10px\] {
     font-size: 11px;
+  }
+}
+
+/* 柱 · Bars rise from the axis when a chart appears (the stats page's
+   SVG charts, `components/analytics/charts`). Off for reduced motion. */
+@keyframes mc-bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.mc-bar-grow {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: mc-bar-grow 500ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mc-bar-grow {
+    animation: none;
   }
 }

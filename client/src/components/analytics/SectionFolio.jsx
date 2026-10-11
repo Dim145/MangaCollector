@@ -13,6 +13,17 @@
  * (`--hanko`, `--gold`, `--moegi`, `--sakura`, `--ai`). Children
  * pick which to use; this component just propagates whichever the
  * parent passes.
+ *
+ * 後 · `ready={false}` draws the heading and a placeholder instead of
+ * the children — the page renders its first screen first and the rest
+ * after (`hooks/useAfterFirstPaint.js`).
+ *
+ * Not `content-visibility: auto`, measured and set aside: on top of the
+ * deferred render it saved next to nothing here (style 118–121 ms against
+ * 131–146 at 4× CPU, layout and paint unchanged), and the paint
+ * containment it implies clips the watermark below, which overhangs the
+ * section by design — `overflow-clip-margin` would give the room back,
+ * but Safari does not implement it.
  */
 export default function SectionFolio({
   id,
@@ -23,6 +34,7 @@ export default function SectionFolio({
   accent = "hanko",
   children,
   delayMs = 0,
+  ready = true,
 }) {
   const accentVar = `var(--${accent})`;
 
@@ -30,6 +42,7 @@ export default function SectionFolio({
     <section
       id={id}
       aria-labelledby={`${id}-title`}
+      aria-busy={ready ? undefined : true}
       className="relative scroll-mt-20 py-12 md:py-16"
       style={{ "--folio-accent": accentVar }}
     >
@@ -113,7 +126,16 @@ export default function SectionFolio({
         </svg>
       </header>
 
-      <div className="relative">{children}</div>
+      <div className="relative">
+        {ready ? (
+          children
+        ) : (
+          <div
+            aria-hidden="true"
+            className="h-[28rem] rounded-2xl border border-border/40 bg-ink-1/30"
+          />
+        )}
+      </div>
     </section>
   );
 }

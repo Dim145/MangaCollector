@@ -1010,6 +1010,7 @@ function PosterCard({ manga, index, adult_content_level, onOpen, t }) {
         {manga.image_url_jpg ? (
           <CoverImage
             src={manga.image_url_jpg}
+            sizes="(min-width: 1024px) 226px, (min-width: 640px) calc((100vw - 88px) / 3), calc((100vw - 48px) / 2)"
             alt=""
             blur={blurred}
             paletteSeed={manga.mal_id}

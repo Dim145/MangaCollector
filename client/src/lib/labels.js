@@ -15,10 +15,13 @@
  *     DOM, no React, no app imports (Dexie / axios would otherwise
  *     ride along into the tests). Everything here runs under Vitest.
  *
- *   • `buildLabelPdf` — the only async, DOM-touching entry point. It
+ *   • `buildLabelPdf` — the only async, canvas-touching entry point. It
  *     lazy-imports `jspdf` and `jsbarcode` (≈400 KB together, never in
- *     the initial bundle) and paints EACH label on an offscreen
- *     <canvas> before placing it in the PDF as a bitmap.
+ *     the initial bundle) and paints EACH label on a canvas before
+ *     placing it in the PDF as a bitmap. It runs in a worker when the
+ *     browser has `OffscreenCanvas` (`labelsPdf.js`), so a hundred
+ *     stickers no longer hold the page for seconds, and on the page
+ *     itself, with an ordinary <canvas>, when it has not.
  *
  * Why bitmap labels rather than jsPDF text: jsPDF's built-in fonts
  * (Helvetica / Times / Courier) only cover Latin-1. Titles on these
@@ -685,6 +688,21 @@ function resolveTemplate(template) {
 
 const yieldToMain = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** An `OffscreenCanvas` where there is one (a worker, any recent page), a <canvas> otherwise. */
+function makeCanvas() {
+  if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(1, 1);
+  return document.createElement("canvas");
+}
+
+/** The canvas as PNG, in a form `jsPDF.addImage` takes. */
+async function pngOf(canvas) {
+  if (typeof canvas.convertToBlob === "function") {
+    const blob = await canvas.convertToBlob({ type: "image/png" });
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+  return canvas.toDataURL("image/png");
+}
+
 /**
  * The finished sheet(s) as a PDF Blob.
  *
@@ -725,8 +743,8 @@ export async function buildLabelPdf(labels, opts = {}) {
     creator: "MangaCollector",
   });
 
-  const canvas = document.createElement("canvas");
-  const barcodeCanvas = document.createElement("canvas");
+  const canvas = makeCanvas();
+  const barcodeCanvas = makeCanvas();
   let page = 0;
   for (let i = 0; i < list.length; i++) {
     const slot = first + i;
@@ -738,7 +756,7 @@ export async function buildLabelPdf(labels, opts = {}) {
     const { x, y } = positions[slot % slots];
     paintLabel(list[i], template, scale, JsBarcode, canvas, barcodeCanvas);
     doc.addImage(
-      canvas.toDataURL("image/png"),
+      await pngOf(canvas),
       "PNG",
       x,
       y,

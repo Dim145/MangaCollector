@@ -25,6 +25,18 @@ pub struct HealthResponse {
     pub status: &'static str,
 }
 
+/// Whether a caller is this machine — the gate of the operator-only
+/// endpoints (`/api/health`, `/api/rum/summary`). An IPv4 loopback
+/// reached over IPv6 counts.
+pub(crate) fn is_loopback(addr: &SocketAddr) -> bool {
+    match addr.ip() {
+        std::net::IpAddr::V4(v4) => v4.is_loopback(),
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback() || v6.to_ipv4_mapped().is_some_and(|v4| v4.is_loopback())
+        }
+    }
+}
+
 /// `/api/health` — internal monitoring endpoint.
 ///
 /// IP gate: only loopback by default. Behind a reverse proxy (Traefik,
@@ -39,14 +51,7 @@ pub async fn health(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<HealthResponse>, AppError> {
-    let is_local = match addr.ip() {
-        std::net::IpAddr::V4(v4) => v4.is_loopback(),
-        std::net::IpAddr::V6(v6) => {
-            v6.is_loopback() || v6.to_ipv4_mapped().is_some_and(|v4| v4.is_loopback())
-        }
-    };
-
-    if !state.config.app_unsecure_healthcheck && !is_local {
+    if !state.config.app_unsecure_healthcheck && !is_loopback(&addr) {
         return Err(AppError::NotFound("404 page not found".into()));
     }
 

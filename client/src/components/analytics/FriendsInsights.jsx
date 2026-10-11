@@ -72,6 +72,7 @@ function SharedHero({ top, friendTotal, t }) {
         {top.image_url ? (
           <CoverImage
             src={top.image_url}
+            sizes="(min-width: 1024px) 360px, 92vw"
             alt=""
             className="h-full w-full object-cover opacity-90 transition group-hover:scale-[1.04]"
           />
@@ -169,6 +170,7 @@ function LatentRow({ entry, friendTotal, t }) {
         {entry.image_url ? (
           <CoverImage
             src={entry.image_url}
+            sizes="40px"
             alt=""
             className="h-full w-full object-cover"
           />

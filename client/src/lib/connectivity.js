@@ -160,6 +160,16 @@ export function installConnectivityWatcher() {
       if (status == null) {
         // Network error, CORS, timeout — no response reached us.
         setReachable(false);
+      } else if (
+        status === 502 &&
+        looksLikeBackendResponse(err.response?.headers)
+      ) {
+        // 源 · Our server answering 502 in JSON is `UpstreamUnavailable`:
+        // MyAnimeList, MangaDex or an ISBN catalogue did not answer it.
+        // The server itself is fine. Flipping the whole app to
+        // "unreachable" here showed the offline banner and paused the
+        // outbox because Jikan was slow, until the next probe. Leave the
+        // state as it was.
       } else if (status >= 500) {
         setReachable(false);
       } else if (!looksLikeBackendResponse(err.response?.headers)) {
@@ -198,6 +208,15 @@ export function installConnectivityWatcher() {
     if (timer) clearTimeout(timer);
     const delay = serverReachable ? POLL_INTERVAL_UP_MS : POLL_INTERVAL_DOWN_MS;
     timer = setTimeout(async () => {
+      // 隠 · Nobody is looking at a hidden tab, so nothing needs to know
+      // whether the server is up — and a background tab used to cost a
+      // request every two minutes for as long as it stayed open. The
+      // sync runner flushes on `visibilitychange`, and its requests feed
+      // the interceptor above, so the state is fresh again on return.
+      if (typeof document !== "undefined" && document.hidden) {
+        schedule();
+        return;
+      }
       await probeServer();
       schedule();
     }, delay);

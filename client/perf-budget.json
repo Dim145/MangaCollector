@@ -1,0 +1,17 @@
+{
+  "//": "kB (1 024 bytes), gzip -9 for scripts and styles. Checked by scripts/perf-budget.mjs after `pnpm build`, in CI. Set ~5 % above the build of 2026-10-11 (catalogue split, axios replaced by fetch); raise one only with the reason in the commit.",
+  "criticalJsGzKb": {
+    "/": 180,
+    "/dashboard": 212,
+    "/mangapage": 222,
+    "/stats": 207,
+    "/settings": 200,
+    "/calendrier": 181,
+    "/addmanga": 189,
+    "/scan": 184
+  },
+  "cssGzKb": 38,
+  "fontsPreloadKb": 100,
+  "precacheKb": 2490,
+  "largestChunkGzKb": 150
+}

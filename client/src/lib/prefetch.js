@@ -1,45 +1,35 @@
 /*
- * Route-chunk prefetch helpers.
+ * Route prefetch helpers.
  *
- * App.jsx splits each route behind `React.lazy()`, so MangaPage,
- * AddPage, etc. are only fetched when the user actually navigates
- * to them. That's good for first-paint of the landing/dashboard,
- * but turns every "click on a manga card" into a network round-trip
- * for a 50-90 KB chunk + the second-render frame for the new
- * component to mount.
+ * Every page is its own chunk (`routePages.js`), so a click on a link
+ * used to start a round trip for it, then a render that suspended while
+ * it arrived. These helpers let interaction surfaces (hover, focus,
+ * touchstart) load the page first: by the time the click lands, the
+ * route renders it at once (`lib/lazyRoute.js`).
  *
- * These helpers let interaction surfaces (hover, focus, scroll into
- * view) trigger the import early so the chunk is already sitting
- * in Vite's module cache by the time the click lands. Subsequent
- * clicks navigate instantly because `lazy()` resolves synchronously
- * once the module has been imported once.
- *
- * Each helper is idempotent — repeated calls reuse the same in-flight
- * Promise and the resolved module is held by the browser's import
- * cache. Worst case: one redundant `import()` call that the JS engine
- * dedupes itself.
+ * Idempotent — each page is imported once and remembered; a failed load
+ * is forgotten so a later gesture can try again.
  */
 
-let mangaPagePromise = null;
+import { pageForPath, preloadPageFor } from "@/routePages.js";
 
 /**
- * Warm up the MangaPage chunk. Safe to call from `onMouseEnter` /
- * `onFocus` — fires the import the first time, returns the cached
- * Promise on every subsequent call.
- *
- * Doesn't await — fire-and-forget, the browser handles the rest.
+ * Warm up the series page. Safe to call from `onMouseEnter` / `onFocus`
+ * — the first call loads it, every later one returns at once.
  */
 export function prefetchMangaPage() {
-  if (mangaPagePromise) return mangaPagePromise;
-  mangaPagePromise = import("@/components/MangaPage.jsx").catch((err) => {
-    // Network drop / chunk-load failure: clear the cached promise
-    // so a future user interaction can retry. Without this, a single
-    // failed prefetch on slow Wi-Fi would prevent any future preload
-    // attempt for the rest of the session.
-    mangaPagePromise = null;
-    if (typeof console !== "undefined") {
-      console.debug("[prefetch] MangaPage chunk preload failed:", err?.message);
-    }
-  });
-  return mangaPagePromise;
+  return prefetchRoute("/mangapage");
+}
+
+/*
+ * 先 · The pages links lead to. A link knows where it goes before it is
+ * clicked: on hover (desktop), on focus (keyboard) and on touchstart (a
+ * phone fires it ~100 ms before the click), the page is loaded — not
+ * only its chunk fetched, but the module imported and remembered by its
+ * route (`lib/lazyRoute.js`), so the click renders it at once instead of
+ * suspending. A failed load is forgotten and retried by the next hover.
+ */
+export function prefetchRoute(path) {
+  if (!pageForPath(path)) return null;
+  return preloadPageFor(path);
 }

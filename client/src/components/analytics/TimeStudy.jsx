@@ -136,6 +136,7 @@ function AnniversaryCard({ anniversary, t, lang, loading }) {
           {anniversary.firstSeriesPoster ? (
             <CoverImage
               src={anniversary.firstSeriesPoster}
+              sizes="36px"
               alt=""
               className="h-full w-full object-cover"
             />

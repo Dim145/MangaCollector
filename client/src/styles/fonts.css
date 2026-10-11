@@ -31,11 +31,23 @@
 @import "@fontsource/jetbrains-mono/latin-400.css";
 @import "@fontsource/jetbrains-mono/latin-600.css";
 
+/*
+ * 待 · `optional`, not `swap`. The kanji are ornaments — watermarks,
+ * eyebrows, seals — and the largest of them is often the largest thing
+ * on the first screen: the 帳 behind the stats title was that page's
+ * LCP element, painted only once 80 kB of Noto Serif JP 700 had arrived.
+ * With `optional` the browser waits a moment for the font, then draws
+ * the system Mincho for the rest of the visit and lets the download
+ * finish for the next one. The service worker precaches both files, so
+ * from the second visit on they arrive inside that moment and the
+ * interface looks as designed; only a first visit, or the first one
+ * after the subset changes, shows the system face.
+ */
 @font-face {
   font-family: "Noto Serif JP";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
   src: url("../assets/fonts/noto-serif-jp-ui-400.woff2") format("woff2");
 }
 
@@ -43,6 +55,50 @@
   font-family: "Noto Serif JP";
   font-style: normal;
   font-weight: 700;
-  font-display: swap;
+  font-display: optional;
   src: url("../assets/fonts/noto-serif-jp-ui-700.woff2") format("woff2");
+}
+
+/*
+ * 替 · Fallbacks cut to the web fonts' measure.
+ *
+ * Until a web font arrives the text is set in a system face, then
+ * re-laid out when it lands (`font-display: swap`). These faces are the
+ * system ones, scaled and given the web font's ascent and descent, so
+ * the swap changes the letters and not the line: computed with
+ * fontTools from the woff2 files against the system fonts
+ * (frequency-weighted average advance → `size-adjust`; the vertical
+ * metrics divided by it). Fraunces' width moves ±5 % with its optical
+ * size, so its fallback is cut for the display sizes (opsz 72), where a
+ * reflow would be seen; small body text in Fraunces stays within a few
+ * percent either way. Android has no Georgia or Arial: there `local()`
+ * finds nothing and the stack moves on, as before.
+ */
+@font-face {
+  font-family: "Fraunces Fallback";
+  font-style: normal;
+  src: local("Georgia");
+  size-adjust: 95.75%;
+  ascent-override: 102.14%;
+  descent-override: 26.63%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Fraunces Fallback";
+  font-style: italic;
+  src: local("Georgia Italic"), local("Georgia-Italic");
+  size-adjust: 89.91%;
+  ascent-override: 108.78%;
+  descent-override: 28.36%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Instrument Sans Fallback";
+  src: local("Arial"), local("ArialMT");
+  size-adjust: 102.38%;
+  ascent-override: 94.75%;
+  descent-override: 24.42%;
+  line-gap-override: 0%;
 }

@@ -5,12 +5,13 @@ import { useT } from "@/i18n/index.jsx";
 import {
   DEFAULT_TEMPLATE_ID,
   LABEL_TEMPLATES,
-  buildLabelPdf,
   pageSize,
   perPage,
   sheetOccupancy,
   summarizeLabels,
 } from "@/lib/labels.js";
+// 札 · Built in a worker when the browser can paint there (`labelsPdf.js`).
+import { buildLabelPdfOffThread } from "@/lib/labelsPdf.js";
 
 /**
  * 札 Fuda · Label-sheet printer.
@@ -97,7 +98,7 @@ export default function LabelSheetModal({
     setError(null);
     setProgress({ done: 0, total: list.length });
     try {
-      const blob = await buildLabelPdf(list, {
+      const blob = await buildLabelPdfOffThread(list, {
         template,
         startAt,
         onProgress: (done, total) => setProgress({ done, total }),

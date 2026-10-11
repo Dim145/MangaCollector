@@ -184,6 +184,64 @@
     </script>
 
     <!--
+      先 · LCP preload — the covers this page opened on last time.
+      A single-page app's largest image is invisible to the browser
+      until the JavaScript has run, read the shelf from IndexedDB and
+      rendered it; on a phone that is seconds during which the cover
+      could already have been downloading. `lib/lcpHints.js` remembers
+      the exact rendition each page drew first; this asks for it while
+      the document is still being parsed.
+
+      Only the landing and a fresh session's dashboard (no remembered
+      view in sessionStorage — a filtered shelf opens on other covers).
+      Only addresses of the two cover CDNs, the cover relay and our own
+      posters: anything else in that key is ignored, not fetched.
+      `no-referrer` matches the `<img>` (MangaDex refuses a foreign
+      Referer), so the browser reuses this response.
+    -->
+    <script>
+      (function () {
+        try {
+          var path = location.pathname;
+          if (path !== "/" && path !== "/dashboard") return;
+          if (path === "/dashboard" && sessionStorage.getItem("mc:dashboard:view")) return;
+          var covers = JSON.parse(localStorage.getItem("mc:lcp:" + path) || "null");
+          if (!covers || !covers.length) return;
+          var ok = /^(https:\/\/(uploads\.mangadex\.org|cdn\.myanimelist\.net)\/|\/api\/user\/(cover\?src=|storage\/poster\/))/;
+          var allowed = function (cover) {
+            if (!cover || typeof cover.src !== "string" || !ok.test(cover.src)) return false;
+            if (cover.srcset == null) return true;
+            if (typeof cover.srcset !== "string" || typeof cover.sizes !== "string") return false;
+            var parts = cover.srcset.split(", ");
+            for (var j = 0; j < parts.length; j++) {
+              if (!ok.test(parts[j])) return false;
+            }
+            return true;
+          };
+          for (var i = 0; i < covers.length && i < 2; i++) {
+            var cover = covers[i];
+            if (!allowed(cover)) continue;
+            var link = document.createElement("link");
+            link.rel = "preload";
+            link.as = "image";
+            if (cover.srcset) {
+              // The same candidates and slot width as the <img>, so the
+              // browser picks the same rendition for both.
+              link.setAttribute("imagesrcset", cover.srcset);
+              link.setAttribute("imagesizes", cover.sizes);
+            }
+            link.href = cover.src;
+            link.setAttribute("fetchpriority", "high");
+            link.referrerPolicy = "no-referrer";
+            document.head.appendChild(link);
+          }
+        } catch (_) {
+          /* private mode / corrupted entry — the page loads cold */
+        }
+      })();
+    </script>
+
+    <!--
       設 · Runtime config injection — Umami analytics.
       The `${...}` placeholders are substituted by `envsubst` at the
       nginx container's startup (see `client/docker-entrypoint.sh`).
@@ -230,35 +288,22 @@
       content="black-translucent"
     />
 
-    <!-- 字 · Font loading strategy.
-         The Google Fonts stylesheet is large (4 families × multiple
-         weights × italic axes for Fraunces). Loading it as a regular
-         `rel=stylesheet` blocks the browser's render-blocking
-         resource pipeline until the CSS is parsed — pushing the
-         first paint of every page back by however long Google's CDN
-         takes to respond.
-         The `media="print" + onload` trick downloads the CSS as a
-         non-render-blocking resource (the browser thinks it's only
-         needed for print), then promotes it to all media once
-         loaded. Combined with `&display=swap` already in the URL,
-         the page renders immediately with the fallback stack and
-         swaps to the custom faces as soon as they're parsed —
-         exactly the behaviour we want.
-         The `<noscript>` mirrors the request synchronously for
-         users with JS disabled, so they still get the typography
-         (just with the original blocking behaviour). -->
-    <!-- Fraunces is requested with `ital,opsz,wght` only. Its `SOFT` and
-         `WONK` axes are never set anywhere in the stylesheet or in JSX
-         (`opsz` is, through `font-optical-sizing: auto`), and every axis
-         a variable font carries is baked into every file the browser
-         downloads: dropping the two unused ones takes the six Fraunces
-         subset files from 566 KB to 314 KB with no visual change. Weights
-         300–900 and italic are all in use, so those ranges stay. -->
+    <!-- 字 · The fonts are ours (`src/styles/fonts.css`, `@fontsource` +
+         the subsetted Noto Serif JP). The two faces most of the first
+         screen is set in are preloaded at build time (see
+         `fontPreloadInjector` in `vite.config.js`). -->
 
     <title>MangaCollector — Your personal manga archive</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      殻 · Boot shell — the header's brand, drawn by the stylesheet alone,
+      so the first paint does not wait for the scripts. React replaces it
+      with the same markup when it mounts (`components/Header.jsx`; the
+      seal skips its arrival stamp then, see `lib/bootShell.js`), and
+      `src/test/bootShell.test.jsx` fails when the two drift apart.
+    -->
+    <div id="root"><header data-boot-shell class="sticky top-0 z-40 border-b border-transparent bg-transparent"><div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6"><a href="/" class="group flex min-h-11 items-center gap-2.5 tap-none" aria-label="MangaCollector home"><div class="relative"><span class="hanko-seal grid h-9 w-9 place-items-center rounded-md text-[10px] font-bold">MC</span></div><div class="flex flex-col leading-none"><span class="text-[0.6rem] uppercase tracking-[0.25em] text-washi-dim">Archive</span><span class="font-display text-lg font-semibold tracking-tight text-washi group-hover:text-hanko-bright transition-colors">Manga<span class="italic text-hanko-bright">Collector</span></span></div></a></div></header></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

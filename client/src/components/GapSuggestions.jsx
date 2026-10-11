@@ -6,6 +6,7 @@ import { summarizeRange } from "@/utils/volume.js";
 import { useGapSuggestions } from "@/hooks/useGapSuggestions.js";
 import { useT } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 export default function GapSuggestions() {
   const t = useT();
   const navigate = useNavigate();
@@ -61,8 +62,9 @@ function GapCard({ manga, missing, gap, t, onOpen, blurred }) {
       className="group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-border bg-ink-1/50 p-3 text-left backdrop-blur transition hover:border-gold/40 hover:-translate-y-0.5"
     >
       {manga.image_url_jpg ? (
-        <img referrerPolicy="no-referrer"
+        <CoverImg referrerPolicy="no-referrer"
           src={manga.image_url_jpg}
+          sizes="56px"
           alt=""
           loading="lazy"
           className={`h-20 w-14 shrink-0 rounded-md border border-border object-cover shadow-md ${

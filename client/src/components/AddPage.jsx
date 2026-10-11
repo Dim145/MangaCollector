@@ -54,6 +54,7 @@ import {
 } from "@/lib/isbn.js";
 import { useT } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 const TRANSIENT_ERROR_TIMEOUT_MS = 2500;
 // 待 · Minimum on-screen duration of `ScanLoadingView` after a
 // barcode is detected. The lookup itself can complete in <100 ms
@@ -1150,9 +1151,10 @@ function ScanMatchCard({
 
       <div className="flex gap-3 p-4">
         {(candidate.image_url || candidate.images?.jpg?.image_url) && (
-          <img
+          <CoverImg
             referrerPolicy="no-referrer"
             src={candidate.image_url ?? candidate.images?.jpg?.image_url}
+            sizes="96px"
             alt=""
             className="h-32 w-24 shrink-0 rounded-md border border-border object-cover shadow-lg"
           />

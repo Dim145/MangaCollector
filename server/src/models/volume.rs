@@ -10,6 +10,12 @@ pub struct Model {
     pub created_on: chrono::DateTime<chrono::Utc>,
     pub modified_on: chrono::DateTime<chrono::Utc>,
     pub user_id: i32,
+    /// 差 · The reader's volume revision this row was last written at —
+    /// set by a database trigger on every insert and update, never by
+    /// this code (migration `20261011120000_volume_sync_rev.sql`). What
+    /// `GET /api/user/volume?since=` compares against.
+    #[sea_orm(default)]
+    pub sync_rev: i64,
     pub mal_id: Option<i32>,
     pub vol_num: i32,
     pub owned: bool,

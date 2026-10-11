@@ -287,6 +287,7 @@ function FoundCard({ local, t, busy, onOpen, onAddCopy, onNext }) {
         {series?.image_url_jpg ? (
           <CoverImage
             src={series.image_url_jpg}
+            sizes="64px"
             alt=""
             paletteSeed={series.mal_id}
             imgClassName="h-full w-full object-cover"

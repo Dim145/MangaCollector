@@ -105,7 +105,7 @@ export default function SeasonGreeting() {
     <aside
       role="status"
       aria-live="polite"
-      className={`relative mb-6 overflow-hidden rounded-2xl border bg-gradient-to-br p-4 backdrop-blur animate-fade-up sm:mb-8 sm:p-5 ${preset.border} ${preset.background}`}
+      className={`relative mb-4 overflow-hidden rounded-2xl border bg-gradient-to-br px-3.5 py-3 backdrop-blur animate-fade-up sm:mb-8 sm:p-5 ${preset.border} ${preset.background}`}
     >
       {/* Ornamental kanji watermark — pinned to the corner so the
           season's signature lives in the negative space without
@@ -118,13 +118,13 @@ export default function SeasonGreeting() {
         {preset.kanji}
       </span>
 
-      <div className="relative flex items-center gap-4">
+      <div className="relative flex items-center gap-3 sm:gap-4">
         {/* Big kanji medallion — same visual tier as the empty-state
             and tour kanji, so the season feels like part of the
             same typographic family rather than a foreign chip. */}
         <span
           aria-hidden="true"
-          className={`shrink-0 font-jp text-4xl font-bold leading-none sm:text-5xl md:text-6xl ${preset.accent}`}
+          className={`shrink-0 font-jp text-3xl font-bold leading-none sm:text-5xl md:text-6xl ${preset.accent}`}
         >
           {preset.kanji}
         </span>
@@ -133,7 +133,10 @@ export default function SeasonGreeting() {
           <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-washi-dim">
             {preset.sekki} · {preset.sekkiRomaji}
           </p>
-          <p className="mt-1 font-display text-base italic leading-snug text-washi md:text-lg">
+          {/* 帯 · On a phone the line is set a size down and kept to
+              two lines: this banner opens the shelf once a season, and
+              every line it takes there is a line of covers below the fold. */}
+          <p className="mt-0.5 line-clamp-2 font-display text-sm italic leading-snug text-washi sm:mt-1 sm:text-base md:text-lg">
             {t(`season.poetic_${season}`)}
           </p>
           {/* The third line is the one that pushed the shelf below the

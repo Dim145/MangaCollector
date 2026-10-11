@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { I18nProvider, loadLanguage } from "@/i18n/index.jsx";
+import { I18nProvider, loadLanguage, loadNamespaces } from "@/i18n/index.jsx";
+import { PAGE_NAMESPACES } from "@/i18n/split.js";
 import SortMenu from "./SortMenu.jsx";
 
 /*
@@ -12,6 +13,8 @@ import SortMenu from "./SortMenu.jsx";
 
 beforeAll(async () => {
   await loadLanguage("en");
+  // The page this component lives on brings its text (`i18n/split.js`).
+  await loadNamespaces(PAGE_NAMESPACES.Dashboard);
 });
 
 function renderMenu(props) {

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import axios from "@/utils/axios.js";
 import { db } from "@/lib/db.js";
@@ -192,16 +192,16 @@ export function useSetPoster() {
  * user makes in the meantime. Both caches are refreshed right after.
  */
 export function useStartReread() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (mal_id) => {
       await axios.post(`/api/user/library/${mal_id}/reread`);
+      // Both refreshes are scoped to the series; invalidating
+      // `library` and `volumes-all` after them sent the whole shelf
+      // back down for a change to one row.
       await Promise.all([
         refetchVolumes(mal_id).catch(() => {}),
         refetchLibraryEntry(mal_id).catch(() => {}),
       ]);
-      qc.invalidateQueries({ queryKey: ["library"] });
-      qc.invalidateQueries({ queryKey: ["volumes-all"] });
       return mal_id;
     },
   });

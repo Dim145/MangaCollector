@@ -66,6 +66,7 @@ function VolumeShelfTileImpl({
       >
         <CoverImage
           src={coverUrl}
+          sizes="(min-width: 1024px) 180px, (min-width: 768px) 19vw, (min-width: 640px) 24vw, 32vw"
           alt={altText}
           blur={blurImage}
           className="h-full w-full object-cover"

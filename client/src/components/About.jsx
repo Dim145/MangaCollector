@@ -535,9 +535,12 @@ function OwnShelf({ shelf, t }) {
           >
             <CoverImage
               src={m.image_url_jpg}
+              sizes="(min-width: 768px) 120px, 23vw"
               alt={m.name}
               paletteSeed={m.name}
               loading={i < 4 ? "eager" : "lazy"}
+              priority={i < 2}
+              lcpHintRank={i < 2 ? i : undefined}
               className="h-full w-full"
             />
             <div

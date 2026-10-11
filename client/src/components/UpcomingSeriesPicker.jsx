@@ -144,6 +144,7 @@ export default function UpcomingSeriesPicker({ open, onClose, onPick }) {
                       {row.manga.image_url_jpg ? (
                         <CoverImage
                           src={row.manga.image_url_jpg}
+                          sizes="32px"
                           alt=""
                           className="absolute inset-0"
                           imgClassName="h-full w-full object-cover"

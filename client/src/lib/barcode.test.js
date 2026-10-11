@@ -193,3 +193,24 @@ describe("scanning a video", () => {
     expect(detect.mock.calls.length).toBe(before);
   });
 });
+
+/*
+ * 源 · The decoder's WebAssembly is ours (`lib/barcode.js`), and it has
+ * to be the build `barcode-detector` embeds the JavaScript glue for: a
+ * mismatched pair fails at the first scan, on exactly the browsers that
+ * have no native detector to fall back on.
+ */
+describe("the self-hosted decoder", () => {
+  it("is the zxing-wasm version barcode-detector was built against", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const { ZXING_WASM_VERSION } = await import("barcode-detector/pure");
+    const pkg = JSON.parse(
+      fs.readFileSync(
+        path.resolve(import.meta.dirname, "../../node_modules/zxing-wasm/package.json"),
+        "utf8",
+      ),
+    );
+    expect(pkg.version).toBe(ZXING_WASM_VERSION);
+  });
+});

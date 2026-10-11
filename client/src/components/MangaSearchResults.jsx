@@ -4,6 +4,7 @@ import { hasToBlurImage } from "@/utils/library.js";
 import Modal from "@/components/ui/Modal.jsx";
 import { useT } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 /**
  * Renders unified search results coming from `/api/external/search`.
  * Each item has:
@@ -69,8 +70,9 @@ export default function MangaSearchResults({
                   className="relative flex-shrink-0 overflow-hidden rounded-md border border-border shadow-md"
                 >
                   {result.image_url ? (
-                    <img referrerPolicy="no-referrer"
+                    <CoverImg referrerPolicy="no-referrer"
                       src={result.image_url}
+                      sizes="64px"
                       alt=""
                       loading="lazy"
                       className={`h-20 w-14 object-cover transition-transform duration-300 group-hover:scale-110 sm:h-24 sm:w-16 ${
@@ -168,8 +170,9 @@ export default function MangaSearchResults({
         handleClose={() => setImgUrl(undefined)}
         additionalClasses=""
       >
-        <img referrerPolicy="no-referrer"
+        <CoverImg referrerPolicy="no-referrer"
           src={imgUrl}
+          sizes="90vw"
           alt="poster"
           className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
         />

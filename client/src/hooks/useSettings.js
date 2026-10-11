@@ -1,8 +1,8 @@
+import { useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import { readSettings, SETTINGS_KEY, db } from "@/lib/db.js";
 import { settingsQuery } from "@/lib/coreQueries.js";
-import { queryClient } from "@/lib/queryClient.js";
 import { enqueueSettingsUpdate } from "@/lib/sync.js";
 import { useAuth } from "@/hooks/useAuth.js";
 
@@ -22,9 +22,22 @@ export function useUserSettings() {
   const { isAuthenticated } = useAuth();
   const query = useQuery({ ...settingsQuery, enabled: isAuthenticated });
 
-  const settings = row
-    ? Object.fromEntries(Object.entries(row).filter(([k]) => k !== "key"))
-    : null;
+  // 一 · One object per distinct row. Rebuilt on every render, it was a
+  // new value each time this hook re-rendered — every `isFetching` flip
+  // of the settings query, every Dexie emission — so the context built
+  // from it (`App.jsx`) changed identity and re-rendered the root of
+  // whatever page was open. Keyed on the row's content rather than its
+  // identity, because Dexie hands back a fresh object even when a
+  // refetch rewrote the same values.
+  const rowKey = row === undefined ? "" : JSON.stringify(row);
+  const settings = useMemo(() => {
+    if (!rowKey) return null;
+    const parsed = JSON.parse(rowKey);
+    if (!parsed) return null;
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([k]) => k !== "key"),
+    );
+  }, [rowKey]);
 
   const dexieReady = row !== undefined;
   // A disabled query stays `pending` for ever; that is not loading.
@@ -50,8 +63,9 @@ export function useUpdateSettings() {
       await enqueueSettingsUpdate(settings);
       return settings;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
-    },
+    // No invalidation: the Dexie write inside `enqueueSettingsUpdate` is
+    // what the page renders, and the flush caches the server's answer to
+    // its own POST. Invalidating here sent a GET that raced the flush and
+    // could only ever come back with the value being replaced.
   });
 }

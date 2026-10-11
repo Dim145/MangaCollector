@@ -86,3 +86,49 @@ export function lanesFromClassName(className) {
     .filter((row) => Number.isFinite(row.min))
     .sort((a, b) => b.min - a.min);
 }
+
+/*
+ * 寸 · How wide a cover is drawn at each breakpoint, as an `<img sizes>`
+ * value — what lets the browser pick a cover's 256-pixel rendition on a
+ * standard screen instead of the 512 one (`lib/covers.js`).
+ *
+ * Derived from the same lane table and the same class string as the
+ * grid itself, gaps included, so the two cannot drift: the dashboard is
+ * `max-w-7xl` (1280 px) with `px-4` / `sm:px-6`, and a tile is what is
+ * left of that, minus the gaps, divided by the lanes. Above the
+ * container's width the tile is a fixed number of pixels.
+ */
+const CONTAINER_PX = 1280;
+const PADDING_PX = { base: 16, sm: 24 };
+
+/** `[{ min, px }]`, widest breakpoint first, read off a grid's class string. */
+export function gapsFromClassName(className) {
+  const table = [];
+  for (const m of className.matchAll(/(?:([a-z]+):)?gap-(\d+(?:\.\d+)?)(?=\s|$)/g)) {
+    const [, screen, step] = m;
+    table.push({ min: screen ? (SCREENS[screen] ?? NaN) : 0, px: Number(step) * 4 });
+  }
+  return table
+    .filter((row) => Number.isFinite(row.min))
+    .sort((a, b) => b.min - a.min);
+}
+
+function gapAt(gaps, width) {
+  for (const row of gaps) if (width >= row.min) return row.px;
+  return 0;
+}
+
+export function coverSizesFor(density) {
+  const gaps = gapsFromClassName(gridClassFor(density));
+  const parts = [];
+  for (const { min, lanes } of laneTable(density)) {
+    const pad = min >= SCREENS.sm ? PADDING_PX.sm : PADDING_PX.base;
+    const fixed = 2 * pad + gapAt(gaps, min) * (lanes - 1);
+    const size =
+      min >= CONTAINER_PX
+        ? `${Math.ceil((CONTAINER_PX - fixed) / lanes)}px`
+        : `calc((100vw - ${fixed}px) / ${lanes})`;
+    parts.push(min > 0 ? `(min-width: ${min}px) ${size}` : size);
+  }
+  return parts.join(", ");
+}

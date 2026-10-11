@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import i18nSplit from "./plugins/i18n-split.js";
 
 /*
  * 試 · Test-only Vite config.
@@ -12,10 +13,12 @@ import path from "path";
  *
  * What we do keep is the `@` alias — several modules under test import
  * siblings through it (`@/utils/axios.js`), so resolution has to match
- * the app build exactly or the imports fail at collection time.
+ * the app build exactly or the imports fail at collection time — and the
+ * catalogue splitter, which serves the `virtual:mc-i18n` modules the
+ * i18n runtime imports (`plugins/i18n-split.js`).
  */
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), i18nSplit({ dir: path.resolve(import.meta.dirname, "src/i18n") })],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),

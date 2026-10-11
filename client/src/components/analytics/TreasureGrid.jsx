@@ -61,6 +61,7 @@ function TopTomeCard({ top, currency, t, loading }) {
         {top.image_url ? (
           <CoverImage
             src={top.image_url}
+            sizes="(min-width: 1024px) 340px, 92vw"
             alt=""
             className="h-full w-full object-cover opacity-85 transition group-hover:scale-[1.04]"
           />

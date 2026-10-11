@@ -1,5 +1,6 @@
 import axios, { resetSessionLostLatch } from "./axios";
 import { clearAllUserData, clearReadCaches } from "@/lib/db.js";
+import { purgePrivateCaches } from "@/lib/privateCaches.js";
 import { isForeignOwner, readOwner, writeOwner } from "@/lib/owner.js";
 
 /*
@@ -84,22 +85,8 @@ function clearCachedUser() {
  * Safari private mode can throw, and a non-existent bucket is a quiet
  * no-op. We swallow every error rather than failing the logout flow.
  */
-const PRIVATE_CACHE_NAMES = [
-  "user-posters",
-  "public-posters",
-  // 印 · Shelf prints are served from `/api/user/snapshots/{id}/image`
-  // and cached for a year: the most personal bucket of the three, and
-  // the one that was outliving a logout.
-  "snapshot-images",
-];
-async function purgePrivateCaches() {
-  if (typeof caches === "undefined") return;
-  await Promise.all(
-    PRIVATE_CACHE_NAMES.map((name) =>
-      caches.delete(name).catch(() => false),
-    ),
-  );
-}
+// The list itself lives in `lib/privateCaches.js`, shared with the
+// lost-session and account-switch wipes.
 
 // Re-exported so the axios 401 interceptor can wipe the cached user
 // on session loss without going through `logout()` (which would try

@@ -4,6 +4,7 @@ import { useOnline } from "@/hooks/useOnline.js";
 import { notifySyncError } from "@/lib/sync.js";
 import { useT } from "@/i18n/index.jsx";
 
+import CoverImg from "@/components/ui/CoverImg.jsx";
 /**
  * Shown when the user picks a MangaDex-only result from the search. MangaDex
  * almost never publishes a fixed volume count, so we ask the user to fill
@@ -73,8 +74,9 @@ export default function MangadexPrefillModal({ result, onClose, onConfirm }) {
 
         <div className="mt-4 flex gap-3">
           {result.image_url && (
-            <img referrerPolicy="no-referrer"
+            <CoverImg referrerPolicy="no-referrer"
               src={result.image_url}
+              sizes="80px"
               alt=""
               className="h-28 w-20 shrink-0 rounded-md border border-border object-cover shadow"
             />

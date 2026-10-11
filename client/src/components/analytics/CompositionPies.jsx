@@ -1,29 +1,12 @@
-import {
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
 import Skeleton from "../ui/Skeleton.jsx";
+import RingChartSvg from "./charts/RingChartSvg.jsx";
 import { useT } from "@/i18n/index.jsx";
 
 /**
  * 高 · The chart's height, in pixels, for both the box that reserves
- * the space and the chart drawn inside it.
- *
- * A number, not `"100%"`, and that is the point. `ResponsiveContainer`
- * starts at a size of -1 × -1 and only learns better from a
- * `ResizeObserver` it attaches in an effect — so on its first render it
- * warns, into the console of anyone who opens /stats:
- *
- *     The width(-1) and height(-1) of chart should be greater than 0
- *
- * Nothing about the parent can prevent that; the element being measured
- * does not exist yet. But the check is an OR over the two axes, so a
- * height it does not have to measure satisfies it. The width stays
- * `"100%"` and still follows the column.
+ * the space and the chart drawn inside it. The width follows the column
+ * (`charts/useElementWidth.js`); the height is fixed so the card never
+ * changes size between the skeleton, the empty state and the chart.
  */
 const CHART_H = 224;
 
@@ -70,44 +53,15 @@ function PieCard({ title, label, data, loading, tFn, emptyKey }) {
             {tFn(emptyKey)}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={CHART_H}>
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey={data[0]?.count != null ? "count" : "value"}
-                nameKey="name"
-                innerRadius={52}
-                outerRadius={82}
-                paddingAngle={2}
-                stroke="none"
-              >
-                {data.map((_, i) => (
-                  <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                cursor={false}
-                contentStyle={{
-                  background: "var(--ink-1)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "0.5rem",
-                  fontSize: 12,
-                  color: "var(--washi)",
-                }}
-                formatter={(value, name) => [
-                  `${value} (${((value / total) * 100).toFixed(0)}%)`,
-                  name,
-                ]}
-              />
-              <Legend
-                verticalAlign="bottom"
-                height={28}
-                iconSize={8}
-                iconType="circle"
-                wrapperStyle={{ fontSize: 11, color: "var(--washi-muted)" }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <RingChartSvg
+            data={data.map((d) => ({ name: d.name, value: d.count ?? d.value ?? 0 }))}
+            height={CHART_H}
+            innerRadius={52}
+            outerRadius={82}
+            palette={PALETTE}
+            ariaLabel={title}
+            describe={(d, pct) => `${d.name} · ${d.value} (${pct}%)`}
+          />
         )}
       </div>
     </div>

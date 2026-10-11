@@ -2,9 +2,18 @@
  * Barcode scanning abstraction.
  *
  * Uses the browser-native `BarcodeDetector` API where available
- * (Chrome/Edge on all platforms, Safari iOS 17+, macOS Sonoma) and
- * falls back to a WASM polyfill on browsers that lack it (Firefox,
- * older iOS).
+ * (Chrome/Edge on Android and macOS) and falls back to a WASM polyfill
+ * on browsers that lack it — Firefox, and Safari, which ships the API
+ * disabled by default (through 27.x), so every iPhone takes this path.
+ *
+ * 源 · The decoder's WebAssembly is served from this origin. The
+ * package fetches it from jsDelivr unless told otherwise, which the
+ * production policy forbids twice over (`connect-src` names no CDN, and
+ * compiling WebAssembly needs `'wasm-unsafe-eval'`): the fallback could
+ * not start behind the shipped nginx, and offline it never could. The
+ * file is a hashed build asset now — 974 kB, gzipped by the build —
+ * fetched the first time a browser without the native API scans, and
+ * kept by the service worker's `/assets/` rule from then on.
  *
  * The polyfill is the `barcode-detector` package, which wraps a
  * tiny ZXing WASM build behind the same `BarcodeDetector` interface.
@@ -43,9 +52,28 @@ async function getDetectorClass() {
   // Polyfill path. `pure` re-exports the BarcodeDetector class
   // without registering it as a global side effect — cleaner than
   // the polyfill bundle for our explicit getDetectorClass() pattern.
-  const { BarcodeDetector } = await import("barcode-detector/pure");
+  const [{ BarcodeDetector, prepareZXingModule }, { default: wasmUrl }] =
+    await Promise.all([
+      import("barcode-detector/pure"),
+      // The version is pinned to the one `barcode-detector` embeds the
+      // glue for (`barcode.test.js` checks they agree).
+      import("zxing-wasm/reader/zxing_reader.wasm?url"),
+    ]);
+  if (!zxingPrepared) {
+    prepareZXingModule({
+      overrides: {
+        locateFile: (file, prefix) =>
+          file.endsWith(".wasm") ? wasmUrl : prefix + file,
+      },
+    });
+    zxingPrepared = true;
+  }
   return BarcodeDetector;
 }
+
+// Set once: a second `prepareZXingModule` with a new `locateFile` would
+// drop the compiled module and fetch the WebAssembly again.
+let zxingPrepared = false;
 
 /**
  * Start detection loop on the given <video> element. `onDetect(rawValue)`

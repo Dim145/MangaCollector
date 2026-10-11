@@ -1,6 +1,4 @@
 import { useDeferredValue, useMemo } from "react";
-import { useLibrary } from "@/hooks/useLibrary.js";
-import { useAllVolumes } from "@/hooks/useVolumes.js";
 
 /**
  * 帳 · Extended analytics bundle for the deep-dive StatsPage.
@@ -53,11 +51,13 @@ function formatMonthLabel(key) {
   return d.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
 }
 
-export function useExtendedAnalytics({ lang = "en" } = {}) {
-  const { data: library, isInitialLoad: libLoading } = useLibrary();
-  const { data: volumes, isInitialLoad: volLoading } = useAllVolumes();
-
-  const loading = libLoading || volLoading;
+/** The rows come from the caller — see `useProfileAnalytics`. */
+export function useExtendedAnalytics({
+  lang = "en",
+  library,
+  volumes,
+  loading = false,
+} = {}) {
 
   // 後 · Same deferred-value pattern as `useProfileAnalytics`.
   // The aggregation below is even heavier (top-N authors +

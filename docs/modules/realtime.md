@@ -32,7 +32,7 @@ tabs of the same browser. Backend instances share events through Redis pub/sub w
 
 ## Data
 
-### Dexie (`client/src/lib/db.js`, database `mangacollector`, schema v16)
+### Dexie (`client/src/lib/db.js`, database `mangacollector`, schema v18)
 
 Every `db.version(n).stores({…})` restates the full table list (a Dexie requirement). The history is additive
 except v7, and no `.upgrade()` data transforms exist, so a version bump never rewrites or drops outbox rows.
@@ -40,7 +40,7 @@ except v7, and no `.upgrade()` data transforms exist, so a version bump never re
 | Table | Indexes | Role | Since |
 |---|---|---|---|
 | `library` | `mal_id, name` | mirror of `GET /api/user/library` | v1 |
-| `volumes` | `id, mal_id, vol_num, isbn, [mal_id+vol_num]` | mirror of the volume rows (`isbn` index: v16) | v1 |
+| `volumes` | `id, mal_id, vol_num, isbn, [mal_id+vol_num], loan_started_at, release_date, location` | mirror of the volume rows (`isbn` index: v16; `loan_started_at`, `release_date`, `location`: v18, for the badge counters, the loans and the drawer's places without a full scan) | v1 |
 | `settings`, `seals`, `streak`, `friendsList` | `key` (single row `"user"`) | mirrors | v1, v6, v9, v15 |
 | `outboxLibrary` | `mal_id, ts` | pending series ops | v1 |
 | `outboxVolumes` | `id, mal_id, ts` | pending per-volume ops (`mal_id` index added in v3 for the delete cascade) | v1 |
@@ -157,7 +157,8 @@ flowchart TD
 |---|---|---|---|
 | `GET /api/ws?client_id=<id>` | session cookie (`AuthenticatedUser`; anonymous → 401) | upgrade; server → client text frames of `SyncEvent`; server pings every 30 s and closes after 60 s without an inbound frame, or at the first ping after the session was revoked or expired; a client frame over 4 KiB closes it | `handlers/realtime.rs` |
 | `GET /auth/provider` | none | connectivity probe, 5 s timeout, must answer JSON | `lib/connectivity.js` |
-| `GET /api/user/library`, `GET /api/user/library/{mal_id}` (`Vec` of 0..1), `GET /api/user/volume`, `GET /api/user/volume/{mal_id}`, `GET /api/user/settings` | session | refetch paths that refill Dexie | `outbox.js`, hooks |
+| `GET /api/user/library`, `GET /api/user/library/{mal_id}` (`Vec` of 0..1), `GET /api/user/volume`, `GET /api/user/volume/{mal_id}`, `GET /api/user/settings` | session | refetch paths that refill Dexie; the full volume list answers its revision in `X-Volume-Rev` | `outbox.js`, hooks |
+| `GET /api/user/volume?since=<rev>` | session | `{ rev, changed, ids }` — the rows written after `rev` and every id that still exists (see *Delta refresh* below); 400 for a negative or malformed `since` | `handlers/volume.rs`, `lib/coreQueries.js` |
 | `POST /api/user/library`, `PATCH /api/user/library/{mal_id}`, `PATCH /api/user/library/{mal_id}/{owned}`, `DELETE /api/user/library/{mal_id}`, `PATCH /api/user/storage/poster/{mal_id}` | session | replayed by `flushLibrary` | `handlers/library.rs` |
 | `PATCH /api/user/volume` | session | `flushVolumes`; `read`, `notes`, `loan` and physical fields only when set | `handlers/volume.rs` |
 | `POST /api/user/settings` | session | `flushSettings` | `handlers/settings.rs` |
@@ -193,7 +194,7 @@ CORS and does not read it yet.
 - `lib/sync/events.js` — `mc:pending-changed` (→ `usePendingCount`, `OfflineBanner`), `mc:sync-error` /
   `mc:sync-info` (→ `SyncToaster`), `mc:sync-event` (→ `SealsUnlockToaster`).
 - `lib/connectivity.js` — `isFullyOnline() = navigator.onLine && serverReachable`, `probeServer()`, and
-  `installConnectivityWatcher()`: an axios response interceptor plus adaptive polling (120 s up, 10 s down).
+  `installConnectivityWatcher()`: a response interceptor on the HTTP client (`utils/axios.js`, `fetch` in axios's shape) plus adaptive polling (120 s up, 10 s down).
   A `200 text/html` counts as *down* — it is the SPA fallback, not the API. `useOnline()` exposes the state.
 - Where invalidation is wired: in `useRealtimeSync` (from events) and inside the outbox refetch helpers
   (`refetchLibrary` → `["library"]`, `refetchVolumes` → `["volumes", mal_id]`, `refetchSettings` → `["settings"]`).
@@ -202,6 +203,34 @@ CORS and does not read it yet.
   refetch *before* the PATCH has been applied, so `cacheVolumesForManga` (delete-then-bulkPut) would overwrite the
   optimistic row with stale server data — the reported bug that later led to the outbox-aware writers. Online-only
   mutations (`useStartReread`, the upcoming-volume CRUD) write the server response into Dexie themselves.
+
+### Delta refresh of `volumes-all`
+
+The realtime path above refreshes one series (`refetchVolumes`). The
+whole list — `["volumes-all"]`, read at every app start, on a stale
+focus, after an import or a restore — no longer comes back in full each
+time. Every `user_volumes` row has a `sync_rev` that a trigger stamps
+from the reader's own counter (`user_volume_revs`), in the transaction
+of the write (migration `20261011120000_volume_sync_rev.sql`). The
+counter row's lock serialises one reader's volume writes, so the
+revisions a device can see only ever grow; a database sequence would
+not give that, its numbers commit out of order. The full read answers
+its revision in `X-Volume-Rev`, read in the same `REPEATABLE READ`
+snapshot as the rows; `?since=<rev>` answers the rows written after it
+and every id that exists, which is how a deletion reaches the device.
+
+`allVolumesQuery` (`lib/coreQueries.js`) asks for the delta when it
+knows a revision (`mc:etag:volumes-rev`) and Dexie holds rows, and falls
+back to the full, ETag-conditional read on a 400, on an answer without
+`changed`/`ids` (an older server) or on an empty table.
+`applyVolumesDelta` (`lib/db.js`) applies it under the outbox rules of
+`cacheAllVolumes`: a row with a pending op is left alone, a series with
+a pending delete loses its tomes, a row the server no longer lists goes,
+and a row that already reads the same is not written. The cursor lives
+under the ETag prefix, so every wipe that forgets the tags (logout,
+account switch, purge) also sends the next read back to a full one. On
+the seeded library: 1 189 604 bytes for the full read, 12.6 kB for a
+delta after one remote change (the 1 988 ids are most of it).
 
 ## Invariants & gotchas
 

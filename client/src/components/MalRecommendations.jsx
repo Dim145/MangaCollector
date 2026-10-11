@@ -3,6 +3,7 @@ import Skeleton from "./ui/Skeleton.jsx";
 import { useMalRecommendations } from "@/hooks/useMalRecommendations.js";
 import { useT } from "@/i18n/index.jsx";
 import { MAL_UNAVAILABLE } from "@/lib/malData.js";
+import CoverImg from "@/components/ui/CoverImg.jsx";
 // Only mounts when a tile is clicked — deferred out of the profile chunk.
 const MalRecommendationModal = lazy(
   () => import("./MalRecommendationModal.jsx"),
@@ -176,9 +177,10 @@ export default function MalRecommendations() {
                   }}
                 >
                   {rec.image_url ? (
-                    <img
+                    <CoverImg
                       referrerPolicy="no-referrer"
                       src={rec.image_url}
+                      sizes="(min-width: 768px) 160px, 33vw"
                       alt=""
                       loading="lazy"
                       className="aspect-[2/3] w-full object-cover transition-transform duration-500 group-hover:scale-105"

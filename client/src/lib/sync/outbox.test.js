@@ -15,6 +15,9 @@ vi.mock("../queryClient.js", () => ({
     invalidateQueries: vi.fn(),
     setQueryData: vi.fn(),
     removeQueries: vi.fn(),
+    // The library and settings refreshes go through the query client so
+    // they share its key and its ETag check; run the query for real.
+    fetchQuery: vi.fn((options) => options.queryFn()),
   },
 }));
 vi.mock("@/utils/axios.js", () => ({
@@ -629,5 +632,77 @@ describe("flushing the library queue", () => {
     await syncOutbox({ force: true });
     expect(patchedPaths()).toContain("/api/user/library/2/5");
     expect(localStorage.getItem("mc:owner")).toBe("7");
+  });
+});
+
+/*
+ * 並 · The volume queue goes out several requests at a time, but never
+ * two for one series: the server recounts a series' row after each
+ * PATCH, and two recounts in flight for the same series can leave it a
+ * tome behind.
+ */
+describe("flushing the volume queue", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    axios.get.mockImplementation((url) =>
+      Promise.resolve({ data: url === "/auth/user" ? { id: 7 } : [] }),
+    );
+  });
+
+  it("sends one series' ops in order, and different series side by side", async () => {
+    const events = [];
+    const busy = new Set();
+    let current = 0;
+    let maxParallel = 0;
+    let overlapSameSeries = false;
+    const seriesOf = { 1: 10, 2: 10, 3: 10, 101: 20 };
+    axios.patch.mockImplementation(async (_url, body) => {
+      const series = seriesOf[body.id];
+      if (busy.has(series)) overlapSameSeries = true;
+      busy.add(series);
+      current += 1;
+      maxParallel = Math.max(maxParallel, current);
+      events.push(`start ${body.id}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      events.push(`end ${body.id}`);
+      current -= 1;
+      busy.delete(series);
+      return { data: {} };
+    });
+    await db.outboxVolumes.bulkPut([
+      { id: 1, mal_id: 10, payload: { owned: true }, ts: 1 },
+      { id: 2, mal_id: 10, payload: { owned: true }, ts: 2 },
+      { id: 3, mal_id: 10, payload: { owned: true }, ts: 4 },
+      { id: 101, mal_id: 20, payload: { owned: true }, ts: 3 },
+    ]);
+
+    await syncOutbox({ force: true });
+
+    expect(overlapSameSeries).toBe(false);
+    expect(maxParallel).toBe(2);
+    expect(events.indexOf("end 1")).toBeLessThan(events.indexOf("start 2"));
+    expect(events.indexOf("end 2")).toBeLessThan(events.indexOf("start 3"));
+    await expect(db.outboxVolumes.count()).resolves.toBe(0);
+  });
+
+  it("stops starting requests after a retriable failure and keeps the rest queued", async () => {
+    axios.patch.mockImplementation(async (_url, body) => {
+      if (body.id === 1) {
+        const err = new Error("Network Error");
+        throw err;
+      }
+      return { data: {} };
+    });
+    await db.outboxVolumes.bulkPut([
+      { id: 1, mal_id: 10, payload: { owned: true }, ts: 1 },
+      { id: 2, mal_id: 10, payload: { owned: true }, ts: 2 },
+    ]);
+
+    await syncOutbox({ force: true });
+
+    // The second op of the failed series was never sent.
+    expect(axios.patch.mock.calls.map((c) => c[1].id)).toEqual([1]);
+    await expect(db.outboxVolumes.count()).resolves.toBe(2);
   });
 });
