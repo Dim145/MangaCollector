@@ -5,6 +5,7 @@ import { Card, CardHeader, Chapter, RadioCard, SubBlock } from "./_shared.jsx";
 const CURRENCIES = [
   { code: "USD", key: "USD", flag: "🇺🇸" },
   { code: "EUR", key: "EUR", flag: "🇪🇺" },
+  { code: "JPY", key: "JPY", flag: "🇯🇵" },
 ];
 
 export default function ChapterContent({
@@ -198,6 +199,9 @@ function CurrencySection({ currency, onChange, t }) {
           </button>
         ))}
       </div>
+      <p className="mt-3 text-[11px] text-washi-dim">
+        {t("settings.currencyNoConversion")}
+      </p>
     </Card>
   );
 }

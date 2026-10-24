@@ -1363,6 +1363,16 @@ export default {
     currencyPreview: "Preview",
     currencyUSD: "US Dollar",
     currencyEUR: "Euro",
+    currencyJPY: "Japanese Yen",
+    currencyConfirmTitle: "Switch to {code}?",
+    currencyConfirmBody:
+      "{count} saved prices will keep exactly the same numbers. They are not converted: only the symbol and the decimals change.",
+    currencyConfirmBodyOne:
+      "1 saved price will keep exactly the same number. It is not converted: only the symbol and the decimals change.",
+    currencyConfirmExample: "A price shown as {before} will read {after}.",
+    currencyConfirmAction: "Switch to {code}",
+    currencyNoConversion:
+      "Changing the currency only changes how amounts are written. Stored prices are never converted.",
     titleLanguage: "Title language",
     titleBody: "Which title is preferred when MAL provides alternatives.",
     titleDefault: "Default (MAL)",

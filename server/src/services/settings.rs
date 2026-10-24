@@ -46,6 +46,22 @@ pub fn get_currency_by_code(code: &str) -> Option<CurrencyInfo> {
             format: "#!".into(),
             negative_pattern: "-#!".into(),
         }),
+        // 円 · The yen has no minor unit in everyday use: zero decimals,
+        // so the fraction separator is never shown. The `decimal`
+        // character is still set (and differs from `separator`) because
+        // the client formatter takes both for every currency. Adding a
+        // code here also means widening the `settings_currency_check`
+        // constraint — `20261024100000_settings_currency_jpy.sql` did it
+        // for this one — and the client's picker and mirror table.
+        "JPY" => Some(CurrencyInfo {
+            code: "JPY".into(),
+            symbol: "¥".into(),
+            separator: ",".into(),
+            decimal: ".".into(),
+            precision: 0,
+            format: "!#".into(),
+            negative_pattern: "-!#".into(),
+        }),
         _ => None,
     }
 }
@@ -243,15 +259,39 @@ mod tests {
         assert_eq!(eur.decimal, ",", "EUR marks the fraction with a comma");
         assert_eq!(eur.format, "#!", "EUR writes the symbol last");
 
+        let jpy = get_currency_by_code("JPY").expect("JPY is in the catalogue");
+        assert_eq!(jpy.symbol, "¥", "the yen sign, not the fullwidth ￥");
+        assert_eq!(jpy.precision, 0, "the yen is written without decimals");
+        assert_eq!(jpy.separator, ",", "JPY groups thousands with a comma");
+        assert_eq!(jpy.format, "!#", "JPY writes the symbol first");
+
         // Whatever the currency, the two must differ — sharing a
         // character makes 1.234 ambiguous.
-        for code in ["USD", "EUR"] {
+        for code in ["USD", "EUR", "JPY"] {
             let c = get_currency_by_code(code).unwrap();
             assert_ne!(
                 c.separator, c.decimal,
                 "{code} uses the same character for both roles"
             );
         }
+    }
+
+    /// Every code the picker offers must be one the server accepts, and
+    /// the database constraint (`settings_currency_check`) must accept
+    /// the same codes: this list is the third copy of the catalogue, and
+    /// `update_user_settings` quietly keeps the old currency for a code
+    /// it does not know.
+    #[test]
+    fn every_offered_currency_is_accepted_and_keeps_its_own_code() {
+        for code in ["USD", "EUR", "JPY"] {
+            let info = get_currency_by_code(code).unwrap_or_else(|| panic!("{code} is unknown"));
+            assert_eq!(info.code, code);
+            assert!(info.precision <= 2, "the price column holds two decimals");
+        }
+        assert!(
+            get_currency_by_code("jpy").is_none(),
+            "codes are case-sensitive, as the constraint is"
+        );
     }
 
     /// The default has to be a code the catalogue answers, or a fresh

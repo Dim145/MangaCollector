@@ -66,7 +66,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { notifySyncError, notifySyncInfo } from "@/lib/sync.js";
 import { refetchLibraryEntry } from "@/lib/sync/outbox.js";
 import { removePoster, uploadPoster } from "@/utils/user.js";
-import { formatCurrency } from "@/utils/price.js";
+import { formatCurrency, priceInputPlaceholder, priceInputStep } from "@/utils/price.js";
 import { coverTransitionName } from "@/lib/viewTransition.js";
 import { useT } from "@/i18n/index.jsx";
 
@@ -1361,8 +1361,8 @@ export default function MangaPage({ manga, adult_content_level }) {
                       type="number"
                       value={addAvgPrice}
                       onChange={(e) => setAddAvgPrice(e.target.value)}
-                      placeholder="0.00"
-                      step="0.01"
+                      placeholder={priceInputPlaceholder(currencySetting)}
+                      step={priceInputStep(currencySetting)}
                       min="0"
                       className="w-full rounded-lg border border-border bg-ink-0 px-3 py-2 text-sm text-washi focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
                     />

@@ -1,5 +1,21 @@
 import currency from "currency.js";
 
+/**
+ * `step` / `placeholder` for a price `<input type="number">` in the
+ * account's currency: whole units for a zero-decimal currency (JPY), two
+ * decimals otherwise. The browser then refuses 12.5 yen instead of the
+ * server storing it and the display rounding it away.
+ */
+export function priceInputStep(formatObject) {
+  const precision = formatObject?.precision ?? 2;
+  return precision <= 0 ? "1" : String(Math.pow(10, -precision));
+}
+
+export function priceInputPlaceholder(formatObject) {
+  const precision = formatObject?.precision ?? 2;
+  return precision <= 0 ? "0" : `0.${"0".repeat(precision)}`;
+}
+
 export function formatCurrency(amount, formatObject) {
   // Coerce to Number first — prices may arrive as strings from the API
   // (rust_decimal serializes to "7.00"). Passing the string directly to

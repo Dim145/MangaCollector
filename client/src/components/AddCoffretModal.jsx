@@ -1,3 +1,4 @@
+import { priceInputStep } from "@/utils/price.js";
 import { useEffect, useMemo, useState } from "react";
 import Modal from "./ui/Modal.jsx";
 import StoreAutocomplete from "./ui/StoreAutocomplete.jsx";
@@ -240,7 +241,7 @@ export default function AddCoffretModal({
                 id="coffret-price"
                 type="number"
                 min="0"
-                step="0.01"
+                step={priceInputStep(currencySetting)}
                 placeholder="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}

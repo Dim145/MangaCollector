@@ -1,3 +1,4 @@
+import { priceInputPlaceholder, priceInputStep } from "@/utils/price.js";
 import { useContext, useEffect, useRef, useState } from "react";
 import Modal from "@/components/ui/Modal.jsx";
 import Skeleton from "@/components/ui/Skeleton.jsx";
@@ -331,14 +332,14 @@ export default function MalRecommendationModal({
             <input
               id="rec-price"
               type="number"
-              step="0.01"
+              step={priceInputStep(currencySetting)}
               min="0"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               onFocus={(e) => {
                 if (Number(e.target.value) === 0) e.target.select();
               }}
-              placeholder="0.00"
+              placeholder={priceInputPlaceholder(currencySetting)}
               className="mt-1.5 w-full rounded-lg border border-border bg-ink-0 px-3 py-2 font-display text-sm font-semibold text-washi focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
             />
             <p className="mt-1.5 text-[10px] text-washi-dim">

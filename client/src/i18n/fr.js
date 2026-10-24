@@ -1400,6 +1400,16 @@ export default {
     currencyPreview: "Aperçu",
     currencyUSD: "Dollar américain",
     currencyEUR: "Euro",
+    currencyJPY: "Yen japonais",
+    currencyConfirmTitle: "Passer en {code} ?",
+    currencyConfirmBody:
+      "{count} prix enregistrés gardent exactement les mêmes chiffres. Ils ne sont pas convertis : seuls le symbole et les décimales changent.",
+    currencyConfirmBodyOne:
+      "1 prix enregistré garde exactement le même chiffre. Il n'est pas converti : seuls le symbole et les décimales changent.",
+    currencyConfirmExample: "Un prix affiché {before} s'affichera {after}.",
+    currencyConfirmAction: "Passer en {code}",
+    currencyNoConversion:
+      "Changer de devise ne change que l'écriture des montants. Les prix enregistrés ne sont jamais convertis.",
     titleLanguage: "Langue du titre",
     titleBody: "Quel titre est préféré quand MAL fournit des alternatives.",
     titleDefault: "Par défaut (MAL)",

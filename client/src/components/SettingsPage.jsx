@@ -8,6 +8,8 @@ const DeleteAccountFlow = lazy(() =>
 );
 import ChapterAppearance from "@/components/settings/ChapterAppearance.jsx";
 import ChapterContent from "@/components/settings/ChapterContent.jsx";
+import CurrencySwitchModal from "@/components/settings/CurrencySwitchModal.jsx";
+import { planCurrencySwitch } from "@/lib/currencySwitch.js";
 import ChapterAccount from "@/components/settings/ChapterAccount.jsx";
 import ChapterAdvanced from "@/components/settings/ChapterAdvanced.jsx";
 import { useOnline } from "@/hooks/useOnline.js";
@@ -44,6 +46,7 @@ const THEME_OPTION_VALUES = [
 const CURRENCY_FORMATS = {
   USD: { code: "USD", symbol: "$", separator: ",", decimal: ".", precision: 2, format: "!#", negativePattern: "-!#" },
   EUR: { code: "EUR", symbol: "€", separator: " ", decimal: ",", precision: 2, format: "#!", negativePattern: "-#!" },
+  JPY: { code: "JPY", symbol: "¥", separator: ",", decimal: ".", precision: 0, format: "!#", negativePattern: "-!#" },
 };
 
 // 章 · The four chapters of the settings tome. Each chapter pairs a
@@ -98,6 +101,7 @@ export default function SettingsPage() {
 
   const [showAdultContent, setShowAdultContent] = useState(0);
   const [currencyObject, setCurrencyObject] = useState(null);
+  const [pendingCurrency, setPendingCurrency] = useState(null);
   const [titleType, setTitleType] = useState("Default");
   const [theme, setTheme] = useState("dark");
   const [language, setLanguage] = useState("en");
@@ -296,10 +300,24 @@ export default function SettingsPage() {
     setSoundEnabled(value);
     save({ ...baseSettings(), sound_enabled: value });
   };
-  const handleCurrencyChange = (code) => {
-    const nextCurrency = CURRENCY_FORMATS[code] ?? { code };
+  const applyCurrency = (nextCurrency) => {
     setCurrencyObject(nextCurrency);
     save({ ...baseSettings(), currency: nextCurrency });
+  };
+  // 銭 · With saved prices on the shelf, ask first: the amounts are
+  // not converted, only written differently.
+  const handleCurrencyChange = async (code) => {
+    const nextCurrency = CURRENCY_FORMATS[code] ?? { code };
+    const plan = await planCurrencySwitch({
+      current: currencyObject?.code,
+      next: code,
+    });
+    if (plan.action === "none") return;
+    if (plan.action === "apply") {
+      applyCurrency(nextCurrency);
+      return;
+    }
+    setPendingCurrency({ next: nextCurrency, count: plan.count, example: plan.example });
   };
 
   const handleRestore = async () => {
@@ -453,6 +471,21 @@ export default function SettingsPage() {
         onConfirm={handleRestore}
         t={t}
       />
+
+      {pendingCurrency && (
+        <CurrencySwitchModal
+          from={currencyObject}
+          to={pendingCurrency.next}
+          count={pendingCurrency.count}
+          example={pendingCurrency.example}
+          onCancel={() => setPendingCurrency(null)}
+          onConfirm={() => {
+            applyCurrency(pendingCurrency.next);
+            setPendingCurrency(null);
+          }}
+          t={t}
+        />
+      )}
 
       {deleteFlowOpen && (
         <Suspense fallback={null}>

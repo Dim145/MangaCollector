@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCurrency } from "./price.js";
+import { formatCurrency, priceInputPlaceholder, priceInputStep } from "./price.js";
 
 /*
  * `formatCurrency` wraps currency.js. Two subtleties are load-bearing
@@ -98,5 +98,58 @@ describe("formatCurrency", () => {
   it("falls back to USD defaults when no config object is given", () => {
     expect(formatCurrency(1234.5, undefined)).toBe("$1,234.50");
     expect(formatCurrency(1234.5, null)).toBe("$1,234.50");
+  });
+});
+
+// Exactly the payload the server emits for JPY (`services/settings.rs`).
+const JPY = {
+  code: "JPY",
+  symbol: "¥",
+  separator: ",",
+  decimal: ".",
+  precision: 0,
+  format: "!#",
+  negativePattern: "-!#",
+};
+
+describe("formatCurrency · JPY (the server's wire shape)", () => {
+  it("writes whole yen with the symbol first and no decimals", () => {
+    expect(formatCurrency(1200, JPY)).toBe("¥1,200");
+    expect(formatCurrency(0, JPY)).toBe("¥0");
+    expect(formatCurrency(5414, JPY)).toBe("¥5,414");
+  });
+
+  it("reads the DECIMAL strings the API sends without inflating them", () => {
+    // rust_decimal serialises a DECIMAL(12,2) as "1200.00".
+    expect(formatCurrency("1200.00", JPY)).toBe("¥1,200");
+    expect(formatCurrency("1200.00", JPY)).toBe(formatCurrency(1200, JPY));
+    expect(formatCurrency("1234567.00", JPY)).toBe("¥1,234,567");
+  });
+
+  it("keeps the sign on the same side", () => {
+    expect(formatCurrency(-1200, JPY)).toBe("-¥1,200");
+  });
+
+  it("does not convert: the same stored number reads the same in every currency", () => {
+    // Switching the account currency changes the writing, never the
+    // amount: 1200 stays 1200.
+    expect(formatCurrency(1200, JPY)).toContain("1,200");
+    expect(formatCurrency(1200, undefined)).toBe("$1,200.00");
+    expect(formatCurrency(1200, EUR)).toBe("1 200,00€");
+  });
+});
+
+describe("price input helpers", () => {
+  it("asks for whole units in a zero-decimal currency and cents otherwise", () => {
+    expect(priceInputStep(JPY)).toBe("1");
+    expect(priceInputStep(EUR)).toBe("0.01");
+    expect(priceInputStep(undefined)).toBe("0.01");
+    expect(priceInputStep(null)).toBe("0.01");
+  });
+
+  it("writes the placeholder with the currency's own precision", () => {
+    expect(priceInputPlaceholder(JPY)).toBe("0");
+    expect(priceInputPlaceholder(EUR)).toBe("0.00");
+    expect(priceInputPlaceholder(undefined)).toBe("0.00");
   });
 });

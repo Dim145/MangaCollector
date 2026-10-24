@@ -9,7 +9,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db.js";
 import { normalizeISBN } from "@/lib/isbn.js";
 import { mergeLocationNames } from "@/lib/locations.js";
-import { formatCurrency } from "@/utils/price.js";
+import { formatCurrency, priceInputStep } from "@/utils/price.js";
 import { formatShortDate } from "@/utils/volume.js";
 import { useDeleteUpcomingVolume } from "@/hooks/useVolumes.js";
 import { useFocusTrap } from "@/hooks/useFocusTrap.js";
@@ -646,7 +646,7 @@ export default function VolumeDetailDrawer({
                   if (Number(e.target.value) === 0) e.target.select();
                 }}
                 placeholder="0"
-                step="0.01"
+                step={priceInputStep(currencySetting)}
                 min="0"
                 className="w-full rounded-lg border border-border bg-ink-1 px-3 py-2 text-sm text-washi placeholder:text-washi-dim transition focus:border-hanko/50 focus:outline-none focus:ring-2 focus:ring-hanko/20"
               />
