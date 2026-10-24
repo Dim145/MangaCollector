@@ -296,6 +296,22 @@ accepted as a fallback for those that cannot set `Authorization`.
   page, and shipping it would only invite an offline attack on a short
   secret.
 
+- **`set_physical_copy` writes only what it is sent — price and store
+  included.** Every argument is three-state: omitted leaves the column
+  alone, the empty string clears it, anything else sets it. That is
+  deliberately unlike the REST `PATCH /api/user/volume`, which writes
+  `price` and `store` unconditionally (an omitted one becomes NULL).
+  `price` crosses the wire as a *string* — `1200`, `12.50` — and is
+  refused rather than rounded when it carries a symbol, a thousands
+  separator, a sign, an exponent or a third decimal (`dto::parse_price`);
+  no float ever touches a money column. It is recorded in the account's
+  display currency exactly as written and never converted. `store` shares the
+  REST path's label rules: trimmed, empty → NULL, cut at
+  `STORE_MAX_LEN` (80). The regression tests that pin "omitted fields are
+  untouched" run against a real Postgres when `TEST_DATABASE_URL` is set
+  (`server/src/services/volume_physical_db_tests.rs`) and skip, loudly,
+  otherwise.
+
 ## Where it lives
 
 | File | Role |

@@ -403,9 +403,11 @@ pub struct VolumeUpdateOutcome {
 }
 
 /// 物 · Apply the physical-copy fields of a PATCH: condition (validated),
-/// location (trimmed / clamped / empty → NULL), extra copies (0..=99)
-/// and the purchase date, each only when present. Same (id, user_id)
-/// gate as every other volume write; a missing row is a silent Ok.
+/// location (trimmed / clamped / empty → NULL), extra copies (0..=99),
+/// the purchase date, the price and the store, each only when present.
+/// A field that is absent from the patch is not in the UPDATE at all, so
+/// it keeps whatever the row holds. Same (id, user_id) gate as every
+/// other volume write; a missing row is a silent Ok.
 pub async fn set_physical_details(
     db: &Db,
     id: i32,
@@ -458,6 +460,17 @@ pub async fn set_physical_details(
     }
     if let Some(date) = patch.bought_at {
         active.bought_at = Set(date);
+    }
+    if let Some(amount) = patch.price {
+        // 値 · `None` clears. The caller has already checked the shape
+        // and the range (`routes::mcp::dto::parse_price`); the column is
+        // DECIMAL(12, 2).
+        active.price = Set(amount);
+    }
+    if let Some(raw) = patch.store {
+        // 店 · The same label rules as the REST path (`update_by_id`):
+        // trimmed, empty → NULL, clamped to STORE_MAX_LEN.
+        active.store = Set(sanitize_label(raw, STORE_MAX_LEN));
     }
     if let Some(raw) = patch.isbn {
         // 番 · Empty clears; anything else must be a real ISBN-10/13 and
@@ -1334,3 +1347,6 @@ pub async fn list_borrowed(db: &Db, user_id: i32) -> Result<Vec<BorrowedVolume>,
     Ok(out)
 }
 
+#[cfg(test)]
+#[path = "volume_physical_db_tests.rs"]
+mod physical_db_tests;

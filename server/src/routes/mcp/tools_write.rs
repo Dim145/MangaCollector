@@ -203,7 +203,7 @@ impl McMcp {
     }
 
     #[tool(
-        description = "Record the physical facts about one tome: its condition, where it is shelved, when it was bought, its ISBN and how many spare copies there are. Condition is a closed vocabulary, not free text: one of `new`, `like_new`, `good`, `fair`, `poor`. Takes a tome's own `volume_id` (from `get_volumes`), not its number in the series. An empty string clears a field; omitting it leaves it alone. Naming a place that does not exist registers it.",
+        description = "Record the physical facts about one tome: its condition, where it is shelved, when it was bought, what it cost and where it was bought, its ISBN and how many spare copies there are. Condition is a closed vocabulary, not free text: one of `new`, `like_new`, `good`, `fair`, `poor`. `price` is a plain amount in the account's display currency (`1200` or `12.50`, at most two decimals, never converted) and `store` is free text. Takes a tome's own `volume_id` (from `get_volumes`), not its number in the series. An empty string clears a field; omitting it leaves it alone, and only the fields you send are written. Naming a place that does not exist registers it.",
         annotations(title = "Set physical copy", idempotent_hint = true)
     )]
     async fn set_physical_copy(
@@ -229,6 +229,13 @@ impl McMcp {
                 Some(raw) => Some(Some(dto::parse_date(raw, "bought_on")?)),
                 None => None,
             };
+            // Same convention for the price: absent leaves it, the empty
+            // string clears it, anything else must be a plain amount.
+            let price = match input.price.as_deref().map(str::trim) {
+                Some("") => Some(None),
+                Some(raw) => Some(Some(dto::parse_price(raw, "price")?)),
+                None => None,
+            };
             let patch = PhysicalPatch {
                 has_obi: input.has_obi,
                 has_jacket: input.has_jacket,
@@ -239,12 +246,14 @@ impl McMcp {
                 extra_copies: input.extra_copies,
                 bought_at,
                 isbn: dto::tri_state(input.isbn.clone()),
+                price,
+                store: dto::tri_state(input.store.clone()),
             };
             if patch.is_empty() {
                 return Err(crate::errors::AppError::BadRequest(
                     "Nothing to do: set at least one of condition, location, \
-                     bought_on, isbn, extra_copies, wanted, has_obi, \
-                     has_jacket or has_slipcase."
+                     bought_on, price, store, isbn, extra_copies, wanted, \
+                     has_obi, has_jacket or has_slipcase."
                         .into(),
                 ));
             }

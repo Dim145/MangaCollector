@@ -274,6 +274,52 @@ pub fn parse_date(raw: &str, field: &str) -> Result<chrono::NaiveDate, crate::er
     })
 }
 
+/// 値 · Largest amount the `price` column holds: DECIMAL(12, 2).
+fn price_max() -> rust_decimal::Decimal {
+    rust_decimal::Decimal::new(999_999_999_999, 2)
+}
+
+/// A price argument: a plain, non-negative decimal with at most two
+/// decimals — `1200`, `12.5`, `0.99`.
+///
+/// Strict on purpose. An agent that sends `¥1,200`, `1 200`, `12.345`
+/// or `1e3` has misread something, and storing a rounded guess in a
+/// money column is worse than saying what was expected. Strings cross
+/// the wire (as dates do) so the schema an agent reads names the
+/// format, and so no float ever touches a price.
+pub fn parse_price(
+    raw: &str,
+    field: &str,
+) -> Result<rust_decimal::Decimal, crate::errors::AppError> {
+    use std::str::FromStr;
+    let text = raw.trim();
+    let (int, frac) = match text.split_once('.') {
+        Some((i, f)) => (i, Some(f)),
+        None => (text, None),
+    };
+    let well_formed = !int.is_empty()
+        && int.bytes().all(|b| b.is_ascii_digit())
+        && frac.is_none_or(|f| (1..=2).contains(&f.len()) && f.bytes().all(|b| b.is_ascii_digit()));
+    if !well_formed {
+        return Err(crate::errors::AppError::BadRequest(format!(
+            "`{field}` must be a plain amount such as 1200 or 12.50 \
+             (no currency symbol, no thousands separator, no sign, at most \
+             two decimals), got \"{raw}\"."
+        )));
+    }
+    // Digits only, so this cannot fail; the range is the real check.
+    let amount = rust_decimal::Decimal::from_str(text).map_err(|_| {
+        crate::errors::AppError::BadRequest(format!("`{field}` is not a number: \"{raw}\"."))
+    })?;
+    if amount > price_max() {
+        return Err(crate::errors::AppError::BadRequest(format!(
+            "`{field}` is too large: the most a price can hold is {}.",
+            price_max()
+        )));
+    }
+    Ok(amount)
+}
+
 /// Fold an optional string argument into the three-state shape the
 /// physical-copy and library patches use.
 ///
@@ -328,6 +374,16 @@ pub struct SetPhysicalCopy {
     /// empty string clears it.
     #[serde(default)]
     pub isbn: Option<String>,
+    /// What this copy cost, as a plain decimal in the account's display
+    /// currency: `1200` or `12.50` — no currency symbol, no thousands
+    /// separator, at most two decimals, not negative. It is recorded as
+    /// written and never converted. An empty string clears it.
+    #[serde(default)]
+    pub price: Option<String>,
+    /// Where it was bought, as free text (for example `CDJapan`), cut
+    /// at 80 characters. An empty string clears it.
+    #[serde(default)]
+    pub store: Option<String>,
     /// How many spare copies of this tome the caller holds. There is no
     /// "clear" — zero is it.
     #[serde(default)]
@@ -520,6 +576,93 @@ mod tests {
         assert_eq!(
             tri_state(Some(" salon ".into())),
             Some(Some("salon".into()))
+        );
+    }
+
+    #[test]
+    fn a_price_is_a_plain_amount_or_says_what_it_wanted() {
+        use rust_decimal::Decimal;
+        use std::str::FromStr;
+        for (text, expected) in [
+            ("1200", "1200"),
+            ("  1200  ", "1200"),
+            ("12.5", "12.5"),
+            ("12.50", "12.50"),
+            ("0", "0"),
+            ("0.99", "0.99"),
+            ("007", "7"),
+            ("9999999999.99", "9999999999.99"),
+        ] {
+            assert_eq!(
+                parse_price(text, "price").unwrap(),
+                Decimal::from_str(expected).unwrap(),
+                "{text:?}"
+            );
+        }
+        // Everything a careless agent might send is refused, never rounded
+        // or guessed at — a money column is no place for a best effort.
+        for bad in [
+            "",
+            " ",
+            ".",
+            ".5",
+            "5.",
+            "-5",
+            "+5",
+            "1,200",
+            "1 200",
+            "12.345",
+            "12,50",
+            "1e3",
+            "¥1200",
+            "$12",
+            "１２００",
+            "12.5.0",
+            "NaN",
+            "inf",
+            "0x10",
+            "1_000",
+        ] {
+            let err = parse_price(bad, "price").unwrap_err();
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("`price`"),
+                "the field must be named: {bad:?} → {msg}"
+            );
+        }
+        assert!(
+            parse_price("10000000000", "price").is_err(),
+            "one past the column"
+        );
+        assert!(parse_price("9999999999.99", "price").is_ok());
+        assert!(parse_price("10000000000.00", "price").is_err());
+    }
+
+    #[test]
+    fn set_physical_copy_reads_price_and_store_and_leaves_absent_ones_absent() {
+        // Only the volume: nothing else is implied.
+        let bare: SetPhysicalCopy =
+            serde_json::from_value(serde_json::json!({ "volume_id": 7 })).unwrap();
+        assert_eq!((bare.price, bare.store), (None, None));
+        // Written, cleared, and absent are three different things.
+        let set: SetPhysicalCopy = serde_json::from_value(serde_json::json!({
+            "volume_id": 7, "price": "1200", "store": "CDJapan"
+        }))
+        .unwrap();
+        assert_eq!(set.price.as_deref(), Some("1200"));
+        assert_eq!(set.store.as_deref(), Some("CDJapan"));
+        let clear: SetPhysicalCopy = serde_json::from_value(serde_json::json!({
+            "volume_id": 7, "price": "", "store": ""
+        }))
+        .unwrap();
+        assert_eq!(tri_state(clear.price.clone()), Some(None));
+        assert_eq!(tri_state(clear.store.clone()), Some(None));
+        // A bare JSON number is not accepted: the schema says string.
+        assert!(
+            serde_json::from_value::<SetPhysicalCopy>(
+                serde_json::json!({ "volume_id": 7, "price": 1200 })
+            )
+            .is_err()
         );
     }
 

@@ -184,6 +184,15 @@ pub struct PhysicalPatch {
     pub bought_at: Option<Option<chrono::NaiveDate>>,
     /// Validated and stored as ISBN-13; `Some(None)` clears.
     pub isbn: Option<Option<String>>,
+    /// 値 · What the copy cost, in the account's display currency —
+    /// `Some(None)` clears it. Kept on the same patch as the other copy
+    /// facts so a tool that records a purchase writes it in one UPDATE,
+    /// and so omitting it provably leaves the column alone (the REST
+    /// `PATCH` writes `price` unconditionally; this path never does).
+    pub price: Option<Option<Decimal>>,
+    /// 店 · Where it was bought, free text clamped to `STORE_MAX_LEN`;
+    /// `Some(None)` clears it.
+    pub store: Option<Option<String>>,
 }
 
 impl PhysicalPatch {
@@ -197,6 +206,8 @@ impl PhysicalPatch {
             && self.extra_copies.is_none()
             && self.bought_at.is_none()
             && self.isbn.is_none()
+            && self.price.is_none()
+            && self.store.is_none()
     }
 }
 
@@ -274,6 +285,10 @@ impl UpdateVolumeRequest {
             extra_copies: self.extra_copies.take(),
             bought_at: self.bought_at.take(),
             isbn: self.isbn.take(),
+            // The REST PATCH carries `price` and `store` as top-level
+            // fields handled by `update_by_id`, not through this patch.
+            price: None,
+            store: None,
         }
     }
 }
@@ -412,5 +427,45 @@ mod condition_tests {
         assert!(req.take_physical().is_empty(), "taken once");
         let bare: UpdateVolumeRequest = serde_json::from_str(r#"{"id":1,"owned":true}"#).unwrap();
         assert!(bare.condition.is_none() && bare.extra_copies.is_none());
+    }
+
+    /// Every field on the patch counts as "something to write" — a field
+    /// forgotten in `is_empty` would make a lone `price` or `store` look
+    /// like "nothing to do", or worse, a write be skipped.
+    #[test]
+    fn any_single_field_makes_a_patch_non_empty() {
+        assert!(PhysicalPatch::default().is_empty());
+        let one = |set: fn(&mut PhysicalPatch)| {
+            let mut patch = PhysicalPatch::default();
+            set(&mut patch);
+            patch
+        };
+        let each: Vec<PhysicalPatch> = vec![
+            one(|p| p.has_obi = Some(true)),
+            one(|p| p.has_jacket = Some(true)),
+            one(|p| p.has_slipcase = Some(true)),
+            one(|p| p.wanted = Some(true)),
+            one(|p| p.condition = Some(None)),
+            one(|p| p.location = Some(None)),
+            one(|p| p.extra_copies = Some(0)),
+            one(|p| p.bought_at = Some(None)),
+            one(|p| p.isbn = Some(None)),
+            one(|p| p.price = Some(None)),
+            one(|p| p.store = Some(None)),
+        ];
+        for (i, patch) in each.iter().enumerate() {
+            assert!(!patch.is_empty(), "field #{i} is not counted by is_empty");
+        }
+    }
+
+    /// The REST PATCH writes `price` and `store` through `update_by_id`;
+    /// it must never also route them through the physical patch.
+    #[test]
+    fn the_rest_request_does_not_smuggle_price_or_store_into_the_physical_patch() {
+        let mut req: UpdateVolumeRequest =
+            serde_json::from_str(r#"{"id":1,"owned":true,"price":"12.50","store":"X"}"#).unwrap();
+        let physical = req.take_physical();
+        assert!(physical.price.is_none() && physical.store.is_none());
+        assert!(physical.is_empty());
     }
 }
