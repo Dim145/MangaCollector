@@ -23,6 +23,7 @@ use crate::models::library::{self, Entity as LibraryEntity};
 use crate::models::setting::Entity as SettingEntity;
 use crate::models::user::{self as user_mod, Entity as UserEntity, User};
 use crate::models::volume::{self as volume_mod, Entity as VolumeEntity};
+use crate::services::cache::CacheStore;
 
 /// Build a complete export bundle for the given user.
 pub async fn build_export(db: &Db, user: &User) -> Result<ExportBundle, AppError> {
@@ -610,6 +611,110 @@ fn series_key(mal_id: Option<i32>, mangadex_id: Option<&str>, name: &str) -> Ser
                 .to_lowercase(),
         ),
     }
+}
+
+/// Most MangaDex searches one import may spend. Searches are paced at the
+/// server level (about two and a half a second, shared with every other
+/// caller), so this deadline, not the cap, is what usually ends the loop:
+/// a long import links the first few dozen series and the rest link when
+/// their page is first opened.
+const LINK_MAX_LOOKUPS: usize = 40;
+/// Everything the linking may take, all lookups included. Short on purpose:
+/// the import request waits for it, and a reverse proxy may give up first.
+const LINK_DEADLINE: std::time::Duration = std::time::Duration::from_secs(15);
+/// One lookup, its wait for a pacing slot included.
+const LINK_LOOKUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// 連 · Which bundle series should be looked up on MangaDex: a MAL id and no
+/// usable link yet. Merge leaves a series already in the library untouched,
+/// so those are skipped; replace swaps them for the bundle's version, which
+/// would drop an existing link, so they are looked up like the rest.
+fn series_to_link(
+    library: &[ExportSeries],
+    in_library: &std::collections::HashSet<i32>,
+    mode: ImportMode,
+) -> Vec<usize> {
+    library
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| {
+            let has_link = s
+                .mangadex_id
+                .as_deref()
+                .is_some_and(crate::util::uuid::is_canonical_uuid);
+            let mal = s.mal_id.filter(|m| *m > 0);
+            !has_link
+                && mal.is_some_and(|m| mode == ImportMode::Replace || !in_library.contains(&m))
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// Fill in `mangadex_id` for imported MAL series, so the per-volume covers
+/// work without a manual step. Best effort: a series is linked only when
+/// MangaDex's own MAL link names it uniquely, and any failure (MangaDex down,
+/// rate limited, out of time) leaves the rest unlinked and the import
+/// intact. Returns how many series were linked.
+pub async fn link_mangadex_ids(
+    db: &Db,
+    http_client: &reqwest::Client,
+    cache: Option<&CacheStore>,
+    user_id: i32,
+    mode: ImportMode,
+    bundle: &mut ExportBundle,
+) -> usize {
+    let in_library: std::collections::HashSet<i32> = match LibraryEntity::find()
+        .filter(library::Column::UserId.eq(user_id))
+        .all(db)
+        .await
+    {
+        Ok(rows) => rows.into_iter().filter_map(|r| r.mal_id).collect(),
+        Err(e) => {
+            tracing::warn!(error = %e, "import: mangadex linking skipped, library unreadable");
+            return 0;
+        }
+    };
+
+    let started = std::time::Instant::now();
+    let mut linked = 0;
+    for idx in series_to_link(&bundle.library, &in_library, mode)
+        .into_iter()
+        .take(LINK_MAX_LOOKUPS)
+    {
+        if started.elapsed() >= LINK_DEADLINE {
+            break;
+        }
+        let series = &mut bundle.library[idx];
+        let Some(mal_id) = series.mal_id else {
+            continue;
+        };
+        let lookup = tokio::time::timeout(
+            LINK_LOOKUP_TIMEOUT,
+            crate::services::mangadex_api::find_id_by_mal_id(
+                http_client,
+                cache,
+                mal_id,
+                &series.name,
+            ),
+        )
+        .await;
+        match lookup {
+            Ok(Ok(Some(id))) => {
+                series.mangadex_id = Some(id);
+                linked += 1;
+            }
+            Ok(Ok(None)) => {}
+            Ok(Err(e)) => {
+                tracing::warn!(error = %e, "import: mangadex linking stopped");
+                break;
+            }
+            Err(_) => {
+                tracing::warn!("import: mangadex linking stopped, a lookup timed out");
+                break;
+            }
+        }
+    }
+    linked
 }
 
 /// Apply an import bundle in **merge** mode. Series whose mal_id is
@@ -1560,5 +1665,39 @@ mod import_guard_tests {
         assert_eq!(idx[&1].len(), 2);
         assert_eq!(idx[&2].len(), 1);
         assert!(!idx.contains_key(&3));
+    }
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::*;
+
+    const UUID: &str = "331deec0-fb1a-4680-9248-8a0fc55b5b07";
+
+    fn linkable(mal_id: i32, mangadex_id: Option<&str>) -> ExportSeries {
+        serde_json::from_value(serde_json::json!({
+            "mal_id": mal_id, "mangadex_id": mangadex_id, "name": "x",
+            "volumes": 1, "volumes_owned": 0, "image_url_jpg": null,
+            "genres": [], "coffrets": [], "volumes_detail": []
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn linking_picks_unlinked_mal_series_not_already_in_the_library() {
+        let lib = vec![
+            linkable(1, None),
+            linkable(2, Some(UUID)),
+            linkable(3, Some("junk")),
+            linkable(-4, None),
+            linkable(5, None),
+        ];
+        let have: std::collections::HashSet<i32> = [5].into_iter().collect();
+        assert_eq!(series_to_link(&lib, &have, ImportMode::Merge), vec![0, 2]);
+        // Replace swaps a series for the bundle's copy, so 5 is looked up too.
+        assert_eq!(
+            series_to_link(&lib, &have, ImportMode::Replace),
+            vec![0, 2, 4]
+        );
     }
 }

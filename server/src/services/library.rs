@@ -304,6 +304,22 @@ pub async fn add_to_user_library(
     let publisher = sanitize_label(req.publisher, PUBLISHER_MAX_LEN);
     let edition = sanitize_label(req.edition, EDITION_MAX_LEN);
 
+    // A MAL series added without a MangaDex link gets one when MangaDex
+    // names it uniquely, so its per-volume covers load. After the replay
+    // check above, so a replayed add spends no search. Bounded and best
+    // effort: any failure or a slow MangaDex adds the series unlinked.
+    let mangadex_id_final = match (&req.mangadex_id, mal_id) {
+        (None, Some(id)) if id > 0 => tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            mangadex_api::find_id_by_mal_id(http_client, cache, id, &series_name),
+        )
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .flatten(),
+        _ => req.mangadex_id.clone(),
+    };
+
     // 作家 · Resolve an `authors.id` to stamp onto the new row.
     //
     // Three-step lookup:
@@ -355,7 +371,7 @@ pub async fn add_to_user_library(
         volumes_owned: Set(volumes_owned),
         image_url_jpg: Set(image_url_final),
         genres: Set(Some(genres_str)),
-        mangadex_id: Set(req.mangadex_id.clone()),
+        mangadex_id: Set(mangadex_id_final),
         publisher: Set(publisher),
         edition: Set(edition),
         author_id: Set(resolved_author_id),
@@ -469,6 +485,27 @@ pub async fn add_from_mangadex(
         },
     )
     .await
+}
+
+/// Record a MangaDex link on a series that has none. Guarded on the column
+/// still being empty, so a link the user or another request set is never
+/// overwritten. Returns whether a row changed.
+pub async fn set_mangadex_link_if_unset(
+    db: &Db,
+    user_id: i32,
+    mal_id: i32,
+    mangadex_id: &str,
+) -> Result<bool, AppError> {
+    let res = LibraryEntity::update_many()
+        .col_expr(library::Column::MangadexId, Expr::value(mangadex_id))
+        .col_expr(library::Column::ModifiedOn, Expr::value(Utc::now()))
+        .filter(library::Column::UserId.eq(user_id))
+        .filter(library::Column::MalId.eq(mal_id))
+        .filter(library::Column::MangadexId.is_null())
+        .exec(db)
+        .await
+        .map_err(AppError::from)?;
+    Ok(res.rows_affected > 0)
 }
 
 /// Re-sync a library entry's name, genres and cover from MangaDex. Only

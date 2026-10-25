@@ -167,10 +167,35 @@ pub async fn list_volume_covers(
         .next()
         .ok_or_else(|| AppError::NotFound("Library entry not found".into()))?;
 
+    // A MAL series with no MangaDex link (added before linking existed, or
+    // past an import's budget) is linked now, once, if MangaDex names it
+    // uniquely; the link is kept so later views, and the MangaDex link on
+    // the page, need no search. A miss is remembered for a day.
+    let mut mangadex_id = entry.mangadex_id.clone();
+    if mangadex_id.is_none() && mal_id > 0 {
+        let found = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            crate::services::mangadex_api::find_id_by_mal_id(
+                &state.http_client,
+                state.cache.as_deref(),
+                mal_id,
+                &entry.name,
+            ),
+        )
+        .await;
+        if let Ok(Ok(Some(id))) = found
+            && library::set_mangadex_link_if_unset(&state.db, user.id, mal_id, &id)
+                .await
+                .is_ok()
+        {
+            mangadex_id = Some(id);
+        }
+    }
+
     let covers = cover_pool::fetch_volume_covers(
         &state.http_client,
         state.cache.as_deref(),
-        entry.mangadex_id.as_deref(),
+        mangadex_id.as_deref(),
     )
     .await;
 

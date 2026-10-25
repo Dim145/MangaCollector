@@ -53,8 +53,26 @@ pub async fn export_csv(
 pub async fn import_archive(
     State(state): State<AppState>,
     AuthenticatedUser(user): AuthenticatedUser,
-    Json(body): Json<ImportRequest>,
+    Json(mut body): Json<ImportRequest>,
 ) -> Result<Json<ImportPreview>, AppError> {
+    // Link imported MAL series to MangaDex first, so the per-volume covers
+    // work from the start. Committing only (a preview spends no requests),
+    // and only when an outbound-import slot is free: if not, the import goes
+    // ahead unlinked rather than failing.
+    if !body.dry_run
+        && let Ok(_turn) = crate::services::external_import::EXTERNAL_FETCHES.enter(user.id)
+    {
+        let linked = archive::link_mangadex_ids(
+            &state.db,
+            &state.http_client,
+            state.cache.as_deref(),
+            user.id,
+            body.mode,
+            &mut body.bundle,
+        )
+        .await;
+        tracing::info!(linked, "import: series linked to MangaDex");
+    }
     let preview =
         archive::apply_import_merge(&state.db, &user, &body.bundle, body.dry_run, body.mode)
             .await?;
